@@ -42,7 +42,7 @@ module Omnifocus
     end
 
     def inbox_omnifocus_tasks
-      omnifocus.inbox_omnifocus_tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten
+      omnifocus.inbox_tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten
     end
 
     def project_omnifocus_tasks(include_inactive = false)

@@ -17,11 +17,12 @@ require "googleauth/stores/file_token_store"
 require "fileutils"
 require "thor"
 require "os"
+require "pry"
 
 # Base command line module for samples. Provides authorization support,
 # either using application default credentials or user authorization
 # depending on the use case.
-module Google
+module GoogleTasks
   class BaseCli < Thor
     include Thor::Actions
 
@@ -72,7 +73,7 @@ module Google
         token_store = Google::Auth::Stores::FileTokenStore.new(file: token_store_path)
         authorizer = Google::Auth::UserAuthorizer.new(client_id, scope, token_store)
 
-        user_id = options[:user] || "default"
+        user_id = ENV["USER"] || "default"
 
         credentials = authorizer.get_credentials(user_id)
         if credentials.nil?
