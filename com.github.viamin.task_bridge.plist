@@ -110,6 +110,10 @@
 	</array>
 	<key>UserName</key>
 	<string>bart</string>
+	<key>StandardErrorPath</key>
+	<string>log/error.log</string>
+	<key>StandardOutPath</key>
+	<string>log/task_bridge.log</string>
 	<key>WorkingDirectory</key>
 	<string>/Users/bart/Projects/task_bridge</string>
 </dict>
