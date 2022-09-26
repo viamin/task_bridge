@@ -19,6 +19,8 @@ By default the token will be saved to `~/.config/google/credentials.yaml` - copy
 
 ## Running automatically
 
+The included launchd plist will run the sync script once an hour between 7am and 10pm daily
+
 * Update the `WorkingDirectory` value in `com.github.viamin.task_bridge.plist` to point to the script directory on your computer
 * `cp com.github.viamin.task_bridge.plist ~/Library/LaunchAgents/`
 * `launchctl load -w ~/Library/LaunchAgents/com.github.viamin.task_bridge.plist`
