@@ -16,3 +16,9 @@ Download the JSON credentials to `google_api_client_credentials.json` (or whatev
 
 Run the script and follow the instructions to get an auth token
 By default the token will be saved to `~/.config/google/credentials.yaml` - copy it to the script directory or update your `.env` to point to the credentials file. You can use multiple credentials files for different Google accounts, if you desire.
+
+## Running automatically
+
+* Update the `WorkingDirectory` value in `com.github.viamin.task_bridge.plist` to point to the script directory on your computer
+* `cp com.github.viamin.task_bridge.plist ~/Library/LaunchAgents/`
+* `launchctl load -w ~/Library/LaunchAgents/com.github.viamin.task_bridge.plist`

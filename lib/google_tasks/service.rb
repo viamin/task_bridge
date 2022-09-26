@@ -42,7 +42,7 @@ module GoogleTasks
         status: "needsAction",
         title: omnifocus_task.title
       }.compact
-      Google::Apis::TasksV1::Task.new(task)
+      Google::Apis::TasksV1::Task.new(**task)
     end
   end
 end
