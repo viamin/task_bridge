@@ -40,7 +40,7 @@ module Omnifocus
   #   effectively_completed: false
   # }
   class Task
-    attr_reader :title, :due_date
+    attr_reader :title, :due_date, :completed, :defer_date, :estimated_minutes, :flagged, :note, :tag, :project
 
     def initialize(task, due_date)
       @due_date = due_date
@@ -74,7 +74,7 @@ module Omnifocus
 
     def read_attribute(task, attribute)
       attribute = task.send(attribute).get
-      attribute == :missing_value ? "" : attribute
+      attribute == :missing_value ? nil : attribute
     end
   end
 end
