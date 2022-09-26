@@ -1,6 +1,10 @@
-# omnifocus_sync
+# TaskBridge
 
-Syncs OmniFocus tasks to an external service
+Syncs OmniFocus tasks to an external service (and vice versa)
+
+## OmniFocus Setup
+
+This script uses AppleScript on your Mac to talk to OmniFocus. OmniFocus needs to be installed on the computer you're running this script on to work. 
 
 ## Google Tasks Setup
 
