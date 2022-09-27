@@ -1,8 +1,8 @@
-#!/bin/env ruby
+#!/usr/bin/env ruby
 
-require "dotenv/load"
-require "rb-scpt"
-require "ruby-progressbar"
+require "rubygems"
+require "bundler/setup"
+Bundler.require(:default)
 require_relative "lib/omnifocus/omnifocus"
 require_relative "lib/omnifocus/task"
 require_relative "lib/google_tasks/service"

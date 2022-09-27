@@ -4,7 +4,7 @@ source "https://rubygems.org"
 gem "colorize"
 
 # https://github.com/bkeepers/dotenv
-gem "dotenv"
+gem "dotenv", require: "dotenv/load"
 
 # https://github.com/googleapis/google-auth-library-ruby
 gem "googleauth"
