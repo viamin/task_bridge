@@ -18,6 +18,13 @@ module GoogleTasks
       puts google_task.to_h unless silent
     end
 
+    desc "patch_task", "Update an existing task in a task list"
+    def update_task(tasklist, google_task, omnifocus_task, silent = false)
+      updated_task = task_from_omnifocus(omnifocus_task)
+      tasks_service.patch_task(tasklist.id, google_task.id, updated_task)
+      puts updated_task.to_h unless silent
+    end
+
     private
 
     # @completed = args[:completed] if args.key?(:completed)
@@ -39,7 +46,7 @@ module GoogleTasks
       task = {
         due: omnifocus_task.due_date&.to_datetime&.rfc3339,
         notes: omnifocus_task.note,
-        status: "needsAction",
+        status: omnifocus_task.completed ? "completed" : "needsAction",
         title: omnifocus_task.title
       }.compact
       Google::Apis::TasksV1::Task.new(**task)
