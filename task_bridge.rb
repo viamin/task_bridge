@@ -20,10 +20,10 @@ class TaskBridge
     @google = GoogleTasks::Service.new
     tasklist = @google.tasks_service.list_tasklists.items.find { |list| list.title == list_title }
     existing_tasks = @google.tasks_service.list_tasks(tasklist.id).items
-    omnifocus_tasks = @omnifocus.today_tasks
+    omnifocus_tasks = @omnifocus.sync_tasks
     progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: omnifocus_tasks.length) unless silent
     omnifocus_tasks.each do |task|
-      if (existing_task = existing_tasks.select { |t| t.title == task.title }.first)
+      if (existing_task = existing_tasks.find { |t| t.title == task.title })
         # update the existing task
         @google.update_task(tasklist, existing_task, task)
       else
@@ -42,4 +42,5 @@ class TaskBridge
 end
 
 list = ARGV[0] || "🗓 Reclaim"
+# TaskBridge.new.console
 TaskBridge.new.sync_google_tasks(list)

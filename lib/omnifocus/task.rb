@@ -40,10 +40,39 @@ module Omnifocus
   #   effectively_completed: false
   # }
   class Task
+    WORK_TAGS = [
+      "Work",
+      "Today",
+      "Tomorrow",
+      "This Week",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+      "Next Week",
+      "This Month",
+      "Next Month",
+      "01 - January",
+      "02 - February",
+      "03 - March",
+      "04 - April",
+      "05 - May",
+      "06 - June",
+      "07 - July",
+      "08 - August",
+      "09 - September",
+      "10 - October",
+      "11 - November",
+      "12 - December"
+    ].freeze
+
     attr_reader :title, :due_date, :completed, :defer_date, :estimated_minutes, :flagged, :note, :tag, :project
 
-    def initialize(task, due_date)
-      @due_date = due_date
+    def initialize(task, due_date = nil)
+      @due_date = date_from_tag(task)
       @title = read_attribute(task, :name)
       containing_project = task.containing_project.get
       @project = if containing_project == :missing_value
@@ -71,6 +100,16 @@ module Omnifocus
     end
 
     private
+
+    # Creates a due date from the primary_tag if there isn't a due date
+    def date_from_tag(task)
+      task_due_date = read_attribute(task, :due_date)
+      return task_due_date unless task_due_date.nil?
+      return if task.tags.get.empty?
+
+      tag = (task.tags.get.map(&:name).map(&:get) & WORK_TAGS).first
+      Chronic.parse(tag)
+    end
 
     def read_attribute(task, attribute)
       attribute = task.send(attribute).get

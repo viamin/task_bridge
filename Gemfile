@@ -1,5 +1,8 @@
 source "https://rubygems.org"
 
+# https://github.com/mojombo/chronic
+gem "chronic"
+
 # https://github.com/fazibear/colorize
 gem "colorize"
 
