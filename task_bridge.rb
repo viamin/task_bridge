@@ -19,11 +19,17 @@ class TaskBridge
   def sync_google_tasks(list_title, silent = false)
     @google = GoogleTasks::Service.new
     tasklist = @google.tasks_service.list_tasklists.items.find { |list| list.title == list_title }
-    task_titles = @google.tasks_service.list_tasks(tasklist.id).items.map(&:title)
+    existing_tasks = @google.tasks_service.list_tasks(tasklist.id).items
     omnifocus_tasks = @omnifocus.today_tasks
     progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: omnifocus_tasks.length) unless silent
     omnifocus_tasks.each do |task|
-      @google.add_task(tasklist, task) unless task_titles.include?(task.title)
+      if (existing_task = existing_tasks.select { |t| t.title == task.title }.first)
+        # update the existing task
+        @google.update_task(tasklist, existing_task, task)
+      else
+        # add a new task
+        @google.add_task(tasklist, task)
+      end
       progressbar.increment unless silent
     end
     puts "Synced #{omnifocus_tasks.length} Omnifocus tasks to Google Tasks" unless silent
