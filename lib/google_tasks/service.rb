@@ -4,6 +4,8 @@ require_relative "base_cli"
 module GoogleTasks
   # A service class to connect to the Google Tasks API
   class Service < BaseCli
+    DEBUG = false
+
     attr_reader :tasks_service
 
     def initialize
@@ -12,17 +14,17 @@ module GoogleTasks
     end
 
     desc "add_task", "Add a new task to a given task list"
-    def add_task(tasklist, omnifocus_task, silent = false)
+    def add_task(tasklist, omnifocus_task)
       google_task = task_from_omnifocus(omnifocus_task)
       tasks_service.insert_task(tasklist.id, google_task)
-      puts google_task.to_h unless silent
+      puts google_task.to_h if DEBUG
     end
 
     desc "patch_task", "Update an existing task in a task list"
-    def update_task(tasklist, google_task, omnifocus_task, silent = false)
+    def update_task(tasklist, google_task, omnifocus_task)
       updated_task = task_from_omnifocus(omnifocus_task)
       tasks_service.patch_task(tasklist.id, google_task.id, updated_task)
-      puts updated_task.to_h unless silent
+      puts updated_task.to_h if DEBUG
     end
 
     private
