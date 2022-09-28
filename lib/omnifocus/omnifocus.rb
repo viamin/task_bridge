@@ -4,54 +4,30 @@ module Omnifocus
 
     attr_reader :omnifocus
 
-    def initialize
+    def initialize(options)
+      @options = options
       # Assumes you already have OmniFocus installed
       @omnifocus = Appscript.app.by_name("OmniFocus").default_document
     end
 
-    def sync_tasks
-      tags = [
-        "Work",
-        "Today",
-        "Tomorrow",
-        "This Week",
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-        "Next Week",
-        "This Month",
-        "Next Month",
-        "01 - January",
-        "02 - February",
-        "03 - March",
-        "04 - April",
-        "05 - May",
-        "06 - June",
-        "07 - July",
-        "08 - August",
-        "09 - September",
-        "10 - October",
-        "11 - November",
-        "12 - December"
-      ]
-      tagged_tasks(tags)
+    def tasks_to_sync
+      tagged_tasks
     end
 
     private
 
-    def tagged_tasks(target_tags)
-      tasks = []
-      tags = omnifocus.flattened_tags.get
-      matching_tags = tags.select { |tag| target_tags.include?(tag.name.get) }
-      tagged_tasks = matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_subtasks(t) }.flatten
-      filtered_tasks(tagged_tasks).each do |task|
-        tasks << Task.new(task)
+    def tagged_tasks
+      @tagged_tasks ||= begin
+        target_tags = @options[:tags]
+        tasks = []
+        all_tags = omnifocus.flattened_tags.get
+        matching_tags = all_tags.select { |tag| target_tags.include?(tag.name.get) }
+        tagged_tasks = matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_subtasks(t) }.flatten
+        filtered_tasks(tagged_tasks).each do |task|
+          tasks << Task.new(task, @options)
+        end
+        tasks
       end
-      tasks
     end
 
     # filters out duplicate and old tasks
@@ -75,7 +51,7 @@ module Omnifocus
         due = task.due_date.get
 
         if due.is_a?(Time) && due.to_date > (Date.today - 1)
-          tasks << Task.new(task, due)
+          tasks << Task.new(task, @options)
         end
       end
 
