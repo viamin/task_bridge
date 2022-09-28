@@ -19,7 +19,7 @@ module GoogleTasks
       existing_tasks = tasks_service.list_tasks(tasklist.id).items
       progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: omnifocus_tasks.length) if options[:verbose]
       omnifocus_tasks.each do |task|
-        if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
+        output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
 
           # if (existing_task = existing_tasks.find { |t| t.title == task.title })
           # update the existing task
@@ -28,6 +28,7 @@ module GoogleTasks
           # add a new task
           add_task(tasklist, task, options)
         end
+        progressbar.log output if DEBUG
         progressbar.increment if options[:verbose]
       end
       puts "Synced #{omnifocus_tasks.length} Omnifocus tasks to Google Tasks" if options[:verbose]
@@ -37,14 +38,14 @@ module GoogleTasks
     def add_task(tasklist, omnifocus_task, options)
       google_task = task_from_omnifocus(omnifocus_task)
       tasks_service.insert_task(tasklist.id, google_task)
-      puts google_task.to_h if DEBUG
+      google_task.to_h
     end
 
     desc "patch_task", "Update an existing task in a task list"
     def update_task(tasklist, google_task, omnifocus_task, options)
       updated_task = task_from_omnifocus(omnifocus_task)
       tasks_service.patch_task(tasklist.id, google_task.id, updated_task)
-      puts updated_task.to_h if DEBUG
+      updated_task.to_h
     end
 
     desc "prune_tasks", "Delete completed tasks"

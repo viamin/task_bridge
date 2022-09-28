@@ -6,6 +6,7 @@ Bundler.require(:default)
 require_relative "lib/omnifocus/omnifocus"
 require_relative "lib/omnifocus/task"
 require_relative "lib/google_tasks/service"
+require_relative "lib/github/service"
 
 class TaskBridge
   SUPPORTED_SERVICES = ["GoogleTasks"].freeze
@@ -25,6 +26,7 @@ class TaskBridge
       # opt :update_omnifocus, "Sync completion state back to Omnifocus", default: false
       opt :pretend, "List the found tasks, don't sync", default: false
       opt :verbose, "Verbose output", default: false
+      opt :testing, "Use test path", default: false
     end
     Optimist.die :services, "Supported services: #{SUPPORTED_SERVICES.join(", ")}" if (SUPPORTED_SERVICES & @options[:services]).empty?
     @omnifocus = Omnifocus::Omnifocus.new(@options)
@@ -32,6 +34,7 @@ class TaskBridge
 
   def call
     puts @options.pretty_inspect if @options[:verbose]
+    return testing if @options[:testing]
     return render if @options[:pretend]
 
     if @options[:services].include?("GoogleTasks")
@@ -46,13 +49,19 @@ class TaskBridge
 
   private
 
+  def console
+    of = @omnifocus
+    binding.pry # rubocop:disable Lint/Debugger
+  end
+
   def render
     @omnifocus.tasks_to_sync.each(&:render)
   end
 
-  def console
-    of = @omnifocus
-    binding.pry # rubocop:disable Lint/Debugger
+  def testing
+    service = Github::Service.new(@options)
+    binding.pry
+    puts service.list_repositories
   end
 end
 
