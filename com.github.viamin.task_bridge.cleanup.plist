@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.github.viamin.task_bridge</string>
+	<string>com.github.viamin.task_bridge.cleanup</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>/Users/bart/.asdf/shims/bundler</string>
