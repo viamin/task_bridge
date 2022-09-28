@@ -25,3 +25,10 @@ The included launchd plist will run the sync script once an hour between 7am and
 * `cp com.github.viamin.task_bridge.plist ~/Library/LaunchAgents/`
 * May need to remove the old one first `launchctl remove com.github.viamin.task_bridge`
 * `launchctl load -w ~/Library/LaunchAgents/com.github.viamin.task_bridge.plist`
+
+To run the cleanup task:
+
+* Update the `WorkingDirectory` value in `com.github.viamin.task_bridge.cleanup.plist` to point to the script directory on your computer
+* `cp com.github.viamin.task_bridge.cleanup.plist ~/Library/LaunchAgents/`
+* May need to remove the old one first `launchctl remove com.github.viamin.task_bridge.cleanup`
+* `launchctl load -w ~/Library/LaunchAgents/com.github.viamin.task_bridge.cleanup.plist`

@@ -16,7 +16,6 @@ module GoogleTasks
 
     desc "sync_tasks", "Sync OmniFocus tasks to Google Tasks"
     def sync_tasks(omnifocus_tasks)
-      tasklist = tasks_service.list_tasklists.items.find { |list| list.title == options[:list] }
       existing_tasks = tasks_service.list_tasks(tasklist.id).items
       progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: omnifocus_tasks.length) if options[:verbose]
       omnifocus_tasks.each do |task|
@@ -48,7 +47,17 @@ module GoogleTasks
       puts updated_task.to_h if DEBUG
     end
 
+    desc "prune_tasks", "Delete completed tasks"
+    def prune_tasks
+      tasks_service.clear_task(tasklist.id)
+      puts "Deleted completed tasks from #{tasklist.title}" if options[:verbose]
+    end
+
     private
+
+    def tasklist
+      @tasklist ||= tasks_service.list_tasklists.items.find { |list| list.title == options[:list] }
+    end
 
     # @completed = args[:completed] if args.key?(:completed)
     # @deleted = args[:deleted] if args.key?(:deleted)

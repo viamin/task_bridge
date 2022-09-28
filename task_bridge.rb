@@ -34,7 +34,14 @@ class TaskBridge
     puts @options.pretty_inspect if @options[:verbose]
     return render if @options[:pretend]
 
-    GoogleTasks::Service.new(@options).sync_tasks(@omnifocus.tasks_to_sync) if @options[:services].include?("GoogleTasks")
+    if @options[:services].include?("GoogleTasks")
+      service = GoogleTasks::Service.new(@options)
+      if @options[:delete]
+        service.prune_tasks
+      else
+        service.sync_tasks(@omnifocus.tasks_to_sync)
+      end
+    end
   end
 
   private

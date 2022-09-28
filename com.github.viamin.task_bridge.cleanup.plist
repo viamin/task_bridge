@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.github.viamin.task_bridge.cleanup</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/bart/.asdf/shims/bundler</string>
+		<string>exec</string>
+		<string>ruby</string>
+		<string>task_bridge.rb</string>
+		<string>--delete</string>
+	</array>
+	<key>StartCalendarInterval</key>
+	<array>
+		<dict>
+			<key>Hour</key>
+			<integer>7</integer>
+			<key>Minute</key>
+			<integer>0</integer>
+		</dict>
+	</array>
+	<key>UserName</key>
+	<string>bart</string>
+	<key>StandardErrorPath</key>
+	<string>log/error.log</string>
+	<key>StandardOutPath</key>
+	<string>log/task_bridge.log</string>
+	<key>WorkingDirectory</key>
+	<string>/Users/bart/Projects/task_bridge</string>
+</dict>
+</plist>
