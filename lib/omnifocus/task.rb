@@ -40,8 +40,7 @@ module Omnifocus
   #   effectively_completed: false
   # }
   class Task
-    WORK_TAGS = [
-      "Work",
+    TIME_TAGS = [
       "Today",
       "Tomorrow",
       "This Week",
@@ -69,10 +68,10 @@ module Omnifocus
       "12 - December"
     ].freeze
 
-    attr_reader :title, :due_date, :completed, :defer_date, :estimated_minutes, :flagged, :note, :tag, :project
+    attr_reader :title, :due_date, :completed, :defer_date, :estimated_minutes, :flagged, :note, :tags, :project
 
-    def initialize(task, due_date = nil)
-      @due_date = date_from_tag(task)
+    def initialize(task, options)
+      @options = options
       @title = read_attribute(task, :name)
       containing_project = task.containing_project.get
       @project = if containing_project == :missing_value
@@ -85,7 +84,9 @@ module Omnifocus
       @estimated_minutes = read_attribute(task, :estimated_minutes)
       @flagged = read_attribute(task, :flagged)
       @note = read_attribute(task, :note)
-      @tag = read_attribute(task, :primary_tag)
+      @tags = read_attribute(task, :tags)
+      @tags = @tags.map(&:name).map(&:get) unless @tags.nil? || @tags.empty?
+      @due_date = date_from_tags(task, @tags)
     end
 
     def render
@@ -93,21 +94,32 @@ module Omnifocus
       puts "=" * title_length
       puts @title
       puts "=" * title_length
-      puts "Due: #{@due_date.strftime("%d %B %Y")}"
+      puts "Due: #{@due_date.strftime("%d %B %Y")}" unless @due_date.nil?
+      puts "Defer: #{@defer_date.strftime("%d %B %Y")}" unless @defer_date.nil?
       puts "Project: #{@project}" unless @project.empty?
       puts "Notes: #{@note}\n" unless @note.empty?
+      puts "Tags: #{@tags.join(", ")}\n" unless @tags.empty?
+      puts "Estimate: #{@estimated_minutes} minutes\n" unless @estimated_minutes.nil?
       puts "\n"
+    end
+
+    def is_personal?
+      if @options[:personal_tags].any?
+        (@tags & @options[:personal_tags]).any?
+      elsif @options[:work_tags].any?
+        (@tags & @options[:work_tags]).empty?
+      end
     end
 
     private
 
-    # Creates a due date from the primary_tag if there isn't a due date
-    def date_from_tag(task)
+    # Creates a due date from a tag if there isn't a due date
+    def date_from_tags(task, tags)
       task_due_date = read_attribute(task, :due_date)
       return task_due_date unless task_due_date.nil?
-      return if task.tags.get.empty?
+      return if tags.empty?
 
-      tag = (task.tags.get.map(&:name).map(&:get) & WORK_TAGS).first
+      tag = (tags & TIME_TAGS).first
       Chronic.parse(tag)
     end
 

@@ -8,31 +8,39 @@ require_relative "lib/omnifocus/task"
 require_relative "lib/google_tasks/service"
 
 class TaskBridge
+  SUPPORTED_SERVICES = ["GoogleTasks"].freeze
+
   def initialize
-    @omnifocus = Omnifocus::Omnifocus.new
+    @options = Optimist.options do
+      banner "Sync Tasks from OmniFocus to another service"
+      banner "Supported services: #{SUPPORTED_SERVICES.join(", ")}"
+      banner "By default, tasks found with the tags in --tags will have a work context"
+      opt :tags, "OmniFocus tags to sync", default: ["Reclaim"]
+      opt :personal_tags, "OmniFocus tags used for personal context", default: ["Personal"]
+      opt :work_tags, "OmniFocus tags used for work context (overrides personal tags)", type: :strings
+      conflicts :personal_tags, :work_tags
+      opt :services, "Services to sync OmniFocus tasks to", default: ["GoogleTasks"]
+      opt :list, "Task list name to sync to", default: "🗓 Reclaim"
+      opt :delete, "Delete completed tasks on service", default: false
+      # opt :update_omnifocus, "Sync completion state back to Omnifocus", default: false
+      opt :pretend, "List the found tasks, don't sync", default: false
+      opt :verbose, "Verbose output", default: false
+    end
+    Optimist.die :services, "Supported services: #{SUPPORTED_SERVICES.join(", ")}" if (SUPPORTED_SERVICES & @options[:services]).empty?
+    @omnifocus = Omnifocus::Omnifocus.new(@options)
   end
+
+  def call
+    puts @options.pretty_inspect if @options[:verbose]
+    return render if @options[:pretend]
+
+    GoogleTasks::Service.new(@options).sync_tasks(@omnifocus.tasks_to_sync) if @options[:services].include?("GoogleTasks")
+  end
+
+  private
 
   def render
-    @omnifocus.today_tasks.each(&:render)
-  end
-
-  def sync_google_tasks(list_title, silent = false)
-    @google = GoogleTasks::Service.new
-    tasklist = @google.tasks_service.list_tasklists.items.find { |list| list.title == list_title }
-    existing_tasks = @google.tasks_service.list_tasks(tasklist.id).items
-    omnifocus_tasks = @omnifocus.sync_tasks
-    progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: omnifocus_tasks.length) unless silent
-    omnifocus_tasks.each do |task|
-      if (existing_task = existing_tasks.find { |t| t.title == task.title })
-        # update the existing task
-        @google.update_task(tasklist, existing_task, task)
-      else
-        # add a new task
-        @google.add_task(tasklist, task)
-      end
-      progressbar.increment unless silent
-    end
-    puts "Synced #{omnifocus_tasks.length} Omnifocus tasks to Google Tasks" unless silent
+    @omnifocus.tasks_to_sync.each(&:render)
   end
 
   def console
@@ -41,6 +49,4 @@ class TaskBridge
   end
 end
 
-list = ARGV[0] || "🗓 Reclaim"
-# TaskBridge.new.console
-TaskBridge.new.sync_google_tasks(list)
+TaskBridge.new.call

@@ -15,6 +15,9 @@ gem "googleauth"
 # https://github.com/googleapis/google-api-ruby-client/tree/main/google-api-client/generated/google/apis/tasks_v1
 gem "google-apis-tasks_v1"
 
+# https://github.com/ManageIQ/optimist
+gem "optimist"
+
 # https://github.com/pry/pry
 gem "pry"
 
