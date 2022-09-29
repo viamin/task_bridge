@@ -1,5 +1,5 @@
 module Omnifocus
-  class Omnifocus
+  class Service
     SKIP_AGE = Chronic.parse("2 days ago")
 
     attr_reader :omnifocus
@@ -12,6 +12,12 @@ module Omnifocus
 
     def tasks_to_sync
       tagged_tasks
+    end
+
+    def add_task(task, options)
+    end
+
+    def update_task(existing_task, task, options)
     end
 
     private

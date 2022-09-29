@@ -9,27 +9,29 @@ require_relative "lib/google_tasks/service"
 require_relative "lib/github/service"
 
 class TaskBridge
-  SUPPORTED_SERVICES = ["GoogleTasks"].freeze
+  SUPPORTED_SERVICES = ["GoogleTasks", "Github"].freeze
 
   def initialize
     @options = Optimist.options do
-      banner "Sync Tasks from OmniFocus to another service"
+      banner "Sync Tasks from one service to another"
       banner "Supported services: #{SUPPORTED_SERVICES.join(", ")}"
       banner "By default, tasks found with the tags in --tags will have a work context"
-      opt :tags, "OmniFocus tags to sync", default: ["Reclaim"]
-      opt :personal_tags, "OmniFocus tags used for personal context", default: ["Personal"]
-      opt :work_tags, "OmniFocus tags used for work context (overrides personal tags)", type: :strings
+      opt :primary, "Primary task service", default: "Omnifocus"
+      opt :tags, "Tags (or labels) to sync", default: ["Reclaim"]
+      opt :personal_tags, "Tags (or labels) used for personal context", default: ["Personal"]
+      opt :work_tags, "Tags (or labels) used for work context (overrides personal tags)", type: :strings
       conflicts :personal_tags, :work_tags
-      opt :services, "Services to sync OmniFocus tasks to", default: ["GoogleTasks"]
+      opt :services, "Services to sync tasks to", default: ["GoogleTasks"]
       opt :list, "Task list name to sync to", default: "🗓 Reclaim"
       opt :delete, "Delete completed tasks on service", default: false
-      # opt :update_omnifocus, "Sync completion state back to Omnifocus", default: false
+      # opt :two_way, "Sync completion state back to task service", default: false
+      opt :repositories, "Github repositories to check for synced issues", type: :strings
       opt :pretend, "List the found tasks, don't sync", default: false
       opt :verbose, "Verbose output", default: false
       opt :testing, "Use test path", default: false
     end
     Optimist.die :services, "Supported services: #{SUPPORTED_SERVICES.join(", ")}" if (SUPPORTED_SERVICES & @options[:services]).empty?
-    @omnifocus = Omnifocus::Omnifocus.new(@options)
+    @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(@options)
   end
 
   def call
@@ -37,12 +39,13 @@ class TaskBridge
     return testing if @options[:testing]
     return render if @options[:pretend]
 
-    if @options[:services].include?("GoogleTasks")
-      service = GoogleTasks::Service.new(@options)
+    service_classes = @options[:services].map { |s| "#{s}::Service".safe_constantize }
+    service_classes.each do |service_class|
+      service = service_class.new(@options)
       if @options[:delete]
-        service.prune_tasks
+        service.prune
       else
-        service.sync_tasks(@omnifocus.tasks_to_sync)
+        service.sync(@primary_service)
       end
     end
   end
@@ -50,12 +53,12 @@ class TaskBridge
   private
 
   def console
-    of = @omnifocus
+    of = @primary_service
     binding.pry # rubocop:disable Lint/Debugger
   end
 
   def render
-    @omnifocus.tasks_to_sync.each(&:render)
+    @primary_service.tasks_to_sync.each(&:render)
   end
 
   def testing

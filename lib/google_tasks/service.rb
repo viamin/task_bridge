@@ -14,14 +14,13 @@ module GoogleTasks
       @tasks_service.authorization = user_credentials_for(Google::Apis::TasksV1::AUTH_TASKS)
     end
 
-    desc "sync_tasks", "Sync OmniFocus tasks to Google Tasks"
-    def sync_tasks(omnifocus_tasks)
+    desc "sync", "Sync OmniFocus tasks to Google Tasks"
+    def sync(primary_service)
+      tasks = primary_service.tasks_to_sync
       existing_tasks = tasks_service.list_tasks(tasklist.id).items
-      progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: omnifocus_tasks.length) if options[:verbose]
-      omnifocus_tasks.each do |task|
+      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Google Tasks") if options[:verbose]
+      tasks.each do |task|
         output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
-
-          # if (existing_task = existing_tasks.find { |t| t.title == task.title })
           # update the existing task
           update_task(tasklist, existing_task, task, options)
         else
@@ -31,7 +30,7 @@ module GoogleTasks
         progressbar.log output if DEBUG
         progressbar.increment if options[:verbose]
       end
-      puts "Synced #{omnifocus_tasks.length} Omnifocus tasks to Google Tasks" if options[:verbose]
+      puts "Synced #{tasks.length} #{options[:primary]} tasks to Google Tasks" if options[:verbose]
     end
 
     desc "add_task", "Add a new task to a given task list"
@@ -48,8 +47,8 @@ module GoogleTasks
       updated_task.to_h
     end
 
-    desc "prune_tasks", "Delete completed tasks"
-    def prune_tasks
+    desc "prune", "Delete completed tasks"
+    def prune
       tasks_service.clear_task(tasklist.id)
       puts "Deleted completed tasks from #{tasklist.title}" if options[:verbose]
     end
@@ -89,7 +88,6 @@ module GoogleTasks
     # Form of TITLE ([DURATION] [DUE_DATE] [NOT_BEFORE] [TYPE])
     def reclaim_title_addon(omnifocus_task)
       duration = omnifocus_task.estimated_minutes.nil? ? "" : "for #{omnifocus_task.estimated_minutes} minutes"
-      # due_date = omnifocus_task.due_date.nil? ? "" : "due #{omnifocus_task.due_date.to_datetime.strftime("%b %e")}"
       not_before = omnifocus_task.defer_date.nil? ? "" : "not before #{omnifocus_task.defer_date.to_datetime.strftime("%b %e")}"
       type = omnifocus_task.is_personal? ? "type personal" : ""
       addon_string = "#{type} #{duration} #{not_before}".squeeze(" ").strip
