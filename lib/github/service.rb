@@ -5,41 +5,25 @@ module Github
 
     def initialize(options)
       @options = options
-      @authentication = authenticate
-      puts @authentication if options[:verbose]
+      @authentication = Authentication.new(options).authenticate
     end
 
-    def authenticate
-      auth_params = post_device_code
-      puts "Go to #{auth_params["verification_uri"]}\nand enter the code\n#{auth_params["user_code"]}"
-      wait_for_user(auth_params)
-    end
-
-    def wait_for_user(auth_params)
-      expires_at = future_seconds(auth_params["expires_in"])
-      progressbar = ProgressBar.create(total: nil)
-      waiting = true
-      next_interval = future_seconds(auth_params["interval"])
-      while waiting && (expires_at > Time.now)
-        progressbar.increment
-        sleep 1
-        next if next_interval > Time.now
-
-        next_interval = future_seconds(auth_params["interval"])
-        code_check = post_access_token(auth_params)
-        waiting = code_check.fetch("error", false)
+    # By default Github syncs TO the primary service
+    def sync(primary_service)
+      tasks = issues_to_sync
+      existing_tasks = primary_service.tasks_to_sync
+      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Github issues") if options[:verbose]
+      tasks.each do |task|
+        output = if (existing_task = existing_tasks.find { |t| task.title.strip.downcase == t.title.strip.downcase })
+          # update the existing task
+          primary_service.update_task(existing_task, task, options)
+        else
+          # add a new task
+          primary_service.add_task(task, options)
+        end
+        progressbar.increment if options[:verbose]
       end
-      code_check
-    end
-
-    def list_repositories
-      response = HTTParty.get("https://api.github.com/user/repos", authenticated_options)
-      JSON.parse(response.body)
-    end
-
-    def list_issues(repository)
-      response = HTTParty.get("https://api.github.com/repos/#{repository}/issues", authenticated_options)
-      JSON.parse(response.body)
+      puts "Synced #{tasks.length} Github issues to #{options[:primary]}" if options[:verbose]
     end
 
     private
@@ -53,41 +37,25 @@ module Github
       }
     end
 
-    def future_seconds(interval)
-      Chronic.parse("#{interval} seconds from now")
+    def issues_to_sync
+      repos = list_repositories.filter { |repo| options[:repositories].include?(repo["full_name"]) }
+      issues = repos.map { |repo| list_issues(repo["full_name"]) }.flatten
+      labeled_issues.filter { |issue| (issue_labels(issue) & options[:tags]).any? }
+      labeled_issues.map { |issue| Issue.new(issue) }
     end
 
-    def post_device_code
-      response = HTTParty.post("https://github.com/login/device/code", device_options)
+    def list_repositories
+      response = HTTParty.get("https://api.github.com/user/repos", authenticated_options)
       JSON.parse(response.body)
     end
 
-    def device_options
-      {
-        headers: {
-          accept: "application/json"
-        },
-        body: {
-          client_id: ENV.fetch("GITHUB_CLIENT_ID"),
-          scope: "repo"
-        }
-      }
-    end
-
-    def post_access_token(auth_params)
-      response = HTTParty.post("https://github.com/login/oauth/access_token", check_options(auth_params))
+    def list_issues(repository)
+      response = HTTParty.get("https://api.github.com/repos/#{repository}/issues", authenticated_options)
       JSON.parse(response.body)
     end
 
-    def check_options(auth_params)
-      {
-        headers: device_options[:headers],
-        body: {
-          client_id: ENV.fetch("GITHUB_CLIENT_ID"),
-          device_code: auth_params["device_code"],
-          grant_type: "urn:ietf:params:oauth:grant-type:device_code"
-        }
-      }
+    def issue_labels(issue)
+      issue["labels"].map { |label| label["name"] }
     end
   end
 end
