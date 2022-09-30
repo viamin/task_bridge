@@ -68,7 +68,7 @@ module Omnifocus
       "12 - December"
     ].freeze
 
-    attr_reader :title, :due_date, :completed, :defer_date, :estimated_minutes, :flagged, :note, :tags, :project
+    attr_reader :title, :due_date, :completed, :completion_date, :defer_date, :estimated_minutes, :flagged, :note, :tags, :project
 
     def initialize(task, options)
       @options = options
@@ -80,6 +80,7 @@ module Omnifocus
         containing_project.name.get
       end
       @completed = read_attribute(task, :completed)
+      @completion_date = read_attribute(task, :completion_date)
       @defer_date = read_attribute(task, :defer_date)
       @estimated_minutes = read_attribute(task, :estimated_minutes)
       @flagged = read_attribute(task, :flagged)
@@ -94,12 +95,9 @@ module Omnifocus
       puts "=" * title_length
       puts @title
       puts "=" * title_length
-      puts "Due: #{@due_date.strftime("%d %B %Y")}" unless @due_date.nil?
-      puts "Defer: #{@defer_date.strftime("%d %B %Y")}" unless @defer_date.nil?
-      puts "Project: #{@project}" unless @project.empty?
-      puts "Notes: #{@note}\n" unless @note.empty?
-      puts "Tags: #{@tags.join(", ")}\n" unless @tags.empty?
-      puts "Estimate: #{@estimated_minutes} minutes\n" unless @estimated_minutes.nil?
+      visible_attributes.each do |name, attribute|
+        puts "#{name.to_s.humanize}: #{attribute}" unless attribute.nil?
+      end
       puts "\n"
     end
 
@@ -113,6 +111,19 @@ module Omnifocus
 
     private
 
+    def visible_attributes
+      {
+        completed: @completed,
+        completion_date: @completion_date&.strftime("%l %p - %b %d"),
+        due: @due_date&.strftime("%l %p - %b %d"),
+        defer: @defer_date&.strftime("%b %d"),
+        project: @project,
+        notes: @note,
+        tags: @tags&.join(", "),
+        estimated_minutes: @estimated_minutes
+      }
+    end
+
     # Creates a due date from a tag if there isn't a due date
     def date_from_tags(task, tags)
       task_due_date = read_attribute(task, :due_date)
@@ -124,8 +135,8 @@ module Omnifocus
     end
 
     def read_attribute(task, attribute)
-      attribute = task.send(attribute).get
-      attribute == :missing_value ? nil : attribute
+      value = task.send(attribute).get
+      value == :missing_value ? nil : value
     end
   end
 end

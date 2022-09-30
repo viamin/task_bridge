@@ -14,7 +14,7 @@ module Github
       existing_tasks = primary_service.tasks_to_sync
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Github issues") if options[:verbose]
       tasks.each do |task|
-        output = if (existing_task = existing_tasks.find { |t| task.title.strip.downcase == t.title.strip.downcase })
+        if (existing_task = existing_tasks.find { |t| task.title.strip.downcase == t.title.strip.downcase })
           # update the existing task
           primary_service.update_task(existing_task, task, options)
         else
@@ -40,7 +40,7 @@ module Github
     def issues_to_sync
       repos = list_repositories.filter { |repo| options[:repositories].include?(repo["full_name"]) }
       issues = repos.map { |repo| list_issues(repo["full_name"]) }.flatten
-      labeled_issues.filter { |issue| (issue_labels(issue) & options[:tags]).any? }
+      labeled_issues = issues.filter { |issue| (issue_labels(issue) & options[:tags]).any? }
       labeled_issues.map { |issue| Issue.new(issue) }
     end
 

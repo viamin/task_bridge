@@ -1,3 +1,5 @@
+require_relative "task"
+
 module Omnifocus
   class Service
     SKIP_AGE = Chronic.parse("2 days ago")

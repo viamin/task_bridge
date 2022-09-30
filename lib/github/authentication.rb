@@ -46,9 +46,9 @@ module Github
     end
 
     def missing_authentication
-      return true unless File.exist?(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt")))
+      return true unless File.exist?(File.expand_path(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt"))))
 
-      @authentication = JSON.parse(IO.read(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt"))))
+      @authentication = JSON.parse(IO.read(File.expand_path(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt")))))
       false
     end
 

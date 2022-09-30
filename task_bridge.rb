@@ -3,8 +3,7 @@
 require "rubygems"
 require "bundler/setup"
 Bundler.require(:default)
-require_relative "lib/omnifocus/omnifocus"
-require_relative "lib/omnifocus/task"
+require_relative "lib/omnifocus/service"
 require_relative "lib/google_tasks/service"
 require_relative "lib/github/service"
 
@@ -28,6 +27,7 @@ class TaskBridge
       opt :repositories, "Github repositories to check for synced issues", type: :strings
       opt :pretend, "List the found tasks, don't sync", default: false
       opt :verbose, "Verbose output", default: false
+      opt :debug, "Print debug output", default: false
       opt :testing, "Use test path", default: false
     end
     Optimist.die :services, "Supported services: #{SUPPORTED_SERVICES.join(", ")}" if (SUPPORTED_SERVICES & @options[:services]).empty?
