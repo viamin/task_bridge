@@ -20,9 +20,9 @@ module Github
         if (existing_task = existing_tasks.find { |task| issue.task_title.downcase == task.title.downcase })
           # update the existing task
           primary_service.update_task(existing_task, issue, options)
-        else
+        elsif issue.open?
           # add a new task
-          primary_service.add_task(issue, options) if issue.open?
+          primary_service.add_task(issue, options)
         end
         progressbar.increment if options[:verbose]
       end
@@ -39,14 +39,19 @@ module Github
         },
         query: {
           state: "all",
-          labels: options[:tags].join(",")
+          labels: options[:tags].join(","),
+          since: Chronic.parse("2 days ago").iso8601
         }
       }
     end
 
+    def sync_repositories
+      ENV.fetch("GITHUB_REPOSITORIES", []).split(",")
+    end
+
     def issues_to_sync
-      # repos = list_repositories.filter { |repo| options[:repositories].include?(repo["full_name"]) }
-      issues = options[:repositories].map { |repo| list_issues(repo) }.flatten
+      # repos = list_repositories.filter { |repo| sync_repositories.include?(repo["full_name"]) }
+      issues = sync_repositories.map { |repo| list_issues(repo) }.flatten
       issues.map { |issue| Issue.new(issue) }
     end
 
