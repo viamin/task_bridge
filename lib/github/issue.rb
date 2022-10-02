@@ -3,17 +3,17 @@ module Github
   class Issue
     attr_reader :id, :title, :html_url, :number, :labels, :state, :project, :is_pr
 
-    def initialize(issue)
-      @url = issue["url"]
-      @html_url = issue["html_url"]
-      @id = issue["id"]
-      @number = issue["number"]
-      @title = issue["title"]
-      labels = issue["labels"].map { |label| label["name"] }
+    def initialize(github_issue)
+      @url = github_issue["url"]
+      @html_url = github_issue["html_url"]
+      @id = github_issue["id"]
+      @number = github_issue["number"]
+      @title = github_issue["title"]
+      labels = github_issue["labels"].map { |label| label["name"] }
       @labels = labels.push("Github").uniq
-      @state = issue["state"]
-      @project = issue["project"] || short_repo_name(issue)
-      @is_pr = (issue["pull_request"] && !issue["pull_request"]["diff_url"].nil?) || false
+      @state = github_issue["state"]
+      @project = github_issue["project"] || short_repo_name(github_issue)
+      @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
     end
 
     def closed?
@@ -41,8 +41,8 @@ module Github
 
     private
 
-    def short_repo_name(issue)
-      issue["repository_url"].split("/").last.camelize
+    def short_repo_name(github_issue)
+      github_issue["repository_url"].split("/").last.camelize
     end
 
     # Raw:

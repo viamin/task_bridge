@@ -2,9 +2,22 @@
 
 Syncs OmniFocus tasks to an external service (and vice versa)
 
+Run `ruby task_bridge.rb --help` to see available command line options.
+
+## Configuration via environment variables
+
+Copy the `.env.example` file to `.env` and change any settings if needed.
 ## OmniFocus Setup
 
-This script uses AppleScript on your Mac to talk to OmniFocus. OmniFocus needs to be installed on the computer you're running this script on to work. 
+This script uses AppleScript on your Mac to talk to OmniFocus. OmniFocus needs to be installed on the computer you're running this script on to work.
+
+## Github Setup
+
+TaskBridge will sync issues and PRs that are assigned to you or that have a label matching what is configured in the `tags` setting. Issues created in Omnifocus will have the "Github" tag applied.
+
+This script will connect to Github using an OAuth token that is created when running for the first time. You'll be prompted with a URL to go to and a code to enter. Enter the code into the URL and you will be logged in.
+
+TaskBridge will only sync tasks from repositories you configure in the `GITHUB_REPOSITORIES` environment variable. Add a comma-separated list of repositories in your `.env` file and issues from those repositories will be checked.
 
 ## Google Tasks Setup
 

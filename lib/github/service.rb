@@ -36,23 +36,23 @@ module Github
         headers: {
           accept: "application/vnd.github+json",
           authorization: "Bearer #{authentication["access_token"]}"
-        },
-        query: {
-          state: "all",
-          labels: options[:tags].join(","),
-          since: Chronic.parse("2 days ago").iso8601
         }
       }
     end
 
-    def sync_repositories
-      ENV.fetch("GITHUB_REPOSITORIES", []).split(",")
+    def sync_repositories(with_url = false)
+      repos = ENV.fetch("GITHUB_REPOSITORIES", []).split(",")
+      if with_url
+        repos.map { |repo| "https://api.github.com/repos/#{repo}" }
+      else
+        repos
+      end
     end
 
     def issues_to_sync
-      # repos = list_repositories.filter { |repo| sync_repositories.include?(repo["full_name"]) }
-      issues = sync_repositories.map { |repo| list_issues(repo) }.flatten
-      issues.map { |issue| Issue.new(issue) }
+      tagged_issues = sync_repositories.map { |repo| list_issues(repo) }.flatten.map { |issue| Issue.new(issue) }
+      assigned_issues = list_assigned.filter { |issue| sync_repositories(true).include?(issue["repository_url"]) }.map { |issue| Issue.new(issue) }
+      (tagged_issues + assigned_issues).uniq
     end
 
     # github api reference:
@@ -62,9 +62,29 @@ module Github
     #   JSON.parse(response.body)
     # end
 
+    def list_assigned
+      query = {
+        query: {
+          state: "all",
+          per_page: 100
+        }
+      }
+      response = HTTParty.get("https://api.github.com/issues", authenticated_options.merge(query))
+      if response.code == 200
+        JSON.parse(response.body)
+      end
+    end
+
     # https://docs.github.com/en/rest/issues/issues#list-repository-issues
     def list_issues(repository)
-      response = HTTParty.get("https://api.github.com/repos/#{repository}/issues", authenticated_options)
+      query = {
+        query: {
+          state: "all",
+          labels: options[:tags].join(","),
+          since: Chronic.parse("2 days ago").iso8601
+        }
+      }
+      response = HTTParty.get("https://api.github.com/repos/#{repository}/issues", authenticated_options.merge(query))
       if response.code == 200
         JSON.parse(response.body)
       else

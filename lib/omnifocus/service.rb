@@ -20,7 +20,7 @@ module Omnifocus
       else
         omnifocus.make(new: :inbox_task, with_properties: issue.properties)
       end
-      if task
+      if task && !tags(issue).empty?
         # add tags
         tags(issue).each do |tag|
           omnifocus.add(tag, to: task.tags)
@@ -46,10 +46,16 @@ module Omnifocus
       nil
     end
 
+    def tag(name)
+      tag = omnifocus.flattened_tags[tag]
+      tag.get
+      tag
+    rescue
+      nil
+    end
+
     def tags(issue)
-      issue.tags.map do |tag|
-        omnifocus.flattened_tags[tag]
-      end
+      issue.tags.map { |tag| tag(tag) }.compact
     end
 
     def tagged_tasks
