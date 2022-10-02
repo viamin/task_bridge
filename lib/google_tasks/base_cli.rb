@@ -84,6 +84,8 @@ module GoogleTasks
           credentials = authorizer.get_and_store_credentials_from_code(
             user_id: user_id, code: code, base_url: OOB_URI
           )
+        elsif credentials.expired?
+          raise "Google credentials have expired. Delete #{token_store_path} and re-authenticate"
         end
         credentials
       end

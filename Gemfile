@@ -1,5 +1,8 @@
 source "https://rubygems.org"
 
+# https://github.com/rails/rails/tree/main/activesupport
+gem "activesupport", require: "active_support/inflector"
+
 # https://github.com/mojombo/chronic
 gem "chronic"
 
@@ -14,6 +17,9 @@ gem "googleauth"
 
 # https://github.com/googleapis/google-api-ruby-client/tree/main/google-api-client/generated/google/apis/tasks_v1
 gem "google-apis-tasks_v1"
+
+# https://github.com/jnunemaker/httparty
+gem "httparty"
 
 # https://github.com/ManageIQ/optimist
 gem "optimist"

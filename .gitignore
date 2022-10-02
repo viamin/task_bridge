@@ -41,5 +41,6 @@ Gemfile.lock
 # .rubocop-https?--*
 
 # Stored credentials
-google_api_client_credentials.json
 credentials.yaml
+github_access_code.txt
+google_api_client_credentials.json
