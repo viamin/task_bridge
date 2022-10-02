@@ -1,3 +1,5 @@
+require_relative "service"
+
 module Omnifocus
   # task.properties_.get
   # {
@@ -68,10 +70,11 @@ module Omnifocus
       "12 - December"
     ].freeze
 
-    attr_reader :title, :due_date, :completed, :completion_date, :defer_date, :estimated_minutes, :flagged, :note, :tags, :project
+    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :defer_date, :estimated_minutes, :flagged, :note, :tags, :project
 
     def initialize(task, options)
       @options = options
+      @id = read_attribute(task, :id_)
       @title = read_attribute(task, :name)
       containing_project = task.containing_project.get
       @project = if containing_project == :missing_value
@@ -101,12 +104,20 @@ module Omnifocus
       puts "\n"
     end
 
+    def incomplete?
+      !completed
+    end
+
     def is_personal?
       if @options[:personal_tags].any?
         (@tags & @options[:personal_tags]).any?
       elsif @options[:work_tags].any?
         (@tags & @options[:work_tags]).empty?
       end
+    end
+
+    def mark_complete
+      original_task.mark_complete
     end
 
     private
@@ -132,6 +143,10 @@ module Omnifocus
 
       tag = (tags & TIME_TAGS).first
       Chronic.parse(tag)
+    end
+
+    def original_task
+      Service.new(options).omnifocus.flattened_tags["Github"].tasks[title].get
     end
 
     def read_attribute(task, attribute)

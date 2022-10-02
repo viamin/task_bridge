@@ -16,7 +16,7 @@ class TaskBridge
       banner "Supported services: #{SUPPORTED_SERVICES.join(", ")}"
       banner "By default, tasks found with the tags in --tags will have a work context"
       opt :primary, "Primary task service", default: "Omnifocus"
-      opt :tags, "Tags (or labels) to sync", default: ["Reclaim"]
+      opt :tags, "Tags (or labels) to sync", default: ["TaskBridge"]
       opt :personal_tags, "Tags (or labels) used for personal context", default: ["Personal"]
       opt :work_tags, "Tags (or labels) used for work context (overrides personal tags)", type: :strings
       conflicts :personal_tags, :work_tags
@@ -63,8 +63,8 @@ class TaskBridge
 
   def testing
     service = Github::Service.new(@options)
+    issues = service.send(:issues_to_sync)
     binding.pry
-    puts service.list_repositories
   end
 end
 
