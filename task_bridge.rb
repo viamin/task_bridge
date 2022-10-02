@@ -20,11 +20,10 @@ class TaskBridge
       opt :personal_tags, "Tags (or labels) used for personal context", default: ["Personal"]
       opt :work_tags, "Tags (or labels) used for work context (overrides personal tags)", type: :strings
       conflicts :personal_tags, :work_tags
-      opt :services, "Services to sync tasks to", default: ["GoogleTasks"]
+      opt :services, "Services to sync tasks to", default: ["GoogleTasks", "Github"]
       opt :list, "Task list name to sync to", default: "🗓 Reclaim"
       opt :delete, "Delete completed tasks on service", default: false
       # opt :two_way, "Sync completion state back to task service", default: false
-      opt :repositories, "Github repositories to check for synced issues", type: :strings
       opt :pretend, "List the found tasks, don't sync", default: false
       opt :verbose, "Verbose output", default: false
       opt :debug, "Print debug output", default: false

@@ -15,9 +15,8 @@ module Omnifocus
     end
 
     def add_task(issue, options = {})
-      project = omnifocus.flattened_projects[issue.project] if issue.project
-      task = if defined?(project)
-        project.make(new: :task, with_properties: issue.properties)
+      task = if project(issue)
+        project(issue).make(new: :task, with_properties: issue.properties)
       else
         omnifocus.make(new: :inbox_task, with_properties: issue.properties)
       end
@@ -38,6 +37,14 @@ module Omnifocus
     end
 
     private
+
+    def project(issue)
+      project = omnifocus.flattened_projects[issue.project] if issue.project
+      project.get
+      project
+    rescue
+      nil
+    end
 
     def tags(issue)
       issue.tags.map do |tag|
