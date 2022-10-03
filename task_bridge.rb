@@ -15,14 +15,14 @@ class TaskBridge
       banner "Sync Tasks from one service to another"
       banner "Supported services: #{SUPPORTED_SERVICES.join(", ")}"
       banner "By default, tasks found with the tags in --tags will have a work context"
-      opt :primary, "Primary task service", default: "Omnifocus"
-      opt :tags, "Tags (or labels) to sync", default: ["TaskBridge"]
-      opt :personal_tags, "Tags (or labels) used for personal context", default: ["Personal"]
-      opt :work_tags, "Tags (or labels) used for work context (overrides personal tags)", type: :strings
+      opt :primary, "Primary task service", default: ENV.fetch("PRIMARY_TASK_SERVICE", "Omnifocus")
+      opt :tags, "Tags (or labels) to sync", default: ENV.fetch("SYNC_TAGS", "TaskBridge").split(",")
+      opt :personal_tags, "Tags (or labels) used for personal context", default: ENV.fetch("PERSONAL_TAGS", "Personal").split(",")
+      opt :work_tags, "Tags (or labels) used for work context (overrides personal tags)", type: :strings, default: ENV.fetch("WORK_TAGS", nil)
       conflicts :personal_tags, :work_tags
-      opt :services, "Services to sync tasks to", default: ["GoogleTasks", "Github"]
-      opt :list, "Task list name to sync to", default: "🗓 Reclaim"
-      opt :delete, "Delete completed tasks on service", default: false
+      opt :services, "Services to sync tasks to", default: ENV.fetch("SYNC_SERVICES", "GoogleTasks,Github").split(",")
+      opt :list, "Task list name to sync to", default: ENV.fetch("GOOGLE_TASKS_LIST", "🗓 Reclaim")
+      opt :delete, "Delete completed tasks on service", default: ["true", "t", "yes", "1"].include?(ENV.fetch("DELETE_COMPLETED", "false").downcase)
       # opt :two_way, "Sync completion state back to task service", default: false
       opt :pretend, "List the found tasks, don't sync", default: false
       opt :verbose, "Verbose output", default: false

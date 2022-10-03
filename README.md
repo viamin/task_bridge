@@ -7,6 +7,9 @@ Run `ruby task_bridge.rb --help` to see available command line options.
 ## Configuration via environment variables
 
 Copy the `.env.example` file to `.env` and change any settings if needed.
+
+Most of the command line options can be configured using an environment variable. The command line option will take precence over the environment variable. If neither the environment variable nor the command line option are set, the default value will be used.
+
 ## OmniFocus Setup
 
 This script uses AppleScript on your Mac to talk to OmniFocus. OmniFocus needs to be installed on the computer you're running this script on to work.
