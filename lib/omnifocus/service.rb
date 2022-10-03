@@ -2,18 +2,40 @@ require_relative "task"
 
 module Omnifocus
   class Service
-    attr_reader :options, :omnifocus
+    attr_reader :options, :omnifocus, :tasks
 
     def initialize(options)
       @options = options
       # Assumes you already have OmniFocus installed
       @omnifocus = Appscript.app.by_name("OmniFocus").default_document
+      @tasks = task_to_sync(@options[:tags])
+    end
+
+    def sync(temp = nil)
+      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Omnifocus tasks") if options[:verbose]
+      tasks.each do |task|
+        task.tags.filter { |tag| supported_sync_targets.include?(tag) }.each do |tag|
+          if (existing_task = existing_tasks.find { |task| task.task_title.downcase == task.title.downcase })
+          # update the existing task
+          # primary_service.update_task(existing_task, task, options)
+          elsif task.incomplete?
+            # add a new task
+            # primary_service.add_task(task, options)
+          end
+        end
+        progressbar.increment if options[:verbose]
+      end
+      puts "Synced #{tasks.length} Omnifocus tasks" if options[:verbose]
     end
 
     def tasks_to_sync(tags: nil, inbox: false)
       tasks = tagged_tasks(tags)
       tasks += inbox_tasks if inbox
       tasks
+    end
+
+    def existing_items
+      @existing_items ||= task_to_sync(TaskBridge.supported_services)
     end
 
     def add_task(task, options = {})
@@ -49,6 +71,10 @@ module Omnifocus
     end
 
     private
+
+    def supported_sync_targets
+      %w[GoogleTasks]
+    end
 
     # Checks if a tag is already on a task, and if not adds it
     def add_tag(task:, tag:)
@@ -103,7 +129,6 @@ module Omnifocus
 
     def tagged_tasks(tags = nil)
       @tagged_tasks ||= begin
-        target_tags = tags || @options[:tags]
         tasks = []
         all_tags = omnifocus.flattened_tags.get
         matching_tags = all_tags.select { |tag| target_tags.include?(tag.name.get) }

@@ -16,7 +16,6 @@ class TaskBridge
       banner "Sync Tasks from one service to another"
       banner "Supported services: #{supported_services.join(", ")}"
       banner "By default, tasks found with the tags in --tags will have a work context"
-      opt :primary, "Primary task service", default: ENV.fetch("PRIMARY_TASK_SERVICE", "Omnifocus")
       opt :tags, "Tags (or labels) to sync", default: ENV.fetch("SYNC_TAGS", "TaskBridge").split(",")
       opt :personal_tags, "Tags (or labels) used for personal context", default: ENV.fetch("PERSONAL_TAGS", nil)
       opt :work_tags, "Tags (or labels) used for work context (overrides personal tags)", type: :strings, default: ENV.fetch("WORK_TAGS", nil)
@@ -33,7 +32,8 @@ class TaskBridge
     end
     Optimist.die :services, "Supported services: #{supported_services.join(", ")}" if (supported_services & @options[:services]).empty?
     @options[:uses_personal_tags] = @options[:work_tags].nil?
-    @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(@options)
+    # TODO: make changes required to remove the line below
+    @primary_service = "#Omnifocus::Service".safe_constantize.new(@options)
     @services = @options[:services].map { |s| [s, "#{s}::Service".safe_constantize.new(@options)] }.to_h
   end
 
@@ -46,7 +46,7 @@ class TaskBridge
       if @options[:delete]
         service.prune
       else
-        service.sync(@primary_service)
+        service.sync(@services)
       end
     end
   end
@@ -60,7 +60,6 @@ class TaskBridge
   private
 
   def console
-    of = @primary_service
     binding.pry # rubocop:disable Lint/Debugger
   end
 

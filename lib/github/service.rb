@@ -4,11 +4,12 @@ require_relative "issue"
 module Github
   # A service class to connect to the Github API
   class Service
-    attr_reader :options, :authentication
+    attr_reader :options, :authentication, :issues
 
     def initialize(options)
       @options = options
       @authentication = Authentication.new(options).authenticate
+      @issues = issues_to_sync(@options[:tags])
     end
 
     # By default Github syncs TO the primary service
@@ -36,6 +37,10 @@ module Github
     end
 
     private
+
+    def supported_sync_targets
+      %w[GoogleTasks Omnifocus]
+    end
 
     def authenticated_options
       {

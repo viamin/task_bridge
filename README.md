@@ -1,6 +1,10 @@
 # TaskBridge
 
-Syncs OmniFocus tasks to an external service (and vice versa)
+Creates tasks in your productivity apps from items in other services
+
+Originally created to help me sync my Omnifocus tasks to [reclaim.ai](https://reclaim.ai) (which will schedule those tasks using calendar events.) But Omnifocus won't sync directly to reclaim.ai, so I have to sync to an intermediary service, in this case, Google Tasks. But then I thought, what other things would I like to be able to schedule on my calendar automatically? What about Github issues? What about articles I've saved on Instapaper? There are lots of things I would like to see on that calendar (and maybe find out I'm trying to do too many things for the time I have...) So TaskBridge was born. TaskBridge will take a set of services, look for items to sync, and sync them according to tags and labels. For example, if you add a "Omnifocus" label to a Github issue, that will tell TaskBridge to sync that issue to Omnifocus (it will try to find a project matching the Github project name, and add a "Github" tag in Omnifocus.) If you add "Google Tasks" tag to an Omnifocus task, TaskBridge will sync that task from Omnifocus to Google Tasks. Depending on the capabilities of the service, you may also be able to sync the completion state and notes between services.
+
+Run `bundle install` to install dependencies. You may need an account for some of the services to work. Check below for requirements for each service you want to use.
 
 Run `ruby task_bridge.rb --help` to see available command line options.
 
@@ -38,6 +42,8 @@ Run the script and follow the instructions to get an auth token
 By default the token will be saved to `~/.config/google/credentials.yaml` - copy it to the script directory or update your `.env` to point to the credentials file. You can use multiple credentials files for different Google accounts, if you desire.
 
 ## Running automatically
+
+Scripts are included to run this automatically on a Mac, assuming you have `ruby` installed.
 
 The included launchd plist will run the sync script once an hour between 7am and 10pm daily
 
