@@ -1,5 +1,3 @@
-require_relative "service"
-
 module Omnifocus
   # task.properties_.get
   # {
