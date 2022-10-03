@@ -1,22 +1,23 @@
 module Github
   # A representation of a Github issue
   class Issue
-    attr_reader :id, :title, :html_url, :number, :labels, :state, :project, :is_pr
+    attr_reader :options, :id, :title, :html_url, :number, :labels, :state, :project, :is_pr
 
-    def initialize(github_issue)
+    def initialize(github_issue, options)
+      @options = options
       @url = github_issue["url"]
       @html_url = github_issue["html_url"]
       @id = github_issue["id"]
       @number = github_issue["number"]
       @title = github_issue["title"]
-      labels = github_issue["labels"].map { |label| label["name"] }
-      @labels = labels.push("Github").uniq
+      # Adds the default sync tags and "Github" to the labels
+      @labels = (github_issue["labels"].map { |label| label["name"] } + options[:tags]).push("Github").uniq
       @state = github_issue["state"]
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
     end
 
-    def closed?
+    def completed?
       state == "closed"
     end
 

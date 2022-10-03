@@ -29,6 +29,11 @@ module Github
       puts "Synced #{issues.length} Github issues to #{options[:primary]}" if options[:verbose]
     end
 
+    # Not currently supported for this service
+    def prune
+      false
+    end
+
     private
 
     def authenticated_options
@@ -50,8 +55,8 @@ module Github
     end
 
     def issues_to_sync
-      tagged_issues = sync_repositories.map { |repo| list_issues(repo) }.flatten.map { |issue| Issue.new(issue) }
-      assigned_issues = list_assigned.filter { |issue| sync_repositories(true).include?(issue["repository_url"]) }.map { |issue| Issue.new(issue) }
+      tagged_issues = sync_repositories.map { |repo| list_issues(repo) }.flatten.map { |issue| Issue.new(issue, options) }
+      assigned_issues = list_assigned.filter { |issue| sync_repositories(true).include?(issue["repository_url"]) }.map { |issue| Issue.new(issue, options) }
       (tagged_issues + assigned_issues).uniq
     end
 

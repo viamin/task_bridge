@@ -2,7 +2,7 @@ require_relative "task"
 
 module Omnifocus
   class Service
-    attr_reader :omnifocus
+    attr_reader :options, :omnifocus
 
     def initialize(options)
       @options = options
@@ -14,48 +14,61 @@ module Omnifocus
       tagged_tasks
     end
 
-    def add_task(issue, options = {})
-      task = if project(issue)
-        project(issue).make(new: :task, with_properties: issue.properties)
+    def add_task(task, options = {})
+      new_task = if project(task)
+        project(task).make(new: :task, with_properties: task.properties)
       else
-        omnifocus.make(new: :inbox_task, with_properties: issue.properties)
+        omnifocus.make(new: :inbox_task, with_properties: task.properties)
       end
-      if task && !tags(issue).empty?
+      if new_task && !tags(task).empty?
         # add tags
-        tags(issue).each do |tag|
-          omnifocus.add(tag, to: task.tags)
+        tags(task).each do |tag|
+          omnifocus.add(tag, to: new_task.tags)
         end
-        task
+        new_task
       end
     end
 
-    # currently only used to mark closed issues as done
-    def update_task(existing_task, issue, options = {})
-      if issue.closed? && existing_task.incomplete?
+    def update_task(existing_task, task, options = {})
+      if task.completed? && existing_task.incomplete?
         existing_task.mark_complete
+      else
+        tags(task).each do |tag|
+          add_tag(task: existing_task, tag: tag)
+        end
       end
     end
 
     private
 
-    def project(issue)
-      project = omnifocus.flattened_projects[issue.project] if issue.project
+    # Checks if a tag is already on a task, and if not adds it
+    def add_tag(task:, tag:)
+      omnifocus.add(tag, task.tags) unless task.tags.include?(tag.name.get)
+    end
+
+    # Checks that a project exists in Omnifocus, and if it does returns it
+    def project(external_task)
+      project = omnifocus.flattened_projects[external_task.project] if external_task.project
       project.get
       project
     rescue
+      puts "The project #{external_task.project} does not exist in Omnifocus" if options[:verbose]
       nil
     end
 
+    # Checks that a tag exists in Omnifocus and if it does, returns it
     def tag(name)
-      tag = omnifocus.flattened_tags[tag]
+      tag = omnifocus.flattened_tags[name]
       tag.get
       tag
     rescue
+      puts "The tag #{name} does not exist in Omnifocus" if options[:verbose]
       nil
     end
 
-    def tags(issue)
-      issue.tags.map { |tag| tag(tag) }.compact
+    # Maps a list of tag names on a task to Omnifocus tags
+    def tags(task)
+      task.tags.map { |tag| tag(tag) }.compact
     end
 
     def tagged_tasks
