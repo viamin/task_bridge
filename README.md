@@ -22,9 +22,13 @@ This script will connect to Github using an OAuth token that is created when run
 
 TaskBridge will only sync tasks from repositories you configure in the `GITHUB_REPOSITORIES` environment variable. Add a comma-separated list of repositories in your `.env` file and issues from those repositories will be checked.
 
+# Reclaim.ai Setup
+
+[reclaim.ai](https://reclaim.ai) doesn't currently have an official external API, so this is a bit of a hack. You will need to copy the access token out of the cookie in your browser to authenticate this.
+
 ## Google Tasks Setup
 
-Add Google Tasks as an API at https://console.developers.google.com
+Add Google Tasks as an API at [https://console.developers.google.com](https://console.developers.google.com)
 
 Create credentials for OAuth client - you can add your Google account as a test account here
 
