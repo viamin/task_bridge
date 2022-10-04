@@ -93,7 +93,7 @@ module Github
       if response.code == 200
         JSON.parse(response.body)
       else
-        raise "Error loading issues - check repository name and access"
+        raise "Error loading Github issues - check repository name and access"
       end
     end
 
