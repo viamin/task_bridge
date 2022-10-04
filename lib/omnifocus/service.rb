@@ -1,29 +1,29 @@
+require_relative "../task_bridge/service"
 require_relative "task"
 
 module Omnifocus
-  class Service
-    attr_reader :options, :omnifocus, :tasks
+  class Service < TaskBridge::Service
+    attr_reader :options, :omnifocus, :sync_items
 
     def initialize(options)
       @options = options
       # Assumes you already have OmniFocus installed
       @omnifocus = Appscript.app.by_name("OmniFocus").default_document
-      @tasks = task_to_sync(@options[:tags])
+      @sync_items = tagged_tasks(options[:services])
     end
 
-    def sync(temp = nil)
-      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Omnifocus tasks") if options[:verbose]
-      tasks.each do |task|
-        task.tags.filter { |tag| supported_sync_targets.include?(tag) }.each do |tag|
-          if (existing_task = existing_tasks.find { |task| task.task_title.downcase == task.title.downcase })
-          # update the existing task
-          # primary_service.update_task(existing_task, task, options)
-          elsif task.incomplete?
-            # add a new task
-            # primary_service.add_task(task, options)
-          end
+    def sync(services)
+      external_sync_items = get_external_sync_items_for("Omnifocus", services)
+      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: external_sync_items.length, title: "Omnifocus tasks") if options[:verbose]
+      external_sync_items.each do |external_sync_item|
+        existing_task = sync_items.find { |sync_item| task_title_matches(sync_item, external_sync_item) }
+        output = if existing_task
+          update_task(existing_task, sync_item)
+        else
+          add_task(sync_item)
         end
-        progressbar.increment if options[:verbose]
+        progressbar.log output if options[:debug]
+        progressbar.increment if options[:verbose] || options[:debug]
       end
       puts "Synced #{tasks.length} Omnifocus tasks" if options[:verbose]
     end
@@ -72,8 +72,12 @@ module Omnifocus
 
     private
 
-    def supported_sync_targets
-      %w[GoogleTasks]
+    def supported_sync_sources
+      %w[GoogleTasks Reclaim Github]
+    end
+
+    def task_title_matches(task, external_task)
+      task.title.downcase.strip == external_task.title.downcase.strip
     end
 
     # Checks if a tag is already on a task, and if not adds it
@@ -134,7 +138,7 @@ module Omnifocus
         matching_tags = all_tags.select { |tag| target_tags.include?(tag.name.get) }
         tagged_tasks = matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_subtasks(t) }.flatten
         tagged_tasks.compact.uniq(&:id_).each do |task|
-          tasks << Task.new(task, @options)
+          tasks << Task.new(task, @options, "Omnifocus")
         end
         tasks
       end

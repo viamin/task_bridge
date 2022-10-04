@@ -1,5 +1,7 @@
+require_relative "../task_bridge/sync_item"
+
 module Omnifocus
-  class Task
+  class Task < TaskBridge::SyncItem
     TIME_TAGS = [
       "Today",
       "Tomorrow",
@@ -34,12 +36,18 @@ module Omnifocus
       @options = options
       @id = read_attribute(task, :id_)
       @title = read_attribute(task, :name)
-      containing_project = task.containing_project.get
-      @project = if containing_project == :missing_value
-        ""
-      else
+      containing_project = read_attribute(task, :containing_project)
+      # containing_project = task.containing_project.get
+      @project = if containing_project.respond_to?(:get)
         containing_project.name.get
+      else
+        ""
       end
+      # @project = if containing_project == :missing_value
+      #   ""
+      # else
+      #   containing_project.name.get
+      # end
       @completed = read_attribute(task, :completed)
       @completion_date = read_attribute(task, :completion_date)
       @defer_date = read_attribute(task, :defer_date)
@@ -48,7 +56,9 @@ module Omnifocus
       @note = read_attribute(task, :note)
       @tags = read_attribute(task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
+      # @tags = @tags.map(&:name).map(&:get) unless @tags.nil? || @tags.empty?
       @due_date = date_from_tags(task, @tags)
+      super
     end
 
     def render
@@ -76,6 +86,47 @@ module Omnifocus
 
     def mark_complete
       original_task.mark_complete
+    end
+
+    def self.convert_task(external_task)
+      return self if external_task.source == "Omnifocus"
+
+      Task.new(external_task.omnifocus_hash)
+    end
+
+    #   #####
+    #  #     #  ####  #    # #    # ###### #####  ##### ###### #####   ####
+    #  #       #    # ##   # #    # #      #    #   #   #      #    # #
+    #  #       #    # # #  # #    # #####  #    #   #   #####  #    #  ####
+    #  #       #    # #  # # #    # #      #####    #   #      #####       #
+    #  #     # #    # #   ##  #  #  #      #   #    #   #      #   #  #    #
+    #   #####   ####  #    #   ##   ###### #    #   #   ###### #    #  ####
+
+    def reclaim_hash
+      category = is_personal? ? "PERSONAL" : "WORK"
+      time_required = (estimated_minutes / 15.0).ceil
+      time_spent = completed ? time_required : 0
+      {
+        title: title,
+        eventCategory: category,
+        timeChunksRequired: time_required,
+        timeChunksSpent: time_spent,
+        timeChunksRemaining: time_required - time_spent,
+        snoozeUntil: defer_date.rfc3339,
+        due: due_date.rfc3339,
+        notes: note,
+        alwaysPrivate: true
+      }.as_json
+    end
+
+    def google_tasks_hash
+      {
+        completed: completion_date.rfc3339,
+        due: due_date.rfc3339,
+        notes: note,
+        status: completed ? "completed" : "needsAction",
+        title: title
+      }.as_json
     end
 
     private
@@ -108,7 +159,10 @@ module Omnifocus
     end
 
     def read_attribute(task, attribute)
-      value = task.send(attribute).get
+      value = task.send(attribute)
+      if value.respond_to?(:get)
+        value = value.get
+      end
       value == :missing_value ? nil : value
     end
   end

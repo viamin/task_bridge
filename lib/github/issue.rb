@@ -1,6 +1,8 @@
+require_relative "../task_bridge/sync_item"
+
 module Github
   # A representation of a Github issue
-  class Issue
+  class Issue < TaskBridge::SyncItem
     attr_reader :options, :id, :title, :html_url, :number, :labels, :state, :project, :is_pr
 
     def initialize(github_issue, options)
@@ -15,6 +17,7 @@ module Github
       @state = github_issue["state"]
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
+      super
     end
 
     def completed?

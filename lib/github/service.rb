@@ -1,15 +1,16 @@
+require_relative "../task_bridge/service"
 require_relative "authentication"
 require_relative "issue"
 
 module Github
   # A service class to connect to the Github API
-  class Service
-    attr_reader :options, :authentication, :issues
+  class Service < TaskBridge::Service
+    attr_reader :options, :authentication, :sync_items
 
     def initialize(options)
       @options = options
       @authentication = Authentication.new(options).authenticate
-      @issues = issues_to_sync(@options[:tags])
+      @sync_items = issues_to_sync(@options[:tags])
     end
 
     # By default Github syncs TO the primary service
@@ -28,7 +29,7 @@ module Github
         progressbar.log output if !output.blank? && ((options[:pretend] && options[:verbose]) || options[:debug])
         progressbar.increment if options[:verbose]
       end
-      puts "Synced #{issues.length} Github issues to #{options[:primary]}" if options[:verbose]
+      puts "Synced #{sync_items.length} Github issues to #{options[:primary]}" if options[:verbose]
     end
 
     # Not currently supported for this service
@@ -38,8 +39,9 @@ module Github
 
     private
 
-    def supported_sync_targets
-      %w[GoogleTasks Omnifocus]
+    def supported_sync_sources
+      # only sync *from* Github
+      []
     end
 
     def authenticated_options
