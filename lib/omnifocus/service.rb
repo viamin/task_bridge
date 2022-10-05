@@ -10,17 +10,20 @@ module Omnifocus
       @omnifocus = Appscript.app.by_name("OmniFocus").default_document
     end
 
-    def tasks_to_sync
-      tagged_tasks
+    def tasks_to_sync(tags = nil)
+      tagged_tasks(tags)
     end
 
     def add_task(task, options = {})
-      new_task = if project(task)
+      puts "Called #{self.class}##{__method__}" if options[:debug]
+      new_task = if project(task) && !options[:pretend]
         project(task).make(new: :task, with_properties: task.properties)
-      else
+      elsif !options[:pretend]
         omnifocus.make(new: :inbox_task, with_properties: task.properties)
+      elsif options[:pretend] && options[:verbose]
+        "Would have added #{task.title} to Omnifocus"
       end
-      if new_task && !tags(task).empty?
+      if new_task && !tags(task).empty? && !options[:pretend]
         # add tags
         tags(task).each do |tag|
           omnifocus.add(tag, to: new_task.tags)
@@ -30,12 +33,16 @@ module Omnifocus
     end
 
     def update_task(existing_task, task, options = {})
+      puts "Called #{self.class}##{__method__}" if options[:debug]
       if task.completed? && existing_task.incomplete?
-        existing_task.mark_complete
-      else
+        existing_task.mark_complete unless options[:pretend]
+        "Would have marked #{existing_task.title} complete in Omnifocus" if options[:pretend] && options[:verbose]
+      elsif !options[:pretend]
         tags(task).each do |tag|
           add_tag(task: existing_task, tag: tag)
         end
+      elsif options[:verbose]
+        "Would have updated #{task.title} in Omnifocus"
       end
     end
 
@@ -71,9 +78,9 @@ module Omnifocus
       task.tags.map { |tag| tag(tag) }.compact
     end
 
-    def tagged_tasks
+    def tagged_tasks(tags = nil)
       @tagged_tasks ||= begin
-        target_tags = @options[:tags]
+        target_tags = tags || @options[:tags]
         tasks = []
         all_tags = omnifocus.flattened_tags.get
         matching_tags = all_tags.select { |tag| target_tags.include?(tag.name.get) }
