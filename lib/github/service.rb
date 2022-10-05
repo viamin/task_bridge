@@ -13,7 +13,7 @@ module Github
 
     # By default Github syncs TO the primary service
     def sync(primary_service)
-      issues = issues_to_sync
+      issues = issues_to_sync(["Github"])
       existing_tasks = primary_service.tasks_to_sync
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length, title: "Github issues") if options[:verbose]
       issues.each do |issue|
@@ -55,8 +55,8 @@ module Github
       end
     end
 
-    def issues_to_sync
-      tagged_issues = sync_repositories.map { |repo| list_issues(repo) }.flatten.map { |issue| Issue.new(issue, options) }
+    def issues_to_sync(tags = nil)
+      tagged_issues = sync_repositories.map { |repo| list_issues(repo, tags) }.flatten.map { |issue| Issue.new(issue, options) }
       assigned_issues = list_assigned.filter { |issue| sync_repositories(true).include?(issue["repository_url"]) }.map { |issue| Issue.new(issue, options) }
       (tagged_issues + assigned_issues).uniq
     end
@@ -82,11 +82,11 @@ module Github
     end
 
     # https://docs.github.com/en/rest/issues/issues#list-repository-issues
-    def list_issues(repository)
+    def list_issues(repository, tags = nil)
       query = {
         query: {
           state: "all",
-          labels: options[:tags].join(","),
+          labels: (tags || options[:tags]).join(","),
           since: Chronic.parse("2 days ago").iso8601
         }
       }
@@ -94,7 +94,7 @@ module Github
       if response.code == 200
         JSON.parse(response.body)
       else
-        raise "Error loading Github issues - check repository name and access"
+        raise "Error loading Github issues - check repository name and access (response code: #{response.code}"
       end
     end
 
