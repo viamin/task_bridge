@@ -10,7 +10,7 @@ module Reclaim
     end
 
     def sync(primary_service)
-      tasks = primary_service.tasks_to_sync
+      tasks = primary_service.tasks_to_sync(["Reclaim"])
       existing_tasks = tasks_to_sync
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Reclaim Tasks") if options[:verbose] || options[:debug]
       tasks.each do |task|
@@ -33,25 +33,35 @@ module Reclaim
     end
 
     def add_task(task)
+      puts "Called #{self.class}##{__method__}" if options[:debug]
       request_body = {body: task.to_json}
-      response = HTTParty.post("#{base_url}/tasks", authenticated_options.merge(request_body))
-      if response.code == 200
-        JSON.parse(response.body)
+      if options[:pretend]
+        "Would have added #{task.title} to Reclaim"
       else
-        puts "Failed to create a Reclaim task - check auth cookie"
-        nil
+        response = HTTParty.post("#{base_url}/tasks", authenticated_options.merge(request_body))
+        if response.code == 200
+          JSON.parse(response.body)
+        else
+          puts "Failed to create a Reclaim task - check auth cookie"
+          nil
+        end
       end
     end
 
     def update_task(existing_task, task)
+      puts "Called #{self.class}##{__method__}" if options[:debug]
       request_body = {body: task.to_json}
-      response = HTTParty.put("#{base_url}/tasks/#{existing_task.id}", authenticated_options.merge(request_body))
-      if response.code == 200
-        JSON.parse(response.body)
+      if options[:pretend]
+        "Would have updated task #{task.title} in Reclaim"
       else
-        puts "Failed to update Reclaim task ##{existing_task.id} with code #{response.code} - check auth cookie"
-        puts response.body if options[:verbose]
-        nil
+        response = HTTParty.put("#{base_url}/tasks/#{existing_task.id}", authenticated_options.merge(request_body))
+        if response.code == 200
+          JSON.parse(response.body)
+        else
+          puts "Failed to update Reclaim task ##{existing_task.id} with code #{response.code} - check auth cookie"
+          puts response.body if options[:verbose]
+          nil
+        end
       end
     end
 

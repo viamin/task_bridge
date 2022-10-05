@@ -17,13 +17,14 @@ module Github
       existing_tasks = primary_service.tasks_to_sync
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length, title: "Github issues") if options[:verbose]
       issues.each do |issue|
-        if (existing_task = existing_tasks.find { |task| issue.task_title.downcase == task.title.downcase })
+        output = if (existing_task = existing_tasks.find { |task| issue.task_title.downcase == task.title.downcase })
           # update the existing task
           primary_service.update_task(existing_task, issue, options)
         elsif issue.open?
           # add a new task
           primary_service.add_task(issue, options)
         end
+        progressbar.log output if !output.blank? && ((options[:pretend] && options[:verbose]) || options[:debug])
         progressbar.increment if options[:verbose]
       end
       puts "Synced #{issues.length} Github issues to #{options[:primary]}" if options[:verbose]

@@ -14,12 +14,16 @@ module Reclaim
       @maximum_chunk_size = task["maxChunkSize"]
       @status = task["status"]
       @due_date = Chronic.parse(task["due"])
-      @defer_date = Chronis.parse(task["snoozeUntil"])
+      @defer_date = Chronic.parse(task["snoozeUntil"])
       @private = task["alwaysPrivate"]
     end
 
     def render
       # TODO
+    end
+
+    def complete?
+      time_remaining <= 0
     end
 
     def incomplete?
