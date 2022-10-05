@@ -69,7 +69,7 @@ module Omnifocus
     def is_personal?
       if @options[:uses_personal_tags]
         (@tags & @options[:personal_tags].split(",")).any?
-        elseif @options[:work_tags].any?
+      elsif @options[:work_tags]&.any?
         (@tags & @options[:work_tags].split(",")).empty?
       end
     end
