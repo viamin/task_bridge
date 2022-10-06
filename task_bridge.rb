@@ -27,7 +27,7 @@ class TaskBridge
       opt :pretend, "List the found tasks, don't sync", default: false
       opt :verbose, "Verbose output", default: false
       opt :debug, "Print debug output", default: false
-      opt :testing, "Use test path", default: false
+      opt :console, "Run live console session", default: false
     end
     Optimist.die :services, "Supported services: #{supported_services.join(", ")}" if (supported_services & @options[:services]).empty?
     @options[:uses_personal_tags] = @options[:work_tags].nil?
@@ -37,7 +37,7 @@ class TaskBridge
 
   def call
     puts @options.pretty_inspect if @options[:debug]
-    return console if @options[:testing]
+    return console if @options[:console]
 
     @services.each do |service_name, service|
       if @options[:delete]
