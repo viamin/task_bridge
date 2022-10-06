@@ -31,6 +31,11 @@ module GoogleTasks
       puts "Synced #{tasks.length} #{options[:primary]} tasks to Google Tasks" if options[:verbose]
     end
 
+    desc "tasks_to_sync", "Get all of the tasks to sync in options[:list]"
+    def tasks_to_sync
+      tasks_service.list_tasks(tasklist.id).items
+    end
+
     desc "add_task", "Add a new task to a given task list"
     def add_task(tasklist, omnifocus_task, options)
       google_task = task_from_omnifocus(omnifocus_task)
@@ -65,8 +70,8 @@ module GoogleTasks
     # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
     def task_from_omnifocus(omnifocus_task)
       task = {
-        completed: omnifocus_task.completion_date&.to_datetime&.rfc3339,
-        due: omnifocus_task.due_date&.to_datetime&.rfc3339,
+        completed: omnifocus_task.completion_date&.utc&.to_datetime&.rfc3339,
+        due: omnifocus_task.due_date&.utc&.to_datetime&.rfc3339,
         notes: omnifocus_task.note,
         status: omnifocus_task.completed ? "completed" : "needsAction",
         title: omnifocus_task.title + reclaim_title_addon(omnifocus_task)
