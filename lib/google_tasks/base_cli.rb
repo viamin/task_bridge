@@ -71,6 +71,7 @@ module GoogleTasks
           Google::Auth::ClientId.from_file(client_secrets_path)
         end
         token_store = Google::Auth::Stores::FileTokenStore.new(file: token_store_path)
+        # https://github.com/googleapis/google-auth-library-ruby/blob/main/lib/googleauth/user_authorizer.rb
         authorizer = Google::Auth::UserAuthorizer.new(client_id, scope, token_store)
 
         user_id = ENV["USER"] || "default"
@@ -85,7 +86,9 @@ module GoogleTasks
             user_id: user_id, code: code, base_url: OOB_URI
           )
         elsif credentials.expired?
-          raise "Google credentials have expired. Delete #{token_store_path} and re-authenticate"
+          credentials = credentials.fetch_access_token!
+          sleep 2
+          raise "Google credentials have expired. Delete #{token_store_path} and re-authenticate" if credentials.expired?
         end
         credentials
       end
