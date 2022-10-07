@@ -10,8 +10,8 @@ module Github
       @id = github_issue["id"]
       @number = github_issue["number"]
       @title = github_issue["title"]
-      # Adds the default sync tags and "Github" to the labels
-      @labels = (github_issue["labels"].map { |label| label["name"] } + options[:tags]).push("Github").uniq
+      # Add "Github" to the labels
+      @labels = (github_issue["labels"].map { |label| label["name"] }).push("Github").uniq
       @state = github_issue["state"]
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false

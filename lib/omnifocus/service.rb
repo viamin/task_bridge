@@ -26,7 +26,7 @@ module Omnifocus
       if new_task && !tags(task).empty? && !options[:pretend]
         # add tags
         tags(task).each do |tag|
-          omnifocus.add(tag, to: new_task.tags) unless options[:tags].include?(tag.name.get)
+          omnifocus.add(tag, to: new_task.tags)
         end
         new_task
       end
@@ -39,7 +39,7 @@ module Omnifocus
         "Would have marked #{existing_task.title} complete in Omnifocus" if options[:pretend] && options[:verbose]
       elsif !options[:pretend]
         tags(task).each do |tag|
-          add_tag(task: existing_task, tag: tag) unless options[:tags].include?(tag.name.get)
+          add_tag(task: existing_task, tag: tag)
         end
       elsif options[:verbose]
         "Would have updated #{task.title} in Omnifocus"

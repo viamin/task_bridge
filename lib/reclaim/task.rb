@@ -16,6 +16,12 @@ module Reclaim
       @due_date = Chronic.parse(task["due"])
       @defer_date = Chronic.parse(task["snoozeUntil"])
       @private = task["alwaysPrivate"]
+      @tags = ["Reclaim"]
+      @tags = if is_personal?
+        @tags + @options[:personal_tags].split(",")
+      else
+        @tags + @options[:work_tags].split(",")
+      end
     end
 
     def render
