@@ -11,7 +11,7 @@ module Omnifocus
     end
 
     def tasks_to_sync(tags = nil)
-      tagged_tasks(tags) + inbox_tasks
+      tagged_tasks(tags) # + inbox_tasks
     end
 
     def add_task(task, options = {})
