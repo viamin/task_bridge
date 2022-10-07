@@ -10,8 +10,10 @@ module Omnifocus
       @omnifocus = Appscript.app.by_name("OmniFocus").default_document
     end
 
-    def tasks_to_sync(tags = nil)
-      tagged_tasks(tags) # + inbox_tasks
+    def tasks_to_sync(tags: nil, inbox: false)
+      tasks = tagged_tasks(tags)
+      tasks += inbox_tasks if inbox
+      tasks
     end
 
     def add_task(task, options = {})

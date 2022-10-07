@@ -10,7 +10,7 @@ module Reclaim
     end
 
     def sync(primary_service)
-      tasks = primary_service.tasks_to_sync(["Reclaim"])
+      tasks = primary_service.tasks_to_sync(tags: ["Reclaim"])
       existing_tasks = tasks_to_sync
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Reclaim Tasks") if options[:verbose] || options[:debug]
       tasks.each do |task|
@@ -18,8 +18,8 @@ module Reclaim
           # update the existing task
           update_task(existing_task, task)
         else
-          # add a new task
-          add_task(task)
+          # add a new task unless it's completed
+          add_task(task) unless task.completed
         end
         progressbar.log output if options[:debug]
         progressbar.increment if options[:verbose] || options[:debug]
