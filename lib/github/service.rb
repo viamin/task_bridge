@@ -14,7 +14,7 @@ module Github
     # By default Github syncs TO the primary service
     def sync(primary_service)
       issues = issues_to_sync(["Github"])
-      existing_tasks = primary_service.tasks_to_sync
+      existing_tasks = primary_service.tasks_to_sync(inbox: true)
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length, title: "Github issues") if options[:verbose]
       issues.each do |issue|
         output = if (existing_task = existing_tasks.find { |task| issue.task_title.downcase == task.title.downcase })

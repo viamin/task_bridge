@@ -14,7 +14,7 @@ module GoogleTasks
 
     desc "sync", "Sync OmniFocus tasks to Google Tasks"
     def sync(primary_service)
-      tasks = primary_service.tasks_to_sync(["Google Tasks"])
+      tasks = primary_service.tasks_to_sync(tags: ["Google Tasks"])
       existing_tasks = tasks_service.list_tasks(tasklist.id).items
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Google Tasks") if options[:verbose] || options[:debug]
       tasks.each do |task|
@@ -22,8 +22,8 @@ module GoogleTasks
           # update the existing task
           update_task(tasklist, existing_task, task, options)
         else
-          # add a new task
-          add_task(tasklist, task, options)
+          # add a new task, unless it's completed
+          add_task(tasklist, task, options) unless task.completed
         end
         progressbar.log output if options[:debug]
         progressbar.increment if options[:verbose] || options[:debug]
