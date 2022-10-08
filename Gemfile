@@ -21,6 +21,9 @@ gem "google-apis-tasks_v1"
 # https://github.com/jnunemaker/httparty
 gem "httparty"
 
+# https://gitlab.com/oauth-xx/oauth
+gem "oauth"
+
 # https://github.com/ManageIQ/optimist
 gem "optimist"
 

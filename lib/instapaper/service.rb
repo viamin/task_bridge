@@ -12,21 +12,22 @@ module Instapaper
     end
 
     # Instapaper only syncs TO another service
-    def sync
+    def sync(primary_service)
       articles = unread_and_recent_articles
-      existing_tasks = primary_service.tasks_to_sync
+      existing_tasks = primary_service.tasks_to_sync(inbox: true)
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: articles.length, title: "Instapaper articles") if options[:verbose]
       articles.each do |article|
-        if (existing_task = existing_tasks.find { |task| article.task_title.downcase == task.title.downcase })
+        output = if (existing_task = existing_tasks.find { |task| article.task_title.downcase == task.title.downcase })
           # update the existing task
           primary_service.update_task(existing_task, article, options)
         elsif article.unread?
           # add a new task
           primary_service.add_task(article, options)
         end
+        progressbar.log output if !output.blank? && ((options[:pretend] && options[:verbose]) || options[:debug])
         progressbar.increment if options[:verbose]
       end
-      puts "Synced #{articles.length} Github issues to #{options[:primary]}" if options[:verbose]
+      puts "Synced #{articles.length} Instapaper articles to #{options[:primary]}" if options[:verbose]
     end
 
     # not currently supported
@@ -36,34 +37,38 @@ module Instapaper
 
     private
 
-    def authenticated_options
-      {
-        headers: {
-
-        }
-      }
-    end
-
     def unread_and_recent_articles
-      (unread_articles + recently_archived_articles).uniq.map { |article| Article.new(article, options) }
+      (unread_articles + recently_archived_articles).uniq { |article| article.id }
     end
 
     def recently_archived_articles
-      params = {params: {
-        limit: 5,
+      puts "Getting recently archived Instapaper articles" if options[:debug]
+      params = {
+        limit: "5",
         folder_id: "archive"
-      }}
-      response = HTTParty.get("https://www.instapaper.com/api/1/bookmarks/list", authenticated_options.merge(params))
-      if response.code == 200
-        JSON.parse(response.body)
+      }
+      response = authentication.get("/bookmarks/list", params)
+      if response.code.to_i == 200
+        articles = JSON.parse(response.body)
+        articles.select { |article| article["type"] == "bookmark" }.map do |article|
+          Article.new(article.merge({"folder" => "archive"}), options)
+        end
+      else
+        raise "#{response.code} There was a problem with the Instapaper request"
       end
     end
 
     def unread_articles
-      params = {params: {limit: 100}}
-      response = HTTParty.get("https://www.instapaper.com/api/1/bookmarks/list", authenticated_options.merge(params))
-      if response.code == 200
-        JSON.parse(response.body)
+      puts "Getting unread Instapaper articles" if options[:debug]
+      params = {limit: "100"}
+      response = authentication.get("/bookmarks/list", params)
+      if response.code.to_i == 200
+        articles = JSON.parse(response.body)
+        articles.select { |article| article["type"] == "bookmark" }.map do |article|
+          Article.new(article.merge({"folder" => "unread"}), options)
+        end
+      else
+        raise "#{response.code} There was a problem with the Instapaper request"
       end
     end
   end
