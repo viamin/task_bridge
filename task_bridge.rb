@@ -6,6 +6,7 @@ Bundler.require(:default)
 require_relative "lib/omnifocus/service"
 require_relative "lib/google_tasks/service"
 require_relative "lib/github/service"
+require_relative "lib/instapaper/service"
 require_relative "lib/reclaim/service"
 
 class TaskBridge
@@ -28,6 +29,7 @@ class TaskBridge
       opt :verbose, "Verbose output", default: false
       opt :debug, "Print debug output", default: false
       opt :console, "Run live console session", default: false
+      opt :testing, "For testing purposes only", default: false
     end
     Optimist.die :services, "Supported services: #{supported_services.join(", ")}" if (supported_services & @options[:services]).empty?
     @options[:uses_personal_tags] = @options[:work_tags].nil?
@@ -37,6 +39,7 @@ class TaskBridge
 
   def call
     puts @options.pretty_inspect if @options[:debug]
+    return testing if @options[:testing]
     return console if @options[:console]
 
     @services.each do |service_name, service|
@@ -50,7 +53,7 @@ class TaskBridge
 
   class << self
     def supported_services
-      %w[GoogleTasks Github Reclaim]
+      %w[GoogleTasks Github Instapaper Reclaim]
     end
   end
 
@@ -63,6 +66,10 @@ class TaskBridge
 
   def render
     @primary_service.tasks_to_sync.each(&:render)
+  end
+
+  def testing
+    # add code to test here
   end
 end
 

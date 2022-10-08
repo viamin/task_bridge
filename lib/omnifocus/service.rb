@@ -18,19 +18,19 @@ module Omnifocus
 
     def add_task(task, options = {})
       puts "Called #{self.class}##{__method__}" if options[:debug]
-      new_task = if project(task) && !options[:pretend]
+      if project(task) && !options[:pretend]
         project(task).make(new: :task, with_properties: task.properties)
       elsif !options[:pretend]
-        omnifocus.make(new: :inbox_task, with_properties: task.properties)
+        new_task = omnifocus.make(new: :inbox_task, with_properties: task.properties)
+        if new_task && !tags(task).empty?
+          # add tags
+          tags(task).each do |tag|
+            omnifocus.add(tag, to: new_task.tags)
+          end
+          new_task
+        end
       elsif options[:pretend] && options[:verbose]
         "Would have added #{task.title} to Omnifocus"
-      end
-      if new_task && !tags(task).empty? && !options[:pretend]
-        # add tags
-        tags(task).each do |tag|
-          omnifocus.add(tag, to: new_task.tags)
-        end
-        new_task
       end
     end
 
@@ -57,7 +57,13 @@ module Omnifocus
 
     # Checks that a project exists in Omnifocus, and if it does returns it
     def project(external_task)
-      project = omnifocus.flattened_projects[external_task.project] if external_task.project
+      if external_task.project && (external_task.project.split(":").length > 0)
+        parts = external_task.project.split(":")
+        folder = omnifocus.flattened_folders[parts.first]
+        project = folder.projects[parts.last]
+      elsif external_task.project
+        project = omnifocus.flattened_projects[external_task.project]
+      end
       project.get
       project
     rescue
