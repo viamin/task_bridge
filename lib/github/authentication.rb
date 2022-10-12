@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Github
   class Authentication
     attr_reader :options, :authentication
@@ -10,7 +12,7 @@ module Github
     def authenticate
       if missing_authentication
         auth_params = post_device_code
-        puts "Go to #{auth_params["verification_uri"]}\nand enter the code\n#{auth_params["user_code"]}"
+        puts "Go to #{auth_params['verification_uri']}\nand enter the code\n#{auth_params['user_code']}"
         @authentication = wait_for_user(auth_params)
       end
       @authentication
@@ -46,9 +48,19 @@ module Github
     end
 
     def missing_authentication
-      return true unless File.exist?(File.expand_path(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt"))))
+      return true unless File.exist?(
+        File.expand_path(
+          File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt"))
+        )
+      )
 
-      @authentication = JSON.parse(IO.read(File.expand_path(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt")))))
+      @authentication = JSON.parse(
+        File.read(
+          File.expand_path(
+            File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt"))
+          )
+        )
+      )
       false
     end
 
@@ -63,7 +75,8 @@ module Github
     end
 
     def save_authentication(access_code)
-      File.write(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt")), access_code.to_json)
+      File.write(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt")),
+                 access_code.to_json)
     end
 
     def wait_for_user(auth_params)

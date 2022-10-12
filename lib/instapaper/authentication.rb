@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "oauth"
 
 module Instapaper
@@ -10,20 +12,23 @@ module Instapaper
     end
 
     def authenticate
-      @authentication ||= get_user_credentials
+      @authentication ||= user_credentials
     end
 
     private
 
-    def get_user_credentials
-      puts "** Calling get_user_credentials" if options[:debug]
-      consumer = OAuth::Consumer.new(credentials[:key], credentials[:secret], {
-        site: "https://www.instapaper.com/api/1",
-        scheme: :header,
-        http_method: :post,
-        access_token_path: "/oauth/access_token",
-        body_hash_enabled: false
-      })
+    def user_credentials
+      puts "** Calling #{self.class}##{__method__}" if options[:debug]
+      consumer = OAuth::Consumer.new(
+        credentials[:key], credentials[:secret],
+        {
+          site: "https://www.instapaper.com/api/1",
+          scheme: :header,
+          http_method: :post,
+          access_token_path: "/oauth/access_token",
+          body_hash_enabled: false
+        }
+      )
       request_options = {}
       arguments = {
         x_auth_username: credentials[:username],

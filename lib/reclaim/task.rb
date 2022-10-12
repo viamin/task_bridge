@@ -1,6 +1,10 @@
+# frozen_string_literal: true
+
 module Reclaim
   class Task
-    attr_reader :options, :id, :title, :notes, :category, :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :status, :due_date, :defer_date, :always_private
+    attr_reader :options, :id, :title, :notes, :category, :time_required, :time_spent, :time_remaining,
+                :minimum_chunk_size, :maximum_chunk_size, :status, :due_date, :defer_date, :always_private
+
     def initialize(task, options)
       @options = options
       @id = task["id"]
@@ -17,7 +21,7 @@ module Reclaim
       @defer_date = Chronic.parse(task["snoozeUntil"])
       @private = task["alwaysPrivate"]
       @tags = default_tags
-      @tags = if is_personal?
+      @tags = if personal?
         @tags + @options[:personal_tags].split(",")
       else
         @tags + @options[:work_tags].split(",")
@@ -29,10 +33,10 @@ module Reclaim
     end
 
     def incomplete?
-      time_remaining > 0
+      time_remaining.positive?
     end
 
-    def is_personal?
+    def personal?
       category == "PERSONAL"
     end
 
@@ -40,9 +44,9 @@ module Reclaim
       title
     end
 
-    def to_json
+    def to_json(*_args)
       {
-        title: title,
+        title:,
         eventColor: nil,
         eventCategory: category,
         timeChunksRequired: time_required,
@@ -50,7 +54,7 @@ module Reclaim
         due: due_date.rfc3339, # "2022-10-08T03:00:00.000Z"
         minChunkSize: minimum_chunk_size,
         maxChunkSize: maximum_chunk_size,
-        notes: notes,
+        notes:,
         priority: "DEFAULT",
         alwaysPrivate: always_private
       }.to_json

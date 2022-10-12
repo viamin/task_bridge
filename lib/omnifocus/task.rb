@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Omnifocus
   class Task
     TIME_TAGS = [
@@ -28,7 +30,8 @@ module Omnifocus
       "12 - December"
     ].freeze
 
-    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :defer_date, :estimated_minutes, :flagged, :note, :tags, :project
+    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :defer_date, :estimated_minutes,
+                :flagged, :note, :tags, :project
 
     def initialize(task, options)
       @options = options
@@ -55,7 +58,7 @@ module Omnifocus
       !completed
     end
 
-    def is_personal?
+    def personal?
       if @options[:uses_personal_tags]
         (@tags & @options[:personal_tags].split(",")).any?
       elsif @options[:work_tags]&.any?
@@ -103,9 +106,7 @@ module Omnifocus
 
     def read_attribute(task, attribute)
       value = task.send(attribute)
-      if value.respond_to?(:get)
-        value = value.get
-      end
+      value = value.get if value.respond_to?(:get)
       value == :missing_value ? nil : value
     end
   end

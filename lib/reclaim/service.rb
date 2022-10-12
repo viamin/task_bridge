@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require_relative "task"
 
 module Reclaim
@@ -12,7 +14,10 @@ module Reclaim
     def sync(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Reclaim"])
       existing_tasks = tasks_to_sync
-      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Reclaim Tasks") unless options[:quiet]
+      unless options[:quiet]
+        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
+                                         title: "Reclaim Tasks")
+      end
       tasks.each do |task|
         output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
           # update the existing task
@@ -28,7 +33,7 @@ module Reclaim
     end
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
-    def tasks_to_sync(tags: nil, inbox: false)
+    def tasks_to_sync(*)
       list_tasks.map { |reclaim_task| Task.new(reclaim_task, options) }
     end
 
@@ -39,7 +44,7 @@ module Reclaim
 
     def add_task(task)
       puts "Called #{self.class}##{__method__}" if options[:debug]
-      request_body = {body: task.to_json}
+      request_body = { body: task.to_json }
       if options[:pretend]
         "Would have added #{task.title} to Reclaim"
       else
@@ -55,7 +60,7 @@ module Reclaim
 
     def update_task(existing_task, task)
       puts "Called #{self.class}##{__method__}" if options[:debug]
-      request_body = {body: task.to_json}
+      request_body = { body: task.to_json }
       if options[:pretend]
         "Would have updated task #{task.title} in Reclaim"
       else
@@ -84,11 +89,9 @@ module Reclaim
         }
       }
       response = HTTParty.get("#{base_url}/tasks", authenticated_options.merge(query))
-      if response.code == 200
-        JSON.parse(response.body)
-      else
-        raise "Error loading Reclaim tasks - check cookie expiration"
-      end
+      raise "Error loading Reclaim tasks - check cookie expiration" unless response.code == 200
+
+      JSON.parse(response.body)
     end
 
     def authenticated_options

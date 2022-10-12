@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "google/apis/tasks_v1"
 require_relative "base_cli"
 
@@ -15,7 +17,10 @@ module GoogleTasks
     desc "sync", "Sync primary service tasks to Google Tasks"
     def sync(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Google Tasks"])
-      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Google Tasks") unless options[:quiet]
+      unless options[:quiet]
+        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
+                                         title: "Google Tasks")
+      end
       tasks.each do |task|
         output = if (existing_task = tasks_to_sync.find { |t| task_title_matches(t, task) })
           update_task(tasklist, existing_task, task, options)
@@ -29,7 +34,7 @@ module GoogleTasks
     end
 
     desc "tasks_to_sync", "Get all of the tasks to sync in options[:list]"
-    def tasks_to_sync(tags: nil, inbox: false)
+    def tasks_to_sync(*)
       @tasks_to_sync ||= tasks_service.list_tasks(tasklist.id).items
     end
 
@@ -81,8 +86,8 @@ module GoogleTasks
     # refer to https://help.reclaim.ai/en/articles/4293078-use-natural-language-in-the-google-task-integration
     def reclaim_title_addon(task)
       duration = task.estimated_minutes.nil? ? "" : "for #{task.estimated_minutes} minutes"
-      not_before = task.defer_date.nil? ? "" : "not before #{task.defer_date.to_datetime.strftime("%b %e")}"
-      type = task.is_personal? ? "type personal" : ""
+      not_before = task.defer_date.nil? ? "" : "not before #{task.defer_date.to_datetime.strftime('%b %e')}"
+      type = task.personal? ? "type personal" : ""
       # due_date = task.due_date.nil? ? "" : "due #{task.due_date.to_datetime.strftime("%b %e %l %p")}"
       # Due date doesn't seem to work correctly, but is supported natively by Google tasks, so use that
       addon_string = "#{type} #{duration} #{not_before}".squeeze(" ").strip
