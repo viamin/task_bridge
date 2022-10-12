@@ -53,14 +53,25 @@ class TaskBridge
 
   class << self
     def supported_services
-      %w[GoogleTasks Github Instapaper Reclaim]
+      (provider_services + task_services).uniq
+    end
+
+    # These services provide items that become tasks in the primary service
+    # Generally these services don't accept data from the primary service
+    def provider_services
+      %w[Github Instapaper]
+    end
+
+    # These services are other services that have tasks or task-like objects
+    # that should be kept in sync with the primary service
+    def task_services
+      %w[GoogleTasks Omnifocus Reclaim]
     end
   end
 
   private
 
   def console
-    of = @primary_service
     binding.pry # rubocop:disable Lint/Debugger
   end
 

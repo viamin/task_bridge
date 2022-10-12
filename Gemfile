@@ -21,6 +21,9 @@ gem "google-apis-tasks_v1"
 # https://github.com/jnunemaker/httparty
 gem "httparty"
 
+# https://github.com/panorama-ed/memo_wise
+gem "memo_wise"
+
 # https://gitlab.com/oauth-xx/oauth
 gem "oauth"
 

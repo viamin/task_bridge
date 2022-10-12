@@ -8,8 +8,12 @@ module Instapaper
       @title = instapaper_article["title"]
       @url = instapaper_article["url"]
       @folder = instapaper_article["folder"]
-      @tags = ["Instapaper"]
+      @tags = default_tags
       @project = ENV.fetch("INSTAPAPER_PROJECT", nil)
+    end
+
+    def completed?
+      !unread?
     end
 
     def unread?
@@ -17,7 +21,7 @@ module Instapaper
     end
 
     def task_title
-      "[READ] #{title}"
+      "[READ] #{title.strip}"
     end
 
     def properties
@@ -25,6 +29,12 @@ module Instapaper
         name: task_title,
         note: url
       }
+    end
+
+    private
+
+    def default_tags
+      options[:tags] + ["Instapaper"]
     end
 
     # {

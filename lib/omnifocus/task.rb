@@ -34,11 +34,11 @@ module Omnifocus
       @options = options
       @id = read_attribute(task, :id_)
       @title = read_attribute(task, :name)
-      containing_project = task.containing_project.get
-      @project = if containing_project == :missing_value
-        ""
-      else
+      containing_project = read_attribute(task, :containing_project)
+      @project = if containing_project.respond_to?(:get)
         containing_project.name.get
+      else
+        ""
       end
       @completed = read_attribute(task, :completed)
       @completion_date = read_attribute(task, :completion_date)
@@ -75,7 +75,12 @@ module Omnifocus
     end
 
     def mark_complete
+      puts "Called #{self.class}##{__method__}" if options[:debug]
       original_task.mark_complete
+    end
+
+    def task_title
+      title
     end
 
     private
@@ -108,7 +113,10 @@ module Omnifocus
     end
 
     def read_attribute(task, attribute)
-      value = task.send(attribute).get
+      value = task.send(attribute)
+      if value.respond_to?(:get)
+        value = value.get
+      end
       value == :missing_value ? nil : value
     end
   end

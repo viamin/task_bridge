@@ -4,6 +4,8 @@ require_relative "authentication"
 module Instapaper
   # A service class to connect to the Instapaper Full API
   class Service
+    prepend MemoWise
+
     attr_reader :options, :authentication
 
     def initialize(options)
@@ -14,17 +16,16 @@ module Instapaper
     # Instapaper only syncs TO another service
     def sync(primary_service)
       articles = unread_and_recent_articles
-      existing_tasks = primary_service.tasks_to_sync(inbox: true)
+      existing_tasks = primary_service.tasks_to_sync(tags: ["Instapaper"], inbox: true)
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: articles.length, title: "Instapaper articles") if options[:verbose]
       articles.each do |article|
-        output = if (existing_task = existing_tasks.find { |task| article.task_title.downcase == task.title.downcase })
-          # update the existing task
+        puts "\n\n#{self.class}##{__method__} Looking for #{article.task_title} (#{article.folder})" if options[:debug]
+        output = if (existing_task = existing_tasks.find { |task| article.task_title.downcase == task.title.downcase.strip })
           primary_service.update_task(existing_task, article, options)
         elsif article.unread?
-          # add a new task
           primary_service.add_task(article, options)
         end
-        progressbar.log output if !output.blank? && ((options[:pretend] && options[:verbose]) || options[:debug])
+        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose]) || options[:debug])
         progressbar.increment if options[:verbose]
       end
       puts "Synced #{articles.length} Instapaper articles to #{options[:primary]}" if options[:verbose]
@@ -40,6 +41,7 @@ module Instapaper
     def unread_and_recent_articles
       (unread_articles + recently_archived_articles).uniq { |article| article.id }
     end
+    memo_wise :unread_and_recent_articles
 
     def recently_archived_articles
       puts "Getting recently archived Instapaper articles" if options[:debug]
@@ -57,6 +59,7 @@ module Instapaper
         raise "#{response.code} There was a problem with the Instapaper request"
       end
     end
+    memo_wise :recently_archived_articles
 
     def unread_articles
       puts "Getting unread Instapaper articles" if options[:debug]
@@ -71,5 +74,6 @@ module Instapaper
         raise "#{response.code} There was a problem with the Instapaper request"
       end
     end
+    memo_wise :unread_articles
   end
 end

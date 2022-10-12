@@ -16,7 +16,7 @@ module Reclaim
       @due_date = Chronic.parse(task["due"])
       @defer_date = Chronic.parse(task["snoozeUntil"])
       @private = task["alwaysPrivate"]
-      @tags = ["Reclaim"]
+      @tags = default_tags
       @tags = if is_personal?
         @tags + @options[:personal_tags].split(",")
       else
@@ -40,6 +40,10 @@ module Reclaim
       category == "PERSONAL"
     end
 
+    def task_title
+      title
+    end
+
     def to_json
       {
         title: title,
@@ -57,6 +61,10 @@ module Reclaim
     end
 
     private
+
+    def default_tags
+      options[:tags] + ["Reclaim"]
+    end
 
     def visible_attributes
       {
