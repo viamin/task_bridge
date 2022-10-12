@@ -1,8 +1,6 @@
-require_relative "../task_bridge/sync_item"
-
 module Github
   # A representation of a Github issue
-  class Issue < TaskBridge::SyncItem
+  class Issue
     attr_reader :options, :id, :title, :html_url, :number, :labels, :state, :project, :is_pr
 
     def initialize(github_issue, options)
@@ -13,11 +11,10 @@ module Github
       @number = github_issue["number"]
       @title = github_issue["title"]
       # Add "Github" to the labels
-      @labels = (github_issue["labels"].map { |label| label["name"] }).push("Github").uniq
+      @labels = (default_labels + github_issue["labels"].map { |label| label["name"] }).uniq
       @state = github_issue["state"]
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
-      super
     end
 
     def completed?
@@ -29,7 +26,7 @@ module Github
     end
 
     def task_title
-      "#{project}-##{number}: #{is_pr ? "[PR] " : ""}#{title}"
+      "#{project}-##{number}: #{is_pr ? "[PR] " : ""}#{title.strip}"
     end
 
     def properties
@@ -44,6 +41,10 @@ module Github
     end
 
     private
+
+    def default_labels
+      options[:tags] + ["Github"]
+    end
 
     def short_repo_name(github_issue)
       github_issue["repository_url"].split("/").last.camelize

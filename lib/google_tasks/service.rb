@@ -12,33 +12,30 @@ module GoogleTasks
       @tasks_service.authorization = user_credentials_for(Google::Apis::TasksV1::AUTH_TASKS)
     end
 
-    desc "sync", "Sync OmniFocus tasks to Google Tasks"
+    desc "sync", "Sync primary service tasks to Google Tasks"
     def sync(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Google Tasks"])
-      existing_tasks = tasks_service.list_tasks(tasklist.id).items
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Google Tasks") if options[:verbose] || options[:debug]
       tasks.each do |task|
-        output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
-          # update the existing task
+        output = if (existing_task = tasks_to_sync.find { |t| task_title_matches(t, task) })
           update_task(tasklist, existing_task, task, options)
         else
-          # add a new task, unless it's completed
           add_task(tasklist, task, options) unless task.completed
         end
-        progressbar.log output if options[:debug]
+        progressbar.log "#{self.class}##{__method__}: #{output}" if options[:debug]
         progressbar.increment if options[:verbose] || options[:debug]
       end
       puts "Synced #{tasks.length} #{options[:primary]} tasks to Google Tasks" if options[:verbose]
     end
 
     desc "tasks_to_sync", "Get all of the tasks to sync in options[:list]"
-    def tasks_to_sync
-      tasks_service.list_tasks(tasklist.id).items
+    def tasks_to_sync(tags: nil, inbox: false)
+      @tasks_to_sync ||= tasks_service.list_tasks(tasklist.id).items
     end
 
     desc "add_task", "Add a new task to a given task list"
     def add_task(tasklist, omnifocus_task, options)
-      google_task = task_from_omnifocus(omnifocus_task)
+      google_task = task_from_primary(omnifocus_task)
       puts "#{self.class}##{__method__}: #{google_task.pretty_inspect}" if options[:debug]
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L360
       tasks_service.insert_task(tasklist.id, google_task)
@@ -48,7 +45,7 @@ module GoogleTasks
     desc "update_task", "Update an existing task in a task list"
     def update_task(tasklist, google_task, omnifocus_task, options)
       puts "#{self.class}##{__method__} existing_task: #{google_task.pretty_inspect}" if options[:debug]
-      updated_task = task_from_omnifocus(omnifocus_task)
+      updated_task = task_from_primary(omnifocus_task)
       puts "#{self.class}##{__method__} updated_task: #{updated_task.pretty_inspect}" if options[:debug]
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L510
       tasks_service.patch_task(tasklist.id, google_task.id, updated_task)
@@ -68,34 +65,35 @@ module GoogleTasks
     end
 
     # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
-    def task_from_omnifocus(omnifocus_task)
-      task = {
-        completed: omnifocus_task.completion_date&.utc&.to_datetime&.rfc3339,
-        due: omnifocus_task.due_date&.utc&.to_datetime&.rfc3339,
-        notes: omnifocus_task.note,
-        status: omnifocus_task.completed ? "completed" : "needsAction",
-        title: omnifocus_task.title + reclaim_title_addon(omnifocus_task)
+    def task_from_primary(task)
+      google_task = {
+        completed: task.completion_date&.utc&.to_datetime&.rfc3339,
+        due: task.due_date&.utc&.to_datetime&.rfc3339,
+        notes: task.note,
+        status: task.completed ? "completed" : "needsAction",
+        title: task.title + reclaim_title_addon(task)
       }.compact
-      Google::Apis::TasksV1::Task.new(**task)
+      Google::Apis::TasksV1::Task.new(**google_task)
     end
 
     # generate a title addition that Reclaim can use to set additional settings
     # Form of TITLE ([DURATION] [DUE_DATE] [NOT_BEFORE] [TYPE])
     # refer to https://help.reclaim.ai/en/articles/4293078-use-natural-language-in-the-google-task-integration
-    def reclaim_title_addon(omnifocus_task)
-      duration = omnifocus_task.estimated_minutes.nil? ? "" : "for #{omnifocus_task.estimated_minutes} minutes"
-      not_before = omnifocus_task.defer_date.nil? ? "" : "not before #{omnifocus_task.defer_date.to_datetime.strftime("%b %e")}"
-      type = omnifocus_task.is_personal? ? "type personal" : ""
-      # due_date = omnifocus_task.due_date.nil? ? "" : "due #{omnifocus_task.due_date.to_datetime.strftime("%b %e %l %p")}"
+    def reclaim_title_addon(task)
+      duration = task.estimated_minutes.nil? ? "" : "for #{task.estimated_minutes} minutes"
+      not_before = task.defer_date.nil? ? "" : "not before #{task.defer_date.to_datetime.strftime("%b %e")}"
+      type = task.is_personal? ? "type personal" : ""
+      # due_date = task.due_date.nil? ? "" : "due #{task.due_date.to_datetime.strftime("%b %e %l %p")}"
       # Due date doesn't seem to work correctly, but is supported natively by Google tasks, so use that
       addon_string = "#{type} #{duration} #{not_before}".squeeze(" ").strip
       addon_string.empty? ? "" : " (#{addon_string})"
     end
 
-    def task_title_matches(google_task, omnifocus_task)
+    # In case a reclaim title is present, match the title
+    def task_title_matches(google_task, task)
       matcher = /\A(?<title>.+)\s*(?<addon>.*)\Z/i
       google_title = matcher.match(google_task.title).named_captures.fetch("title", nil)&.downcase&.strip
-      google_title == omnifocus_task.title&.downcase&.strip
+      google_title == task.title&.downcase&.strip
     end
   end
 end

@@ -1,58 +1,57 @@
-require_relative "../task_bridge/service"
 require_relative "task"
 
 module Omnifocus
-  class Service < TaskBridge::Service
-    attr_reader :options, :omnifocus, :sync_items
+  class Service
+    prepend MemoWise
+
+    attr_reader :options, :omnifocus
 
     def initialize(options)
       @options = options
       # Assumes you already have OmniFocus installed
       @omnifocus = Appscript.app.by_name("OmniFocus").default_document
-      @sync_items = tagged_tasks(options[:services])
     end
 
-    def sync(services)
-      external_sync_items = get_external_sync_items_for("Omnifocus", services)
-      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: external_sync_items.length, title: "Omnifocus tasks") if options[:verbose]
-      external_sync_items.each do |external_sync_item|
-        existing_task = sync_items.find { |sync_item| task_title_matches(sync_item, external_sync_item) }
-        output = if existing_task
-          update_task(existing_task, sync_item)
+    # Sync primary service tasks to Omnifocus
+    def sync(primary_service)
+      tasks = primary_service.tasks_to_sync(tags: ["Omnifocus"])
+      existing_tasks = tasks_to_sync(tags: options[:tags], inbox: true)
+      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Omnifocus Tasks") if options[:verbose] || options[:debug]
+      tasks.each do |task|
+        output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
+          update_task(existing_task, task)
         else
-          add_task(sync_item)
+          add_task(task) unless task.completed
         end
-        progressbar.log output if options[:debug]
+        progressbar.log "#{self.class}##{__method__}: #{output}" if options[:debug]
         progressbar.increment if options[:verbose] || options[:debug]
       end
-      puts "Synced #{tasks.length} Omnifocus tasks" if options[:verbose]
+      puts "Synced #{tasks.length} #{options[:primary]} items to Omnifocus" if options[:verbose]
     end
 
     def tasks_to_sync(tags: nil, inbox: false)
       tasks = tagged_tasks(tags)
       tasks += inbox_tasks if inbox
-      tasks
+      tasks.map do |task|
+        Task.new(task, @options)
+      end
     end
-
-    def existing_items
-      @existing_items ||= task_to_sync(TaskBridge.supported_services)
-    end
+    memo_wise :tasks_to_sync
 
     def add_task(task, options = {})
       puts "Called #{self.class}##{__method__}" if options[:debug]
       if project(task) && !options[:pretend]
-        project(task).make(new: :task, with_properties: task.properties)
+        new_task = project(task).make(new: :task, with_properties: task.properties)
       elsif !options[:pretend]
         new_task = omnifocus.make(new: :inbox_task, with_properties: task.properties)
-        if new_task && !tags(task).empty?
-          # add tags
-          tags(task).each do |tag|
-            omnifocus.add(tag, to: new_task.tags)
-          end
-          new_task
-        end
       elsif options[:pretend] && options[:verbose]
         "Would have added #{task.title} to Omnifocus"
+      end
+      if new_task && !tags(task).empty?
+        tags(task).each do |tag|
+          add_tag(tag: tag, task: new_task)
+        end
+        new_task
       end
     end
 
@@ -61,32 +60,45 @@ module Omnifocus
       if task.completed? && existing_task.incomplete?
         existing_task.mark_complete unless options[:pretend]
         "Would have marked #{existing_task.title} complete in Omnifocus" if options[:pretend] && options[:verbose]
-      elsif !options[:pretend]
+      elsif !options[:pretend] && !task.completed? # don't add tags to completed tasks
         tags(task).each do |tag|
-          add_tag(task: existing_task, tag: tag)
+          add_tag(tag: tag, task: existing_task)
         end
-      elsif options[:verbose]
+        task
+      elsif options[:pretend]
         "Would have updated #{task.title} in Omnifocus"
       end
     end
 
     private
 
-    def supported_sync_sources
-      %w[GoogleTasks Reclaim Github]
-    end
-
     def task_title_matches(task, external_task)
+      puts "Called #{self.class}##{__method__} with task: #{task}, external_task: #{external_task}" if options[:debug]
       task.title.downcase.strip == external_task.title.downcase.strip
     end
 
     # Checks if a tag is already on a task, and if not adds it
     def add_tag(task:, tag:)
-      omnifocus.add(tag, task.tags) unless task.tags.include?(tag.name.get)
+      puts "Called #{self.class}##{__method__} with task: #{task}, tag: #{tag}" if options[:debug]
+      target_task = if task.instance_of?(Omnifocus::Task)
+        puts "Finding native Omnifocus task for #{task.title}" if options[:debug]
+        found_task = (inbox_tasks + tagged_tasks(task.tags)).find { |t| t.name.get == task.task_title }
+        puts "Found task: #{found_task}" if options[:debug]
+        found_task
+      else
+        task
+      end
+      if target_task.tags.get.map(&:name).map(&:get).include?(tag.name.get)
+        puts "Task (#{target_task.name.get}) already has tag #{tag.name.get}" if options[:debug]
+      else
+        puts "Adding tag #{tag.name.get} to task \"#{target_task.name.get}\"" if options[:debug]
+        omnifocus.add(tag, to: target_task.tags)
+      end
     end
 
     # Checks that a project exists in Omnifocus, and if it does returns it
     def project(external_task)
+      puts "Called #{self.class}##{__method__} looking for project: #{external_task.project}" if options[:debug]
       if external_task.project && (external_task.project.split(":").length > 0)
         parts = external_task.project.split(":")
         folder = omnifocus.flattened_folders[parts.first]
@@ -100,21 +112,23 @@ module Omnifocus
       puts "The project #{external_task.project} does not exist in Omnifocus" if options[:verbose]
       nil
     end
+    memo_wise :project
 
     # Checks that a tag exists in Omnifocus and if it does, returns it
     def tag(name)
       tag = omnifocus.flattened_tags[name]
       tag.get
-      tag
     rescue
       puts "The tag #{name} does not exist in Omnifocus" if options[:verbose]
       nil
     end
+    memo_wise :tag
 
-    # Maps a list of tag names on a task to Omnifocus tags
+    # Maps a list of tag names on an Omnifocus::Task to Omnifocus tags
     def tags(task)
       task.tags.map { |tag| tag(tag) }.compact
     end
+    memo_wise :tags
 
     def inbox_titles
       @inbox_titles ||= inbox_tasks.map(&:title)
@@ -124,25 +138,18 @@ module Omnifocus
       @inbox_tasks ||= begin
         tasks = []
         inbox_tasks = omnifocus.inbox_tasks.get.map { |t| all_omnifocus_subtasks(t) }.flatten
-        inbox_tasks.compact.uniq(&:id_).each do |task|
-          tasks << Task.new(task, @options)
-        end
-        tasks
+        inbox_tasks.compact.uniq(&:id_)
       end
     end
 
     def tagged_tasks(tags = nil)
-      @tagged_tasks ||= begin
-        tasks = []
-        all_tags = omnifocus.flattened_tags.get
-        matching_tags = all_tags.select { |tag| target_tags.include?(tag.name.get) }
-        tagged_tasks = matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_subtasks(t) }.flatten
-        tagged_tasks.compact.uniq(&:id_).each do |task|
-          tasks << Task.new(task, @options, "Omnifocus")
-        end
-        tasks
-      end
+      target_tags = tags || @options[:tags]
+      tasks = []
+      all_tags = omnifocus.flattened_tags.get
+      matching_tags = all_tags.select { |tag| target_tags.include?(tag.name.get) }
+      matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
     end
+    memo_wise :tagged_tasks
 
     # adapted from https://github.com/fredoliveira/forecast
     def all_omnifocus_subtasks(task)

@@ -1,14 +1,12 @@
-require_relative "../task_bridge/service"
 require_relative "task"
 
 module Reclaim
-  class Service < TaskBridge::Service
-    attr_reader :options, :sync_items
+  class Service
+    attr_reader :options
 
     def initialize(options)
       @options = options
       @auth_cookie = ENV.fetch("RECLAIM_AUTH_TOKEN", nil)
-      @sync_items = tasks_to_sync
     end
 
     def sync(primary_service)
@@ -23,10 +21,15 @@ module Reclaim
           # add a new task unless it's completed
           add_task(task) unless task.completed
         end
-        progressbar.log output if options[:debug]
+        progressbar.log "#{self.class}##{__method__}: #{output}" if options[:debug]
         progressbar.increment if options[:verbose] || options[:debug]
       end
-      puts "Synced #{external_sync_items.length} items to Reclaim Tasks" if options[:verbose]
+      puts "Synced #{tasks.length} #{options[:primary]} items to Reclaim Tasks" if options[:verbose]
+    end
+
+    # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
+    def tasks_to_sync(tags: nil, inbox: false)
+      list_tasks.map { |reclaim_task| Task.new(reclaim_task, options) }
     end
 
     # No-op for now
@@ -68,15 +71,6 @@ module Reclaim
     end
 
     private
-
-    def supported_sync_sources
-      %w[Omnifocus]
-    end
-
-    # Reclaim doesn't use tags, so just get all tasks that the user has access to
-    def tasks_to_sync
-      list_tasks.map { |reclaim_task| Task.new(reclaim_task, options, "Reclaim") }
-    end
 
     def task_title_matches(task, other_task)
       task.title.downcase.strip == other_task.title.downcase.strip

@@ -1,35 +1,34 @@
-require_relative "../task_bridge/service"
 require_relative "authentication"
 require_relative "issue"
 
 module Github
   # A service class to connect to the Github API
-  class Service < TaskBridge::Service
-    attr_reader :options, :authentication, :sync_items
+  class Service
+    prepend MemoWise
+
+    attr_reader :options, :authentication
 
     def initialize(options)
       @options = options
       @authentication = Authentication.new(options).authenticate
-      @sync_items = issues_to_sync(@options[:tags])
     end
 
     # By default Github syncs TO the primary service
     def sync(primary_service)
-      issues = issues_to_sync(["Github"])
-      existing_tasks = primary_service.tasks_to_sync(inbox: true)
+      issues = issues_to_sync(@options[:tags])
+      existing_tasks = primary_service.tasks_to_sync(tags: ["Github"], inbox: true)
       progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length, title: "Github issues") if options[:verbose]
       issues.each do |issue|
-        output = if (existing_task = existing_tasks.find { |task| issue.task_title.downcase == task.title.downcase })
-          # update the existing task
+        puts "\n\n#{self.class}##{__method__} Looking for #{issue.task_title} (#{issue.state})" if options[:debug]
+        output = if (existing_task = existing_tasks.find { |task| issue.task_title.downcase == task.title.downcase.strip })
           primary_service.update_task(existing_task, issue, options)
         elsif issue.open?
-          # add a new task
           primary_service.add_task(issue, options)
         end
-        progressbar.log output if !output.blank? && ((options[:pretend] && options[:verbose]) || options[:debug])
+        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose]) || options[:debug])
         progressbar.increment if options[:verbose]
       end
-      puts "Synced #{sync_items.length} Github issues to #{options[:primary]}" if options[:verbose]
+      puts "Synced #{issues.length} Github issues to #{options[:primary]}" if options[:verbose]
     end
 
     # Not currently supported for this service
@@ -38,11 +37,6 @@ module Github
     end
 
     private
-
-    def supported_sync_sources
-      # only sync *from* Github
-      []
-    end
 
     def authenticated_options
       {
@@ -67,24 +61,20 @@ module Github
       assigned_issues = list_assigned.filter { |issue| sync_repositories(true).include?(issue["repository_url"]) }.map { |issue| Issue.new(issue, options) }
       (tagged_issues + assigned_issues).uniq
     end
-
-    # github api reference:
-    # https://docs.github.com/en/rest/repos/repos#list-repositories-for-the-authenticated-user
-    # def list_repositories
-    #   response = HTTParty.get("https://api.github.com/user/repos", authenticated_options)
-    #   JSON.parse(response.body)
-    # end
+    memo_wise :issues_to_sync
 
     def list_assigned
-      query = {
-        query: {
-          state: "all",
-          per_page: 100
+      @list_assigned ||= begin
+        query = {
+          query: {
+            state: "all",
+            per_page: 100
+          }
         }
-      }
-      response = HTTParty.get("https://api.github.com/issues", authenticated_options.merge(query))
-      if response.code == 200
-        JSON.parse(response.body)
+        response = HTTParty.get("https://api.github.com/issues", authenticated_options.merge(query))
+        if response.code == 200
+          JSON.parse(response.body)
+        end
       end
     end
 
@@ -104,9 +94,11 @@ module Github
         raise "Error loading Github issues - check repository name and access (response code: #{response.code}"
       end
     end
+    memo_wise :list_issues
 
     def issue_labels(issue)
       issue["labels"].map { |label| label["name"] }
     end
+    memo_wise :issue_labels
   end
 end

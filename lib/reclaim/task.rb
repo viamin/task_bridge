@@ -1,7 +1,5 @@
-require_relative "../task_bridge/sync_item"
-
 module Reclaim
-  class Task < TaskBridge::SyncItem
+  class Task
     attr_reader :options, :id, :title, :notes, :category, :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :status, :due_date, :defer_date, :always_private
     def initialize(task, options)
       @options = options
@@ -18,7 +16,7 @@ module Reclaim
       @due_date = Chronic.parse(task["due"])
       @defer_date = Chronic.parse(task["snoozeUntil"])
       @private = task["alwaysPrivate"]
-      @tags = ["Reclaim"]
+      @tags = default_tags
       @tags = if is_personal?
         @tags + @options[:personal_tags].split(",")
       else
@@ -42,6 +40,10 @@ module Reclaim
       category == "PERSONAL"
     end
 
+    def task_title
+      title
+    end
+
     def to_json
       {
         title: title,
@@ -58,51 +60,11 @@ module Reclaim
       }.to_json
     end
 
-    def self.convert_task(external_task)
-      return self if external_task.source == "Reclaim"
-
-      Task.new(external_task.reclaim_hash)
-    end
-
-    #   #####
-    #  #     #  ####  #    # #    # ###### #####  ##### ###### #####   ####
-    #  #       #    # ##   # #    # #      #    #   #   #      #    # #
-    #  #       #    # # #  # #    # #####  #    #   #   #####  #    #  ####
-    #  #       #    # #  # # #    # #      #####    #   #      #####       #
-    #  #     # #    # #   ##  #  #  #      #   #    #   #      #   #  #    #
-    #   #####   ####  #    #   ##   ###### #    #   #   ###### #    #  ####
-
-    def google_tasks_hash
-      {
-        completed: complete? ? Time.now.rcf3339 : nil,
-        due: due_date.rfc3339,
-        notes: notes,
-        status: complete ? "completed" : "needsAction",
-        title: title
-      }.as_json
-    end
-
-    def omnifocus_hash
-      tags = if is_personal?
-        if options[:uses_personal_tags]
-          options[:personal_tags].split(",")
-        else
-          options[:work_tags].split(",")
-        end
-      end
-      tags = tags << "Reclaim"
-      {
-        title: title,
-        completed: complete,
-        defer_date: defer_date,
-        estimated_minutes: time_remaining * 15,
-        note: notes,
-        tags: tags,
-        due_date: due_date
-      }
-    end
-
     private
+
+    def default_tags
+      options[:tags] + ["Reclaim"]
+    end
 
     def visible_attributes
       {
