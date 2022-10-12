@@ -24,10 +24,6 @@ module Reclaim
       end
     end
 
-    def render
-      # TODO
-    end
-
     def complete?
       time_remaining <= 0
     end

@@ -51,17 +51,6 @@ module Omnifocus
       @due_date = date_from_tags(task, @tags)
     end
 
-    def render
-      title_length = @title.length
-      puts "=" * title_length
-      puts @title
-      puts "=" * title_length
-      visible_attributes.each do |name, attribute|
-        puts "#{name.to_s.humanize}: #{attribute}" unless attribute.nil?
-      end
-      puts "\n"
-    end
-
     def incomplete?
       !completed
     end

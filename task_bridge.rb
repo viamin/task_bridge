@@ -26,7 +26,9 @@ class TaskBridge
       opt :delete, "Delete completed tasks on service", default: ["true", "t", "yes", "1"].include?(ENV.fetch("DELETE_COMPLETED", "false").downcase)
       # opt :two_way, "Sync completion state back to task service", default: false
       opt :pretend, "List the found tasks, don't sync", default: false
+      opt :quiet, "No output - used for daemonized processes", default: false
       opt :verbose, "Verbose output", default: false
+      conflicts :quiet, :verbose
       opt :debug, "Print debug output", default: false
       opt :console, "Run live console session", default: false
       opt :testing, "For testing purposes only", default: false
@@ -73,10 +75,6 @@ class TaskBridge
 
   def console
     binding.pry # rubocop:disable Lint/Debugger
-  end
-
-  def render
-    @primary_service.tasks_to_sync.each(&:render)
   end
 
   def testing

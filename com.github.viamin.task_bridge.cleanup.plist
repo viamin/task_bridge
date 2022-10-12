@@ -11,6 +11,7 @@
 		<string>ruby</string>
 		<string>task_bridge.rb</string>
 		<string>--delete</string>
+		<string>--quiet</string>
 	</array>
 	<key>StartCalendarInterval</key>
 	<array>

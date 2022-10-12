@@ -12,7 +12,7 @@ module Reclaim
     def sync(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Reclaim"])
       existing_tasks = tasks_to_sync
-      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Reclaim Tasks") if options[:verbose] || options[:debug]
+      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Reclaim Tasks") unless options[:quiet]
       tasks.each do |task|
         output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
           # update the existing task
@@ -22,9 +22,9 @@ module Reclaim
           add_task(task) unless task.completed
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if options[:debug]
-        progressbar.increment if options[:verbose] || options[:debug]
+        progressbar.increment unless options[:quiet]
       end
-      puts "Synced #{tasks.length} #{options[:primary]} items to Reclaim Tasks" if options[:verbose]
+      puts "Synced #{tasks.length} #{options[:primary]} items to Reclaim Tasks" unless options[:quiet]
     end
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to

@@ -15,7 +15,7 @@ module GoogleTasks
     desc "sync", "Sync primary service tasks to Google Tasks"
     def sync(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Google Tasks"])
-      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Google Tasks") if options[:verbose] || options[:debug]
+      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Google Tasks") unless options[:quiet]
       tasks.each do |task|
         output = if (existing_task = tasks_to_sync.find { |t| task_title_matches(t, task) })
           update_task(tasklist, existing_task, task, options)
@@ -23,9 +23,9 @@ module GoogleTasks
           add_task(tasklist, task, options) unless task.completed
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if options[:debug]
-        progressbar.increment if options[:verbose] || options[:debug]
+        progressbar.increment unless options[:quiet]
       end
-      puts "Synced #{tasks.length} #{options[:primary]} tasks to Google Tasks" if options[:verbose]
+      puts "Synced #{tasks.length} #{options[:primary]} tasks to Google Tasks" unless options[:quiet]
     end
 
     desc "tasks_to_sync", "Get all of the tasks to sync in options[:list]"
