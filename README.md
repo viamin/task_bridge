@@ -41,7 +41,7 @@ Download the JSON credentials to `google_api_client_credentials.json` (or whatev
 Run the script and follow the instructions to get an auth token
 By default the token will be saved to `~/.config/google/credentials.yaml` - copy it to the script directory or update your `.env` to point to the credentials file. You can use multiple credentials files for different Google accounts, if you desire.
 
-## Running automatically
+## Running automatically (on a Mac)
 
 Scripts are included to run this automatically on a Mac, assuming you have `ruby` installed.
 

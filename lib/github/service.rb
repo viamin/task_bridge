@@ -17,7 +17,7 @@ module Github
     def sync(primary_service)
       issues = issues_to_sync(@options[:tags])
       existing_tasks = primary_service.tasks_to_sync(tags: ["Github"], inbox: true)
-      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length, title: "Github issues") if options[:verbose]
+      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length, title: "Github issues") unless options[:quiet]
       issues.each do |issue|
         puts "\n\n#{self.class}##{__method__} Looking for #{issue.task_title} (#{issue.state})" if options[:debug]
         output = if (existing_task = existing_tasks.find { |task| issue.task_title.downcase == task.title.downcase.strip })
@@ -25,10 +25,10 @@ module Github
         elsif issue.open?
           primary_service.add_task(issue, options)
         end
-        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose]) || options[:debug])
-        progressbar.increment if options[:verbose]
+        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
+        progressbar.increment unless options[:quiet]
       end
-      puts "Synced #{issues.length} Github issues to #{options[:primary]}" if options[:verbose]
+      puts "Synced #{issues.length} Github issues to #{options[:primary]}" unless options[:quiet]
     end
 
     # Not currently supported for this service

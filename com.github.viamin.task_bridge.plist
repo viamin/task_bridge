@@ -10,6 +10,7 @@
 		<string>exec</string>
 		<string>ruby</string>
 		<string>task_bridge.rb</string>
+		<string>--quiet</string>
 	</array>
 	<key>StartCalendarInterval</key>
 	<array>

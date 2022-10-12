@@ -16,7 +16,7 @@ module Omnifocus
     def sync(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Omnifocus"])
       existing_tasks = tasks_to_sync(tags: options[:tags], inbox: true)
-      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Omnifocus Tasks") if options[:verbose] || options[:debug]
+      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Omnifocus Tasks") unless options[:quiet]
       tasks.each do |task|
         output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
           update_task(existing_task, task)
@@ -24,9 +24,9 @@ module Omnifocus
           add_task(task) unless task.completed
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if options[:debug]
-        progressbar.increment if options[:verbose] || options[:debug]
+        progressbar.increment unless options[:quiet]
       end
-      puts "Synced #{tasks.length} #{options[:primary]} items to Omnifocus" if options[:verbose]
+      puts "Synced #{tasks.length} #{options[:primary]} items to Omnifocus" unless options[:quiet]
     end
 
     def tasks_to_sync(tags: nil, inbox: false)
@@ -136,7 +136,6 @@ module Omnifocus
 
     def inbox_tasks
       @inbox_tasks ||= begin
-        tasks = []
         inbox_tasks = omnifocus.inbox_tasks.get.map { |t| all_omnifocus_subtasks(t) }.flatten
         inbox_tasks.compact.uniq(&:id_)
       end
@@ -144,7 +143,6 @@ module Omnifocus
 
     def tagged_tasks(tags = nil)
       target_tags = tags || @options[:tags]
-      tasks = []
       all_tags = omnifocus.flattened_tags.get
       matching_tags = all_tags.select { |tag| target_tags.include?(tag.name.get) }
       matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
