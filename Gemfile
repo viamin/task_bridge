@@ -48,6 +48,8 @@ gem "rubocop-rspec"
 # https://github.com/jfelchner/ruby-progressbar
 gem "ruby-progressbar"
 
+gem "solargraph"
+
 gem "standard"
 
 # https://github.com/rails/thor
