@@ -19,16 +19,14 @@ module Instapaper
 
     def user_credentials
       puts "** Calling #{self.class}##{__method__}" if options[:debug]
-      consumer = OAuth::Consumer.new(
-        credentials[:key], credentials[:secret],
-        {
-          site: "https://www.instapaper.com/api/1",
-          scheme: :header,
-          http_method: :post,
-          access_token_path: "/oauth/access_token",
-          body_hash_enabled: false
-        }
-      )
+      params = {
+        site: "https://www.instapaper.com/api/1",
+        scheme: :header,
+        http_method: :post,
+        access_token_path: "/oauth/access_token",
+        body_hash_enabled: false
+      }
+      consumer = OAuth::Consumer.new(credentials[:key], credentials[:secret], params)
       request_options = {}
       arguments = {
         x_auth_username: credentials[:username],

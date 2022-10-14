@@ -8,6 +8,9 @@ module Instapaper
   class Service
     prepend MemoWise
 
+    UNREAD_ARTICLE_COUNT = 50
+    ARCHIVED_ARTICLE_COUNT = 10
+
     attr_reader :options, :authentication
 
     def initialize(options)
@@ -56,10 +59,10 @@ module Instapaper
     def recently_archived_articles
       puts "Getting recently archived Instapaper articles" if options[:debug]
       params = {
-        limit: "5",
+        limit: ARCHIVED_ARTICLE_COUNT,
         folder_id: "archive"
       }
-      response = authentication.get("/bookmarks/list", params)
+      response = authentication.get("/bookmarks/list?#{URI.encode_www_form(params)}")
       raise "#{response.code} There was a problem with the Instapaper request" unless response.code.to_i == 200
 
       articles = JSON.parse(response.body)
@@ -71,8 +74,8 @@ module Instapaper
 
     def unread_articles
       puts "Getting unread Instapaper articles" if options[:debug]
-      params = { limit: "100" }
-      response = authentication.get("/bookmarks/list", params)
+      params = { limit: UNREAD_ARTICLE_COUNT }
+      response = authentication.get("/bookmarks/list?#{URI.encode_www_form(params)}")
       raise "#{response.code} There was a problem with the Instapaper request" unless response.code.to_i == 200
 
       articles = JSON.parse(response.body)
