@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require_relative "task"
 
 module Omnifocus
@@ -16,7 +18,10 @@ module Omnifocus
     def sync(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Omnifocus"])
       existing_tasks = tasks_to_sync(tags: options[:tags], inbox: true)
-      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length, title: "Omnifocus Tasks") unless options[:quiet]
+      unless options[:quiet]
+        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
+                                         title: "Omnifocus Tasks")
+      end
       tasks.each do |task|
         output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
           update_task(existing_task, task)
@@ -47,12 +52,12 @@ module Omnifocus
       elsif options[:pretend] && options[:verbose]
         "Would have added #{task.title} to Omnifocus"
       end
-      if new_task && !tags(task).empty?
-        tags(task).each do |tag|
-          add_tag(tag: tag, task: new_task)
-        end
-        new_task
+      return unless new_task && !tags(task).empty?
+
+      tags(task).each do |tag|
+        add_tag(tag:, task: new_task)
       end
+      new_task
     end
 
     def update_task(existing_task, task, options = {})
@@ -62,7 +67,7 @@ module Omnifocus
         "Would have marked #{existing_task.title} complete in Omnifocus" if options[:pretend] && options[:verbose]
       elsif !options[:pretend] && !task.completed? # don't add tags to completed tasks
         tags(task).each do |tag|
-          add_tag(tag: tag, task: existing_task)
+          add_tag(tag:, task: existing_task)
         end
         task
       elsif options[:pretend]
@@ -99,7 +104,7 @@ module Omnifocus
     # Checks that a project exists in Omnifocus, and if it does returns it
     def project(external_task)
       puts "Called #{self.class}##{__method__} looking for project: #{external_task.project}" if options[:debug]
-      if external_task.project && (external_task.project.split(":").length > 0)
+      if external_task.project && external_task.project.split(":").length.positive?
         parts = external_task.project.split(":")
         folder = omnifocus.flattened_folders[parts.first]
         project = folder.projects[parts.last]
@@ -108,7 +113,7 @@ module Omnifocus
       end
       project.get
       project
-    rescue
+    rescue StandardError
       puts "The project #{external_task.project} does not exist in Omnifocus" if options[:verbose]
       nil
     end
@@ -118,7 +123,7 @@ module Omnifocus
     def tag(name)
       tag = omnifocus.flattened_tags[name]
       tag.get
-    rescue
+    rescue StandardError
       puts "The tag #{name} does not exist in Omnifocus" if options[:verbose]
       nil
     end
@@ -126,7 +131,7 @@ module Omnifocus
 
     # Maps a list of tag names on an Omnifocus::Task to Omnifocus tags
     def tags(task)
-      task.tags.map { |tag| tag(tag) }.compact
+      task.tags.filter_map { |tag| tag(tag) }
     end
     memo_wise :tags
 

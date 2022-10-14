@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 source "https://rubygems.org"
 
 # https://github.com/rails/rails/tree/main/activesupport
@@ -36,8 +38,15 @@ gem "pry"
 # https://github.com/BrendanThompson/rb-scpt
 gem "rb-scpt"
 
+gem "rubocop"
+gem "rubocop-performance"
+
 # https://github.com/jfelchner/ruby-progressbar
 gem "ruby-progressbar"
+
+gem "solargraph"
+
+gem "standard"
 
 # https://github.com/rails/thor
 gem "thor"

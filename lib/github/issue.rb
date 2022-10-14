@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Github
   # A representation of a Github issue
   class Issue
@@ -26,7 +28,7 @@ module Github
     end
 
     def task_title
-      "#{project}-##{number}: #{is_pr ? "[PR] " : ""}#{title.strip}"
+      "#{project}-##{number}: #{is_pr ? '[PR] ' : ''}#{title.strip}"
     end
 
     def properties
@@ -97,7 +99,16 @@ module Github
     #     "body" =>
     # "After a sync, tasks that have been marked complete in Omnifocus are showing up as to do in Google tasks. Also, the due dates appear to be incorrect (for example, an omnifocus task with a due date of today at 9pm shows up as due tomorrow (with no time) in Google Tasks. ",
     #     "reactions" => {
-    #       "url" => "https://api.github.com/repos/viamin/task_bridge/issues/11/reactions", "total_count" => 0, "+1" => 0, "-1" => 0, "laugh" => 0, "hooray" => 0, "confused" => 0, "heart" => 0, "rocket" => 0, "eyes" => 0
+    #       "url" => "https://api.github.com/repos/viamin/task_bridge/issues/11/reactions",
+    #       "total_count" => 0,
+    #       "+1" => 0,
+    #       "-1" => 0,
+    #       "laugh" => 0,
+    #       "hooray" => 0,
+    #       "confused" => 0,
+    #       "heart" => 0,
+    #       "rocket" => 0,
+    #      "eyes" => 0
     #     },
     #     "timeline_url" => "https://api.github.com/repos/viamin/task_bridge/issues/11/timeline",
     #     "performed_via_github_app" => nil,

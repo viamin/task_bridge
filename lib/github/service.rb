@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require_relative "authentication"
 require_relative "issue"
 
@@ -17,10 +19,15 @@ module Github
     def sync(primary_service)
       issues = issues_to_sync(@options[:tags])
       existing_tasks = primary_service.tasks_to_sync(tags: ["Github"], inbox: true)
-      progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length, title: "Github issues") unless options[:quiet]
+      unless options[:quiet]
+        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length,
+                                         title: "Github issues")
+      end
       issues.each do |issue|
         puts "\n\n#{self.class}##{__method__} Looking for #{issue.task_title} (#{issue.state})" if options[:debug]
-        output = if (existing_task = existing_tasks.find { |task| issue.task_title.downcase == task.title.downcase.strip })
+        output = if (existing_task = existing_tasks.find do |task|
+                       issue.task_title.downcase == task.title.downcase.strip
+                     end)
           primary_service.update_task(existing_task, issue, options)
         elsif issue.open?
           primary_service.add_task(issue, options)
@@ -42,12 +49,12 @@ module Github
       {
         headers: {
           accept: "application/vnd.github+json",
-          authorization: "Bearer #{authentication["access_token"]}"
+          authorization: "Bearer #{authentication['access_token']}"
         }
       }
     end
 
-    def sync_repositories(with_url = false)
+    def sync_repositories(with_url: false)
       repos = ENV.fetch("GITHUB_REPOSITORIES", []).split(",")
       if with_url
         repos.map { |repo| "https://api.github.com/repos/#{repo}" }
@@ -57,8 +64,13 @@ module Github
     end
 
     def issues_to_sync(tags = nil)
-      tagged_issues = sync_repositories.map { |repo| list_issues(repo, tags) }.flatten.map { |issue| Issue.new(issue, options) }
-      assigned_issues = list_assigned.filter { |issue| sync_repositories(true).include?(issue["repository_url"]) }.map { |issue| Issue.new(issue, options) }
+      tagged_issues = sync_repositories
+                      .map { |repo| list_issues(repo, tags) }
+                      .flatten
+                      .map { |issue| Issue.new(issue, options) }
+      assigned_issues = list_assigned
+                        .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
+                        .map { |issue| Issue.new(issue, options) }
       (tagged_issues + assigned_issues).uniq
     end
     memo_wise :issues_to_sync
@@ -72,9 +84,7 @@ module Github
           }
         }
         response = HTTParty.get("https://api.github.com/issues", authenticated_options.merge(query))
-        if response.code == 200
-          JSON.parse(response.body)
-        end
+        JSON.parse(response.body) if response.code == 200
       end
     end
 
@@ -88,11 +98,9 @@ module Github
         }
       }
       response = HTTParty.get("https://api.github.com/repos/#{repository}/issues", authenticated_options.merge(query))
-      if response.code == 200
-        JSON.parse(response.body)
-      else
-        raise "Error loading Github issues - check repository name and access (response code: #{response.code}"
-      end
+      raise "Error loading Github issues - check repository name and access (response code: #{response.code}" unless response.code == 200
+
+      JSON.parse(response.body)
     end
     memo_wise :list_issues
 

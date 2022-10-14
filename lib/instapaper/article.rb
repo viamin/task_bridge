@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Instapaper
   class Article
     attr_reader :options, :id, :folder, :project, :title, :tags, :url

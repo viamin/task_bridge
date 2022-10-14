@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Copyright 2016 Google Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,13 +36,15 @@ module GoogleTasks
     no_commands do
       # Returns the path to the client_secrets.json file.
       def client_secrets_path
-        return ENV["GOOGLE_CLIENT_SECRETS"] if ENV.has_key?("GOOGLE_CLIENT_SECRETS")
+        return ENV["GOOGLE_CLIENT_SECRETS"] if ENV.key?("GOOGLE_CLIENT_SECRETS")
+
         well_known_path_for("client_secrets.json")
       end
 
       # Returns the path to the token store.
       def token_store_path
-        return ENV["GOOGLE_CREDENTIAL_STORE"] if ENV.has_key?("GOOGLE_CREDENTIAL_STORE")
+        return ENV["GOOGLE_CREDENTIAL_STORE"] if ENV.key?("GOOGLE_CREDENTIAL_STORE")
+
         well_known_path_for("credentials.yaml")
       end
 
@@ -83,7 +87,7 @@ module GoogleTasks
           say url
           code = ask "Enter the authorization code:"
           credentials = authorizer.get_and_store_credentials_from_code(
-            user_id: user_id, code: code, base_url: OOB_URI
+            user_id:, code:, base_url: OOB_URI
           )
         elsif credentials.expired?
           credentials = credentials.fetch_access_token!
