@@ -1,0 +1,86 @@
+notes
+
+def self.convert_task(external_task)
+  return self if external_task.source == "Omnifocus"
+
+  Task.new(external_task.omnifocus_hash)
+end
+
+#   #####
+#  #     #  ####  #    # #    # ###### #####  ##### ###### #####   ####
+#  #       #    # ##   # #    # #      #    #   #   #      #    # #
+#  #       #    # # #  # #    # #####  #    #   #   #####  #    #  ####
+#  #       #    # #  # # #    # #      #####    #   #      #####       #
+#  #     # #    # #   ##  #  #  #      #   #    #   #      #   #  #    #
+#   #####   ####  #    #   ##   ###### #    #   #   ###### #    #  ####
+
+def reclaim_hash
+  category = is_personal? ? "PERSONAL" : "WORK"
+  time_required = (estimated_minutes / 15.0).ceil
+  time_spent = completed ? time_required : 0
+  {
+    title: title,
+    eventCategory: category,
+    timeChunksRequired: time_required,
+    timeChunksSpent: time_spent,
+    timeChunksRemaining: time_required - time_spent,
+    snoozeUntil: defer_date.rfc3339,
+    due: due_date.rfc3339,
+    notes: note,
+    alwaysPrivate: true
+  }.as_json
+end
+
+def google_tasks_hash
+  {
+    completed: completion_date.rfc3339,
+    due: due_date.rfc3339,
+    notes: note,
+    status: completed ? "completed" : "needsAction",
+    title: title
+  }.as_json
+end
+
+def self.convert_task(external_task)
+  return self if external_task.source == "Reclaim"
+
+  Task.new(external_task.reclaim_hash)
+end
+
+#   #####
+#  #     #  ####  #    # #    # ###### #####  ##### ###### #####   ####
+#  #       #    # ##   # #    # #      #    #   #   #      #    # #
+#  #       #    # # #  # #    # #####  #    #   #   #####  #    #  ####
+#  #       #    # #  # # #    # #      #####    #   #      #####       #
+#  #     # #    # #   ##  #  #  #      #   #    #   #      #   #  #    #
+#   #####   ####  #    #   ##   ###### #    #   #   ###### #    #  ####
+
+def google_tasks_hash
+  {
+    completed: complete? ? Time.now.rcf3339 : nil,
+    due: due_date.rfc3339,
+    notes: notes,
+    status: complete ? "completed" : "needsAction",
+    title: title
+  }.as_json
+end
+
+def omnifocus_hash
+  tags = if is_personal?
+    if options[:uses_personal_tags]
+      options[:personal_tags].split(",")
+    else
+      options[:work_tags].split(",")
+    end
+  end
+  tags = tags << "Reclaim"
+  {
+    title: title,
+    completed: complete,
+    defer_date: defer_date,
+    estimated_minutes: time_remaining * 15,
+    note: notes,
+    tags: tags,
+    due_date: due_date
+  }
+end

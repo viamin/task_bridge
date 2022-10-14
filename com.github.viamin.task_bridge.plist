@@ -9,7 +9,7 @@
 		<string>/Users/bart/.asdf/shims/bundler</string>
 		<string>exec</string>
 		<string>ruby</string>
-		<string>task_bridge.rb</string>
+		<string>./bin/task_bridge</string>
 		<string>--quiet</string>
 	</array>
 	<key>StartCalendarInterval</key>

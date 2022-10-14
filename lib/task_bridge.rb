@@ -4,11 +4,11 @@
 require "rubygems"
 require "bundler/setup"
 Bundler.require(:default)
-require_relative "lib/omnifocus/service"
-require_relative "lib/google_tasks/service"
-require_relative "lib/github/service"
-require_relative "lib/instapaper/service"
-require_relative "lib/reclaim/service"
+require_relative "omnifocus/service"
+require_relative "google_tasks/service"
+require_relative "github/service"
+require_relative "instapaper/service"
+require_relative "reclaim/service"
 
 class TaskBridge
   def initialize
@@ -92,5 +92,3 @@ class TaskBridge
     # add code to test here
   end
 end
-
-TaskBridge.new.call
