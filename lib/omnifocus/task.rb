@@ -101,7 +101,7 @@ module Omnifocus
     end
 
     def original_task
-      Service.new(options).omnifocus.flattened_tags["Github"].tasks[title].get
+      Service.new(options).omnifocus.flattened_tags[*options[:tags]].tasks[title].get
     end
 
     def read_attribute(task, attribute)
