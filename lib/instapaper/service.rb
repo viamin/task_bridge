@@ -34,7 +34,7 @@ module Instapaper
         output = if (existing_task = existing_tasks.find do |task|
                        article.task_title.downcase == task.title.downcase.strip
                      end)
-          primary_service.update_task(existing_task, article, options)
+          primary_service.update_task(existing_task, article)
         elsif article.unread?
           primary_service.add_task(article, options)
         end

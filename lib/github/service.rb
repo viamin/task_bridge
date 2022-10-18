@@ -28,7 +28,7 @@ module Github
         output = if (existing_task = existing_tasks.find do |task|
                        issue.task_title.downcase == task.title.downcase.strip
                      end)
-          primary_service.update_task(existing_task, issue, options)
+          primary_service.update_task(existing_task, issue)
         elsif issue.open?
           primary_service.add_task(issue, options)
         end

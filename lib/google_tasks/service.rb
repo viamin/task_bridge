@@ -22,6 +22,8 @@ module GoogleTasks
                                          title: "Google Tasks")
       end
       tasks.each do |task|
+        next if options[:max_age] && task.updated_at && (task.updated_at < options[:max_age])
+
         output = if (existing_task = tasks_to_sync.find { |t| task_title_matches(t, task) })
           update_task(tasklist, existing_task, task, options)
         else

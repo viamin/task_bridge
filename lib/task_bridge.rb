@@ -29,6 +29,7 @@ class TaskBridge
       conflicts :personal_tags, :work_tags
       opt :services, "Services to sync tasks to", default: ENV.fetch("SYNC_SERVICES", "GoogleTasks,Github").split(",")
       opt :list, "Task list name to sync to", default: ENV.fetch("GOOGLE_TASKS_LIST", "My Tasks")
+      opt :max_age, "Skip syncing asks that have not been modified within this time", default: ENV.fetch("SYNC_MAX_AGE", nil)
       opt :delete,
           "Delete completed tasks on service",
           default: %w[true t yes 1].include?(ENV.fetch("DELETE_COMPLETED", "false").downcase)
@@ -45,6 +46,7 @@ class TaskBridge
       Optimist.die :services,
                    "Supported services: #{supported_services.join(', ')}"
     end
+    @options[:max_age] = Chronic.parse("#{@options[:max_age]} ago") unless @options[:max_age].nil?
     @options[:uses_personal_tags] = @options[:work_tags].nil?
     @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(@options)
     @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(@options)] }
