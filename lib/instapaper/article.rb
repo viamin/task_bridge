@@ -2,7 +2,7 @@
 
 module Instapaper
   class Article
-    attr_reader :options, :id, :folder, :project, :title, :tags, :url
+    attr_reader :options, :id, :folder, :project, :title, :tags, :url, :updated_at
 
     def initialize(instapaper_article, options)
       @options = options
@@ -12,6 +12,7 @@ module Instapaper
       @folder = instapaper_article["folder"]
       @tags = default_tags
       @project = ENV.fetch("INSTAPAPER_PROJECT", nil)
+      @updated_at = Time.at(instapaper_article["progress_timestamp"])
     end
 
     def completed?

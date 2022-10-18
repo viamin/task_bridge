@@ -3,7 +3,7 @@
 module Github
   # A representation of a Github issue
   class Issue
-    attr_reader :options, :id, :title, :html_url, :number, :labels, :state, :project, :is_pr
+    attr_reader :options, :id, :title, :html_url, :number, :labels, :state, :project, :is_pr, :updated_at
 
     def initialize(github_issue, options)
       @options = options

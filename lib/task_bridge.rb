@@ -46,7 +46,7 @@ class TaskBridge
       Optimist.die :services,
                    "Supported services: #{supported_services.join(', ')}"
     end
-    @options[:max_age] = Chronic.parse("#{@options[:max_age]} ago") unless @options[:max_age].nil?
+    @options[:max_age_timestamp] = Chronic.parse("#{@options[:max_age]} ago") unless @options[:max_age].nil?
     @options[:uses_personal_tags] = @options[:work_tags].nil?
     @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(@options)
     @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(@options)] }

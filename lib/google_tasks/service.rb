@@ -22,14 +22,14 @@ module GoogleTasks
                                          title: "Google Tasks")
       end
       tasks.each do |task|
-        next if options[:max_age] && task.updated_at && (task.updated_at < options[:max_age])
+        # next if options[:max_age] && task.updated_at && (task.updated_at < options[:max_age])
 
         output = if (existing_task = tasks_to_sync.find { |t| task_title_matches(t, task) })
           update_task(tasklist, existing_task, task, options)
         else
           add_task(tasklist, task, options) unless task.completed
         end
-        progressbar.log "#{self.class}##{__method__}: #{output}" if options[:debug]
+        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks.length} #{options[:primary]} tasks to Google Tasks" unless options[:quiet]

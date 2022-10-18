@@ -28,7 +28,7 @@ module Omnifocus
         else
           add_task(task) unless task.completed
         end
-        progressbar.log "#{self.class}##{__method__}: #{output}" if options[:debug]
+        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks.length} #{options[:primary]} items to Omnifocus" unless options[:quiet]
@@ -62,7 +62,7 @@ module Omnifocus
 
     def update_task(existing_task, task)
       puts "Called #{self.class}##{__method__}" if options[:debug]
-      if options[:max_age] && task.updated_at && (task.updated_at < options[:max_age])
+      if options[:max_age_timestamp] && task.updated_at && (task.updated_at < options[:max_age_timestamp])
         "Last modified more than #{options[:max_age]} ago - skipping #{task.title}"
       elsif task.completed? && existing_task.incomplete?
         existing_task.mark_complete unless options[:pretend]
@@ -105,7 +105,7 @@ module Omnifocus
 
     # Checks that a project exists in Omnifocus, and if it does returns it
     def project(external_task)
-      puts "Called #{self.class}##{__method__} looking for project: #{external_task.project}" if options[:debug]
+      puts "Called #{self.class}##{__method__} Looking for project: #{external_task.project}" if options[:debug]
       if external_task.project && external_task.project.split(":").length.positive?
         parts = external_task.project.split(":")
         folder = omnifocus.flattened_folders[parts.first]

@@ -26,7 +26,7 @@ module Reclaim
           # add a new task unless it's completed
           add_task(task) unless task.completed
         end
-        progressbar.log "#{self.class}##{__method__}: #{output}" if options[:debug]
+        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks.length} #{options[:primary]} items to Reclaim Tasks" unless options[:quiet]
