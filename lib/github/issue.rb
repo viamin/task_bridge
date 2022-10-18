@@ -17,6 +17,7 @@ module Github
       @state = github_issue["state"]
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
+      @updated_at = Chronic.parse(github_issue["updated_at"])&.getlocal
     end
 
     def completed?

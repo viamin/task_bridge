@@ -52,6 +52,7 @@ module Omnifocus
       @tags = read_attribute(task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       @due_date = date_from_tags(task, @tags)
+      @updated_at = read_attribute(:modification_date)
     end
 
     def incomplete?

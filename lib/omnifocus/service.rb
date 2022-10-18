@@ -60,9 +60,11 @@ module Omnifocus
       new_task
     end
 
-    def update_task(existing_task, task, options = {})
+    def update_task(existing_task, task)
       puts "Called #{self.class}##{__method__}" if options[:debug]
-      if task.completed? && existing_task.incomplete?
+      if options[:max_age] && task.updated_at && (task.updated_at < options[:max_age])
+        "Last modified more than #{options[:max_age]} ago - skipping #{task.title}"
+      elsif task.completed? && existing_task.incomplete?
         existing_task.mark_complete unless options[:pretend]
         "Would have marked #{existing_task.title} complete in Omnifocus" if options[:pretend] && options[:verbose]
       elsif !options[:pretend] && !task.completed? # don't add tags to completed tasks
