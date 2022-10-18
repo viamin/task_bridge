@@ -71,9 +71,11 @@ module GoogleTasks
 
     # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
     def task_from_primary(task)
+      # using to_date since GoogleTasks doesn't seem to care about the time (for due date)
+      # and the exact time probably doesn't matter for completed
       google_task = {
-        completed: task.completion_date&.utc&.to_datetime&.rfc3339,
-        due: task.due_date&.utc&.to_datetime&.rfc3339,
+        completed: task.completion_date&.to_date&.rfc3339,
+        due: task.due_date&.to_date&.rfc3339,
         notes: task.note,
         status: task.completed ? "completed" : "needsAction",
         title: task.title + reclaim_title_addon(task)
