@@ -20,10 +20,8 @@ module Reclaim
       end
       tasks.each do |task|
         output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
-          # update the existing task
           update_task(existing_task, task)
         else
-          # add a new task unless it's completed
           add_task(task) unless task.completed
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])

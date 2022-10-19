@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 module Omnifocus
+  # A representation of an Omnifocus task
   class Task
     TIME_TAGS = [
       "Today",
@@ -73,6 +74,20 @@ module Omnifocus
 
     def task_title
       title
+    end
+
+    def to_asana(project_gid = nil)
+      project_data = project_gid.nil? ? {} : { projects: [project_gid] }
+      project_data.merge(
+        {
+          completed:,
+          due_at: due_date&.iso8601,
+          liked: flagged,
+          name: title,
+          notes: note.blank? ? nil : note,
+          start_at: defer_date&.iso8601
+        }
+      ).compact
     end
 
     private

@@ -9,6 +9,7 @@ require_relative "google_tasks/service"
 require_relative "github/service"
 require_relative "instapaper/service"
 require_relative "reclaim/service"
+require_relative "asana/service"
 
 class TaskBridge
   def initialize
@@ -29,6 +30,7 @@ class TaskBridge
       conflicts :personal_tags, :work_tags
       opt :services, "Services to sync tasks to", default: ENV.fetch("SYNC_SERVICES", "GoogleTasks,Github").split(",")
       opt :list, "Task list name to sync to", default: ENV.fetch("GOOGLE_TASKS_LIST", "My Tasks")
+      opt :project, "Project name to sync in Asana", default: ENV.fetch("ASANA_PROJECT", nil)
       opt :max_age, "Skip syncing asks that have not been modified within this time", default: ENV.fetch("SYNC_MAX_AGE", nil)
       opt :delete,
           "Delete completed tasks on service",
@@ -80,7 +82,7 @@ class TaskBridge
     # These services are other services that have tasks or task-like objects
     # that should be kept in sync with the primary service
     def task_services
-      %w[GoogleTasks Omnifocus Reclaim]
+      %w[Asana GoogleTasks Omnifocus Reclaim]
     end
   end
 
