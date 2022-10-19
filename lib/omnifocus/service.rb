@@ -71,6 +71,10 @@ module Omnifocus
         tags(task).each do |tag|
           add_tag(tag:, task: existing_task)
         end
+        if task.project && (task.project != existing_task.project)
+          # update the project via assigned_container property
+          existing_task.original_task.assigned_container.set(project(task))
+        end
         task
       elsif options[:pretend]
         "Would have updated #{task.title} in Omnifocus"
@@ -104,19 +108,19 @@ module Omnifocus
     end
 
     # Checks that a project exists in Omnifocus, and if it does returns it
-    def project(external_task)
-      puts "Called #{self.class}##{__method__} Looking for project: #{external_task.project}" if options[:debug]
-      if external_task.project && external_task.project.split(":").length.positive?
-        parts = external_task.project.split(":")
+    def project(task)
+      puts "Called #{self.class}##{__method__} Looking for project: #{task.project}" if options[:debug]
+      if task.project && (task.project.split(":").length > 1)
+        parts = task.project.split(":")
         folder = omnifocus.flattened_folders[parts.first]
         project = folder.projects[parts.last]
-      elsif external_task.project
-        project = omnifocus.flattened_projects[external_task.project]
+      elsif task.project
+        project = omnifocus.flattened_projects[task.project]
       end
       project.get
       project
     rescue StandardError
-      puts "The project #{external_task.project} does not exist in Omnifocus" if options[:verbose]
+      puts "The project #{task.project} does not exist in Omnifocus" if options[:verbose]
       nil
     end
     memo_wise :project

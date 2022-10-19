@@ -3,6 +3,8 @@
 module Omnifocus
   # A representation of an Omnifocus task
   class Task
+    prepend MemoWise
+
     TIME_TAGS = [
       "Today",
       "Tomorrow",
@@ -66,11 +68,17 @@ module Omnifocus
         (@tags & @options[:work_tags].split(",")).empty?
       end
     end
+    memo_wise :personal?
 
     def mark_complete
       puts "Called #{self.class}##{__method__}" if options[:debug]
       original_task.mark_complete
     end
+
+    def original_task
+      Service.new(options).omnifocus.flattened_tags[*options[:tags]].tasks[title]
+    end
+    memo_wise :original_task
 
     def task_title
       title
@@ -113,10 +121,6 @@ module Omnifocus
 
       tag = (tags & TIME_TAGS).first
       Chronic.parse(tag)
-    end
-
-    def original_task
-      Service.new(options).omnifocus.flattened_tags[*options[:tags]].tasks[title].get
     end
 
     def read_attribute(task, attribute)
