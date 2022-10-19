@@ -23,8 +23,14 @@ gem "google-apis-tasks_v1"
 # https://github.com/jnunemaker/httparty
 gem "httparty"
 
+# https://github.com/flavorjones/loofah
+gem "loofah"
+
 # https://github.com/panorama-ed/memo_wise
 gem "memo_wise"
+
+# https://github.com/sparklemotion/nokogiri
+gem "nokogiri"
 
 # https://gitlab.com/oauth-xx/oauth
 gem "oauth"

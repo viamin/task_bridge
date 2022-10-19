@@ -2,7 +2,9 @@
 
 module Instapaper
   class Article
-    attr_reader :options, :id, :folder, :project, :title, :tags, :url, :updated_at
+    prepend MemoWise
+
+    attr_reader :options, :id, :folder, :project, :title, :tags, :url, :updated_at, :reading_time
 
     def initialize(instapaper_article, options)
       @options = options
@@ -13,6 +15,7 @@ module Instapaper
       @tags = default_tags
       @project = ENV.fetch("INSTAPAPER_PROJECT", nil)
       @updated_at = Time.at(instapaper_article["progress_timestamp"])
+      @reading_time = nil
     end
 
     def completed?
@@ -30,15 +33,42 @@ module Instapaper
     def properties
       {
         name: task_title,
-        note: url
-      }
+        note: url,
+        estimated_minutes: reading_time
+      }.compact
     end
+
+    # calculates a reading time in minutes for the article
+    def read_time(instapaper_service)
+      # Using the algorithm detailed here:
+      # https://blog.medium.com/read-time-and-you-bc2048ab620c
+      reading_speed_wpm = 275
+      content = instapaper_service.article_text(self)
+      doc = Loofah.document(content)
+      image_count = doc.search("img").count
+      word_count = doc.to_text.tr("\n", " ").squeeze(" ").strip.split.count
+      word_reading_minutes = (word_count.to_f / reading_speed_wpm)
+      @reading_time = (word_reading_minutes + image_time(image_count)).ceil
+    end
+    memo_wise :read_time
 
     private
 
     def default_tags
       options[:tags] + ["Instapaper"]
     end
+
+    def image_time(image_count)
+      # because I'm too lazy to do the math on this...
+      precalculated = [12, 23, 33, 42, 50, 57, 63, 68, 72, 75]
+      seconds = if image_count <= 10
+        precalculated[image_count - 1]
+      else
+        precalculated.last + ((image_count - 10) * 3)
+      end
+      seconds.to_f / 60
+    end
+    memo_wise :image_time
 
     # {
     #   "hash" => "agzVxoVE",
