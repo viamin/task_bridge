@@ -5,6 +5,8 @@ require_relative "task"
 module Asana
   # A service class to talk to the Asana API
   class Service
+    prepend MemoWise
+    
     attr_reader :options, :project_gid
 
     def initialize(options)
@@ -92,6 +94,7 @@ module Asana
 
       JSON.parse(response.body)["data"]
     end
+    memo_wise :list_projects
 
     def list_project_tasks(project_gid)
       query = {
@@ -105,13 +108,7 @@ module Asana
 
       JSON.parse(response.body)["data"]
     end
-
-    def detailed_task(task_gid)
-      response = HTTParty.get("#{base_url}/tasks/#{task_gid}", authenticated_options)
-      raise "Error loading Asana tasks - check personal access token" unless response.code == 200
-
-      JSON.parse(response.body)["data"]
-    end
+    memo_wise :list_project_tasks
 
     def authenticated_options
       {
