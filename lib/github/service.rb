@@ -17,7 +17,7 @@ module Github
 
     # By default Github syncs TO the primary service
     def sync(primary_service)
-      issues = issues_to_sync(@options[:tags])
+      issues = issues_to_sync(options[:tags])
       existing_tasks = primary_service.tasks_to_sync(tags: ["Github"], inbox: true)
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length,
@@ -75,6 +75,9 @@ module Github
     end
     memo_wise :issues_to_sync
 
+    # https://docs.github.com/en/rest/issues/issues#list-issues-assigned-to-the-authenticated-user
+    # For some reason this API call doesn't always return
+    # all of my assigned issues, and I don't know why
     def list_assigned
       @list_assigned ||= begin
         query = {
@@ -84,9 +87,10 @@ module Github
           }
         }
         response = HTTParty.get("https://api.github.com/issues", authenticated_options.merge(query))
-        JSON.parse(response.body) if response.code == 200
+        JSON.parse(response.body) if response.success?
       end
     end
+    memo_wise :list_assigned
 
     # https://docs.github.com/en/rest/issues/issues#list-repository-issues
     def list_issues(repository, tags = nil)
@@ -98,7 +102,7 @@ module Github
         }
       }
       response = HTTParty.get("https://api.github.com/repos/#{repository}/issues", authenticated_options.merge(query))
-      raise "Error loading Github issues - check repository name and access (response code: #{response.code}" unless response.code == 200
+      raise "Error loading Github issues - check repository name and access (response code: #{response.code}" unless response.success?
 
       JSON.parse(response.body)
     end

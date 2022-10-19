@@ -6,7 +6,7 @@ module Asana
   # A service class to talk to the Asana API
   class Service
     prepend MemoWise
-    
+
     attr_reader :options, :project_gid
 
     def initialize(options)
@@ -90,7 +90,7 @@ module Asana
 
     def list_projects
       response = HTTParty.get("#{base_url}/projects", authenticated_options)
-      raise "Error loading Asana tasks - check personal access token" unless response.code == 200
+      raise "Error loading Asana tasks - check personal access token" unless response.success?
 
       JSON.parse(response.body)["data"]
     end
@@ -104,7 +104,7 @@ module Asana
         }
       }
       response = HTTParty.get("#{base_url}/tasks", authenticated_options.merge(query))
-      raise "Error loading Asana tasks - check personal access token" unless response.code == 200
+      raise "Error loading Asana tasks - check personal access token" unless response.success?
 
       JSON.parse(response.body)["data"]
     end

@@ -47,7 +47,7 @@ module Reclaim
         "Would have added #{task.title} to Reclaim"
       else
         response = HTTParty.post("#{base_url}/tasks", authenticated_options.merge(request_body))
-        if response.code == 200
+        if response.success?
           JSON.parse(response.body)
         else
           puts "Failed to create a Reclaim task - check auth cookie"
@@ -63,7 +63,7 @@ module Reclaim
         "Would have updated task #{task.title} in Reclaim"
       else
         response = HTTParty.put("#{base_url}/tasks/#{existing_task.id}", authenticated_options.merge(request_body))
-        if response.code == 200
+        if response.success?
           JSON.parse(response.body)
         else
           puts "Failed to update Reclaim task ##{existing_task.id} with code #{response.code} - check auth cookie"
@@ -87,7 +87,7 @@ module Reclaim
         }
       }
       response = HTTParty.get("#{base_url}/tasks", authenticated_options.merge(query))
-      raise "Error loading Reclaim tasks - check cookie expiration" unless response.code == 200
+      raise "Error loading Reclaim tasks - check cookie expiration" unless response.success?
 
       JSON.parse(response.body)
     end
