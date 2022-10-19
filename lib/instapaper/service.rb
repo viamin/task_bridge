@@ -36,6 +36,7 @@ module Instapaper
                      end)
           primary_service.update_task(existing_task, article)
         elsif article.unread?
+          article.read_time(self)
           primary_service.add_task(article, options)
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
@@ -48,6 +49,18 @@ module Instapaper
     def prune
       false
     end
+
+    def article_text(article)
+      puts "Getting article fulltext for article: #{article.title}" if options[:debug]
+      params = {
+        bookmark_id: article.id
+      }
+      response = authentication.get("/bookmarks/get_text?#{URI.encode_www_form(params)}")
+      raise "#{response.code} There was a problem with the Instapaper request" unless response.code.to_i == 200
+
+      response.body
+    end
+    memo_wise :article_text
 
     private
 
