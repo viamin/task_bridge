@@ -56,9 +56,11 @@ module Instapaper
         bookmark_id: article.id
       }
       response = authentication.get("/bookmarks/get_text?#{URI.encode_www_form(params)}")
-      raise "#{response.code} There was a problem with the Instapaper request" unless response.code.to_i == 200
-
-      response.body
+      if response.code.to_i == 200
+        response.body
+      else
+        puts "#{response.code} There was a problem with the Instapaper request for #{article.title}"
+      end
     end
     memo_wise :article_text
 
