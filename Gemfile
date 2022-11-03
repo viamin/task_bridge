@@ -56,3 +56,8 @@ gem "standard"
 
 # https://github.com/rails/thor
 gem "thor"
+
+group :test do
+  gem "faker" # https://github.com/faker-ruby/faker
+  gem "rspec"
+end
