@@ -27,7 +27,11 @@ module Instapaper
     end
 
     def task_title
-      "[READ] #{title.strip}"
+      if title.strip.blank?
+        "[READ] #{url}"
+      else
+        "[READ] #{title.strip}"
+      end
     end
 
     def properties

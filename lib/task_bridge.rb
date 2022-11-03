@@ -55,6 +55,8 @@ class TaskBridge
   end
 
   def call
+    start_time = Time.now
+    puts "Starting sync at #{start_time.strftime('%c')}" unless @options[:quiet]
     puts @options.pretty_inspect if @options[:debug]
     return testing if @options[:testing]
     return console if @options[:console]
@@ -66,6 +68,11 @@ class TaskBridge
         service.sync(@primary_service)
       end
     end
+    return if @options[:quiet]
+
+    end_time = Time.now
+    puts "Sync took #{end_time - start_time} seconds"
+    puts "Finished sync at #{end_time.strftime('%c')}"
   end
 
   class << self
