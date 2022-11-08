@@ -34,14 +34,6 @@ module Instapaper
       end
     end
 
-    def properties
-      {
-        name: task_title,
-        note: url,
-        estimated_minutes: reading_time
-      }.compact
-    end
-
     # calculates a reading time in minutes for the article
     def read_time(instapaper_service)
       # Using the algorithm detailed here:
@@ -55,6 +47,22 @@ module Instapaper
       @reading_time = (word_reading_minutes + image_time(image_count)).ceil
     end
     memo_wise :read_time
+
+    #       #####
+    #      #     # ###### #####  #    # #  ####  ######  ####
+    #      #       #      #    # #    # # #    # #      #
+    #       #####  #####  #    # #    # # #      #####   ####
+    #            # #      #####  #    # # #      #           #
+    #      #     # #      #   #   #  #  # #    # #      #    #
+    #       #####  ###### #    #   ##   #  ####  ######  ####
+
+    def to_omnifocus
+      {
+        name: task_title,
+        note: url,
+        estimated_minutes: reading_time
+      }.compact
+    end
 
     private
 

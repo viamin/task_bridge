@@ -65,7 +65,10 @@ class TaskBridge
       if @options[:delete]
         service.prune
       else
-        service.sync(@primary_service)
+        # Generally we should sync FROM the primary service first, since it should be the source of truth
+        # and we want to avoid overwriting anything in the primary service if a duplicate task exists
+        service.sync_from(@primary_service) if service.respond_to?(:sync_from)
+        service.sync_to(@primary_service) if service.respond_to?(:sync_to)
       end
     end
     return if @options[:quiet]
@@ -81,12 +84,11 @@ class TaskBridge
     end
 
     # These services provide items that become tasks in the primary service
-    # Generally these services don't accept data from the primary service
     def provider_services
-      %w[Github Instapaper]
+      %w[Github Instapaper Asana]
     end
 
-    # These services are other services that have tasks or task-like objects
+    # These are services that have tasks or task-like objects
     # that should be kept in sync with the primary service
     def task_services
       %w[Asana GoogleTasks Omnifocus Reclaim]

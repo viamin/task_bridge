@@ -19,7 +19,7 @@ module Instapaper
     end
 
     # Instapaper only syncs TO another service
-    def sync(primary_service)
+    def sync_to(primary_service)
       articles = unread_and_recent_articles
       existing_tasks = primary_service.tasks_to_sync(tags: ["Instapaper"], inbox: true)
       unless options[:quiet]

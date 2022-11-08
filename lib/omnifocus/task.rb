@@ -33,7 +33,7 @@ module Omnifocus
       "12 - December"
     ].freeze
 
-    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :defer_date, :estimated_minutes, :flagged, :note, :tags, :project, :updated_at
+    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :defer_date, :estimated_minutes, :flagged, :note, :tags, :project, :updated_at, :subtask_count, :subtasks
 
     def initialize(task, options)
       @options = options
@@ -55,6 +55,14 @@ module Omnifocus
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       @due_date = date_from_tags(task, @tags)
       @updated_at = read_attribute(task, :modification_date)
+      @subtasks = read_attribute(task, :tasks).map do |subtask|
+        Task.new(subtask, @options)
+      end
+      @subtask_count = @subtasks.count
+    end
+
+    def completed?
+      completed
     end
 
     def incomplete?

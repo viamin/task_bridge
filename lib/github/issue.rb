@@ -32,15 +32,23 @@ module Github
       "#{project}-##{number}: #{is_pr ? '[PR] ' : ''}#{title.strip}"
     end
 
-    def properties
+    def tags
+      labels
+    end
+
+    #       #####
+    #      #     # ###### #####  #    # #  ####  ######  ####
+    #      #       #      #    # #    # # #    # #      #
+    #       #####  #####  #    # #    # # #      #####   ####
+    #            # #      #####  #    # # #      #           #
+    #      #     # #      #   #   #  #  # #    # #      #    #
+    #       #####  ###### #    #   ##   #  ####  ######  ####
+
+    def to_omnifocus
       {
         name: task_title,
         note: html_url
       }
-    end
-
-    def tags
-      labels
     end
 
     private
