@@ -85,7 +85,7 @@ module Omnifocus
     end
 
     def update_task(omnifocus_task, external_task)
-      puts "Called #{self.class}##{__method__}" if options[:debug]
+      debug("omnifocus_task: #{omnifocus_task}, external_task: #{external_task}") if options[:debug]
       if options[:max_age_timestamp] && external_task.updated_at && (external_task.updated_at < options[:max_age_timestamp])
         "Last modified more than #{options[:max_age]} ago - skipping #{external_task.title}"
       elsif external_task.completed? && omnifocus_task.incomplete?
@@ -97,7 +97,7 @@ module Omnifocus
           handle_subtasks(omnifocus_task, external_task)
         end
       elsif !options[:pretend] && !external_task.completed? # don't add tags to completed tasks
-        debug("Tagging omnifocus_task") if options[:debug]
+        debug("Tagging omnifocus_task from (#{external_task.title})") if options[:debug]
         tags(external_task).each do |tag|
           add_tag(tag:, task: omnifocus_task)
         end
@@ -243,12 +243,13 @@ module Omnifocus
     end
 
     def inbox_tasks
-      debug("") if options[:debug]
+      debug("called") if options[:debug]
       @inbox_tasks ||= begin
         inbox_tasks = omnifocus.inbox_tasks.get.map { |t| all_omnifocus_subtasks(t) }.flatten
         inbox_tasks.compact.uniq(&:id_)
       end
     end
+    memo_wise :inbox_tasks
 
     def folder_tasks(folder_name = nil)
       debug("folder_name: #{folder_name}") if options[:debug]
@@ -259,6 +260,7 @@ module Omnifocus
       folder_tasks = folder_projects.map(&:flattened_tasks).map(&:get).flatten.compact.uniq(&:id_)
       folder_tasks.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
     end
+    memo_wise :folder_tasks
 
     def project_tasks(project_name = nil)
       debug("project_name: #{project_name}") if options[:debug]
@@ -272,6 +274,7 @@ module Omnifocus
         project.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
       end
     end
+    memo_wise :project_tasks
 
     def tagged_tasks(tags = nil)
       debug("tags: #{tags}") if options[:debug]
