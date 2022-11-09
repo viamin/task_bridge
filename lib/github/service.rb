@@ -16,7 +16,7 @@ module Github
     end
 
     # By default Github syncs TO the primary service
-    def sync(primary_service)
+    def sync_to(primary_service)
       issues = issues_to_sync(options[:tags])
       existing_tasks = primary_service.tasks_to_sync(tags: ["Github"], inbox: true)
       unless options[:quiet]

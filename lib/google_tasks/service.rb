@@ -14,8 +14,8 @@ module GoogleTasks
       @tasks_service.authorization = user_credentials_for(Google::Apis::TasksV1::AUTH_TASKS)
     end
 
-    desc "sync", "Sync primary service tasks to Google Tasks"
-    def sync(primary_service)
+    desc "sync_from", "Sync from primary service tasks to Google Tasks"
+    def sync_from(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Google Tasks"])
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,

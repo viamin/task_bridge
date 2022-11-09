@@ -3,7 +3,9 @@
 module Asana
   # A representation of an Asana task
   class Task
-    attr_reader :options, :id, :title, :html_url, :tags, :completed, :project, :due_date, :due_at, :updated_at, :hearted, :notes, :type, :start_date, :start_at
+    prepend MemoWise
+
+    attr_reader :options, :id, :title, :html_url, :tags, :completed, :completed_at, :project, :section, :due_date, :due_at, :updated_at, :hearted, :notes, :type, :start_date, :start_at, :subtask_count, :subtasks, :debug_data
 
     def initialize(asana_task, options)
       @options = options
@@ -13,7 +15,7 @@ module Asana
       @tags = default_tags
       @completed = asana_task["completed"]
       @completed_at = Chronic.parse(asana_task["completed_at"])
-      @project = asana_task["projects"].select { |project| project[:name] == options[:project] }
+      @project = project_from_memberships(asana_task)
       @due_date = Chronic.parse(asana_task["due_on"])
       @due_at = Chronic.parse(asana_task["due_at"])
       @updated_at = Chronic.parse(asana_task["modified_at"])
@@ -22,10 +24,17 @@ module Asana
       @type = asana_task["resource_type"]
       @start_date = Chronic.parse(asana_task["start_on"])
       @start_at = Chronic.parse(asana_task["start_at"])
+      @subtask_count = asana_task.fetch("num_subtasks", 0).to_i
+      @subtasks = []
+      @debug_data = asana_task if @options[:debug]
+    end
+
+    def provider
+      "Asana"
     end
 
     def self.requested_fields
-      %w[name permalink_url completed completed_at projects due_on due_at modified_at hearted notes start_on start_at]
+      %w[name permalink_url completed completed_at projects due_on due_at modified_at hearted notes start_on start_at num_subtasks memberships.section.name memberships.project.name subtasks_name]
     end
 
     def completed?
@@ -38,18 +47,6 @@ module Asana
 
     def task_title
       title.strip
-    end
-
-    # Fields required for primary service
-    def properties
-      {
-        name: task_title,
-        note: html_url,
-        flagged: hearted,
-        completion_date: completed_at,
-        defer_date: start_at || start_date,
-        due_date: due_at || due_date
-      }.compact
     end
 
     # fields required for Asana
@@ -65,14 +62,57 @@ module Asana
           start_at: start_at&.iso8601,
           start_on: start_date&.to_date&.iso8601,
           projects: [project["gid"]]
-        }
-      }.compact.to_json
+        }.compact
+      }.to_json
     end
+
+    # Converts the task to a format required by the primary service
+    def to_primary
+      raise "Unsupported service" unless TaskBridge.task_services.include?(options[:primary])
+
+      send("to_#{options[:primary]}".downcase.to_sym)
+    end
+
+    #       #####
+    #      #     # ###### #####  #    # #  ####  ######  ####
+    #      #       #      #    # #    # # #    # #      #
+    #       #####  #####  #    # #    # # #      #####   ####
+    #            # #      #####  #    # # #      #           #
+    #      #     # #      #   #   #  #  # #    # #      #    #
+    #       #####  ###### #    #   ##   #  ####  ######  ####
+
+    # Fields required for omnifocus service
+    def to_omnifocus(with_subtasks: false)
+      omnifocus_properties = {
+        name: task_title,
+        note: html_url,
+        flagged: hearted,
+        completion_date: completed_at,
+        defer_date: start_at || start_date,
+        due_date: due_at || due_date
+      }.compact
+      omnifocus_properties[:subtasks] = subtasks.map(&:to_omnifocus) if with_subtasks
+      omnifocus_properties
+    end
+    memo_wise :to_omnifocus
 
     private
 
     def default_tags
       options[:tags] + ["Asana"]
+    end
+
+    # try to read the project and sections from the memberships array
+    # If there isn't anything there, use the projects array
+    def project_from_memberships(asana_task)
+      if asana_task["memberships"].any?
+        # Asana supports multiple sections, but TaskBridge currently supports only one per task
+        project = asana_task["memberships"].first.dig("project", "name")
+        section = asana_task["memberships"].first.dig("section", "name")
+        section == "Untitled section" ? project : "#{project}:#{section}"
+      else
+        asana_task["projects"].find { |project| project[:name] == options[:project] }
+      end
     end
 
     # {
@@ -116,6 +156,7 @@ module Asana
     #     num_hearts: 0,
     #     num_likes: 0,
     #     parent: null,
+    #     num_subtasks: 0,
     #     permalink_url: "https://app.asana.com/0/1203188830269576/1203188830269587",
     #     projects: [
     #       {

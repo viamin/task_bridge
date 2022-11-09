@@ -11,7 +11,7 @@ module Reclaim
       @auth_cookie = ENV.fetch("RECLAIM_AUTH_TOKEN", nil)
     end
 
-    def sync(primary_service)
+    def sync_from(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Reclaim"])
       existing_tasks = tasks_to_sync
       unless options[:quiet]

@@ -33,12 +33,13 @@ module Omnifocus
       "12 - December"
     ].freeze
 
-    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :defer_date, :estimated_minutes, :flagged, :note, :tags, :project, :updated_at
+    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :defer_date, :flagged, :estimated_minutes, :note, :tags, :project, :updated_at, :subtask_count, :subtasks, :debug_data
 
     def initialize(task, options)
       @options = options
       @id = read_attribute(task, :id_)
       @title = read_attribute(task, :name)
+      @folder = options[:project]
       containing_project = read_attribute(task, :containing_project)
       @project = if containing_project.respond_to?(:get)
         containing_project.name.get
@@ -55,6 +56,19 @@ module Omnifocus
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       @due_date = date_from_tags(task, @tags)
       @updated_at = read_attribute(task, :modification_date)
+      @subtasks = read_attribute(task, :tasks).map do |subtask|
+        Task.new(subtask, @options)
+      end
+      @subtask_count = @subtasks.count
+      @debug_data = task if @options[:debug]
+    end
+
+    def provider
+      "Omnifocus"
+    end
+
+    def completed?
+      completed
     end
 
     def incomplete?
@@ -84,18 +98,16 @@ module Omnifocus
       title
     end
 
-    def to_asana(project_gid = nil)
-      project_data = project_gid.nil? ? {} : { projects: [project_gid] }
-      project_data.merge(
-        {
-          completed:,
-          due_at: due_date&.iso8601,
-          liked: flagged,
-          name: title,
-          notes: note.blank? ? nil : note,
-          start_at: defer_date&.iso8601
-        }
-      ).compact
+    # start_at is a "premium" feature, apparently
+    def to_asana
+      {
+        completed:,
+        due_at: due_date&.iso8601,
+        liked: flagged,
+        name: title,
+        notes: note.blank? ? nil : note
+        # start_at: defer_date&.iso8601
+      }.compact
     end
 
     private
@@ -123,10 +135,10 @@ module Omnifocus
       Chronic.parse(tag)
     end
 
-    def read_attribute(task, attribute)
+    def read_attribute(task, attribute, missing_value = nil)
       value = task.send(attribute)
       value = value.get if value.respond_to?(:get)
-      value == :missing_value ? nil : value
+      value == :missing_value ? missing_value : value
     end
   end
 end
