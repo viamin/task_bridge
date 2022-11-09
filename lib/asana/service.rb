@@ -83,23 +83,32 @@ module Asana
     end
 
     def add_task(external_task, parent_task_gid = nil)
-      debug("") if options[:debug]
+      debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}") if options[:debug]
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
-        body: { data: external_task.to_asana.merge(memberships_for_task(external_task)) }.to_json
+        body: { data: external_task.to_asana.merge(memberships_for_task(external_task, for_create: true)) }.to_json
       }
       if options[:pretend]
         "Would have added #{external_task.title} to Asana"
       else
         endpoint = parent_task_gid.nil? ? "tasks" : "tasks/#{parent_task_gid}/subtasks"
+        debug("request_body: #{request_body.pretty_inspect} sending to #{endpoint}") if options[:debug]
         response = HTTParty.post("#{base_url}/#{endpoint}", authenticated_options.merge(request_body))
         if response.success?
           response_body = JSON.parse(response.body)
           new_task = Task.new(response_body["data"], options)
+          if (section = memberships_for_task(external_task)["section"])
+            request_body = { body: { data: { task: new_task.id } }.to_json }
+            response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))
+            unless response.success?
+              debug(response.body) if options[:debug]
+              "Failed to move an Asana task to a section - code #{response.code}"
+            end
+          end
           handle_subtasks(new_task, external_task)
         else
-          puts "Failed to create an Asana task - check personal access token"
-          nil
+          debug(response.body) if options[:debug]
+          "Failed to create an Asana task - code #{response.code}"
         end
       end
     end
@@ -119,19 +128,24 @@ module Asana
           if external_task.project && (asana_task.project != external_task.project)
             request_body = { body: JSON.dump({ data: memberships_for_task(external_task) }) }
             project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.id}/addProject", authenticated_options.merge(request_body))
-            unless project_response.success?
-              puts "Failed to update Asana task ##{asana_task.id} with code #{project_response.code}"
-              puts project_response.body if options[:debug]
-              nil
+            if project_response.success?
+              if (section = memberships_for_task(external_task)["section"])
+                request_body = { body: { data: { task: asana_task.id } }.to_json }
+                response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))
+                unless response.success?
+                  debug(response.body) if options[:debug]
+                  "Failed to move an Asana task to a section - code #{response.code}"
+                end
+              end
+            else
+              debug(project_response.body) if options[:debug]
+              "Failed to update Asana task ##{asana_task.id} with code #{project_response.code}"
             end
           end
-          # response_body = JSON.parse(response.body)
-          # updated_task = Task.new(response_body["data"], options)
           handle_subtasks(asana_task, external_task)
         else
-          puts "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
-          puts response.body if options[:verbose]
-          nil
+          debug(response.body) if options[:verbose]
+          "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
         end
       end
     end
@@ -213,15 +227,15 @@ module Asana
     memo_wise :list_task_subtasks
 
     # Makes some big assumptions about the layout in Asana...
-    def memberships_for_task(external_task)
+    def memberships_for_task(external_task, for_create: false)
       matching_section = list_project_sections.find { |section| section["name"] == external_task.project }
-      if matching_section
+      if for_create
+        { projects: [project_gid] }
+      else
         {
           project: project_gid,
-          section: matching_section["gid"]
-        }
-      else
-        { project: project_gid }
+          section: matching_section&.send(:[], "gid")
+        }.compact
       end
     end
     memo_wise :memberships_for_task
