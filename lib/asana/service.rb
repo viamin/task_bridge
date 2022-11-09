@@ -6,8 +6,9 @@ module Asana
   # A service class to talk to the Asana API
   class Service
     prepend MemoWise
+    include Debug
 
-    attr_reader :options, :project_gid
+    attr_reader :options
 
     def initialize(options)
       @options = options
@@ -16,7 +17,7 @@ module Asana
 
     # Sync tasks from the primary service to Asana
     def sync_from(primary_service)
-      primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"], project: options[:project])
+      primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"], folder: options[:project])
       asana_tasks = tasks_to_sync
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: primary_tasks.length,
@@ -56,10 +57,7 @@ module Asana
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
     def tasks_to_sync(*)
-      projects = list_projects
-      matching_project = projects.find { |p| options[:project] == p["name"] }
-      @project_gid = matching_project["gid"]
-      task_list = list_project_tasks(@project_gid)
+      task_list = list_project_tasks(project_gid)
       tasks = task_list.map { |task| Task.new(task, options) }
       tasks_with_subtasks = tasks.select { |task| task.subtask_count.positive? }
       if tasks_with_subtasks.any?
@@ -85,10 +83,10 @@ module Asana
     end
 
     def add_task(external_task, parent_task_gid = nil)
-      puts "Called #{self.class}##{__method__}" if options[:debug]
+      debug("") if options[:debug]
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
-        body: { data: external_task.to_asana(project_gid) }.to_json
+        body: { data: external_task.to_asana.merge(memberships_for_task(external_task)) }.to_json
       }
       if options[:pretend]
         "Would have added #{external_task.title} to Asana"
@@ -107,7 +105,7 @@ module Asana
     end
 
     def update_task(asana_task, external_task)
-      puts "Called #{self.class}##{__method__}" if options[:debug]
+      debug("asana_task: #{asana_task.title}") if options[:debug]
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
         body: { data: external_task.to_asana }.to_json
@@ -117,11 +115,21 @@ module Asana
       else
         response = HTTParty.put("#{base_url}/tasks/#{asana_task.id}", authenticated_options.merge(request_body))
         if response.success?
+          # check if the project or section need to change
+          if external_task.project && (asana_task.project != external_task.project)
+            request_body = { body: JSON.dump({ data: memberships_for_task(external_task) }) }
+            project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.id}/addProject", authenticated_options.merge(request_body))
+            unless project_response.success?
+              puts "Failed to update Asana task ##{asana_task.id} with code #{project_response.code}"
+              puts project_response.body if options[:debug]
+              nil
+            end
+          end
           # response_body = JSON.parse(response.body)
           # updated_task = Task.new(response_body["data"], options)
           handle_subtasks(asana_task, external_task)
         else
-          puts "Failed to update Asana task ##{asana_task.id} with code #{response.code} - check personal access token"
+          puts "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
           puts response.body if options[:verbose]
           nil
         end
@@ -132,15 +140,16 @@ module Asana
 
     # create or update subtasks on a task
     def handle_subtasks(asana_task, external_task)
-      puts "Called #{self.class}##{__method__}" if options[:debug]
+      debug("") if options[:debug]
       return unless external_task.respond_to?(:subtask_count) && external_task.subtask_count.positive?
 
       external_task.subtasks.each do |subtask|
         if (existing_task = asana_task.subtasks.find { |asana_subtask| task_title_matches(asana_subtask, subtask) })
           update_task(existing_task, subtask)
+          "Updated subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
         else
           add_task(subtask, asana_task.id) unless subtask.completed?
-          "Creating subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
+          "Created subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
         end
       end
     end
@@ -148,6 +157,13 @@ module Asana
     def task_title_matches(task, other_task)
       task.title.downcase.strip == other_task.title.downcase.strip
     end
+
+    def project_gid
+      all_projects = list_projects
+      matching_project = all_projects.find { |project| options[:project] == project["name"] }
+      matching_project["gid"]
+    end
+    memo_wise :project_gid
 
     def list_projects
       response = HTTParty.get("#{base_url}/projects", authenticated_options)
@@ -157,7 +173,7 @@ module Asana
     end
     memo_wise :list_projects
 
-    def list_project_sections(project_gid)
+    def list_project_sections
       query = {
         query: {
           project: project_gid
@@ -195,6 +211,20 @@ module Asana
       JSON.parse(response.body)["data"]
     end
     memo_wise :list_task_subtasks
+
+    # Makes some big assumptions about the layout in Asana...
+    def memberships_for_task(external_task)
+      matching_section = list_project_sections.find { |section| section["name"] == external_task.project }
+      if matching_section
+        {
+          project: project_gid,
+          section: matching_section["gid"]
+        }
+      else
+        { project: project_gid }
+      end
+    end
+    memo_wise :memberships_for_task
 
     def authenticated_options
       {

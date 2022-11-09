@@ -4,7 +4,7 @@ module Instapaper
   class Article
     prepend MemoWise
 
-    attr_reader :options, :id, :folder, :project, :title, :tags, :url, :updated_at, :reading_time
+    attr_reader :options, :id, :folder, :project, :title, :tags, :url, :updated_at, :reading_time, :debug_data
 
     def initialize(instapaper_article, options)
       @options = options
@@ -16,6 +16,11 @@ module Instapaper
       @project = ENV.fetch("INSTAPAPER_PROJECT", nil)
       @updated_at = Time.at(instapaper_article["progress_timestamp"])
       @reading_time = nil
+      @debug_data = instapaper_article if @options[:debug]
+    end
+
+    def provider
+      "Instapaper"
     end
 
     def completed?

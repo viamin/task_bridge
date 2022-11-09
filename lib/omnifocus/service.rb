@@ -5,6 +5,7 @@ require_relative "task"
 module Omnifocus
   class Service
     prepend MemoWise
+    include Debug
 
     attr_reader :options, :omnifocus
 
@@ -34,14 +35,17 @@ module Omnifocus
       puts "Synced #{tasks.length} #{options[:primary]} items to Omnifocus" unless options[:quiet]
     end
 
-    def tasks_to_sync(tags: nil, project: nil, inbox: false)
+    def tasks_to_sync(tags: nil, project: nil, folder: nil, inbox: false)
       omnifocus_tasks = []
       tagged_tasks = tagged_tasks(tags)
       project_tasks = project_tasks(project)
+      folder_tasks = folder_tasks(folder)
       tagged_project_tasks = if tags && project
         tagged_tasks & project_tasks
+      elsif tags && folder
+        tagged_tasks & folder_tasks
       else
-        tagged_tasks | project_tasks
+        tagged_tasks | project_tasks | folder_tasks
       end
       omnifocus_tasks += tagged_project_tasks
       omnifocus_tasks += inbox_tasks if inbox
@@ -54,15 +58,17 @@ module Omnifocus
     memo_wise :tasks_to_sync
 
     def add_task(external_task, options = {}, parent_object = nil)
-      puts "Called #{self.class}##{__method__}" if options[:debug]
+      debug("") if options[:debug]
       task_type = :task
       if parent_object.nil?
-        if project(external_task)
+        if project(external_task).is_a?(Appscript::Reference)
           parent_object = project(external_task)
         else
           parent_object = omnifocus
           task_type = :inbox_task
         end
+      elsif parent_object.is_a?(Omnifocus::Task)
+        parent_object = parent_object.original_task
       end
       if !options[:pretend]
         new_task = parent_object.make(new: task_type, with_properties: external_task.to_omnifocus)
@@ -83,6 +89,7 @@ module Omnifocus
       if options[:max_age_timestamp] && external_task.updated_at && (external_task.updated_at < options[:max_age_timestamp])
         "Last modified more than #{options[:max_age]} ago - skipping #{external_task.title}"
       elsif external_task.completed? && omnifocus_task.incomplete?
+        debug("Complete state doesn't match") if options[:debug]
         if options[:pretend]
           "Would have marked #{omnifocus_task.title} complete in Omnifocus"
         else
@@ -90,12 +97,21 @@ module Omnifocus
           handle_subtasks(omnifocus_task, external_task)
         end
       elsif !options[:pretend] && !external_task.completed? # don't add tags to completed tasks
+        debug("Tagging omnifocus_task") if options[:debug]
         tags(external_task).each do |tag|
           add_tag(tag:, task: omnifocus_task)
         end
-        if external_task.project && (external_task.project != omnifocus_task.project)
+        if external_task.project && task_projects_match(external_task, omnifocus_task)
+          debug("Projects don't match: (#{external_task.provider})#{external_task} <=> (Omnifocus)#{omnifocus_task}") if options[:debug]
           # update the project via assigned_container property
-          omnifocus_task.original_task.assigned_container.set(project(external_task))
+          updated_project = project(nil, external_task.project)
+          debug("updated_project: #{updated_project}") if options[:debug]
+          task_to_update = if omnifocus_task.is_a?(Appscript::Reference)
+            omnifocus_task
+          else
+            omnifocus_task.original_task
+          end
+          task_to_update.assigned_container.set(updated_project) if updated_project
         end
         handle_subtasks(omnifocus_task, external_task)
         external_task
@@ -108,27 +124,40 @@ module Omnifocus
 
     # create or update subtasks on a task
     def handle_subtasks(omnifocus_task, external_task)
-      puts "Called #{self.class}##{__method__}" if options[:debug]
+      debug("omnifocus_task: #{omnifocus_task}, external_task: #{external_task}") if options[:debug]
       return unless external_task.respond_to?(:subtask_count) && external_task.subtask_count.positive?
 
-      original_task = if omnifocus_task.is_a?(Omnifocus::Task)
-        omnifocus_task.original_task
-      else
-        omnifocus_task
-      end
-      omnifocus_subtasks = original_task.tasks.get
+      omnifocus_subtasks = omnifocus_task.subtasks
       external_task.subtasks.each do |subtask|
-        if (existing_task = omnifocus_subtasks.find { |omnifocus_subtask| task_title_matches(omnifocus_subtask, subtask) })
-          update_task(existing_task, subtask)
+        if (existing_subtask = omnifocus_subtasks.find { |omnifocus_subtask| task_title_matches(omnifocus_subtask, subtask) })
+          update_task(existing_subtask, subtask)
+          "Updated subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
         else
-          add_task(subtask, options, original_task) unless subtask.completed?
-          "Creating subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
+          add_task(subtask, options, omnifocus_task) unless subtask.completed?
+          "Created subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
         end
       end
     end
 
+    def task_projects_match(task, external_task)
+      debug("task: #{task}, external_task: #{external_task}") if options[:debug]
+      project_name = if task.is_a?(Appscript::Reference)
+        task.containing_project.get.name.get
+      else
+        task.project
+      end
+      project_name = project_name.split(":").last if project_name.split(":").length > 1
+      external_project_name = if external_task.is_a?(Appscript::Reference)
+        external_task.containing_project.get.name.get
+      else
+        external_task.project
+      end
+      external_project_name = external_project_name.split(":").last if external_project_name.split(":").length > 1
+      project_name.strip == external_project_name.strip
+    end
+
     def task_title_matches(task, external_task)
-      puts "Called #{self.class}##{__method__} with task: #{task}, external_task: #{external_task}" if options[:debug]
+      debug("task: #{task}, external_task: #{external_task}") if options[:debug]
       if task.is_a?(Appscript::Reference)
         task.name.get.downcase.strip == external_task.title.downcase.strip
       else
@@ -138,36 +167,53 @@ module Omnifocus
 
     # Checks if a tag is already on a task, and if not adds it
     def add_tag(task:, tag:)
-      puts "Called #{self.class}##{__method__} with task: #{task}, tag: #{tag}" if options[:debug]
+      debug("task: #{task}, tag: #{tag}") if options[:debug]
       target_task = if task.instance_of?(Omnifocus::Task)
-        puts "Finding native Omnifocus task for #{task.title}" if options[:debug]
+        debug("Finding native Omnifocus task for #{task.title}") if options[:debug]
         found_task = (inbox_tasks + tagged_tasks(task.tags)).find { |t| t.name.get == task.task_title }
-        puts "Found task: #{found_task}" if options[:debug] && found_task
+        debug("Found task: #{found_task}") if options[:debug] && found_task
         found_task
       else
-        puts "#{self.class}##{__method__} was called with a native Omnifocus task" if options[:debug]
+        debug("called with a native Omnifocus task") if options[:debug]
         task
       end
       if target_task.tags.get.map(&:name).map(&:get).include?(tag.name.get)
-        puts "Task (#{target_task.name.get}) already has tag #{tag.name.get}" if options[:debug]
+        debug("Task (#{target_task.name.get}) already has tag #{tag.name.get}") if options[:debug]
       else
-        puts "Adding tag #{tag.name.get} to task \"#{target_task.name.get}\"" if options[:debug]
+        debug("Adding tag #{tag.name.get} to task \"#{target_task.name.get}\"") if options[:debug]
         omnifocus.add(tag, to: target_task.tags)
       end
+    end
+
+    # Looks for an Omnifocus folder matching the folder_name
+    def folder(folder_name)
+      debug("folder_name: #{folder_name}") if options[:debug]
+      omnifocus.flattened_folders[folder_name].get
+    rescue StandardError
+      puts "The folder #{folder_name} could not be found in Omnifocus" if options[:verbose]
+      nil
     end
 
     # Checks that a project exists in Omnifocus, and if it does returns it
     # Alternately, send just the project string and get back the project
     def project(external_task, project_string = nil)
-      puts "Called #{self.class}##{__method__} Looking for project: #{external_task.project}" if options[:debug]
-      project_structure = external_task&.project || project_string
+      debug("external_task: #{external_task}, project_string: #{project_string}") if options[:debug]
+      project_structure = external_task.nil? ? project_string : external_task.project
       if project_structure && (project_structure.split(":").length > 1)
+        debug("Splitting project_structure: #{project_structure}") if options[:debug]
         parts = project_structure.split(":")
-        folder = omnifocus.flattened_folders[parts.first]
+        folder = folder(parts.first)
         project = folder.projects[parts.last]
       elsif project_structure
-        project = omnifocus.flattened_projects[project_structure]
+        debug("Using project_structure: #{project_structure}") if options[:debug]
+        # First, try to get a folder and sub-projects of that folder
+        project = folder(project_structure).flattened_projects[project_structure].get
+        debug("project: #{project.name.get}") if options[:debug]
+        # If a folder project can't be found, check for any matching project
+        project ||= omnifocus.flattened_projects[project_structure]
+        debug("project: #{project.name.get}") if options[:debug]
       end
+      debug("project: #{project}") if options[:debug]
       project.get
       project
     rescue StandardError
@@ -197,20 +243,38 @@ module Omnifocus
     end
 
     def inbox_tasks
+      debug("") if options[:debug]
       @inbox_tasks ||= begin
         inbox_tasks = omnifocus.inbox_tasks.get.map { |t| all_omnifocus_subtasks(t) }.flatten
         inbox_tasks.compact.uniq(&:id_)
       end
     end
 
+    def folder_tasks(folder_name = nil)
+      debug("folder_name: #{folder_name}") if options[:debug]
+      return [] if folder_name.nil?
+
+      folder = folder(folder_name)
+      folder_projects = folder.flattened_projects.get
+      folder_tasks = folder_projects.map(&:flattened_tasks).map(&:get).flatten.compact.uniq(&:id_)
+      folder_tasks.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
+    end
+
     def project_tasks(project_name = nil)
+      debug("project_name: #{project_name}") if options[:debug]
       return [] if project_name.nil?
 
       project = project(nil, project_name)
-      project.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
+      case project
+      when Array
+        project.map { |folder_project| folder_project.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_) }.flatten
+      when Appscript::Reference
+        project.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
+      end
     end
 
     def tagged_tasks(tags = nil)
+      debug("tags: #{tags}") if options[:debug]
       return [] if tags.nil?
 
       matching_tags = omnifocus.flattened_tags.get.select { |tag| tags.include?(tag.name.get) }

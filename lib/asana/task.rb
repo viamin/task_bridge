@@ -5,7 +5,7 @@ module Asana
   class Task
     prepend MemoWise
 
-    attr_reader :options, :id, :title, :html_url, :tags, :completed, :completed_at, :project, :section, :due_date, :due_at, :updated_at, :hearted, :notes, :type, :start_date, :start_at, :subtask_count, :subtasks
+    attr_reader :options, :id, :title, :html_url, :tags, :completed, :completed_at, :project, :section, :due_date, :due_at, :updated_at, :hearted, :notes, :type, :start_date, :start_at, :subtask_count, :subtasks, :debug_data
 
     def initialize(asana_task, options)
       @options = options
@@ -26,6 +26,11 @@ module Asana
       @start_at = Chronic.parse(asana_task["start_at"])
       @subtask_count = asana_task.fetch("num_subtasks", 0).to_i
       @subtasks = []
+      @debug_data = asana_task if @options[:debug]
+    end
+
+    def provider
+      "Asana"
     end
 
     def self.requested_fields

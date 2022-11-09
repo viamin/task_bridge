@@ -3,7 +3,7 @@
 module Github
   # A representation of a Github issue
   class Issue
-    attr_reader :options, :id, :title, :html_url, :number, :labels, :state, :project, :is_pr, :updated_at
+    attr_reader :options, :id, :title, :html_url, :number, :labels, :state, :project, :is_pr, :updated_at, :debug_data
 
     def initialize(github_issue, options)
       @options = options
@@ -18,6 +18,11 @@ module Github
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
       @updated_at = Chronic.parse(github_issue["updated_at"])&.getlocal
+      @debug_data = github_issue if @options[:debug]
+    end
+
+    def provider
+      "Github"
     end
 
     def completed?

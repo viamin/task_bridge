@@ -2,8 +2,7 @@
 
 module Reclaim
   class Task
-    attr_reader :options, :id, :title, :notes, :category, :time_required, :time_spent, :time_remaining,
-                :minimum_chunk_size, :maximum_chunk_size, :status, :due_date, :defer_date, :always_private
+    attr_reader :options, :id, :title, :notes, :category, :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :status, :due_date, :defer_date, :always_private, :debug_data
 
     def initialize(task, options)
       @options = options
@@ -26,6 +25,11 @@ module Reclaim
       else
         @tags + @options[:work_tags].split(",")
       end
+      @debug_data = task if @options[:debug]
+    end
+
+    def provider
+      "Reclaim"
     end
 
     def complete?

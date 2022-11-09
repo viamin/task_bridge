@@ -4,6 +4,7 @@
 require "rubygems"
 require "bundler/setup"
 Bundler.require(:default)
+require_relative "debug"
 require_relative "omnifocus/service"
 require_relative "google_tasks/service"
 require_relative "github/service"
@@ -31,11 +32,13 @@ class TaskBridge
       opt :services, "Services to sync tasks to", default: ENV.fetch("SYNC_SERVICES", "GoogleTasks,Github").split(",")
       opt :list, "Task list name to sync to", default: ENV.fetch("GOOGLE_TASKS_LIST", "My Tasks")
       opt :project, "Project name to sync in Asana", default: ENV.fetch("ASANA_PROJECT", nil)
-      opt :max_age, "Skip syncing asks that have not been modified within this time", default: ENV.fetch("SYNC_MAX_AGE", nil)
+      opt :max_age, "Skip syncing asks that have not been modified within this time (0 to disable)", default: ENV.fetch("SYNC_MAX_AGE", 0).to_i
       opt :delete,
           "Delete completed tasks on service",
           default: %w[true t yes 1].include?(ENV.fetch("DELETE_COMPLETED", "false").downcase)
-      # opt :two_way, "Sync completion state back to task service", default: false
+      opt :from_only, "Only sync FROM the primary service", default: false
+      opt :to_only, "Only sync TO the primary service", default: false
+      conflicts :from_only, :to_only
       opt :pretend, "List the found tasks, don't sync", default: false
       opt :quiet, "No output - used for daemonized processes", default: false
       opt :verbose, "Verbose output", default: false
@@ -48,7 +51,7 @@ class TaskBridge
       Optimist.die :services,
                    "Supported services: #{supported_services.join(', ')}"
     end
-    @options[:max_age_timestamp] = Chronic.parse("#{@options[:max_age]} ago") unless @options[:max_age].nil?
+    @options[:max_age_timestamp] = (@options[:max_age]).zero? ? nil : Chronic.parse("#{@options[:max_age]} ago")
     @options[:uses_personal_tags] = @options[:work_tags].nil?
     @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(@options)
     @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(@options)] }
@@ -67,8 +70,8 @@ class TaskBridge
       else
         # Generally we should sync FROM the primary service first, since it should be the source of truth
         # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-        service.sync_from(@primary_service) if service.respond_to?(:sync_from)
-        service.sync_to(@primary_service) if service.respond_to?(:sync_to)
+        service.sync_from(@primary_service) if service.respond_to?(:sync_from) && !@options[:to_only]
+        service.sync_to(@primary_service) if service.respond_to?(:sync_to) && !@options[:from_only]
       end
     end
     return if @options[:quiet]
