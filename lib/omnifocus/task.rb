@@ -33,7 +33,7 @@ module Omnifocus
       "12 - December"
     ].freeze
 
-    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :defer_date, :flagged, :estimated_minutes, :note, :tags, :project, :updated_at, :subtask_count, :subtasks, :debug_data
+    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :start_date, :flagged, :estimated_minutes, :notes, :tags, :project, :updated_at, :subtask_count, :subtasks, :debug_data
 
     def initialize(task, options)
       @options = options
@@ -48,10 +48,10 @@ module Omnifocus
       end
       @completed = read_attribute(task, :completed)
       @completion_date = read_attribute(task, :completion_date)
-      @defer_date = read_attribute(task, :defer_date)
+      @start_date = read_attribute(task, :defer_date)
       @estimated_minutes = read_attribute(task, :estimated_minutes)
       @flagged = read_attribute(task, :flagged)
-      @note = read_attribute(task, :note)
+      @notes = read_attribute(task, :note)
       @tags = read_attribute(task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       @due_date = date_from_tags(task, @tags)
@@ -84,8 +84,12 @@ module Omnifocus
     end
     memo_wise :personal?
 
+    def flag!
+      original_task.flagged.set(to: true)
+    end
+
     def mark_complete
-      puts "Called #{self.class}##{__method__}" if options[:debug]
+      debug("Called") if options[:debug]
       original_task.mark_complete
     end
 
@@ -94,7 +98,7 @@ module Omnifocus
     end
     memo_wise :original_task
 
-    def task_title
+    def friendly_title
       title
     end
 
@@ -105,25 +109,27 @@ module Omnifocus
         due_at: due_date&.iso8601,
         liked: flagged,
         name: title,
-        notes: note.blank? ? nil : note
-        # start_at: defer_date&.iso8601
+        notes:
+        # start_at: start_date&.iso8601
       }.compact
     end
 
-    private
-
-    def visible_attributes
-      {
-        completed: @completed,
-        completion_date: @completion_date&.strftime("%l %p - %b %d"),
-        due: @due_date&.strftime("%l %p - %b %d"),
-        defer: @defer_date&.strftime("%b %d"),
-        project: @project,
-        notes: @note,
-        tags: @tags&.join(", "),
-        estimated_minutes: @estimated_minutes
-      }
+    # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
+    def to_google(with_due: false, skip_reclaim: false)
+      # using to_date since GoogleTasks doesn't seem to care about the time (for due date)
+      # and the exact time probably doesn't matter for completed
+      google_task = with_due ? { due: due_date&.to_date&.rfc3339 } : {}
+      google_task.merge(
+        {
+          completed: completion_date&.to_date&.rfc3339,
+          notes:,
+          status: completed ? "completed" : "needsAction",
+          title: title + Reclaim::Task.title_addon(self, skip: skip_reclaim)
+        }
+      ).compact
     end
+
+    private
 
     # Creates a due date from a tag if there isn't a due date
     def date_from_tags(task, tags)

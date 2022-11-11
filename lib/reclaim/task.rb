@@ -18,7 +18,7 @@ module Reclaim
       @status = task["status"]
       @due_date = Chronic.parse(task["due"])
       @defer_date = Chronic.parse(task["snoozeUntil"])
-      @private = task["alwaysPrivate"]
+      @always_private = task["alwaysPrivate"]
       @tags = default_tags
       @tags = if personal?
         @tags + @options[:personal_tags].split(",")
@@ -44,7 +44,7 @@ module Reclaim
       category == "PERSONAL"
     end
 
-    def task_title
+    def friendly_title
       title
     end
 
@@ -64,23 +64,26 @@ module Reclaim
       }.to_json
     end
 
+    class << self
+      # generate a title addition that Reclaim can use to set additional settings
+      # Form of TITLE ([DURATION] [DUE_DATE] [NOT_BEFORE] [TYPE])
+      # refer to https://help.reclaim.ai/en/articles/4293078-use-natural-language-in-the-google-task-integration
+      def title_addon(task, skip: true)
+        return if skip
+
+        duration = task.estimated_minutes.nil? ? "" : "for #{task.estimated_minutes} minutes"
+        not_before = task.start_date.nil? ? "" : "not before #{task.start_date.to_datetime.strftime('%b %e')}"
+        type = task.personal? ? "type personal" : ""
+        due_date = task.due_date.nil? ? "" : "due #{task.due_date.to_datetime.strftime('%b %e %l %p')}"
+        addon_string = "#{type} #{duration} #{not_before} #{due_date}".squeeze(" ").strip
+        addon_string.empty? ? "" : " (#{addon_string})"
+      end
+    end
+
     private
 
     def default_tags
       options[:tags] + ["Reclaim"]
-    end
-
-    def visible_attributes
-      {
-        completed: @completed,
-        completion_date: @completion_date&.strftime("%l %p - %b %d"),
-        due: @due_date&.strftime("%l %p - %b %d"),
-        defer: @defer_date&.strftime("%b %d"),
-        project: @project,
-        notes: @note,
-        tags: @tags&.join(", "),
-        estimated_minutes: @estimated_minutes
-      }
     end
   end
 end

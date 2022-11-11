@@ -45,16 +45,16 @@ RSpec.describe "Instapaper::Article" do
     end
   end
 
-  describe "#task_title" do
+  describe "#friendly_title" do
     it "adds [READ] to the beginning" do
-      expect(article.task_title).to eq("[READ] #{article.title}")
+      expect(article.friendly_title).to eq("[READ] #{article.title}")
     end
 
     context "when title is blank" do
       let(:title) { nil }
 
       it "returns the URL with [READ] at the beginning" do
-        expect(article.task_title).to eq("[READ] #{article.url}")
+        expect(article.friendly_title).to eq("[READ] #{article.url}")
       end
     end
   end

@@ -15,11 +15,11 @@ module Instapaper
 
     def initialize(options)
       @options = options
-      @authentication = Authentication.new(options).authenticate
+      @authentication = Authentication.new(options).authenticate!
     end
 
     # Instapaper only syncs TO another service
-    def sync_to(primary_service)
+    def sync_to_primary(primary_service)
       articles = unread_and_recent_articles
       existing_tasks = primary_service.tasks_to_sync(tags: ["Instapaper"], inbox: true)
       unless options[:quiet]
@@ -30,9 +30,9 @@ module Instapaper
         )
       end
       articles.each do |article|
-        puts "\n\n#{self.class}##{__method__} Looking for #{article.task_title} (#{article.folder})" if options[:debug]
+        puts "\n\n#{self.class}##{__method__} Looking for #{article.friendly_title} (#{article.folder})" if options[:debug]
         output = if (existing_task = existing_tasks.find do |task|
-                       article.task_title.downcase == task.title.downcase.strip
+                       article.friendly_title.downcase == task.title.downcase.strip
                      end)
           primary_service.update_task(existing_task, article)
         elsif article.unread?

@@ -3,18 +3,17 @@
 module Github
   # A representation of a Github issue
   class Issue
-    attr_reader :options, :id, :title, :html_url, :number, :labels, :state, :project, :is_pr, :updated_at, :debug_data
+    attr_reader :options, :id, :title, :url, :number, :tags, :status, :project, :is_pr, :updated_at, :debug_data
 
     def initialize(github_issue, options)
       @options = options
-      @url = github_issue["url"]
-      @html_url = github_issue["html_url"]
+      @url = github_issue["html_url"]
       @id = github_issue["id"]
       @number = github_issue["number"]
       @title = github_issue["title"]
       # Add "Github" to the labels
-      @labels = (default_labels + github_issue["labels"].map { |label| label["name"] }).uniq
-      @state = github_issue["state"]
+      @tags = (default_tags + github_issue["labels"].map { |label| label["name"] }).uniq
+      @status = github_issue["state"]
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
       @updated_at = Chronic.parse(github_issue["updated_at"])&.getlocal
@@ -26,19 +25,15 @@ module Github
     end
 
     def completed?
-      state == "closed"
+      status == "closed"
     end
 
     def open?
-      state == "open"
+      status == "open"
     end
 
-    def task_title
+    def friendly_title
       "#{project}-##{number}: #{is_pr ? '[PR] ' : ''}#{title.strip}"
-    end
-
-    def tags
-      labels
     end
 
     #       #####
@@ -51,14 +46,14 @@ module Github
 
     def to_omnifocus
       {
-        name: task_title,
-        note: html_url
+        name: friendly_title,
+        note: url
       }
     end
 
     private
 
-    def default_labels
+    def default_tags
       options[:tags] + ["Github"]
     end
 

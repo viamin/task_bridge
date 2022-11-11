@@ -5,13 +5,13 @@ module Asana
   class Task
     prepend MemoWise
 
-    attr_reader :options, :id, :title, :html_url, :tags, :completed, :completed_at, :project, :section, :due_date, :due_at, :updated_at, :hearted, :notes, :type, :start_date, :start_at, :subtask_count, :subtasks, :debug_data
+    attr_reader :options, :id, :title, :url, :tags, :completed, :completed_at, :project, :section, :due_date, :due_at, :updated_at, :flagged, :notes, :type, :start_date, :start_at, :subtask_count, :subtasks, :debug_data
 
     def initialize(asana_task, options)
       @options = options
       @id = asana_task["gid"]
       @title = asana_task["name"]
-      @html_url = asana_task["permalink_url"]
+      @url = asana_task["permalink_url"]
       @tags = default_tags
       @completed = asana_task["completed"]
       @completed_at = Chronic.parse(asana_task["completed_at"])
@@ -19,7 +19,7 @@ module Asana
       @due_date = Chronic.parse(asana_task["due_on"])
       @due_at = Chronic.parse(asana_task["due_at"])
       @updated_at = Chronic.parse(asana_task["modified_at"])
-      @hearted = asana_task["hearted"]
+      @flagged = asana_task["hearted"]
       @notes = asana_task["notes"]
       @type = asana_task["resource_type"]
       @start_date = Chronic.parse(asana_task["start_on"])
@@ -45,8 +45,13 @@ module Asana
       !completed?
     end
 
-    def task_title
+    def friendly_title
       title.strip
+    end
+
+    # For now, default to true
+    def personal?
+      true
     end
 
     # fields required for Asana
@@ -56,7 +61,7 @@ module Asana
           completed: completed?,
           due_at: due_at&.iso8601,
           due_on: due_date&.to_date&.iso8601,
-          liked: hearted,
+          liked: flagged,
           notes:,
           name: title,
           start_at: start_at&.iso8601,
@@ -84,9 +89,9 @@ module Asana
     # Fields required for omnifocus service
     def to_omnifocus(with_subtasks: false)
       omnifocus_properties = {
-        name: task_title,
-        note: html_url,
-        flagged: hearted,
+        name: friendly_title,
+        note: url,
+        flagged:,
         completion_date: completed_at,
         defer_date: start_at || start_date,
         due_date: due_at || due_date
@@ -95,6 +100,21 @@ module Asana
       omnifocus_properties
     end
     memo_wise :to_omnifocus
+
+    # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
+    def to_google(with_due: false, skip_reclaim: false)
+      # using to_date since GoogleTasks doesn't seem to care about the time (for due date)
+      # and the exact time probably doesn't matter for completed
+      google_task = with_due ? { due: due_date&.to_date&.rfc3339 } : {}
+      google_task.merge(
+        {
+          completed: completed_at&.to_date&.rfc3339,
+          notes:,
+          status: completed ? "completed" : "needsAction",
+          title: title + Reclaim::Task.title_addon(self, skip: skip_reclaim)
+        }
+      ).compact
+    end
 
     private
 

@@ -16,7 +16,7 @@ module Omnifocus
     end
 
     # Sync primary service tasks to Omnifocus
-    def sync_from(primary_service)
+    def sync_from_primary(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Omnifocus"])
       existing_tasks = tasks_to_sync(tags: options[:tags], inbox: true)
       unless options[:quiet]
@@ -24,7 +24,7 @@ module Omnifocus
                                          title: "Omnifocus Tasks")
       end
       tasks.each do |task|
-        output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
+        output = if (existing_task = existing_tasks.find { |t| friendly_titles_match?(t, task) })
           update_task(existing_task, task)
         else
           add_task(task) unless task.completed
@@ -129,7 +129,7 @@ module Omnifocus
 
       omnifocus_subtasks = omnifocus_task.subtasks
       external_task.subtasks.each do |subtask|
-        if (existing_subtask = omnifocus_subtasks.find { |omnifocus_subtask| task_title_matches(omnifocus_subtask, subtask) })
+        if (existing_subtask = omnifocus_subtasks.find { |omnifocus_subtask| friendly_titles_match?(omnifocus_subtask, subtask) })
           update_task(existing_subtask, subtask)
           "Updated subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
         else
@@ -156,7 +156,7 @@ module Omnifocus
       project_name.strip == external_project_name.strip
     end
 
-    def task_title_matches(task, external_task)
+    def friendly_titles_match?(task, external_task)
       debug("task: #{task}, external_task: #{external_task}") if options[:debug]
       if task.is_a?(Appscript::Reference)
         task.name.get.downcase.strip == external_task.title.downcase.strip
@@ -170,7 +170,7 @@ module Omnifocus
       debug("task: #{task}, tag: #{tag}") if options[:debug]
       target_task = if task.instance_of?(Omnifocus::Task)
         debug("Finding native Omnifocus task for #{task.title}") if options[:debug]
-        found_task = (inbox_tasks + tagged_tasks(task.tags)).find { |t| t.name.get == task.task_title }
+        found_task = (inbox_tasks + tagged_tasks(task.tags)).find { |t| t.name.get == task.friendly_title }
         debug("Found task: #{found_task}") if options[:debug] && found_task
         found_task
       else

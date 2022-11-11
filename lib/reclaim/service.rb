@@ -11,7 +11,7 @@ module Reclaim
       @auth_cookie = ENV.fetch("RECLAIM_AUTH_TOKEN", nil)
     end
 
-    def sync_from(primary_service)
+    def sync_from_primary(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Reclaim"])
       existing_tasks = tasks_to_sync
       unless options[:quiet]
@@ -19,7 +19,7 @@ module Reclaim
                                          title: "Reclaim Tasks")
       end
       tasks.each do |task|
-        output = if (existing_task = existing_tasks.find { |t| task_title_matches(t, task) })
+        output = if (existing_task = existing_tasks.find { |t| friendly_titles_match?(t, task) })
           update_task(existing_task, task)
         else
           add_task(task) unless task.completed
@@ -75,7 +75,7 @@ module Reclaim
 
     private
 
-    def task_title_matches(task, other_task)
+    def friendly_titles_match?(task, other_task)
       task.title.downcase.strip == other_task.title.downcase.strip
     end
 
