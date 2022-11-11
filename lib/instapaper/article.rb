@@ -4,7 +4,7 @@ module Instapaper
   class Article
     prepend MemoWise
 
-    attr_reader :options, :id, :folder, :project, :title, :tags, :url, :updated_at, :reading_time, :debug_data
+    attr_reader :options, :id, :folder, :project, :title, :tags, :url, :updated_at, :estimated_minutes, :debug_data
 
     def initialize(instapaper_article, options)
       @options = options
@@ -15,7 +15,7 @@ module Instapaper
       @tags = default_tags
       @project = ENV.fetch("INSTAPAPER_PROJECT", nil)
       @updated_at = Time.at(instapaper_article["progress_timestamp"])
-      @reading_time = nil
+      @estimated_minutes = nil
       @debug_data = instapaper_article if @options[:debug]
     end
 
@@ -31,7 +31,7 @@ module Instapaper
       folder == "unread"
     end
 
-    def task_title
+    def friendly_title
       if title&.strip.blank?
         "[READ] #{url}"
       else
@@ -49,7 +49,7 @@ module Instapaper
       image_count = doc.search("img").count
       word_count = doc.to_text.tr("\n", " ").squeeze(" ").strip.split.count
       word_reading_minutes = (word_count.to_f / reading_speed_wpm)
-      @reading_time = (word_reading_minutes + image_time(image_count)).ceil
+      @estimated_minutes = (word_reading_minutes + image_time(image_count)).ceil
     end
     memo_wise :read_time
 
@@ -63,9 +63,9 @@ module Instapaper
 
     def to_omnifocus
       {
-        name: task_title,
+        name: friendly_title,
         note: url,
-        estimated_minutes: reading_time
+        estimated_minutes:
       }.compact
     end
 

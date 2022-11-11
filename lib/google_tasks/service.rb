@@ -14,8 +14,8 @@ module GoogleTasks
       @tasks_service.authorization = user_credentials_for(Google::Apis::TasksV1::AUTH_TASKS)
     end
 
-    desc "sync_from", "Sync from primary service tasks to Google Tasks"
-    def sync_from(primary_service)
+    desc "sync_from_primary", "Sync from primary service tasks to Google Tasks"
+    def sync_from_primary(primary_service)
       tasks = primary_service.tasks_to_sync(tags: ["Google Tasks"])
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
@@ -24,7 +24,7 @@ module GoogleTasks
       tasks.each do |task|
         # next if options[:max_age] && task.updated_at && (task.updated_at < options[:max_age])
 
-        output = if (existing_task = tasks_to_sync.find { |t| task_title_matches(t, task) })
+        output = if (existing_task = tasks_to_sync.find { |t| friendly_titles_match?(t, task) })
           update_task(tasklist, existing_task, task, options)
         else
           add_task(tasklist, task, options) unless task.completed
@@ -41,8 +41,10 @@ module GoogleTasks
     end
 
     desc "add_task", "Add a new task to a given task list"
-    def add_task(tasklist, omnifocus_task, options)
-      google_task = task_from_primary(omnifocus_task)
+    def add_task(tasklist, external_task, options)
+      return external_task.flag! if external_task.respond_to?(:estimated_minutes) && external_task.estimated_minutes.nil?
+
+      google_task = Google::Apis::TasksV1::Task.new(**external_task.to_google)
       puts "#{self.class}##{__method__}: #{google_task.pretty_inspect}" if options[:debug]
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L360
       tasks_service.insert_task(tasklist.id, google_task)
@@ -50,9 +52,9 @@ module GoogleTasks
     end
 
     desc "update_task", "Update an existing task in a task list"
-    def update_task(tasklist, google_task, omnifocus_task, options)
+    def update_task(tasklist, google_task, external_task, options)
       puts "#{self.class}##{__method__} existing_task: #{google_task.pretty_inspect}" if options[:debug]
-      updated_task = task_from_primary(omnifocus_task)
+      updated_task = Google::Apis::TasksV1::Task.new(**external_task.to_google)
       puts "#{self.class}##{__method__} updated_task: #{updated_task.pretty_inspect}" if options[:debug]
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L510
       tasks_service.patch_task(tasklist.id, google_task.id, updated_task)
@@ -71,35 +73,8 @@ module GoogleTasks
       @tasklist ||= tasks_service.list_tasklists.items.find { |list| list.title == options[:list] }
     end
 
-    # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
-    def task_from_primary(task)
-      # using to_date since GoogleTasks doesn't seem to care about the time (for due date)
-      # and the exact time probably doesn't matter for completed
-      google_task = {
-        completed: task.completion_date&.to_date&.rfc3339,
-        due: task.due_date&.to_date&.rfc3339,
-        notes: task.note,
-        status: task.completed ? "completed" : "needsAction",
-        title: task.title + reclaim_title_addon(task)
-      }.compact
-      Google::Apis::TasksV1::Task.new(**google_task)
-    end
-
-    # generate a title addition that Reclaim can use to set additional settings
-    # Form of TITLE ([DURATION] [DUE_DATE] [NOT_BEFORE] [TYPE])
-    # refer to https://help.reclaim.ai/en/articles/4293078-use-natural-language-in-the-google-task-integration
-    def reclaim_title_addon(task)
-      duration = task.estimated_minutes.nil? ? "" : "for #{task.estimated_minutes} minutes"
-      not_before = task.defer_date.nil? ? "" : "not before #{task.defer_date.to_datetime.strftime('%b %e')}"
-      type = task.personal? ? "type personal" : ""
-      # due_date = task.due_date.nil? ? "" : "due #{task.due_date.to_datetime.strftime("%b %e %l %p")}"
-      # Due date doesn't seem to work correctly, but is supported natively by Google tasks, so use that
-      addon_string = "#{type} #{duration} #{not_before}".squeeze(" ").strip
-      addon_string.empty? ? "" : " (#{addon_string})"
-    end
-
     # In case a reclaim title is present, match the title
-    def task_title_matches(google_task, task)
+    def friendly_titles_match?(google_task, task)
       matcher = /\A(?<title>.+)\s*(?<addon>.*)\Z/i
       google_title = matcher.match(google_task.title).named_captures.fetch("title", nil)&.downcase&.strip
       google_title == task.title&.downcase&.strip

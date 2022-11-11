@@ -12,11 +12,11 @@ module Github
 
     def initialize(options)
       @options = options
-      @authentication = Authentication.new(options).authenticate
+      @authentication = Authentication.new(options).authenticate!
     end
 
     # By default Github syncs TO the primary service
-    def sync_to(primary_service)
+    def sync_to_primary(primary_service)
       issues = issues_to_sync(options[:tags])
       existing_tasks = primary_service.tasks_to_sync(tags: ["Github"], inbox: true)
       unless options[:quiet]
@@ -24,9 +24,9 @@ module Github
                                          title: "Github issues")
       end
       issues.each do |issue|
-        puts "\n\n#{self.class}##{__method__} Looking for #{issue.task_title} (#{issue.state})" if options[:debug]
+        puts "\n\n#{self.class}##{__method__} Looking for #{issue.friendly_title} (#{issue.state})" if options[:debug]
         output = if (existing_task = existing_tasks.find do |task|
-                       issue.task_title.downcase == task.title.downcase.strip
+                       issue.friendly_title.downcase == task.title.downcase.strip
                      end)
           primary_service.update_task(existing_task, issue)
         elsif issue.open?

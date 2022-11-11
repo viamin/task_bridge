@@ -36,9 +36,9 @@ class TaskBridge
       opt :delete,
           "Delete completed tasks on service",
           default: %w[true t yes 1].include?(ENV.fetch("DELETE_COMPLETED", "false").downcase)
-      opt :from_only, "Only sync FROM the primary service", default: false
-      opt :to_only, "Only sync TO the primary service", default: false
-      conflicts :from_only, :to_only
+      opt :only_from_primary, "Only sync FROM the primary service", default: false
+      opt :only_to_primary, "Only sync TO the primary service", default: false
+      conflicts :only_from_primary, :only_to_primary
       opt :pretend, "List the found tasks, don't sync", default: false
       opt :quiet, "No output - used for daemonized processes", default: false
       opt :verbose, "Verbose output", default: false
@@ -70,8 +70,8 @@ class TaskBridge
       else
         # Generally we should sync FROM the primary service first, since it should be the source of truth
         # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-        service.sync_from(@primary_service) if service.respond_to?(:sync_from) && !@options[:to_only]
-        service.sync_to(@primary_service) if service.respond_to?(:sync_to) && !@options[:from_only]
+        service.sync_from_primary(@primary_service) if service.respond_to?(:sync_from_primary) && !@options[:only_to_primary]
+        service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary) && !@options[:only_from_primary]
       end
     end
     return if @options[:quiet]

@@ -16,7 +16,7 @@ module Asana
     end
 
     # Sync tasks from the primary service to Asana
-    def sync_from(primary_service)
+    def sync_from_primary(primary_service)
       primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"], folder: options[:project])
       asana_tasks = tasks_to_sync
       unless options[:quiet]
@@ -24,7 +24,7 @@ module Asana
                                          title: "#{primary_service.class.name} to Asana Tasks")
       end
       primary_tasks.each do |primary_task|
-        output = if (existing_task = asana_tasks.find { |asana_task| task_title_matches(asana_task, primary_task) })
+        output = if (existing_task = asana_tasks.find { |asana_task| friendly_titles_match?(asana_task, primary_task) })
           update_task(existing_task, primary_task)
         else
           add_task(primary_task) unless primary_task.completed
@@ -36,7 +36,7 @@ module Asana
     end
 
     # sync tasks from Asana to the primary service
-    def sync_to(primary_service)
+    def sync_to_primary(primary_service)
       asana_tasks = tasks_to_sync
       primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"])
       unless options[:quiet]
@@ -44,7 +44,7 @@ module Asana
                                          title: "#{primary_service.class.name} from Asana Tasks")
       end
       asana_tasks.each do |asana_task|
-        output = if (existing_task = primary_tasks.find { |primary_task| task_title_matches(primary_task, asana_task) })
+        output = if (existing_task = primary_tasks.find { |primary_task| friendly_titles_match?(primary_task, asana_task) })
           primary_service.update_task(existing_task, asana_task)
         else
           primary_service.add_task(asana_task) unless asana_task.completed
@@ -158,7 +158,7 @@ module Asana
       return unless external_task.respond_to?(:subtask_count) && external_task.subtask_count.positive?
 
       external_task.subtasks.each do |subtask|
-        if (existing_task = asana_task.subtasks.find { |asana_subtask| task_title_matches(asana_subtask, subtask) })
+        if (existing_task = asana_task.subtasks.find { |asana_subtask| friendly_titles_match?(asana_subtask, subtask) })
           update_task(existing_task, subtask)
           "Updated subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
         else
@@ -168,7 +168,7 @@ module Asana
       end
     end
 
-    def task_title_matches(task, other_task)
+    def friendly_titles_match?(task, other_task)
       task.title.downcase.strip == other_task.title.downcase.strip
     end
 

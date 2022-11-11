@@ -2,14 +2,16 @@
 
 module Github
   class Authentication
-    attr_reader :options, :authentication
+    prepend MemoWise
+
+    attr_reader :options
 
     def initialize(options)
       @options = options
       @authentication = nil
     end
 
-    def authenticate
+    def authenticate!
       if missing_authentication
         auth_params = post_device_code
         puts "Go to #{auth_params['verification_uri']}\nand enter the code\n#{auth_params['user_code']}"
@@ -17,6 +19,7 @@ module Github
       end
       @authentication
     end
+    memo_wise :authenticate!
 
     private
 
@@ -47,20 +50,15 @@ module Github
       Chronic.parse("#{interval} seconds from now")
     end
 
-    def missing_authentication
-      return true unless File.exist?(
-        File.expand_path(
-          File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt"))
-        )
-      )
+    def auth_file_path
+      File.expand_path(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt")))
+    end
+    memo_wise :auth_file_path
 
-      @authentication = JSON.parse(
-        File.read(
-          File.expand_path(
-            File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt"))
-          )
-        )
-      )
+    def missing_authentication
+      return true unless File.exist?(auth_file_path)
+
+      @authentication = JSON.parse(File.read(auth_file_path))
       false
     end
 
@@ -75,8 +73,7 @@ module Github
     end
 
     def save_authentication(access_code)
-      File.write(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt")),
-                 access_code.to_json)
+      File.write(auth_file_path, access_code.to_json)
     end
 
     def wait_for_user(auth_params)

@@ -4,21 +4,16 @@ require "oauth"
 
 module Instapaper
   class Authentication
-    attr_reader :options, :authentication
+    prepend MemoWise
+
+    attr_reader :options
 
     def initialize(options)
       @options = options
-      @authentication = nil
     end
 
-    def authenticate
-      @authentication ||= user_credentials
-    end
-
-    private
-
-    def user_credentials
-      puts "** Calling #{self.class}##{__method__}" if options[:debug]
+    def authenticate!
+      debug("Called") if options[:debug]
       params = {
         site: "https://www.instapaper.com/api/1",
         scheme: :header,
@@ -35,6 +30,9 @@ module Instapaper
       }
       consumer.get_access_token(nil, request_options, arguments)
     end
+    memo_wise :authenticate!
+
+    private
 
     def credentials
       {
