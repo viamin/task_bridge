@@ -102,7 +102,7 @@ module Omnifocus
         tags(external_task).each do |tag|
           add_tag(tag:, task: omnifocus_task)
         end
-        if external_task.project && task_projects_match(external_task, omnifocus_task)
+        if external_task.project && !task_projects_match(external_task, omnifocus_task)
           debug("Projects don't match: (#{external_task.provider})#{external_task} <=> (Omnifocus)#{omnifocus_task}") if options[:debug]
           # update the project via assigned_container property
           updated_project = project(nil, external_task.project)
@@ -154,6 +154,7 @@ module Omnifocus
         external_task.project
       end
       external_project_name = external_project_name.split(":").last if external_project_name.split(":").length > 1
+      debug("project_name: #{project_name}, external_project_name: #{external_project_name}") if options[:debug]
       project_name.strip == external_project_name.strip
     end
 
@@ -208,10 +209,13 @@ module Omnifocus
       elsif project_structure
         debug("Using project_structure: #{project_structure}") if options[:debug]
         # First, try to get a folder and sub-projects of that folder
-        project = folder(project_structure).flattened_projects[project_structure].get
-        debug("project: #{project.name.get}") if options[:debug]
-        # If a folder project can't be found, check for any matching project
-        project ||= omnifocus.flattened_projects[project_structure]
+        folder = folder(project_structure)
+        if folder
+          project = folder.flattened_projects[project_structure].get
+        else
+          # If a folder project can't be found, check for any matching project
+          project ||= omnifocus.flattened_projects[project_structure]
+        end
         debug("project: #{project.name.get}") if options[:debug]
       end
       debug("project: #{project}") if options[:debug]

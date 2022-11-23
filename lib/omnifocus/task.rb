@@ -138,7 +138,7 @@ module Omnifocus
     end
 
     def to_s
-      "#{provider}::Task: (#{id})#{title}"
+      "#{provider}::Task:(#{id})#{title}"
     end
 
     # start_at is a "premium" feature, apparently
