@@ -38,24 +38,28 @@ module Asana
     # sync tasks from Asana to the primary service
     def sync_to_primary(primary_service)
       asana_tasks = tasks_to_sync
-      # An available task is a task that is assigned to the Asana user (who provided the personal access token) or
-      # is in a project visible to the Asana user and is unassigned
-      available_tasks = asana_tasks.select { |task| task.assignee == asana_user["gid"] || task.assignee.nil? }
       primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"])
       unless options[:quiet]
-        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: available_tasks.length,
+        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: asana_tasks.length,
                                          title: "#{primary_service.class.name} from Asana Tasks")
       end
-      available_tasks.each do |asana_task|
+      asana_tasks.each do |asana_task|
         output = if (existing_task = primary_tasks.find { |primary_task| friendly_titles_match?(primary_task, asana_task) })
           primary_service.update_task(existing_task, asana_task)
         else
+          unless asana_task.assignee == asana_user["gid"] || asana_task.assignee.nil?
+            # Skip creating new tasks that are not assigned to the owner of the Personal Access Token
+            # Unassigned tasks are fine to create as well
+            progressbar.increment unless options[:quiet]
+            next
+          end
+
           primary_service.add_task(asana_task) unless asana_task.completed
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
-      puts "Synced #{available_tasks.length} #{options[:primary]} items from Asana" unless options[:quiet]
+      puts "Synced #{asana_tasks.length} #{options[:primary]} items from Asana" unless options[:quiet]
     end
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
