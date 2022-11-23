@@ -47,6 +47,13 @@ module Asana
         output = if (existing_task = primary_tasks.find { |primary_task| friendly_titles_match?(primary_task, asana_task) })
           primary_service.update_task(existing_task, asana_task)
         else
+          unless asana_task.assignee == asana_user["gid"] || asana_task.assignee.nil?
+            # Skip creating new tasks that are not assigned to the owner of the Personal Access Token
+            # Unassigned tasks are fine to create as well
+            progressbar.increment unless options[:quiet]
+            next
+          end
+
           primary_service.add_task(asana_task) unless asana_task.completed
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
@@ -60,10 +67,7 @@ module Asana
       visible_project_gids = list_projects.map { |project| project["gid"] }
       task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid) }.flatten.uniq
       tasks = task_list.map { |task| Task.new(task, options) }
-      # An available task is a task that is assigned to the Asana user (who provided the personal access token) or
-      # is in a project visible to the Asana user and is unassigned
-      available_tasks = tasks.select { |task| task.assignee == asana_user["gid"] || task.assignee.nil? }
-      tasks_with_subtasks = available_tasks.select { |task| task.subtask_count.positive? }
+      tasks_with_subtasks = tasks.select { |task| task.subtask_count.positive? }
       if tasks_with_subtasks.any?
         tasks_with_subtasks.each do |parent_task|
           subtask_hashes = list_task_subtasks(parent_task.id)
@@ -73,11 +77,11 @@ module Asana
             # Remove the subtask from the main task list
             # so we don't double sync them
             # (the Asana API doesn't have a filter for subtasks)
-            available_tasks.delete_if { |task| task.id == subtask.id }
+            tasks.delete_if { |task| task.id == subtask.id }
           end
         end
       end
-      available_tasks
+      tasks
     end
     memo_wise :tasks_to_sync
 
@@ -273,20 +277,6 @@ module Asana
       end
     end
     memo_wise :memberships_for_task
-
-    def assigned_workspace_tasks(workspace_gid)
-      query = {
-        query: {
-          assignee: asana_user["gid"],
-          workspace: workspace_gid,
-          opt_fields: Task.requested_fields.join(",")
-        }
-      }
-      response = HTTParty.get("#{base_url}/tasks", authenticated_options.merge(query))
-      raise "Error loading Asana tasks - check personal access token" unless response.success?
-
-      JSON.parse(response.body)["data"]
-    end
 
     def workspace_gids
       workspaces = asana_user["workspaces"]
