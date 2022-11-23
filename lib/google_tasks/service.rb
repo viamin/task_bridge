@@ -37,7 +37,7 @@ module GoogleTasks
 
     desc "tasks_to_sync", "Get all of the tasks to sync in options[:list]"
     def tasks_to_sync(*)
-      @tasks_to_sync ||= tasks_service.list_tasks(tasklist.id).items
+      @tasks_to_sync ||= tasks_service.list_tasks(tasklist.id, max_results: 100).items
     end
 
     desc "add_task", "Add a new task to a given task list"
