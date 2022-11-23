@@ -5,20 +5,17 @@ module Omnifocus
   class Task
     prepend MemoWise
 
-    TIME_TAGS = [
-      "Today",
-      "Tomorrow",
-      "This Week",
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-      "Next Week",
-      "This Month",
-      "Next Month",
+    WEEKDAY_TAGS = %w[
+      Monday
+      Tuesday
+      Wednesday
+      Thursday
+      Friday
+      Saturday
+      Sunday
+    ].freeze
+
+    MONTH_TAGS = [
       "01 - January",
       "02 - February",
       "03 - March",
@@ -32,6 +29,17 @@ module Omnifocus
       "11 - November",
       "12 - December"
     ].freeze
+
+    RELATIVE_TIME_TAGS = [
+      "Today",
+      "Tomorrow",
+      "This Week",
+      "Next Week",
+      "This Month",
+      "Next Month"
+    ].freeze
+
+    TIME_TAGS = WEEKDAY_TAGS + MONTH_TAGS + RELATIVE_TIME_TAGS
 
     attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :start_date, :flagged, :estimated_minutes, :notes, :tags, :project, :updated_at, :subtask_count, :subtasks, :debug_data
 
@@ -169,7 +177,12 @@ module Omnifocus
       return if tags.empty?
 
       tag = (tags & TIME_TAGS).first
-      Chronic.parse(tag)
+      date = Chronic.parse(tag)
+      if date < Time.now
+        date += 1.week if tags & WEEKDAY_TAGS
+        date += 1.year if tags & MONTH_TAGS
+      end
+      date
     end
 
     def read_attribute(task, attribute, missing_value = nil)

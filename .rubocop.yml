@@ -1291,8 +1291,8 @@ Style/StringLiterals:
 #   Enabled: false
 # Style/SelectByRegexp:
 #   Enabled: false
-# Style/OpenStructUse:
-#   Enabled: false
+Style/OpenStructUse:
+  Enabled: false
 # Style/MapToHash:
 #   Enabled: false
 # Style/FileWrite:
