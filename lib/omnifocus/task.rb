@@ -178,6 +178,8 @@ module Omnifocus
 
       tag = (tags & TIME_TAGS).first
       date = Chronic.parse(tag)
+      return if date.nil?
+
       if date < Time.now
         date += 1.week if tags & WEEKDAY_TAGS
         date += 1.year if tags & MONTH_TAGS
