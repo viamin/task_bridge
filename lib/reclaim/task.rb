@@ -72,9 +72,9 @@ module Reclaim
         return if skip
 
         duration = task.estimated_minutes.nil? ? "" : "for #{task.estimated_minutes} minutes"
-        not_before = task.start_date.nil? ? "" : "not before #{task.start_date.to_datetime.strftime('%b %e')}"
+        not_before = task.start_date.nil? ? "" : "not before #{task.start_date.to_datetime.strftime('%F')}"
         type = task.personal? ? "type personal" : ""
-        due_date = task.due_date.nil? ? "" : "due #{task.due_date.to_datetime.strftime('%b %e %l %p')}"
+        due_date = task.due_date.nil? ? "" : "due #{task.due_date.to_datetime.strftime('%F %l %p')}"
         addon_string = "#{type} #{duration} #{not_before} #{due_date}".squeeze(" ").strip
         addon_string.empty? ? "" : " (#{addon_string})"
       end
