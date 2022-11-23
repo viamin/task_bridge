@@ -71,7 +71,7 @@ module Github
       assigned_issues = list_assigned
                         .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
                         .map { |issue| Issue.new(issue, options) }
-      (tagged_issues + assigned_issues).uniq
+      (tagged_issues + assigned_issues).uniq(&:id)
     end
     memo_wise :issues_to_sync
 
