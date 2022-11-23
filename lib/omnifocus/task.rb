@@ -39,7 +39,6 @@ module Omnifocus
       @options = options
       @id = read_attribute(task, :id_)
       @title = read_attribute(task, :name)
-      @folder = options[:project]
       containing_project = read_attribute(task, :containing_project)
       @project = if containing_project.respond_to?(:get)
         containing_project.name.get
@@ -94,12 +93,44 @@ module Omnifocus
     end
 
     def original_task
-      Service.new(options).omnifocus.flattened_tags[*options[:tags]].tasks[title]
+      Service.new(options).omnifocus.flattened_tags[*options[:tags]].tasks[title].get
     end
     memo_wise :original_task
 
+    def containers
+      parents = []
+      container = original_task.container.get
+      container_class = container.class_.get
+      # :document is the top level container - anything
+      # else is a folder, project, or parent task
+      while container_class != :document
+        # A quirk of omnifocus seems to be that if a `container` is a project, asking for the `class_` returns `:task` (without a `parent_task`)
+        # But if you ask for `containing_project` and ask for its `class_`, it returns `:project`
+        # So we need to check for this case
+        properties = container.properties_.get
+        if properties[:class_] == :task && properties[:parent_class] == :missing_value
+          # container is probably actually a :project
+          container = container.containing_project.get
+          properties = container.properties_.get
+        end
+        parents << {
+          type: properties[:class_],
+          name: properties[:name],
+          object: container
+        }
+        container = container.container.get
+        container_class = container.class_.get
+      end
+      parents
+    end
+    memo_wise :containers
+
     def friendly_title
       title
+    end
+
+    def to_s
+      "#{provider}::Task: (#{id})#{title}"
     end
 
     # start_at is a "premium" feature, apparently

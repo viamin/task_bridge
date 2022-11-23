@@ -17,7 +17,7 @@ module Asana
 
     # Sync tasks from the primary service to Asana
     def sync_from_primary(primary_service)
-      primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"], folder: options[:project])
+      primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"])
       asana_tasks = tasks_to_sync
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: primary_tasks.length,
@@ -57,9 +57,13 @@ module Asana
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
     def tasks_to_sync(*)
-      task_list = list_project_tasks(project_gid)
+      visible_project_gids = list_projects.map { |project| project["gid"] }
+      task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid) }.flatten.uniq
       tasks = task_list.map { |task| Task.new(task, options) }
-      tasks_with_subtasks = tasks.select { |task| task.subtask_count.positive? }
+      # An available task is a task that is assigned to the Asana user (who provided the personal access token) or
+      # is in a project visible to the Asana user and is unassigned
+      available_tasks = tasks.select { |task| task.assignee == asana_user["gid"] || task.assignee.nil? }
+      tasks_with_subtasks = available_tasks.select { |task| task.subtask_count.positive? }
       if tasks_with_subtasks.any?
         tasks_with_subtasks.each do |parent_task|
           subtask_hashes = list_task_subtasks(parent_task.id)
@@ -69,11 +73,11 @@ module Asana
             # Remove the subtask from the main task list
             # so we don't double sync them
             # (the Asana API doesn't have a filter for subtasks)
-            tasks.delete_if { |task| task.id == subtask.id }
+            available_tasks.delete_if { |task| task.id == subtask.id }
           end
         end
       end
-      tasks
+      available_tasks
     end
     memo_wise :tasks_to_sync
 
@@ -160,10 +164,10 @@ module Asana
       external_task.subtasks.each do |subtask|
         if (existing_task = asana_task.subtasks.find { |asana_subtask| friendly_titles_match?(asana_subtask, subtask) })
           update_task(existing_task, subtask)
-          "Updated subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
+          "Updated subtask #{subtask.title} of task #{external_task.title} in Asana"
         else
           add_task(subtask, asana_task.id) unless subtask.completed?
-          "Created subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
+          "Created subtask #{subtask.title} of task #{external_task.title} in Asana"
         end
       end
     end
@@ -172,22 +176,37 @@ module Asana
       task.title.downcase.strip == other_task.title.downcase.strip
     end
 
-    def project_gid
-      all_projects = list_projects
-      matching_project = all_projects.find { |project| options[:project] == project["name"] }
-      matching_project["gid"]
-    end
-    memo_wise :project_gid
-
-    def list_projects
-      response = HTTParty.get("#{base_url}/projects", authenticated_options)
-      raise "Error loading Asana tasks - check personal access token" unless response.success?
+    # By default, this will list only active (unarchived) projects. Passing archived: true
+    # will return only archived projects.
+    def list_projects(archived: false)
+      query = { query: { archived: } }
+      response = HTTParty.get("#{base_url}/projects", authenticated_options.merge(query))
+      raise "Error loading Asana projects - check personal access token" unless response.success?
 
       JSON.parse(response.body)["data"]
     end
     memo_wise :list_projects
 
-    def list_project_sections
+    def project_gids
+      @project_gids ||= list_projects.map { |project| project["gid"] }
+    end
+
+    def project_gid_from_name(project_name)
+      found_project = list_projects.find { |project| project["name"] == project_name }
+      return unless found_project
+
+      found_project["gid"]
+    end
+
+    # For a given project_gid, list all of the sections in that project
+    # It *looks* like Asana will always return an untitled section,
+    # even if there are no other sections e.g.:
+    # {
+    #   "gid": "1203188830269577",
+    #   "name": "Untitled section",
+    #   "resource_type": "section"
+    # },
+    def list_project_sections(project_gid, merge_project_gids: false)
       query = {
         query: {
           project: project_gid
@@ -196,7 +215,11 @@ module Asana
       response = HTTParty.get("#{base_url}/projects/#{project_gid}/sections", authenticated_options.merge(query))
       raise "Error loading Asana project sections - check personal access token" unless response.success?
 
-      JSON.parse(response.body)["data"]
+      body_data = JSON.parse(response.body)["data"]
+
+      return body_data unless merge_project_gids
+
+      body_data.map { |section_hash| section_hash.merge("project_gid" => project_gid) }
     end
     memo_wise :list_project_sections
 
@@ -226,9 +249,20 @@ module Asana
     end
     memo_wise :list_task_subtasks
 
-    # Makes some big assumptions about the layout in Asana...
+    # Makes some big assumptions about the layout we use in Asana...
+    # Namely that all Asana projects passed into TaskBridge
+    # will only have sections or top level tasks and subtasks,
+    # but only one level deep (meaning subtasks will not have
+    # subtasks of their own and sections will not have subsections)
+    # Also projects will not have sub-projects
+    # And finally, section names are unique across projects (otherwise
+    # tasks might get saved into the wrong projects in Asana)
     def memberships_for_task(external_task, for_create: false)
-      matching_section = list_project_sections.find { |section| section["name"] == external_task.project }
+      matching_section = project_gids
+                         .map { |project_gid| list_project_sections(project_gid, merge_project_gids: true) }
+                         .flatten
+                         .find { |section| section["name"] == external_task.project }
+      project_gid = matching_section.present? ? matching_section["project_gid"] : project_gid_from_name(external_task.project)
       if for_create
         { projects: [project_gid] }
       else
@@ -239,6 +273,33 @@ module Asana
       end
     end
     memo_wise :memberships_for_task
+
+    def assigned_workspace_tasks(workspace_gid)
+      query = {
+        query: {
+          assignee: asana_user["gid"],
+          workspace: workspace_gid,
+          opt_fields: Task.requested_fields.join(",")
+        }
+      }
+      response = HTTParty.get("#{base_url}/tasks", authenticated_options.merge(query))
+      raise "Error loading Asana tasks - check personal access token" unless response.success?
+
+      JSON.parse(response.body)["data"]
+    end
+
+    def workspace_gids
+      workspaces = asana_user["workspaces"]
+      workspaces.map { |workspace| workspace["gid"] }
+    end
+
+    def asana_user
+      response = HTTParty.get("#{base_url}/users/me", authenticated_options)
+      raise "Error loading Asana user - check personal access token" unless response.success?
+
+      JSON.parse(response.body)["data"]
+    end
+    memo_wise :asana_user
 
     def authenticated_options
       {

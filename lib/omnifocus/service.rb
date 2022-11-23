@@ -9,7 +9,7 @@ module Omnifocus
 
     attr_reader :options, :omnifocus
 
-    def initialize(options)
+    def initialize(options = {})
       @options = options
       # Assumes you already have OmniFocus installed
       @omnifocus = Appscript.app.by_name("OmniFocus").default_document
@@ -35,18 +35,18 @@ module Omnifocus
       puts "Synced #{tasks.length} #{options[:primary]} items to Omnifocus" unless options[:quiet]
     end
 
-    def tasks_to_sync(tags: nil, project: nil, folder: nil, inbox: false)
-      omnifocus_tasks = []
-      tagged_tasks = tagged_tasks(tags)
-      project_tasks = project_tasks(project)
-      folder_tasks = folder_tasks(folder)
-      tagged_project_tasks = if tags && project
+    def tasks_to_sync(tags: nil, projects: nil, folder: nil, inbox: false, incomplete_only: false)
+      tagged_tasks = tagged_tasks(tags, incomplete_only:)
+      project_tasks = project_tasks(projects, incomplete_only:)
+      folder_tasks = folder_tasks(folder, incomplete_only:)
+      tagged_project_tasks = if tags && projects
         tagged_tasks & project_tasks
       elsif tags && folder
         tagged_tasks & folder_tasks
       else
         tagged_tasks | project_tasks | folder_tasks
       end
+      omnifocus_tasks = []
       omnifocus_tasks += tagged_project_tasks
       omnifocus_tasks += inbox_tasks if inbox
       tasks = omnifocus_tasks.map { |task| Task.new(task, @options) }
@@ -58,7 +58,7 @@ module Omnifocus
     memo_wise :tasks_to_sync
 
     def add_task(external_task, options = {}, parent_object = nil)
-      debug("") if options[:debug]
+      debug("external_task: #{external_task}, parent_object: #{parent_object}") if options[:debug]
       task_type = :task
       if parent_object.nil?
         if project(external_task).is_a?(Appscript::Reference)
@@ -68,11 +68,11 @@ module Omnifocus
           task_type = :inbox_task
         end
       elsif parent_object.is_a?(Omnifocus::Task)
+        debug("parent_object: #{parent_object}") if options[:debug]
         parent_object = parent_object.original_task
       end
       if !options[:pretend]
         new_task = parent_object.make(new: task_type, with_properties: external_task.to_omnifocus)
-        handle_subtasks(new_task, external_task)
       elsif options[:pretend] && options[:verbose]
         "Would have added #{external_task.title} to Omnifocus"
       end
@@ -81,6 +81,7 @@ module Omnifocus
       tags(external_task).each do |tag|
         add_tag(tag:, task: new_task)
       end
+      handle_subtasks(Omnifocus::Task.new(new_task, options), external_task)
       new_task
     end
 
@@ -244,46 +245,54 @@ module Omnifocus
 
     def inbox_tasks
       debug("called") if options[:debug]
-      @inbox_tasks ||= begin
-        inbox_tasks = omnifocus.inbox_tasks.get.map { |t| all_omnifocus_subtasks(t) }.flatten
-        inbox_tasks.compact.uniq(&:id_)
-      end
+      inbox_tasks = omnifocus.inbox_tasks.get.map { |t| all_omnifocus_subtasks(t) }.flatten
+      inbox_tasks.compact.uniq(&:id_)
     end
     memo_wise :inbox_tasks
 
-    def folder_tasks(folder_name = nil)
+    def folder_tasks(folder_name = nil, incomplete_only: false)
       debug("folder_name: #{folder_name}") if options[:debug]
       return [] if folder_name.nil?
 
       folder = folder(folder_name)
       folder_projects = folder.flattened_projects.get
-      folder_tasks = folder_projects.map(&:flattened_tasks).map(&:get).flatten.compact.uniq(&:id_)
-      folder_tasks.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
+      all_tasks_in_container(folder_projects, incomplete_only:)
     end
     memo_wise :folder_tasks
 
-    def project_tasks(project_name = nil)
-      debug("project_name: #{project_name}") if options[:debug]
-      return [] if project_name.nil?
+    def project_tasks(project_names = nil, incomplete_only: false)
+      debug("project_names: #{project_names}") if options[:debug]
+      return [] if project_names.nil?
 
-      project = project(nil, project_name)
-      case project
-      when Array
-        project.map { |folder_project| folder_project.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_) }.flatten
-      when Appscript::Reference
-        project.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
-      end
+      project_names.split(",").map do |project_name|
+        project = project(nil, project_name)
+        all_tasks_in_container(project, incomplete_only:)
+      end.flatten
     end
     memo_wise :project_tasks
 
-    def tagged_tasks(tags = nil)
+    def tagged_tasks(tags = nil, incomplete_only: false)
       debug("tags: #{tags}") if options[:debug]
       return [] if tags.nil?
 
       matching_tags = omnifocus.flattened_tags.get.select { |tag| tags.include?(tag.name.get) }
-      matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
+      all_tasks_in_container(matching_tags, incomplete_only:)
+      # matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
     end
     memo_wise :tagged_tasks
+
+    def all_tasks_in_container(container, incomplete_only: false)
+      tasks = case container
+              when Array
+                container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_) }.flatten
+              when Appscript::Reference
+                container.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
+      end
+      return tasks unless incomplete_only
+
+      tasks.reject { |task| task.completed.get }
+    end
+    memo_wise :all_tasks_in_container
 
     # adapted from https://github.com/fredoliveira/forecast
     def all_omnifocus_subtasks(task)

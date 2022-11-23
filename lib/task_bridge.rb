@@ -31,7 +31,6 @@ class TaskBridge
       conflicts :personal_tags, :work_tags
       opt :services, "Services to sync tasks to", default: ENV.fetch("SYNC_SERVICES", "GoogleTasks,Github").split(",")
       opt :list, "Task list name to sync to", default: ENV.fetch("GOOGLE_TASKS_LIST", "My Tasks")
-      opt :project, "Project name to sync in Asana", default: ENV.fetch("ASANA_PROJECT", nil)
       opt :max_age, "Skip syncing asks that have not been modified within this time (0 to disable)", default: ENV.fetch("SYNC_MAX_AGE", 0).to_i
       opt :delete,
           "Delete completed tasks on service",
