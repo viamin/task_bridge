@@ -5,7 +5,7 @@ module Asana
   class Task
     prepend MemoWise
 
-    attr_reader :options, :id, :title, :url, :tags, :completed, :completed_at, :project, :section, :due_date, :due_at, :updated_at, :flagged, :notes, :type, :start_date, :start_at, :subtask_count, :subtasks, :debug_data
+    attr_reader :options, :id, :title, :url, :tags, :completed, :completed_at, :project, :section, :due_date, :due_at, :updated_at, :flagged, :notes, :type, :start_date, :start_at, :subtask_count, :subtasks, :assignee, :debug_data
 
     def initialize(asana_task, options)
       @options = options
@@ -26,6 +26,7 @@ module Asana
       @start_at = Chronic.parse(asana_task["start_at"])
       @subtask_count = asana_task.fetch("num_subtasks", 0).to_i
       @subtasks = []
+      @assignee = asana_task.dig("assignee", "gid")
       @debug_data = asana_task if @options[:debug]
     end
 
@@ -34,7 +35,7 @@ module Asana
     end
 
     def self.requested_fields
-      %w[name permalink_url completed completed_at projects due_on due_at modified_at hearted notes start_on start_at num_subtasks memberships.section.name memberships.project.name subtasks_name]
+      %w[name permalink_url completed completed_at projects due_on due_at modified_at hearted notes start_on start_at num_subtasks memberships.section.name memberships.project.name subtasks_name assignee]
     end
 
     def completed?
@@ -69,6 +70,10 @@ module Asana
           projects: [project["gid"]]
         }.compact
       }.to_json
+    end
+
+    def to_s
+      "#{provider}::Task: (#{id})#{title}"
     end
 
     # Converts the task to a format required by the primary service
@@ -131,14 +136,19 @@ module Asana
         section = asana_task["memberships"].first.dig("section", "name")
         section == "Untitled section" ? project : "#{project}:#{section}"
       else
-        asana_task["projects"].find { |project| project[:name] == options[:project] }
+        # we'll only sync a task with one project at a time
+        asana_task["projects"].first
       end
     end
 
     # {
     #   data: {
     #     gid: "1203188830269587",
-    #     assignee: null,
+    #     assignee: {
+    #       "gid": "1172102786176655",
+    #       "name": "Bart Agapinan",
+    #       "resource_type": "user"
+    #     },
     #     assignee_status: "upcoming",
     #     completed: false,
     #     completed_at: null,
@@ -175,7 +185,12 @@ module Asana
     #     notes: "",
     #     num_hearts: 0,
     #     num_likes: 0,
-    #     parent: null,
+    #     parent: {
+    #       "gid": "1203416874549042",
+    #       "name": "Test task with subtasks",
+    #       "resource_type": "task",
+    #       "resource_subtype": "default_task"
+    #     },
     #     num_subtasks: 0,
     #     permalink_url: "https://app.asana.com/0/1203188830269576/1203188830269587",
     #     projects: [
