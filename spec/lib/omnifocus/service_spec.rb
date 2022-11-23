@@ -39,7 +39,7 @@ RSpec.describe "Omnifocus::Service" do
       let(:folder) { "TaskBridge" }
 
       it "returns all tasks in a folder" do
-        expect(subject.count).to eq(4)
+        expect(subject.count).to eq(3)
       end
     end
 
