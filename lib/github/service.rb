@@ -7,6 +7,7 @@ module Github
   # A service class to connect to the Github API
   class Service
     prepend MemoWise
+    include Debug
 
     attr_reader :options, :authentication
 
@@ -24,7 +25,7 @@ module Github
                                          title: "Github issues")
       end
       issues.each do |issue|
-        puts "\n\n#{self.class}##{__method__} Looking for #{issue.friendly_title} (#{issue.state})" if options[:debug]
+        debug("Looking for #{issue.friendly_title} (#{issue.status})") if options[:debug]
         output = if (existing_task = existing_tasks.find do |task|
                        issue.friendly_title.downcase == task.title.downcase.strip
                      end)
@@ -55,7 +56,7 @@ module Github
     end
 
     def sync_repositories(with_url: false)
-      repos = ENV.fetch("GITHUB_REPOSITORIES", []).split(",")
+      repos = options[:repositories]
       if with_url
         repos.map { |repo| "https://api.github.com/repos/#{repo}" }
       else
@@ -83,7 +84,7 @@ module Github
         query = {
           query: {
             state: "all",
-            per_page: 100
+            per_page: "100"
           }
         }
         response = HTTParty.get("https://api.github.com/issues", authenticated_options.merge(query))
@@ -98,7 +99,8 @@ module Github
         query: {
           state: "all",
           labels: (tags || options[:tags]).join(","),
-          since: Chronic.parse("2 days ago").iso8601
+          since: Chronic.parse("2 days ago").iso8601,
+          per_page: "100"
         }
       }
       response = HTTParty.get("https://api.github.com/repos/#{repository}/issues", authenticated_options.merge(query))
