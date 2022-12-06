@@ -15,51 +15,44 @@ module Asana
       @personal_access_token = ENV.fetch("ASANA_PERSONAL_ACCESS_TOKEN", nil)
     end
 
-    # Sync tasks from the primary service to Asana
-    def sync_from_primary(primary_service)
+    # For new tasks on either service, creates new matching ones
+    # for existing tasks, first check for an updated_at timestamp
+    # and sync from the service with the newer modification
+    def sync_with_primary(primary_service)
       primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"])
       asana_tasks = tasks_to_sync
+      tasks_grouped_by_title = (primary_tasks + asana_tasks).group_by { |task| task.title.downcase.strip }
       unless options[:quiet]
-        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: primary_tasks.length,
-                                         title: "#{primary_service.class.name} to Asana Tasks")
+        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks_grouped_by_title.length,
+                                         title: "#{primary_service.class.name} syncing with Asana")
       end
-      primary_tasks.each do |primary_task|
-        output = if (existing_task = asana_tasks.find { |asana_task| friendly_titles_match?(asana_task, primary_task) })
-          update_task(existing_task, primary_task)
-        else
-          add_task(primary_task) unless primary_task.completed
-        end
-        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
-        progressbar.increment unless options[:quiet]
-      end
-      puts "Synced #{primary_tasks.length} #{options[:primary]} items to Asana" unless options[:quiet]
-    end
-
-    # sync tasks from Asana to the primary service
-    def sync_to_primary(primary_service)
-      asana_tasks = tasks_to_sync
-      primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"])
-      unless options[:quiet]
-        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: asana_tasks.length,
-                                         title: "#{primary_service.class.name} from Asana Tasks")
-      end
-      asana_tasks.each do |asana_task|
-        output = if (existing_task = primary_tasks.find { |primary_task| friendly_titles_match?(primary_task, asana_task) })
-          primary_service.update_task(existing_task, asana_task)
-        else
-          unless asana_task.assignee == asana_user["gid"] || asana_task.assignee.nil?
-            # Skip creating new tasks that are not assigned to the owner of the Personal Access Token
-            # Unassigned tasks are fine to create as well
-            progressbar.increment unless options[:quiet]
-            next
+      tasks_grouped_by_title.each do |title, tasks|
+        output = if tasks.length == 1
+          task = tasks.first
+          if task.class == Asana::Task
+            unless task.assignee == asana_user["gid"] || task.assignee.nil?
+              # Skip creating new tasks that are not assigned to the owner of the Personal Access Token
+              # Unassigned tasks are fine to create as well
+              progressbar.increment unless options[:quiet]
+              next
+            end
+            primary_service.add_task(task) unless task.completed?
+          else # task is a primary_service task
+            add_task(task) unless task.completed?
           end
-
-          primary_service.add_task(asana_task) unless asana_task.completed
+        else # task already exists
+          newer_task = tasks.max_by(&:updated_at)
+          older_task = tasks.min_by(&:updated_at)
+          if newer_task.class == Asana::Task
+            primary_service.update_task(older_task, newer_task)
+          else
+            update_task(older_task, newer_task)
+          end
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
-      puts "Synced #{asana_tasks.length} #{options[:primary]} items from Asana" unless options[:quiet]
+      puts "Synced #{tasks_grouped_by_title.length} #{options[:primary]} and Asana items" unless options[:quiet]
     end
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
