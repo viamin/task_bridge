@@ -7,15 +7,13 @@ RSpec.describe "Asana::Service" do
   let(:options) { {} }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
 
-  describe "#sync_from_primary" do
+  describe "#sync_with_primary" do
     context "with omnifocus" do
       let(:primary_service) { Omnifocus::Service.new({}) }
-    end
-  end
 
-  describe "#sync_to_primary" do
-    context "with omnifocus" do
-      let(:primary_service) { Omnifocus::Service.new({}) }
+      it "responds to #sync_with_primary" do
+        expect(service).to be_respond_to(:sync_with_primary)
+      end
     end
   end
 

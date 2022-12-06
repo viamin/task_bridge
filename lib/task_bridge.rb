@@ -67,11 +67,18 @@ class TaskBridge
     @services.each do |_service_name, service|
       if @options[:delete]
         service.prune
+      elsif @options[:only_to_primary] && service.respond_to?(:sync_to_primary)
+        service.sync_to_primary(@primary_service)
+      elsif @options[:only_from_primary] && service.respond_to?(:sync_from_primary)
+        service.sync_from_primary(@primary_service)
+      elsif service.respond_to?(:sync_with_primary)
+        # if the #sync_with_primary method exists, we should use it unless options force us not to
+        service.sync_with_primary(@primary_service)
       else
         # Generally we should sync FROM the primary service first, since it should be the source of truth
         # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-        service.sync_from_primary(@primary_service) if service.respond_to?(:sync_from_primary) && !@options[:only_to_primary]
-        service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary) && !@options[:only_from_primary]
+        service.sync_from_primary(@primary_service) if service.respond_to?(:sync_from_primary)
+        service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary)
       end
     end
     return if @options[:quiet]
