@@ -12,6 +12,9 @@ module GoogleTasks
       @options = options
       @tasks_service = Google::Apis::TasksV1::TasksService.new
       @tasks_service.authorization = user_credentials_for(Google::Apis::TasksV1::AUTH_TASKS)
+    rescue StandardError
+      # If authentication fails, skip the service
+      nil
     end
 
     desc "sync_from_primary", "Sync from primary service tasks to Google Tasks"

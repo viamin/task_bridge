@@ -14,6 +14,9 @@ module Github
     def initialize(options)
       @options = options
       @authentication = Authentication.new(options).authenticate!
+    rescue StandardError
+      # If authentication fails, skip the service
+      nil
     end
 
     # By default Github syncs TO the primary service
