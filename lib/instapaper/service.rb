@@ -46,6 +46,7 @@ module Instapaper
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{articles.length} Instapaper articles to #{options[:primary]}" unless options[:quiet]
+      { service: "Instapaper", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: articles.length }.stringify_keys
     end
 
     # not currently supported

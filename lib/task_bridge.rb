@@ -45,6 +45,7 @@ class TaskBridge
       conflicts :quiet, :verbose
       opt :debug, "Print debug output", default: false
       opt :console, "Run live console session", default: false
+      opt :history, "Print sync service history", default: false
       opt :testing, "For testing purposes only", default: false
     end
     unless supported_services.intersect?(@options[:services])
@@ -53,39 +54,45 @@ class TaskBridge
     end
     @options[:max_age_timestamp] = (@options[:max_age]).zero? ? nil : Chronic.parse("#{@options[:max_age]} ago")
     @options[:uses_personal_tags] = @options[:work_tags].nil?
+    @options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
     @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(@options)
-    @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(@options)] }.compact
+    @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(@options)] }
   end
 
   def call
     start_time = Time.now
-    puts "Starting sync at #{start_time.strftime('%c')}" unless @options[:quiet]
+    puts "Starting sync at #{@options[:sync_started_at]}" unless @options[:quiet]
     puts @options.pretty_inspect if @options[:debug]
+    return print_logs if @options[:history]
     return testing if @options[:testing]
     return console if @options[:console]
 
-    @services.each do |_service_name, service|
-      if @options[:delete]
+    @service_logs = []
+    @services.each do |service_name, service|
+      if service.nil?
+        @service_logs << { service: service_name, last_attempted: @options[:sync_started_at] }
+      elsif @options[:delete]
         service.prune
       elsif @options[:only_to_primary] && service.respond_to?(:sync_to_primary)
-        service.sync_to_primary(@primary_service)
+        @service_logs << service.sync_to_primary(@primary_service)
       elsif @options[:only_from_primary] && service.respond_to?(:sync_from_primary)
-        service.sync_from_primary(@primary_service)
+        @service_logs << service.sync_from_primary(@primary_service)
       elsif service.respond_to?(:sync_with_primary)
         # if the #sync_with_primary method exists, we should use it unless options force us not to
-        service.sync_with_primary(@primary_service)
+        @service_logs << service.sync_with_primary(@primary_service)
       else
         # Generally we should sync FROM the primary service first, since it should be the source of truth
         # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-        service.sync_from_primary(@primary_service) if service.respond_to?(:sync_from_primary)
-        service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary)
+        @service_logs << service.sync_from_primary(@primary_service) if service.respond_to?(:sync_from_primary)
+        @service_logs << service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary)
       end
     end
+    save_service_log!
     return if @options[:quiet]
 
     end_time = Time.now
     puts "Sync took #{end_time - start_time} seconds"
-    puts "Finished sync at #{end_time.strftime('%c')}"
+    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
   end
 
   class << self
@@ -113,5 +120,35 @@ class TaskBridge
 
   def testing
     # add code to test here
+  end
+
+  def print_logs
+    log_file = File.expand_path(File.join(__dir__, "..", "log", ENV.fetch("LOG_FILE", "service_sync.log")))
+    return unless File.exist?(log_file)
+
+    existing_logs = JSON.parse(File.read(log_file))
+    space_needed = @services.keys.map(&:length).max
+    puts format("%-#{space_needed}s |   Last Attempted    |   Last Successful   | Items Synced", "Service")
+    existing_logs.each do |log_hash|
+      puts format("%-#{space_needed}s | %18s | %18s | %d", log_hash["service"], log_hash["last_attempted"] || "", log_hash["last_successful"] || "", log_hash["items_synced"] || 0)
+    end
+  end
+
+  def save_service_log!
+    return if @service_logs.nil?
+
+    log_file = File.expand_path(File.join(__dir__, "..", "log", ENV.fetch("LOG_FILE", "service_sync.log")))
+    existing_logs = File.exist?(log_file) ? JSON.parse(File.read(log_file)) : []
+    output = @service_logs.map do |service_log|
+      existing_index = existing_logs.find_index { |hash| hash["service"] == service_log["service"] }
+      if existing_index
+        service_log.reverse_merge(existing_logs.delete_at(existing_index))
+      else
+        service_log
+      end
+    end
+    output += existing_logs
+    output.sort_by { |a, b| a["service"] <=> b["service"] }
+    File.write(log_file, output.to_json)
   end
 end

@@ -4,7 +4,12 @@ source "https://rubygems.org"
 
 # https://github.com/rails/rails/tree/main/activesupport
 gem "activesupport",
-    require: ["active_support", "active_support/inflector", "active_support/core_ext/numeric", "active_support/core_ext/integer"]
+    require: [
+      "active_support",
+      "active_support/core_ext/numeric", # for 1.week
+      "active_support/core_ext/integer", # for 1.year
+      "active_support/core_ext/hash" # for reverse_merge and stringify_keys
+    ]
 
 # https://github.com/mojombo/chronic
 gem "chronic"

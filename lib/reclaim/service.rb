@@ -31,6 +31,7 @@ module Reclaim
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks.length} #{options[:primary]} items to Reclaim Tasks" unless options[:quiet]
+      { service: "Reclaim", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
     end
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to

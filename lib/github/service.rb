@@ -40,6 +40,7 @@ module Github
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{issues.length} Github issues to #{options[:primary]}" unless options[:quiet]
+      { service: "Github", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: issues.length }.stringify_keys
     end
 
     # Not currently supported for this service

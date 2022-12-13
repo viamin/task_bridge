@@ -53,6 +53,7 @@ module Asana
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks_grouped_by_title.length} #{options[:primary]} and Asana items" unless options[:quiet]
+      { service: "Asana", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks_grouped_by_title.length }.stringify_keys
     end
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
@@ -145,7 +146,7 @@ module Asana
           end
           handle_subtasks(asana_task, external_task)
         else
-          debug(response.body) if options[:verbose]
+          debug(response.body) if options[:debug]
           "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
         end
       end

@@ -36,6 +36,7 @@ module GoogleTasks
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks.length} #{options[:primary]} tasks to Google Tasks" unless options[:quiet]
+      { service: "Google Tasks", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
     end
 
     desc "tasks_to_sync", "Get all of the tasks to sync in options[:list]"
