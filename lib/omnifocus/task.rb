@@ -84,9 +84,9 @@ module Omnifocus
 
     def personal?
       if @options[:uses_personal_tags]
-        (@tags & @options[:personal_tags].split(",")).any?
+        @tags.intersect?(@options[:personal_tags].split(","))
       elsif @options[:work_tags]&.any?
-        (@tags & @options[:work_tags].split(",")).empty?
+        !@tags.intersect?(@options[:work_tags].split(","))
       end
     end
     memo_wise :personal?

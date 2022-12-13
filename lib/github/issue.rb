@@ -14,7 +14,7 @@ module Github
       # Add "Github" to the labels
       @tags = (default_tags + github_issue["labels"].map { |label| label["name"] }).uniq
       @status = github_issue["state"]
-      @project = github_issue["project"] || short_repo_name(github_issue).underscore.camelize
+      @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
       @updated_at = Chronic.parse(github_issue["updated_at"])&.getlocal
       @debug_data = github_issue if @options[:debug]

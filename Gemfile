@@ -3,7 +3,8 @@
 source "https://rubygems.org"
 
 # https://github.com/rails/rails/tree/main/activesupport
-gem "activesupport", require: "active_support/inflector"
+gem "activesupport",
+    require: ["active_support", "active_support/inflector", "active_support/core_ext/numeric", "active_support/core_ext/integer"]
 
 # https://github.com/mojombo/chronic
 gem "chronic"
