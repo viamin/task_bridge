@@ -47,7 +47,7 @@ class TaskBridge
       opt :console, "Run live console session", default: false
       opt :testing, "For testing purposes only", default: false
     end
-    if (supported_services & @options[:services]).empty?
+    unless supported_services.intersect?(@options[:services])
       Optimist.die :services,
                    "Supported services: #{supported_services.join(', ')}"
     end

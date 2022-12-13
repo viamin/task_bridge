@@ -26,10 +26,10 @@ module Asana
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks_grouped_by_title.length,
                                          title: "#{primary_service.class.name} syncing with Asana")
       end
-      tasks_grouped_by_title.each do |title, tasks|
+      tasks_grouped_by_title.each do |_title, tasks|
         output = if tasks.length == 1
           task = tasks.first
-          if task.class == Asana::Task
+          if task.instance_of?(Asana::Task)
             unless task.assignee == asana_user["gid"] || task.assignee.nil?
               # Skip creating new tasks that are not assigned to the owner of the Personal Access Token
               # Unassigned tasks are fine to create as well
@@ -43,7 +43,7 @@ module Asana
         else # task already exists
           newer_task = tasks.max_by(&:updated_at)
           older_task = tasks.min_by(&:updated_at)
-          if newer_task.class == Asana::Task
+          if newer_task.instance_of?(Asana::Task)
             primary_service.update_task(older_task, newer_task)
           else
             update_task(older_task, newer_task)
