@@ -16,6 +16,9 @@ module Instapaper
     def initialize(options)
       @options = options
       @authentication = Authentication.new(options).authenticate!
+    rescue StandardError
+      # If authentication fails, skip the service
+      nil
     end
 
     # Instapaper only syncs TO another service

@@ -9,6 +9,9 @@ module Reclaim
     def initialize(options)
       @options = options
       @auth_cookie = ENV.fetch("RECLAIM_AUTH_TOKEN", nil)
+    rescue StandardError
+      # If authentication fails, skip the service
+      nil
     end
 
     def sync_from_primary(primary_service)
