@@ -70,7 +70,7 @@ class TaskBridge
     @service_logs = []
     @services.each do |service_name, service|
       if service.nil?
-        @service_logs << { service: service_name, last_attempted: @options[:sync_started_at] }
+        @service_logs << { service: service_name, last_attempted: @options[:sync_started_at] }.stringify_keys
       elsif @options[:delete]
         service.prune
       elsif @options[:only_to_primary] && service.respond_to?(:sync_to_primary)
@@ -127,10 +127,11 @@ class TaskBridge
     return unless File.exist?(log_file)
 
     existing_logs = JSON.parse(File.read(log_file))
-    space_needed = @services.keys.map(&:length).max
-    puts format("%-#{space_needed}s |   Last Attempted    |   Last Successful   | Items Synced", "Service")
+    space_needed = @services.keys.map(&:length).max + 1
+    puts format("%-#{space_needed}s |   Last Attempted   |   Last Successful  | Items Synced", "Service")
+    puts "-" * space_needed + "-|" + "-" * 20 + "|" + "-" * 20 + "|" + "-" * 13
     existing_logs.each do |log_hash|
-      puts format("%-#{space_needed}s | %18s | %18s | %d", log_hash["service"], log_hash["last_attempted"] || "", log_hash["last_successful"] || "", log_hash["items_synced"] || 0)
+      puts format("%-#{space_needed}s | %18s | %18s | %12d", log_hash["service"], log_hash["last_attempted"] || "", log_hash["last_successful"] || "", log_hash["items_synced"] || 0)
     end
   end
 
@@ -148,7 +149,7 @@ class TaskBridge
       end
     end
     output += existing_logs
-    output.sort_by { |a, b| a["service"] <=> b["service"] }
+    output.sort_by! { |element| element["service"] }
     File.write(log_file, output.to_json)
   end
 end
