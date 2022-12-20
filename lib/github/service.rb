@@ -48,7 +48,21 @@ module Github
       false
     end
 
+    def should_sync?(task_updated_at = nil)
+      time_since_last_sync = options[:logger].last_synced("Github", interval: task_updated_at.nil?)
+      if task_updated_at.present?
+        time_since_last_sync < task_updated_at
+      else
+        time_since_last_sync > min_sync_interval
+      end
+    end
+
     private
+
+    # the minimum time we should wait between syncing tasks
+    def min_sync_interval
+      60.minutes.to_i
+    end
 
     def authenticated_options
       {

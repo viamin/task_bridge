@@ -5,6 +5,7 @@ require "rubygems"
 require "bundler/setup"
 Bundler.require(:default)
 require_relative "debug"
+require_relative "structured_logger"
 require_relative "omnifocus/service"
 require_relative "google_tasks/service"
 require_relative "github/service"
@@ -43,6 +44,7 @@ class TaskBridge
       opt :quiet, "No output - used for daemonized processes", default: false
       opt :verbose, "Verbose output", default: false
       conflicts :quiet, :verbose
+      opt :log_file, "File name for service log", default: ENV.fetch("LOG_FILE", "service_sync.log")
       opt :debug, "Print debug output", default: false
       opt :console, "Run live console session", default: false
       opt :history, "Print sync service history", default: false
@@ -55,6 +57,7 @@ class TaskBridge
     @options[:max_age_timestamp] = (@options[:max_age]).zero? ? nil : Chronic.parse("#{@options[:max_age]} ago")
     @options[:uses_personal_tags] = @options[:work_tags].nil?
     @options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
+    @options[:logger] = StructuredLogger.new(@options)
     @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(@options)
     @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(@options)] }
   end
@@ -63,16 +66,16 @@ class TaskBridge
     start_time = Time.now
     puts "Starting sync at #{@options[:sync_started_at]}" unless @options[:quiet]
     puts @options.pretty_inspect if @options[:debug]
-    return print_logs if @options[:history]
+    return @options[:logger].print_logs if @options[:history]
     return testing if @options[:testing]
     return console if @options[:console]
 
     @service_logs = []
     @services.each do |service_name, service|
-      if service.nil?
+      if service.respond_to?(:authorized) && service.authorized == false
         @service_logs << { service: service_name, last_attempted: @options[:sync_started_at] }.stringify_keys
       elsif @options[:delete]
-        service.prune
+        service.prune if service.respond_to?(:prune)
       elsif @options[:only_to_primary] && service.respond_to?(:sync_to_primary)
         @service_logs << service.sync_to_primary(@primary_service)
       elsif @options[:only_from_primary] && service.respond_to?(:sync_from_primary)
@@ -87,7 +90,7 @@ class TaskBridge
         @service_logs << service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary)
       end
     end
-    save_service_log!
+    @options[:logger].save_service_log!(@service_logs)
     return if @options[:quiet]
 
     end_time = Time.now
@@ -120,36 +123,5 @@ class TaskBridge
 
   def testing
     # add code to test here
-  end
-
-  def print_logs
-    log_file = File.expand_path(File.join(__dir__, "..", "log", ENV.fetch("LOG_FILE", "service_sync.log")))
-    return unless File.exist?(log_file)
-
-    existing_logs = JSON.parse(File.read(log_file))
-    space_needed = @services.keys.map(&:length).max + 1
-    puts format("%-#{space_needed}s |   Last Attempted   |   Last Successful  | Items Synced", "Service")
-    puts "-" * space_needed + "-|" + "-" * 20 + "|" + "-" * 20 + "|" + "-" * 13
-    existing_logs.each do |log_hash|
-      puts format("%-#{space_needed}s | %18s | %18s | %12d", log_hash["service"], log_hash["last_attempted"] || "", log_hash["last_successful"] || "", log_hash["items_synced"] || 0)
-    end
-  end
-
-  def save_service_log!
-    return if @service_logs.nil?
-
-    log_file = File.expand_path(File.join(__dir__, "..", "log", ENV.fetch("LOG_FILE", "service_sync.log")))
-    existing_logs = File.exist?(log_file) ? JSON.parse(File.read(log_file)) : []
-    output = @service_logs.map do |service_log|
-      existing_index = existing_logs.find_index { |hash| hash["service"] == service_log["service"] }
-      if existing_index
-        service_log.reverse_merge(existing_logs.delete_at(existing_index))
-      else
-        service_log
-      end
-    end
-    output += existing_logs
-    output.sort_by! { |element| element["service"] }
-    File.write(log_file, output.to_json)
   end
 end

@@ -2,8 +2,8 @@
 
 require "spec_helper"
 
-RSpec.describe "Asana::Service" do
-  let(:service) { Asana::Service.new(options) }
+RSpec.describe "Instapaper::Service" do
+  let(:service) { Instapaper::Service.new(options) }
   let(:options) { { logger: } }
   let(:logger)  { double(StructuredLogger) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
@@ -14,12 +14,12 @@ RSpec.describe "Asana::Service" do
     allow(logger).to receive(:last_synced).and_return(last_sync)
   end
 
-  describe "#sync_with_primary" do
+  describe "#sync_to_primary" do
     context "with omnifocus" do
       let(:primary_service) { Omnifocus::Service.new({}) }
 
-      it "responds to #sync_with_primary" do
-        expect(service).to be_respond_to(:sync_with_primary)
+      it "responds to #sync_to_primary" do
+        expect(service).to be_respond_to(:sync_to_primary)
       end
     end
   end
@@ -35,26 +35,26 @@ RSpec.describe "Asana::Service" do
       let(:task_updated_at) { nil }
 
       context "when last sync was less than min_sync_interval" do
-        let(:last_sync) { Time.now - Chronic.parse("4 minutes ago") }
+        let(:last_sync) { Time.now - Chronic.parse("29 minutes ago") }
 
         it { is_expected.to be false }
       end
 
       context "when last sync was more than min_sync_interval" do
-        let(:last_sync) { Time.now - Chronic.parse("6 minutes ago") }
+        let(:last_sync) { Time.now - Chronic.parse("31 minutes ago") }
 
         it { is_expected.to be true }
       end
     end
 
     context "when task_updated_at is less than min_sync_interval" do
-      let(:task_updated_at) { Chronic.parse("4 minutes ago") }
+      let(:task_updated_at) { Chronic.parse("29 minutes ago") }
 
       it { is_expected.to be true }
     end
 
     context "when task_updated_at is more than min_sync_interval" do
-      let(:task_updated_at) { Chronic.parse("6 minutes ago") }
+      let(:task_updated_at) { Chronic.parse("31 minutes ago") }
 
       it { is_expected.to be false }
     end
@@ -90,9 +90,9 @@ RSpec.describe "Asana::Service" do
   end
 
   describe "#update_task" do
-    subject { service.update_task(asana_task, external_task) }
+    subject { service.update_task(instapaper_article, external_task) }
 
-    let(:asana_task) { nil }
+    let(:instapaper_article) { nil }
     let(:external_task) { nil }
 
     it "raises an error" do

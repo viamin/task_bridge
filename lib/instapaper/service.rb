@@ -9,7 +9,7 @@ module Instapaper
     prepend MemoWise
 
     UNREAD_ARTICLE_COUNT = 50
-    ARCHIVED_ARTICLE_COUNT = 10
+    ARCHIVED_ARTICLE_COUNT = 25
 
     attr_reader :options, :authentication
 
@@ -68,7 +68,21 @@ module Instapaper
     end
     memo_wise :article_text
 
+    def should_sync?(task_updated_at = nil)
+      time_since_last_sync = options[:logger].last_synced("Instapaper", interval: task_updated_at.nil?)
+      if task_updated_at.present?
+        time_since_last_sync < task_updated_at
+      else
+        time_since_last_sync > min_sync_interval
+      end
+    end
+
     private
+
+    # the minimum time we should wait between syncing tasks
+    def min_sync_interval
+      30.minutes.to_i
+    end
 
     def unread_and_recent_articles
       (unread_articles + recently_archived_articles).uniq(&:id)

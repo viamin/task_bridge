@@ -13,12 +13,15 @@ module Asana
     def initialize(options)
       @options = options
       @personal_access_token = ENV.fetch("ASANA_PERSONAL_ACCESS_TOKEN", nil)
+      @last_sync_data = options[:logger].sync_data_for("Asana")
     end
 
     # For new tasks on either service, creates new matching ones
     # for existing tasks, first check for an updated_at timestamp
     # and sync from the service with the newer modification
     def sync_with_primary(primary_service)
+      return @last_sync_data unless should_sync?
+
       primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"])
       asana_tasks = tasks_to_sync
       tasks_grouped_by_title = (primary_tasks + asana_tasks).group_by { |task| task.title.downcase.strip }
@@ -43,10 +46,12 @@ module Asana
         else # task already exists
           newer_task = tasks.max_by(&:updated_at)
           older_task = tasks.min_by(&:updated_at)
-          if newer_task.instance_of?(Asana::Task)
-            primary_service.update_task(older_task, newer_task)
-          else
-            update_task(older_task, newer_task)
+          if should_sync?(newer_task.updated_at)
+            if newer_task.instance_of?(Asana::Task)
+              primary_service.update_task(older_task, newer_task)
+            else
+              update_task(older_task, newer_task)
+            end
           end
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
@@ -152,7 +157,21 @@ module Asana
       end
     end
 
+    def should_sync?(task_updated_at = nil)
+      time_since_last_sync = options[:logger].last_synced("Asana", interval: task_updated_at.nil?)
+      if task_updated_at.present?
+        time_since_last_sync < task_updated_at
+      else
+        time_since_last_sync > min_sync_interval
+      end
+    end
+
     private
+
+    # the minimum time we should wait between syncing tasks
+    def min_sync_interval
+      5.minutes.to_i
+    end
 
     # create or update subtasks on a task
     def handle_subtasks(asana_task, external_task)

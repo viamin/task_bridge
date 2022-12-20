@@ -2,10 +2,11 @@
 
 require "spec_helper"
 
-RSpec.describe "Asana::Service" do
-  let(:service) { Asana::Service.new(options) }
-  let(:options) { { logger: } }
-  let(:logger)  { double(StructuredLogger) }
+RSpec.describe "GoogleTasks::Service" do
+  let(:service)   { GoogleTasks::Service.new(options) }
+  let(:tasklist)  { "Test" }
+  let(:options)   { { logger: } }
+  let(:logger)    { double(StructuredLogger) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
 
@@ -14,12 +15,12 @@ RSpec.describe "Asana::Service" do
     allow(logger).to receive(:last_synced).and_return(last_sync)
   end
 
-  describe "#sync_with_primary" do
+  describe "#sync_from_primary" do
     context "with omnifocus" do
       let(:primary_service) { Omnifocus::Service.new({}) }
 
-      it "responds to #sync_with_primary" do
-        expect(service).to be_respond_to(:sync_with_primary)
+      it "responds to #sync_from_primary" do
+        expect(service).to be_respond_to(:sync_from_primary)
       end
     end
   end
@@ -35,33 +36,33 @@ RSpec.describe "Asana::Service" do
       let(:task_updated_at) { nil }
 
       context "when last sync was less than min_sync_interval" do
-        let(:last_sync) { Time.now - Chronic.parse("4 minutes ago") }
+        let(:last_sync) { Time.now - Chronic.parse("14 minutes ago") }
 
         it { is_expected.to be false }
       end
 
       context "when last sync was more than min_sync_interval" do
-        let(:last_sync) { Time.now - Chronic.parse("6 minutes ago") }
+        let(:last_sync) { Time.now - Chronic.parse("16 minutes ago") }
 
         it { is_expected.to be true }
       end
     end
 
     context "when task_updated_at is less than min_sync_interval" do
-      let(:task_updated_at) { Chronic.parse("4 minutes ago") }
+      let(:task_updated_at) { Chronic.parse("14 minutes ago") }
 
       it { is_expected.to be true }
     end
 
     context "when task_updated_at is more than min_sync_interval" do
-      let(:task_updated_at) { Chronic.parse("6 minutes ago") }
+      let(:task_updated_at) { Chronic.parse("16 minutes ago") }
 
       it { is_expected.to be false }
     end
   end
 
   describe "#add_task" do
-    subject { service.add_task(external_task, parent_task_gid) }
+    subject { service.add_task(tasklist, external_task, parent_task_gid) }
 
     let(:external_task) { nil }
     let(:parent_task_gid) { nil }
@@ -90,9 +91,9 @@ RSpec.describe "Asana::Service" do
   end
 
   describe "#update_task" do
-    subject { service.update_task(asana_task, external_task) }
+    subject { service.update_task(tasklist, google_task, external_task, options) }
 
-    let(:asana_task) { nil }
+    let(:google_task) { nil }
     let(:external_task) { nil }
 
     it "raises an error" do
