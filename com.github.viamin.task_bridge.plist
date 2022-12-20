@@ -13,12 +13,10 @@
 		<string>--quiet</string>
 	</array>
 	<key>StartCalendarInterval</key>
-	<array>
-		<dict>
-			<key>Minute</key>
-			<integer>0</integer>
-		</dict>
-	</array>
+	<dict>
+		<key>Minute</key>
+		<integer>*/5</integer>
+	</dict>
 	<key>UserName</key>
 	<string>bart</string>
 	<key>StandardErrorPath</key>
