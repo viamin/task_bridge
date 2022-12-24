@@ -6,6 +6,9 @@ require_relative "base_cli"
 module GoogleTasks
   # A service class to connect to the Google Tasks API
   class Service < BaseCli
+    include Debug
+    prepend MemoWise
+
     attr_reader :tasks_service, :options, :authorized
 
     def initialize(options)
@@ -13,14 +16,14 @@ module GoogleTasks
       @tasks_service = Google::Apis::TasksV1::TasksService.new
       @tasks_service.authorization = user_credentials_for(Google::Apis::TasksV1::AUTH_TASKS)
       @authorized = true
-    rescue Signet::AuthorizationError => error
+    rescue Signet::AuthorizationError => e
       puts "Google Tasks credentials have expired. Delete credentials.yml and re-authorize"
-      puts error.full_message
+      puts e.full_message
       # TODO: create a task in the primary service to re-login to Google Tasks
       @authorized = false
-    rescue Google::Apis::AuthorizationError => error
+    rescue Google::Apis::AuthorizationError => e
       puts "Google Authentication has failed. Please check authorization settings and try again."
-      puts error.full_message
+      puts e.full_message
       # If authentication fails, skip the service
       @authorized = false
     end
@@ -49,7 +52,8 @@ module GoogleTasks
 
     desc "tasks_to_sync", "Get all of the tasks to sync in options[:list]"
     def tasks_to_sync(*)
-      @tasks_to_sync ||= tasks_service.list_tasks(tasklist&.id, max_results: 100).items
+      debug("called") if options[:debug]
+      @tasks_to_sync ||= tasks_service.list_tasks(tasklist.id, max_results: 100).items
     end
 
     desc "add_task", "Add a new task to a given task list"
@@ -97,8 +101,14 @@ module GoogleTasks
     end
 
     def tasklist
-      @tasklist ||= tasks_service.list_tasklists.items.find { |list| list.title == options[:list] }
+      debug("called") if options[:debug]
+      tasklists = tasks_service.list_tasklists.items
+      tasklist = tasklists.find { |list| list.title == options[:list] }
+      raise "tasklist (#{options[:list]}) not found in #{tasklists}" if tasklist.nil?
+
+      tasklist
     end
+    no_commands { memo_wise :tasklist }
 
     # In case a reclaim title is present, match the title
     def friendly_titles_match?(google_task, task)

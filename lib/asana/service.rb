@@ -52,6 +52,8 @@ module Asana
             else
               update_task(older_task, newer_task)
             end
+          elsif options[:debug]
+            debug("Skipping sync of #{newer_task.title} (should_sync? == false)")
           end
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])

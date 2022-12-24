@@ -3,6 +3,8 @@
 require_relative "task"
 
 module Reclaim
+  # Reclaim sync is currently unsupported since the API is not public and
+  # this is not expected to work
   class Service
     attr_reader :options
 
@@ -37,11 +39,6 @@ module Reclaim
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
     def tasks_to_sync(*)
       list_tasks.map { |reclaim_task| Task.new(reclaim_task, options) }
-    end
-
-    # No-op for now
-    def purge
-      false
     end
 
     def add_task(task)

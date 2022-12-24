@@ -6,6 +6,7 @@ require_relative "authentication"
 module Instapaper
   # A service class to connect to the Instapaper Full API
   class Service
+    include Debug
     prepend MemoWise
 
     UNREAD_ARTICLE_COUNT = 50
@@ -37,7 +38,11 @@ module Instapaper
         output = if (existing_task = existing_tasks.find do |task|
                        article.friendly_title.downcase == task.title.downcase.strip
                      end)
-          primary_service.update_task(existing_task, article)
+          if should_sync?(article.updated_at)
+            primary_service.update_task(existing_task, article)
+          elsif options[:debug]
+            debug("Skipping sync of #{article.title} (should_sync? == false)")
+          end
         elsif article.unread?
           article.read_time(self)
           primary_service.add_task(article, options)
@@ -47,11 +52,6 @@ module Instapaper
       end
       puts "Synced #{articles.length} Instapaper articles to #{options[:primary]}" unless options[:quiet]
       { service: "Instapaper", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: articles.length }.stringify_keys
-    end
-
-    # not currently supported
-    def prune
-      false
     end
 
     def article_text(article)

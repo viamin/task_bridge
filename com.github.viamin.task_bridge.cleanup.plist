@@ -8,7 +8,7 @@
 	<array>
 		<string>/Users/bart/.asdf/shims/bundler</string>
 		<string>exec</string>
-		<string>ruby</string>
+		<string>dotenv</string>
 		<string>./bin/task_bridge</string>
 		<string>--delete</string>
 		<string>--quiet</string>

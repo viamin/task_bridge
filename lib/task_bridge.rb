@@ -41,7 +41,7 @@ class TaskBridge
       opt :only_to_primary, "Only sync TO the primary service", default: false
       conflicts :only_from_primary, :only_to_primary
       opt :pretend, "List the found tasks, don't sync", default: false
-      opt :quiet, "No output - used for daemonized processes", default: false
+      opt :quiet, "No output - except a 'finished sync' with timestamp", default: false
       opt :verbose, "Verbose output", default: false
       conflicts :quiet, :verbose
       opt :log_file, "File name for service log", default: ENV.fetch("LOG_FILE", "service_sync.log")
@@ -70,8 +70,8 @@ class TaskBridge
     return testing if @options[:testing]
     return console if @options[:console]
 
-    @service_logs = []
     @services.each do |service_name, service|
+      @service_logs = []
       if service.respond_to?(:authorized) && service.authorized == false
         @service_logs << { service: service_name, last_attempted: @options[:sync_started_at] }.stringify_keys
       elsif @options[:delete]
@@ -89,13 +89,13 @@ class TaskBridge
         @service_logs << service.sync_from_primary(@primary_service) if service.respond_to?(:sync_from_primary)
         @service_logs << service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary)
       end
+      @options[:logger].save_service_log!(@service_logs)
     end
-    @options[:logger].save_service_log!(@service_logs)
+    end_time = Time.now
+    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
     return if @options[:quiet]
 
-    end_time = Time.now
     puts "Sync took #{end_time - start_time} seconds"
-    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
   end
 
   class << self

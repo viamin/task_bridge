@@ -32,7 +32,11 @@ module Github
         output = if (existing_task = existing_tasks.find do |task|
                        issue.friendly_title.downcase == task.title.downcase.strip
                      end)
-          primary_service.update_task(existing_task, issue)
+          if should_sync?(issue.updated_at)
+            primary_service.update_task(existing_task, issue)
+          elsif options[:debug]
+            debug("Skipping sync of #{issue.title} (should_sync? == false)")
+          end
         elsif issue.open?
           primary_service.add_task(issue, options)
         end
@@ -41,11 +45,6 @@ module Github
       end
       puts "Synced #{issues.length} Github issues to #{options[:primary]}" unless options[:quiet]
       { service: "Github", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: issues.length }.stringify_keys
-    end
-
-    # Not currently supported for this service
-    def prune
-      false
     end
 
     def should_sync?(task_updated_at = nil)
