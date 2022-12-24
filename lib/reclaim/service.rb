@@ -3,6 +3,8 @@
 require_relative "task"
 
 module Reclaim
+  # Reclaim sync is currently unsupported since the API is not public and
+  # this is not expected to work
   class Service
     attr_reader :options
 
@@ -31,16 +33,12 @@ module Reclaim
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks.length} #{options[:primary]} items to Reclaim Tasks" unless options[:quiet]
+      { service: "Reclaim", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
     end
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
     def tasks_to_sync(*)
       list_tasks.map { |reclaim_task| Task.new(reclaim_task, options) }
-    end
-
-    # No-op for now
-    def purge
-      false
     end
 
     def add_task(task)

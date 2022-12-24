@@ -5,6 +5,7 @@ require "rubygems"
 require "bundler/setup"
 Bundler.require(:default)
 require_relative "debug"
+require_relative "structured_logger"
 require_relative "omnifocus/service"
 require_relative "google_tasks/service"
 require_relative "github/service"
@@ -40,11 +41,13 @@ class TaskBridge
       opt :only_to_primary, "Only sync TO the primary service", default: false
       conflicts :only_from_primary, :only_to_primary
       opt :pretend, "List the found tasks, don't sync", default: false
-      opt :quiet, "No output - used for daemonized processes", default: false
+      opt :quiet, "No output - except a 'finished sync' with timestamp", default: false
       opt :verbose, "Verbose output", default: false
       conflicts :quiet, :verbose
+      opt :log_file, "File name for service log", default: ENV.fetch("LOG_FILE", "service_sync.log")
       opt :debug, "Print debug output", default: false
       opt :console, "Run live console session", default: false
+      opt :history, "Print sync service history", default: false
       opt :testing, "For testing purposes only", default: false
     end
     unless supported_services.intersect?(@options[:services])
@@ -53,39 +56,46 @@ class TaskBridge
     end
     @options[:max_age_timestamp] = (@options[:max_age]).zero? ? nil : Chronic.parse("#{@options[:max_age]} ago")
     @options[:uses_personal_tags] = @options[:work_tags].nil?
+    @options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
+    @options[:logger] = StructuredLogger.new(@options)
     @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(@options)
-    @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(@options)] }.compact
+    @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(@options)] }
   end
 
   def call
     start_time = Time.now
-    puts "Starting sync at #{start_time.strftime('%c')}" unless @options[:quiet]
+    puts "Starting sync at #{@options[:sync_started_at]}" unless @options[:quiet]
     puts @options.pretty_inspect if @options[:debug]
+    return @options[:logger].print_logs if @options[:history]
     return testing if @options[:testing]
     return console if @options[:console]
 
-    @services.each do |_service_name, service|
-      if @options[:delete]
-        service.prune
+    @services.each do |service_name, service|
+      @service_logs = []
+      if service.respond_to?(:authorized) && service.authorized == false
+        @service_logs << { service: service_name, last_attempted: @options[:sync_started_at] }.stringify_keys
+      elsif @options[:delete]
+        service.prune if service.respond_to?(:prune)
       elsif @options[:only_to_primary] && service.respond_to?(:sync_to_primary)
-        service.sync_to_primary(@primary_service)
+        @service_logs << service.sync_to_primary(@primary_service)
       elsif @options[:only_from_primary] && service.respond_to?(:sync_from_primary)
-        service.sync_from_primary(@primary_service)
+        @service_logs << service.sync_from_primary(@primary_service)
       elsif service.respond_to?(:sync_with_primary)
         # if the #sync_with_primary method exists, we should use it unless options force us not to
-        service.sync_with_primary(@primary_service)
+        @service_logs << service.sync_with_primary(@primary_service)
       else
         # Generally we should sync FROM the primary service first, since it should be the source of truth
         # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-        service.sync_from_primary(@primary_service) if service.respond_to?(:sync_from_primary)
-        service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary)
+        @service_logs << service.sync_from_primary(@primary_service) if service.respond_to?(:sync_from_primary)
+        @service_logs << service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary)
       end
+      @options[:logger].save_service_log!(@service_logs)
     end
+    end_time = Time.now
+    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
     return if @options[:quiet]
 
-    end_time = Time.now
     puts "Sync took #{end_time - start_time} seconds"
-    puts "Finished sync at #{end_time.strftime('%c')}"
   end
 
   class << self

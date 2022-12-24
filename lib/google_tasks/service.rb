@@ -6,15 +6,26 @@ require_relative "base_cli"
 module GoogleTasks
   # A service class to connect to the Google Tasks API
   class Service < BaseCli
-    attr_reader :tasks_service, :options
+    include Debug
+    prepend MemoWise
+
+    attr_reader :tasks_service, :options, :authorized
 
     def initialize(options)
       @options = options
       @tasks_service = Google::Apis::TasksV1::TasksService.new
       @tasks_service.authorization = user_credentials_for(Google::Apis::TasksV1::AUTH_TASKS)
-    rescue StandardError
+      @authorized = true
+    rescue Signet::AuthorizationError => e
+      puts "Google Tasks credentials have expired. Delete credentials.yml and re-authorize"
+      puts e.full_message
+      # TODO: create a task in the primary service to re-login to Google Tasks
+      @authorized = false
+    rescue Google::Apis::AuthorizationError => e
+      puts "Google Authentication has failed. Please check authorization settings and try again."
+      puts e.full_message
       # If authentication fails, skip the service
-      nil
+      @authorized = false
     end
 
     desc "sync_from_primary", "Sync from primary service tasks to Google Tasks"
@@ -36,10 +47,12 @@ module GoogleTasks
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks.length} #{options[:primary]} tasks to Google Tasks" unless options[:quiet]
+      { service: "Google Tasks", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
     end
 
     desc "tasks_to_sync", "Get all of the tasks to sync in options[:list]"
     def tasks_to_sync(*)
+      debug("called") if options[:debug]
       @tasks_to_sync ||= tasks_service.list_tasks(tasklist.id, max_results: 100).items
     end
 
@@ -70,11 +83,32 @@ module GoogleTasks
       puts "Deleted completed tasks from #{tasklist.title}" if options[:verbose]
     end
 
+    desc "should_sync?", "Return boolean whether or not this service should sync. Time-based."
+    def should_sync?(task_updated_at = nil)
+      time_since_last_sync = options[:logger].last_synced("Google Tasks", interval: task_updated_at.nil?)
+      if task_updated_at.present?
+        time_since_last_sync < task_updated_at
+      else
+        time_since_last_sync > min_sync_interval
+      end
+    end
+
     private
 
-    def tasklist
-      @tasklist ||= tasks_service.list_tasklists.items.find { |list| list.title == options[:list] }
+    # the minimum time we should wait between syncing tasks
+    def min_sync_interval
+      15.minutes.to_i
     end
+
+    def tasklist
+      debug("called") if options[:debug]
+      tasklists = tasks_service.list_tasklists.items
+      tasklist = tasklists.find { |list| list.title == options[:list] }
+      raise "tasklist (#{options[:list]}) not found in #{tasklists}" if tasklist.nil?
+
+      tasklist
+    end
+    no_commands { memo_wise :tasklist }
 
     # In case a reclaim title is present, match the title
     def friendly_titles_match?(google_task, task)
