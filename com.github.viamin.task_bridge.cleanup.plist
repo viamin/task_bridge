@@ -4,6 +4,11 @@
 <dict>
 	<key>Label</key>
 	<string>com.github.viamin.task_bridge.cleanup</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+			<key>LC_CTYPE</key>
+			<string>UTF-8</string>
+	</dict>
 	<key>ProgramArguments</key>
 	<array>
 		<string>/Users/bart/.asdf/shims/bundler</string>
