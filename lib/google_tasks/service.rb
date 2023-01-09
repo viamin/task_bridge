@@ -102,7 +102,7 @@ module GoogleTasks
 
     # the minimum time we should wait between syncing tasks
     def min_sync_interval
-      60.minutes.to_i
+      30.minutes.to_i
     end
 
     def tasklist
