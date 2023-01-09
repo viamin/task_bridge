@@ -5,6 +5,7 @@ require "rubygems"
 require "bundler/setup"
 Bundler.require(:default)
 require_relative "debug"
+require_relative "note_parser"
 require_relative "structured_logger"
 require_relative "omnifocus/service"
 require_relative "google_tasks/service"
@@ -24,11 +25,10 @@ class TaskBridge
       opt :tags, "Tags (or labels) to sync", default: ENV.fetch("SYNC_TAGS", "TaskBridge").split(",")
       opt :personal_tags,
           "Tags (or labels) used for personal context",
-          default: ENV.fetch("PERSONAL_TAGS", nil)
+          default: ENV.fetch("PERSONAL_TAGS", "")
       opt :work_tags,
           "Tags (or labels) used for work context (overrides personal tags)",
-          type: :strings,
-          default: ENV.fetch("WORK_TAGS", nil)
+          default: ENV.fetch("WORK_TAGS", "")
       conflicts :personal_tags, :work_tags
       opt :services, "Services to sync tasks to", default: ENV.fetch("SYNC_SERVICES", "GoogleTasks,Github").split(",")
       opt :list, "Task list name to sync to", default: ENV.fetch("GOOGLE_TASKS_LIST", "My Tasks")
@@ -55,7 +55,7 @@ class TaskBridge
                    "Supported services: #{supported_services.join(', ')}"
     end
     @options[:max_age_timestamp] = (@options[:max_age]).zero? ? nil : Chronic.parse("#{@options[:max_age]} ago")
-    @options[:uses_personal_tags] = @options[:work_tags].nil?
+    @options[:uses_personal_tags] = @options[:work_tags].blank?
     @options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
     @options[:logger] = StructuredLogger.new(@options)
     @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(@options)
@@ -70,10 +70,10 @@ class TaskBridge
     return testing if @options[:testing]
     return console if @options[:console]
 
-    @services.each do |service_name, service|
+    @services.each do |_service_name, service|
       @service_logs = []
       if service.respond_to?(:authorized) && service.authorized == false
-        @service_logs << { service: service_name, last_attempted: @options[:sync_started_at] }.stringify_keys
+        @service_logs << { service: service.tag_name, last_attempted: @options[:sync_started_at] }.stringify_keys
       elsif @options[:delete]
         service.prune if service.respond_to?(:prune)
       elsif @options[:only_to_primary] && service.respond_to?(:sync_to_primary)

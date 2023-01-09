@@ -4,8 +4,9 @@ module Asana
   # A representation of an Asana task
   class Task
     prepend MemoWise
+    include NoteParser
 
-    attr_reader :options, :id, :title, :url, :tags, :completed, :completed_at, :project, :section, :due_date, :due_at, :updated_at, :flagged, :notes, :type, :start_date, :start_at, :subtask_count, :subtasks, :assignee, :debug_data
+    attr_reader :options, :id, :title, :url, :tags, :completed, :completed_at, :project, :section, :due_date, :due_at, :updated_at, :flagged, :notes, :type, :start_date, :start_at, :subtask_count, :subtasks, :assignee, :sync_id, :debug_data
 
     def initialize(asana_task, options)
       @options = options
@@ -20,13 +21,15 @@ module Asana
       @due_at = Chronic.parse(asana_task["due_at"])
       @updated_at = Chronic.parse(asana_task["modified_at"])
       @flagged = asana_task["hearted"]
-      @notes = asana_task["notes"]
       @type = asana_task["resource_type"]
       @start_date = Chronic.parse(asana_task["start_on"])
       @start_at = Chronic.parse(asana_task["start_at"])
       @subtask_count = asana_task.fetch("num_subtasks", 0).to_i
       @subtasks = []
       @assignee = asana_task.dig("assignee", "gid")
+
+      @sync_id, @notes = parsed_notes("sync_id", asana_task["notes"])
+
       @debug_data = asana_task if @options[:debug]
     end
 
@@ -55,6 +58,10 @@ module Asana
       true
     end
 
+    def sync_notes
+      notes_with_values(notes, sync_id:, url:)
+    end
+
     # fields required for Asana
     def to_json(*)
       {
@@ -63,7 +70,7 @@ module Asana
           due_at: due_at&.iso8601,
           due_on: due_date&.to_date&.iso8601,
           liked: flagged,
-          notes:,
+          notes: sync_notes,
           name: title,
           start_at: start_at&.iso8601,
           start_on: start_date&.to_date&.iso8601,
@@ -95,7 +102,7 @@ module Asana
     def to_omnifocus(with_subtasks: false)
       omnifocus_properties = {
         name: friendly_title,
-        note: url,
+        note: sync_notes,
         flagged:,
         completion_date: completed_at,
         defer_date: start_at || start_date,
@@ -114,7 +121,7 @@ module Asana
       google_task.merge(
         {
           completed: completed_at&.to_date&.rfc3339,
-          notes:,
+          notes: sync_notes,
           status: completed ? "completed" : "needsAction",
           title: title + Reclaim::Task.title_addon(self, skip: skip_reclaim)
         }

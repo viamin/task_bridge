@@ -8,7 +8,8 @@ gem "activesupport",
       "active_support",
       "active_support/core_ext/numeric", # for 1.week
       "active_support/core_ext/integer", # for 1.year
-      "active_support/core_ext/hash" # for reverse_merge and stringify_keys
+      "active_support/core_ext/hash", # for reverse_merge and stringify_keys
+      "active_support/core_ext/string" # for squish
     ]
 
 # https://github.com/mojombo/chronic
@@ -44,24 +45,22 @@ gem "oauth"
 # https://github.com/ManageIQ/optimist
 gem "optimist"
 
-# https://github.com/pry/pry
-gem "pry"
-
 # https://github.com/BrendanThompson/rb-scpt
 gem "rb-scpt"
-
-gem "rubocop"
-gem "rubocop-performance"
 
 # https://github.com/jfelchner/ruby-progressbar
 gem "ruby-progressbar"
 
-gem "solargraph"
-
-gem "standard"
-
 # https://github.com/rails/thor
 gem "thor"
+
+group :development do
+  gem "pry" # https://github.com/pry/pry
+  gem "rubocop"
+  gem "rubocop-performance"
+  gem "solargraph"
+  gem "standard"
+end
 
 group :test do
   gem "faker" # https://github.com/faker-ruby/faker

@@ -12,12 +12,16 @@ module Omnifocus
     def initialize(options = {})
       @options = options
       # Assumes you already have OmniFocus installed
-      @omnifocus = Appscript.app.by_name("OmniFocus").default_document
+      @omnifocus = Appscript.app.by_name(tag_name).default_document
+    end
+
+    def tag_name
+      "Omnifocus"
     end
 
     # Sync primary service tasks to Omnifocus
     def sync_from_primary(primary_service)
-      tasks = primary_service.tasks_to_sync(tags: ["Omnifocus"])
+      tasks = primary_service.tasks_to_sync(tags: [tag_name])
       existing_tasks = tasks_to_sync(tags: options[:tags], inbox: true)
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
@@ -33,7 +37,7 @@ module Omnifocus
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks.length} #{options[:primary]} items to Omnifocus" unless options[:quiet]
-      { service: "Omnifocus", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
+      { service: tag_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
     end
 
     def tasks_to_sync(tags: nil, projects: nil, folder: nil, inbox: false, incomplete_only: false)
