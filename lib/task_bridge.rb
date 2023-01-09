@@ -73,7 +73,7 @@ class TaskBridge
     @services.each do |_service_name, service|
       @service_logs = []
       if service.respond_to?(:authorized) && service.authorized == false
-        @service_logs << { service: service.tag_name, last_attempted: @options[:sync_started_at] }.stringify_keys
+        @service_logs << { service: service.friendly_name, last_attempted: @options[:sync_started_at] }.stringify_keys
       elsif @options[:delete]
         service.prune if service.respond_to?(:prune)
       elsif @options[:only_to_primary] && service.respond_to?(:sync_to_primary)

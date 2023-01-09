@@ -19,14 +19,14 @@ module Github
       nil
     end
 
-    def tag_name
+    def friendly_name
       "Github"
     end
 
     # By default Github syncs TO the primary service
     def sync_to_primary(primary_service)
       issues = issues_to_sync(options[:tags])
-      existing_tasks = primary_service.tasks_to_sync(tags: [tag_name], inbox: true)
+      existing_tasks = primary_service.tasks_to_sync(tags: [friendly_name], inbox: true)
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length,
                                          title: "Github issues")
@@ -48,11 +48,11 @@ module Github
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{issues.length} Github issues to #{options[:primary]}" unless options[:quiet]
-      { service: tag_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: issues.length }.stringify_keys
+      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: issues.length }.stringify_keys
     end
 
     def should_sync?(task_updated_at = nil)
-      time_since_last_sync = options[:logger].last_synced(tag_name, interval: task_updated_at.nil?)
+      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
       if task_updated_at.present?
         time_since_last_sync < task_updated_at
       else

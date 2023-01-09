@@ -28,17 +28,17 @@ module GoogleTasks
       @authorized = false
     end
 
-    desc "tag_name", "The friendly name of the service for use in tagging (and elsewhere)"
-    def tag_name
+    desc "friendly_name", "The friendly name of the service for use in tagging (and elsewhere)"
+    def friendly_name
       "Google Tasks"
     end
 
     desc "sync_from_primary", "Sync from primary service tasks to Google Tasks"
     def sync_from_primary(primary_service)
-      tasks = primary_service.tasks_to_sync(tags: [tag_name])
+      tasks = primary_service.tasks_to_sync(tags: [friendly_name])
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
-                                         title: tag_name)
+                                         title: friendly_name)
       end
       tasks.each do |task|
         # next if options[:max_age] && task.updated_at && (task.updated_at < options[:max_age])
@@ -52,7 +52,7 @@ module GoogleTasks
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks.length} #{options[:primary]} tasks to Google Tasks" unless options[:quiet]
-      { service: tag_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
+      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
     end
 
     desc "tasks_to_sync", "Get all of the tasks to sync in options[:list]"
@@ -90,7 +90,7 @@ module GoogleTasks
 
     desc "should_sync?", "Return boolean whether or not this service should sync. Time-based."
     def should_sync?(task_updated_at = nil)
-      time_since_last_sync = options[:logger].last_synced(tag_name, interval: task_updated_at.nil?)
+      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
       if task_updated_at.present?
         time_since_last_sync < task_updated_at
       else

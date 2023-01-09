@@ -13,10 +13,10 @@ module Asana
     def initialize(options)
       @options = options
       @personal_access_token = ENV.fetch("ASANA_PERSONAL_ACCESS_TOKEN", nil)
-      @last_sync_data = options[:logger].sync_data_for(tag_name)
+      @last_sync_data = options[:logger].sync_data_for(friendly_name)
     end
 
-    def tag_name
+    def friendly_name
       "Asana"
     end
 
@@ -26,7 +26,7 @@ module Asana
     def sync_with_primary(primary_service)
       return @last_sync_data unless should_sync?
 
-      primary_tasks = primary_service.tasks_to_sync(tags: [tag_name])
+      primary_tasks = primary_service.tasks_to_sync(tags: [friendly_name])
       asana_tasks = tasks_to_sync
       # Step 1: pair tasks that have matching sync_ids
       paired_tasks = {}
@@ -90,7 +90,7 @@ module Asana
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{paired_tasks.length + tasks_grouped_by_title.length} #{options[:primary]} and Asana items" unless options[:quiet]
-      { service: tag_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: paired_tasks.length + tasks_grouped_by_title.length }.stringify_keys
+      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: paired_tasks.length + tasks_grouped_by_title.length }.stringify_keys
     end
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
@@ -185,7 +185,7 @@ module Asana
     end
 
     def should_sync?(task_updated_at = nil)
-      time_since_last_sync = options[:logger].last_synced(tag_name, interval: task_updated_at.nil?)
+      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
       if task_updated_at.present?
         time_since_last_sync < task_updated_at
       else
