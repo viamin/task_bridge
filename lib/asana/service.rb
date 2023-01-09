@@ -89,8 +89,8 @@ module Asana
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
-      puts "Synced #{tasks_grouped_by_title.length} #{options[:primary]} and Asana items" unless options[:quiet]
-      { service: tag_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks_grouped_by_title.length }.stringify_keys
+      puts "Synced #{paired_tasks.length + tasks_grouped_by_title.length} #{options[:primary]} and Asana items" unless options[:quiet]
+      { service: tag_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: paired_tasks.length + tasks_grouped_by_title.length }.stringify_keys
     end
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
