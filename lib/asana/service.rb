@@ -13,7 +13,11 @@ module Asana
     def initialize(options)
       @options = options
       @personal_access_token = ENV.fetch("ASANA_PERSONAL_ACCESS_TOKEN", nil)
-      @last_sync_data = options[:logger].sync_data_for("Asana")
+      @last_sync_data = options[:logger].sync_data_for(friendly_name)
+    end
+
+    def friendly_name
+      "Asana"
     end
 
     # For new tasks on either service, creates new matching ones
@@ -22,45 +26,71 @@ module Asana
     def sync_with_primary(primary_service)
       return @last_sync_data unless should_sync?
 
-      primary_tasks = primary_service.tasks_to_sync(tags: ["Asana"])
+      primary_tasks = primary_service.tasks_to_sync(tags: [friendly_name])
       asana_tasks = tasks_to_sync
-      tasks_grouped_by_title = (primary_tasks + asana_tasks).group_by { |task| task.title.downcase.strip }
+      # Step 1: pair tasks that have matching sync_ids
+      paired_tasks = {}
+      primary_tasks.each do |primary_task|
+        matching_task = asana_tasks.find { |asana_task| (asana_task.sync_id == primary_task.id) || (asana_task.id == primary_task.sync_id) }
+        paired_tasks[primary_task] = matching_task if matching_task
+      end
+      unmatched_primary_tasks = primary_tasks - paired_tasks.keys
+      unmatched_asana_tasks = asana_tasks - paired_tasks.values
+      tasks_grouped_by_title = (unmatched_primary_tasks + unmatched_asana_tasks).group_by { |task| task.title.downcase.strip }
       unless options[:quiet]
-        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks_grouped_by_title.length,
+        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ",
+                                         total: paired_tasks.length + tasks_grouped_by_title.length,
                                          title: "#{primary_service.class.name} syncing with Asana")
       end
+      paired_tasks.each do |primary_task, asana_task|
+        if primary_task.updated_at > asana_task.updated_at
+          update_task(asana_task, primary_task)
+        else
+          primary_service.update_task(primary_task, asana_task)
+        end
+      end
       tasks_grouped_by_title.each do |_title, tasks|
-        output = if tasks.length == 1
-          task = tasks.first
-          if task.instance_of?(Asana::Task)
-            unless task.assignee == asana_user["gid"] || task.assignee.nil?
-              # Skip creating new tasks that are not assigned to the owner of the Personal Access Token
-              # Unassigned tasks are fine to create as well
-              progressbar.increment unless options[:quiet]
-              next
-            end
-            primary_service.add_task(task) unless task.completed?
-          else # task is a primary_service task
-            add_task(task) unless task.completed?
-          end
-        else # task already exists
-          newer_task = tasks.max_by(&:updated_at)
-          older_task = tasks.min_by(&:updated_at)
-          if should_sync?(newer_task.updated_at)
-            if newer_task.instance_of?(Asana::Task)
-              primary_service.update_task(older_task, newer_task)
-            else
-              update_task(older_task, newer_task)
-            end
-          elsif options[:debug]
-            debug("Skipping sync of #{newer_task.title} (should_sync? == false)")
-          end
+        output = case tasks.length
+                 when 1
+                   task = tasks.first
+                   if task.instance_of?(Asana::Task)
+                     unless task.assignee == asana_user["gid"] || task.assignee.nil?
+                       # Skip creating new tasks that are not assigned to the owner of the Personal Access Token
+                       # Unassigned tasks are fine to create as well
+                       progressbar.increment unless options[:quiet]
+                       next
+                     end
+                     primary_service.add_task(task) unless task.completed?
+                   else # task is a primary_service task
+                     add_task(task) unless task.completed?
+                   end
+                 when 2 # task already exists
+                   newer_task = tasks.max_by(&:updated_at)
+                   older_task = tasks.min_by(&:updated_at)
+                   if should_sync?(newer_task.updated_at)
+                     if newer_task.instance_of?(Asana::Task) && !older_task.instance_of?(Asana::Task)
+                       primary_service.update_task(older_task, newer_task)
+                     elsif newer_task.instance_of?(Asana::Task) && older_task.instance_of?(Asana::Task)
+                       primary_service.add_task(older_task) unless older_task.completed?
+                       primary_service.add_task(newer_task) unless newer_task.completed?
+                     elsif !newer_task.instance_of?(Asana::Task) && !older_task.instance_of?(Asana::Task)
+                       add_task(older_task) unless older_task.completed?
+                       add_task(newer_task) unless newer_task.completed?
+                     else
+                       update_task(older_task, newer_task)
+                     end
+                   elsif options[:debug]
+                     debug("Skipping sync of #{newer_task.title} (should_sync? == false)")
+                   end
+                 else
+                   puts tasks.map(&:title)
+          # raise "Too many tasks!"
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
-      puts "Synced #{tasks_grouped_by_title.length} #{options[:primary]} and Asana items" unless options[:quiet]
-      { service: "Asana", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks_grouped_by_title.length }.stringify_keys
+      puts "Synced #{paired_tasks.length + tasks_grouped_by_title.length} #{options[:primary]} and Asana items" unless options[:quiet]
+      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: paired_tasks.length + tasks_grouped_by_title.length }.stringify_keys
     end
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
@@ -85,11 +115,6 @@ module Asana
       tasks
     end
     memo_wise :tasks_to_sync
-
-    # No-op for now
-    def purge
-      false
-    end
 
     def add_task(external_task, parent_task_gid = nil)
       debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}") if options[:debug]
@@ -160,7 +185,7 @@ module Asana
     end
 
     def should_sync?(task_updated_at = nil)
-      time_since_last_sync = options[:logger].last_synced("Asana", interval: task_updated_at.nil?)
+      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
       if task_updated_at.present?
         time_since_last_sync < task_updated_at
       else

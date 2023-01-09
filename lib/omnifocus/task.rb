@@ -4,6 +4,7 @@ module Omnifocus
   # A representation of an Omnifocus task
   class Task
     prepend MemoWise
+    include NoteParser
 
     WEEKDAY_TAGS = %w[
       Monday
@@ -41,7 +42,7 @@ module Omnifocus
 
     TIME_TAGS = WEEKDAY_TAGS + MONTH_TAGS + RELATIVE_TIME_TAGS
 
-    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :start_date, :flagged, :estimated_minutes, :notes, :tags, :project, :updated_at, :subtask_count, :subtasks, :debug_data
+    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :start_date, :flagged, :estimated_minutes, :notes, :tags, :project, :updated_at, :subtask_count, :subtasks, :sync_id, :sync_url, :debug_data
 
     def initialize(task, options)
       @options = options
@@ -58,7 +59,10 @@ module Omnifocus
       @start_date = read_attribute(task, :defer_date)
       @estimated_minutes = read_attribute(task, :estimated_minutes)
       @flagged = read_attribute(task, :flagged)
-      @notes = read_attribute(task, :note)
+
+      @sync_id, temp_notes = parsed_notes("sync_id", read_attribute(task, :note))
+      @sync_url, @notes = parsed_notes("url", temp_notes)
+
       @tags = read_attribute(task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       @due_date = date_from_tags(task, @tags)
@@ -141,6 +145,10 @@ module Omnifocus
       "#{provider}::Task:(#{id})#{title}"
     end
 
+    def sync_notes
+      notes_with_values(notes, sync_id:, sync_url:)
+    end
+
     # start_at is a "premium" feature, apparently
     def to_asana
       {
@@ -148,7 +156,7 @@ module Omnifocus
         due_at: due_date&.iso8601,
         liked: flagged,
         name: title,
-        notes:
+        notes: sync_notes
         # start_at: start_date&.iso8601
       }.compact
     end

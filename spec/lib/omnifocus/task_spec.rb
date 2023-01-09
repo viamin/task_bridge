@@ -8,6 +8,7 @@ RSpec.describe "Omnifocus::Task" do
   let(:options) { {} }
   let(:id) { SecureRandom.alphanumeric(11) }
   let(:name) { Faker::Lorem.sentence }
+  let(:notes) { "notes" }
   let(:completed) { [true, false].sample }
   let(:containing_project) { "Folder:Project" }
   let(:tags) { [] }
@@ -17,6 +18,7 @@ RSpec.describe "Omnifocus::Task" do
       id_: id,
       name:,
       completed:,
+      note: notes,
       containing_project:,
       tags: tags.map { |tag| OpenStruct.new({ name: tag }) },
       tasks:
@@ -55,6 +57,16 @@ RSpec.describe "Omnifocus::Task" do
       it "sets a due date of next Tuesday" do
         expect(task.due_date).to eq(Chronic.parse("Next Tuesday"))
       end
+    end
+  end
+
+  describe "#sync_notes" do
+    let(:notes) { "notes\n\nsync_id: jU466dYHf2o\n" }
+
+    it "adds a sync_id to the notes" do
+      expect(task.notes).to eq("notes")
+      expect(task.sync_id).to eq("jU466dYHf2o")
+      expect(task.sync_notes).to eq("notes\n\nsync_id: jU466dYHf2o\n")
     end
   end
 end

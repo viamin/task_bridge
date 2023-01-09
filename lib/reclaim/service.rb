@@ -16,8 +16,12 @@ module Reclaim
       nil
     end
 
+    def friendly_name
+      "Reclaim"
+    end
+
     def sync_from_primary(primary_service)
-      tasks = primary_service.tasks_to_sync(tags: ["Reclaim"])
+      tasks = primary_service.tasks_to_sync(tags: [friendly_name])
       existing_tasks = tasks_to_sync
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
@@ -33,7 +37,7 @@ module Reclaim
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{tasks.length} #{options[:primary]} items to Reclaim Tasks" unless options[:quiet]
-      { service: "Reclaim", last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
+      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
     end
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
@@ -75,6 +79,10 @@ module Reclaim
     end
 
     private
+
+    def delete_task(task)
+      HTTParty.delete("#{base_url}/planner/policy/task/#{task.id}", authenticated_options)
+    end
 
     def friendly_titles_match?(task, other_task)
       task.title.downcase.strip == other_task.title.downcase.strip

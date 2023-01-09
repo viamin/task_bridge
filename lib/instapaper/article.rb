@@ -3,6 +3,7 @@
 module Instapaper
   class Article
     prepend MemoWise
+    include NoteParser
 
     attr_reader :options, :id, :folder, :project, :title, :tags, :url, :updated_at, :estimated_minutes, :debug_data
 
@@ -53,6 +54,14 @@ module Instapaper
     end
     memo_wise :read_time
 
+    def sync_id
+      id
+    end
+
+    def sync_notes
+      notes_with_values(url, sync_id:)
+    end
+
     #       #####
     #      #     # ###### #####  #    # #  ####  ######  ####
     #      #       #      #    # #    # # #    # #      #
@@ -64,7 +73,7 @@ module Instapaper
     def to_omnifocus
       {
         name: friendly_title,
-        note: url,
+        note: sync_notes,
         estimated_minutes:
       }.compact
     end
