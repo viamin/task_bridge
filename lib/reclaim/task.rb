@@ -2,30 +2,36 @@
 
 module Reclaim
   class Task
-    attr_reader :options, :id, :title, :notes, :category, :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :status, :due_date, :defer_date, :always_private, :debug_data
+    prepend MemoWise
+    include NoteParser
 
-    def initialize(task, options)
+    attr_reader :options, :id, :title, :notes, :category, :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :status, :due_date, :defer_date, :always_private, :updated_at, :sync_id, :debug_data
+
+    def initialize(reclaim_task, options)
       @options = options
-      @id = task["id"]
-      @title = task["title"]
-      @notes = task["notes"]
-      @category = task["eventCategory"]
-      @time_required = task["timeChunksRequired"]
-      @time_spent = task["timeChunksSpent"]
-      @time_remaining = task["timeChunksRemaining"]
-      @minimum_chunk_size = task["minChunkSize"]
-      @maximum_chunk_size = task["maxChunkSize"]
-      @status = task["status"]
-      @due_date = Chronic.parse(task["due"])
-      @defer_date = Chronic.parse(task["snoozeUntil"])
-      @always_private = task["alwaysPrivate"]
+      @id = reclaim_task["id"]
+      @title = reclaim_task["title"]
+      @category = reclaim_task["eventCategory"]
+      @time_required = reclaim_task["timeChunksRequired"]
+      @time_spent = reclaim_task["timeChunksSpent"]
+      @time_remaining = reclaim_task["timeChunksRemaining"]
+      @minimum_chunk_size = reclaim_task["minChunkSize"]
+      @maximum_chunk_size = reclaim_task["maxChunkSize"]
+      @status = reclaim_task["status"]
+      @due_date = Chronic.parse(reclaim_task["due"])
+      @defer_date = Chronic.parse(reclaim_task["snoozeUntil"])
+      @updated_at = Chronic.parse(reclaim_task["updated"])
+      @always_private = reclaim_task["alwaysPrivate"]
       @tags = default_tags
       @tags = if personal?
         @tags + @options[:personal_tags].split(",")
       else
         @tags + @options[:work_tags].split(",")
       end
-      @debug_data = task if @options[:debug]
+
+      @sync_id, @notes = parsed_notes("sync_id", reclaim_task["notes"])
+
+      @debug_data = reclaim_task if @options[:debug]
     end
 
     def provider
@@ -87,3 +93,35 @@ module Reclaim
     end
   end
 end
+
+# {
+#   "id" => 2_233_066,
+#   "title" => "Test",
+#   "notes" => "",
+#   "eventCategory" => "WORK", # "PERSONAL"
+#   "eventSubType" => "FOCUS", # "OTHER_PERSONAL"
+#   "status" => "SCHEDULED",
+#   "timeChunksRequired" => 1,
+#   "timeChunksSpent" => 0,
+#   "timeChunksRemaining" => 1,
+#   "minChunkSize" => 1,
+#   "maxChunkSize" => 4,
+#   "alwaysPrivate" => true,
+#   "deleted" => false,
+#   "index" => 12_839_000.0,
+#   "created" => "2023-01-12T22:53:11.631628-08:00",
+#   "updated" => "2023-01-12T22:53:11.638998-08:00",
+#   "adjusted" => false,
+#   "atRisk" => false,
+#   "instances" =>
+#  [{ "taskId" => 2_233_066,
+#     "eventId" => "e9im6r31d5miqobjedkn6t1dehgn6qpqeoojkchi6cpj0dhm78o0",
+#     "eventKey" => "50523/e9im6r31d5miqobjedkn6t1dehgn6qpqeoojkchi6cpj0dhm78o0",
+#     "status" => "PENDING",
+#     "start" => "2023-01-13T10:45:00-08:00",
+#     "end" => "2023-01-13T11:00:00-08:00",
+#     "index" => 0,
+#     "pinned" => false }],
+#   "type" => "TASK",
+#   "recurringAssignmentType" => "TASK"
+# }

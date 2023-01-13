@@ -6,14 +6,15 @@ module Reclaim
   # Reclaim sync is currently unsupported since the API is not public and
   # this is not expected to work
   class Service
+    prepend MemoWise
+    include Debug
+
     attr_reader :options
 
     def initialize(options)
       @options = options
-      @auth_cookie = ENV.fetch("RECLAIM_AUTH_TOKEN", nil)
-    rescue StandardError
-      # If authentication fails, skip the service
-      nil
+      @api_key = ENV.fetch("RECLAIM_API_KEY", nil)
+      @last_sync_data = options[:logger].sync_data_for(friendly_name)
     end
 
     def friendly_name
@@ -21,67 +22,101 @@ module Reclaim
     end
 
     def sync_from_primary(primary_service)
-      tasks = primary_service.tasks_to_sync(tags: [friendly_name])
-      existing_tasks = tasks_to_sync
+      return @last_sync_data unless should_sync?
+
+      primary_tasks = primary_service.tasks_to_sync(tags: [friendly_name])
+      reclaim_tasks = tasks_to_sync
       unless options[:quiet]
-        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
-                                         title: "Reclaim Tasks")
+        progressbar = ProgressBar.create(
+          format: "%t: %c/%C |%w>%i| %e ",
+          total: primary_tasks.length,
+          title: "Reclaim Tasks"
+        )
       end
-      tasks.each do |task|
-        output = if (existing_task = existing_tasks.find { |t| friendly_titles_match?(t, task) })
-          update_task(existing_task, task)
+      primary_tasks.each do |primary_task|
+        output = if (existing_task = reclaim_tasks.find { |reclaim_task| friendly_titles_match?(reclaim_task, primary_task) })
+          update_task(existing_task, primary_task)
         else
-          add_task(task) unless task.completed
+          add_task(primary_task) unless primary_task.completed
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
-      puts "Synced #{tasks.length} #{options[:primary]} items to Reclaim Tasks" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
+      puts "Synced #{primary_tasks.length} #{options[:primary]} items to Reclaim Tasks" unless options[:quiet]
+      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: primary_tasks.length }.stringify_keys
     end
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
     def tasks_to_sync(*)
       list_tasks.map { |reclaim_task| Task.new(reclaim_task, options) }
     end
+    memo_wise :tasks_to_sync
 
-    def add_task(task)
-      puts "Called #{self.class}##{__method__}" if options[:debug]
-      request_body = { body: task.to_json }
+    def add_task(external_task)
+      debug("external_task: #{external_task}") if options[:debug]
+      request_body = { body: external_task.to_reclaim }
       if options[:pretend]
-        "Would have added #{task.title} to Reclaim"
+        "Would have added #{external_task.title} to Reclaim"
       else
         response = HTTParty.post("#{base_url}/tasks", authenticated_options.merge(request_body))
         if response.success?
           JSON.parse(response.body)
         else
-          puts "Failed to create a Reclaim task - check auth cookie"
-          nil
+          debug(response) if options[:debug]
+          "Failed to create a Reclaim task - check api key"
         end
       end
     end
 
-    def update_task(existing_task, task)
-      puts "Called #{self.class}##{__method__}" if options[:debug]
-      request_body = { body: task.to_json }
+    def update_task(reclaim_task, external_task)
+      debug("reclaim_task: #{reclaim_task.title}") if options[:debug]
+      request_body = { body: external_task.to_reclaim }
       if options[:pretend]
-        "Would have updated task #{task.title} in Reclaim"
+        "Would have updated task #{external_task.title} in Reclaim"
       else
-        response = HTTParty.put("#{base_url}/tasks/#{existing_task.id}", authenticated_options.merge(request_body))
+        response = HTTParty.patch("#{base_url}/tasks/#{reclaim_task.id}", authenticated_options.merge(request_body))
         if response.success?
           JSON.parse(response.body)
         else
-          puts "Failed to update Reclaim task ##{existing_task.id} with code #{response.code} - check auth cookie"
-          puts response.body if options[:verbose]
-          nil
+          binding.pry
+          debug(response.body) if options[:debug]
+          "Failed to update Reclaim task ##{reclaim_task.id} with code #{response.code} - check api key"
         end
+      end
+    end
+
+    def should_sync?(task_updated_at = nil)
+      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
+      return true if time_since_last_sync.nil?
+
+      if task_updated_at.present?
+        time_since_last_sync < task_updated_at
+      else
+        time_since_last_sync > min_sync_interval
       end
     end
 
     private
 
-    def delete_task(task)
-      HTTParty.delete("#{base_url}/planner/policy/task/#{task.id}", authenticated_options)
+    # the minimum time we should wait between syncing tasks
+    def min_sync_interval
+      15.minutes.to_i
+    end
+
+    # a helper method to fix bad syncs
+    def delete_all_tasks
+      tasks = list_tasks
+      progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: tasks.length)
+      tasks.each do |task|
+        delete_task(task["id"])
+        sleep 0.5
+        progressbar.increment
+      end
+      puts "Deleted #{tasks.count} tasks"
+    end
+
+    def delete_task(task_id)
+      HTTParty.delete("#{base_url}/planner/policy/task/#{task_id}", authenticated_options)
     end
 
     def friendly_titles_match?(task, other_task)
@@ -96,16 +131,18 @@ module Reclaim
         }
       }
       response = HTTParty.get("#{base_url}/tasks", authenticated_options.merge(query))
-      raise "Error loading Reclaim tasks - check cookie expiration" unless response.success?
+      raise "Error loading Reclaim tasks - check api key" unless response.success?
 
       JSON.parse(response.body)
     end
+    memo_wise :list_tasks
 
     def authenticated_options
       {
         headers: {
-          :accept => "application/json",
-          "Cookie" => "RECLAIM=#{@auth_cookie}"
+          "Content-Type": "application/json",
+          accept: "application/json",
+          Authorization: "Bearer #{@api_key}"
         }
       }
     end
