@@ -23,7 +23,10 @@ class StructuredLogger
 
   def last_synced(service_name, interval: false)
     debug("service_name: #{service_name}, interval: #{interval}") if options[:debug]
-    last_sync = Chronic.parse(sync_data_for(service_name)["last_successful"])
+    raw_sync_data = sync_data_for(service_name)
+    return if raw_sync_data.nil?
+
+    last_sync = Chronic.parse(raw_sync_data["last_successful"])
     if interval
       Time.now - last_sync
     else

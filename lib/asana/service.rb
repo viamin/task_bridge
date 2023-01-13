@@ -186,6 +186,8 @@ module Asana
 
     def should_sync?(task_updated_at = nil)
       time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
+      return true if time_since_last_sync.nil?
+
       if task_updated_at.present?
         time_since_last_sync < task_updated_at
       else

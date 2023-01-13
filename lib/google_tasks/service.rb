@@ -11,6 +11,7 @@ module GoogleTasks
 
     attr_reader :tasks_service, :options, :authorized
 
+    # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
     def initialize(options)
       @options = options
       @tasks_service = Google::Apis::TasksV1::TasksService.new
@@ -91,6 +92,8 @@ module GoogleTasks
     desc "should_sync?", "Return boolean whether or not this service should sync. Time-based."
     def should_sync?(task_updated_at = nil)
       time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
+      return true if time_since_last_sync.nil?
+
       if task_updated_at.present?
         time_since_last_sync < task_updated_at
       else
@@ -100,11 +103,24 @@ module GoogleTasks
 
     private
 
+    # a helper method to fix bad syncs
+    # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L291
+    def delete_all_tasks
+      progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: tasks_to_sync.length)
+      tasks_to_sync.each do |task|
+        tasks_service.delete_task(tasklist.id, task.id)
+        sleep 0.5
+        progressbar.increment
+      end
+      puts "Deleted #{tasks_to_sync.count} tasks"
+    end
+
     # the minimum time we should wait between syncing tasks
     def min_sync_interval
       30.minutes.to_i
     end
 
+    # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L175
     def tasklist
       debug("called") if options[:debug]
       tasklists = tasks_service.list_tasklists.items

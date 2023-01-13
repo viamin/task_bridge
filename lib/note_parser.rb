@@ -20,8 +20,8 @@ module NoteParser
   def notes_with_values(notes, values_hash = {})
     value_string = ""
     values_hash.each do |key, value|
-      value_string += "\n#{key}: #{value}"
+      value_string += "\n#{key}: #{value}" unless value.nil?
     end
-    "#{notes.squish}\n#{value_string}\n"
+    "#{notes}\n#{value_string}\n"
   end
 end

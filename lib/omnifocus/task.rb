@@ -176,6 +176,23 @@ module Omnifocus
       ).compact
     end
 
+    def to_reclaim
+      time_chunks_required = estimated_minutes.present? ? (estimated_minutes / 15.0).ceil : 1 # defaults to 15 minutes
+      {
+        alwaysPrivate: true,
+        due: due_date&.iso8601,
+        eventCategory: personal? ? "PERSONAL" : "WORK",
+        eventColor: nil,
+        maxChunkSize: 4, # 1 hour
+        minChunkSize: 1, # 15 minites
+        notes: sync_notes,
+        priority: "DEFAULT",
+        snoozeUntil: start_date&.iso8601,
+        timeChunksRequired: time_chunks_required,
+        title:
+      }.to_json
+    end
+
     private
 
     # Creates a due date from a tag if there isn't a due date
