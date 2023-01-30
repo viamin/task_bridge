@@ -13,6 +13,7 @@ require_relative "github/service"
 require_relative "instapaper/service"
 require_relative "reclaim/service"
 require_relative "asana/service"
+require_relative "reminders/service"
 
 class TaskBridge
   def initialize
@@ -33,6 +34,7 @@ class TaskBridge
       opt :services, "Services to sync tasks to", default: ENV.fetch("SYNC_SERVICES", "GoogleTasks,Github").split(",")
       opt :list, "Task list name to sync to", default: ENV.fetch("GOOGLE_TASKS_LIST", "My Tasks")
       opt :repositories, "Github repositories to sync from", type: :strings, default: ENV.fetch("GITHUB_REPOSITORIES", "").split(",")
+      opt :reminders_mapping, "Reminder lists to map to primary service lists/projects", default: ENV.fetch("REMINDERS_LIST_MAPPING", "")
       opt :max_age, "Skip syncing asks that have not been modified within this time (0 to disable)", default: ENV.fetch("SYNC_MAX_AGE", 0).to_i
       opt :delete,
           "Delete completed tasks on service",
@@ -58,8 +60,8 @@ class TaskBridge
     @options[:uses_personal_tags] = @options[:work_tags].blank?
     @options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
     @options[:logger] = StructuredLogger.new(@options)
-    @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(@options)
-    @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(@options)] }
+    @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(options: @options)
+    @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(options: @options)] }
   end
 
   def call

@@ -11,7 +11,7 @@ module Github
 
     attr_reader :options, :authentication
 
-    def initialize(options)
+    def initialize(options:)
       @options = options
       @authentication = Authentication.new(options).authenticate!
     rescue StandardError

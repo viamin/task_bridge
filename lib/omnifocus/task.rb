@@ -190,7 +190,7 @@ module Omnifocus
         snoozeUntil: start_date&.iso8601,
         timeChunksRequired: time_chunks_required,
         title:
-      }.to_json
+      }
     end
 
     private

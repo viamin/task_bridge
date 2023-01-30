@@ -11,10 +11,9 @@ module Reclaim
 
     attr_reader :options
 
-    def initialize(options)
-      @options = options
+    def initialize(options:)
       @api_key = ENV.fetch("RECLAIM_API_KEY", nil)
-      @last_sync_data = options[:logger].sync_data_for(friendly_name)
+      super(options: options)
     end
 
     def friendly_name
@@ -70,7 +69,7 @@ module Reclaim
 
     def update_task(reclaim_task, external_task)
       debug("reclaim_task: #{reclaim_task.title}") if options[:debug]
-      request_body = { body: external_task.to_reclaim }
+      request_body = { body: external_task.to_reclaim.to_json }
       if options[:pretend]
         "Would have updated task #{external_task.title} in Reclaim"
       else
@@ -78,7 +77,6 @@ module Reclaim
         if response.success?
           JSON.parse(response.body)
         else
-          binding.pry
           debug(response.body) if options[:debug]
           "Failed to update Reclaim task ##{reclaim_task.id} with code #{response.code} - check api key"
         end
@@ -97,11 +95,6 @@ module Reclaim
     end
 
     private
-
-    # the minimum time we should wait between syncing tasks
-    def min_sync_interval
-      15.minutes.to_i
-    end
 
     # a helper method to fix bad syncs
     def delete_all_tasks

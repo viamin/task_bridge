@@ -9,7 +9,7 @@ module Reminders
 
     attr_reader :options, :reminders
 
-    def initialize(options = {})
+    def initialize(options: {})
       @options = options
       # Assumes you already have Reminders installed
       @reminders = Appscript.app.by_name(tag_name)
