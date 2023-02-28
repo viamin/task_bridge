@@ -36,26 +36,26 @@ RSpec.describe "GoogleTasks::Service" do
       let(:task_updated_at) { nil }
 
       context "when last sync was less than min_sync_interval" do
-        let(:last_sync) { Time.now - Chronic.parse("14 minutes ago") }
+        let(:last_sync) { Time.now - Chronic.parse("29 minutes ago") }
 
         it { is_expected.to be false }
       end
 
       context "when last sync was more than min_sync_interval" do
-        let(:last_sync) { Time.now - Chronic.parse("16 minutes ago") }
+        let(:last_sync) { Time.now - Chronic.parse("31 minutes ago") }
 
         it { is_expected.to be true }
       end
     end
 
     context "when task_updated_at is less than min_sync_interval" do
-      let(:task_updated_at) { Chronic.parse("14 minutes ago") }
+      let(:task_updated_at) { Chronic.parse("29 minutes ago") }
 
       it { is_expected.to be true }
     end
 
     context "when task_updated_at is more than min_sync_interval" do
-      let(:task_updated_at) { Chronic.parse("16 minutes ago") }
+      let(:task_updated_at) { Chronic.parse("31 minutes ago") }
 
       it { is_expected.to be false }
     end
