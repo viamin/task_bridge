@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-ruby '~> 3.1'
+ruby "~> 3.1"
 
 source "https://rubygems.org"
 
@@ -67,4 +67,6 @@ end
 group :test do
   gem "faker" # https://github.com/faker-ruby/faker
   gem "rspec"
+  gem "vcr"
+  gem "webmock"
 end

@@ -19,7 +19,7 @@ RSpec.describe "GoogleTasks::Service" do
     context "with omnifocus" do
       let(:primary_service) { Omnifocus::Service.new({}) }
 
-      it "responds to #sync_from_primary" do
+      it "responds to #sync_from_primary", :vcr do
         expect(service).to be_respond_to(:sync_from_primary)
       end
     end
@@ -96,7 +96,7 @@ RSpec.describe "GoogleTasks::Service" do
     let(:google_task) { nil }
     let(:external_task) { nil }
 
-    it "raises an error" do
+    it "raises an error", :vcr do
       expect { subject }.to raise_error NoMethodError
     end
   end
