@@ -44,15 +44,27 @@ module Reminders
       "Reminders"
     end
 
-    def completed?; end
+    def completed?
+      completed
+    end
 
-    def incomplete?; end
+    def incomplete?
+      !completed?
+    end
+
+    def personal?
+      true
+    end
 
     def original_reminder; end
     memo_wise :original_reminder
 
     def friendly_title
       title
+    end
+
+    def sync_notes
+      notes_with_values(notes, sync_id:)
     end
 
     def to_s

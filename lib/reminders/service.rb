@@ -10,14 +10,14 @@ module Reminders
     def initialize(options:)
       super
       # Assumes you already have Reminders installed
-      @reminders_app = Appscript.app.by_name(tag_name)
+      @reminders_app = Appscript.app.by_name(friendly_name)
     end
 
     def item_class
       Reminder
     end
 
-    def tag_name
+    def friendly_name
       "Reminders"
     end
 
@@ -25,7 +25,7 @@ module Reminders
     # for existing tasks, first check for an updated_at timestamp
     # and sync from the service with the newer modification
     def sync_with_primary(primary_service)
-      tasks = primary_service.items_to_sync(tags: [tag_name])
+      tasks = primary_service.tasks_to_sync(tags: [friendly_name])
       existing_tasks = items_to_sync
     end
 
@@ -52,8 +52,8 @@ module Reminders
     memo_wise :lists
 
     def reminders_in_list(list_name)
-      list = lists.find { |list| list.name.get == list_name }
-      list.reminders_app.get
+      reminder_list = lists.find { |list| list.name.get == list_name }
+      reminder_list.reminders_app.get
     end
     memo_wise :reminders_in_list
   end
