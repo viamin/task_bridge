@@ -22,4 +22,4 @@ jobs:
           bundler-cache: true
 
       - name: Test with RSpec
-        run: bundle exec rspec
+        run: bundle exec rspec --tag ~no_ci

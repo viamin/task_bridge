@@ -96,11 +96,6 @@ module GoogleTasks
         end
         credentials
       end
-
-      # Gets the API key of the client
-      def api_key
-        ENV["GOOGLE_API_KEY"] || options[:api_key]
-      end
     end
   end
 end
