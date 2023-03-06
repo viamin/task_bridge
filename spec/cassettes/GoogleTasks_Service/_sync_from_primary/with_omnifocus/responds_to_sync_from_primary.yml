@@ -1,0 +1,60 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://oauth2.googleapis.com/token
+    body:
+      encoding: ASCII-8BIT
+      string: grant_type=authorization_code&code=4%2F1AWtgzh5CebeB5zIPVLRi7k2CQ0SeM7alVRQxTKM-pr5BMD1QTxTLSkPyjUs&redirect_uri=urn%3Aietf%3Awg%3Aoauth%3A2.0%3Aoob&client_id=523621449796-an7osh5p174n5jrlttvb4agt9gi26k5a.apps.googleusercontent.com&client_secret=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
+    headers:
+      User-Agent:
+      - Faraday v2.7.2
+      Content-Type:
+      - application/x-www-form-urlencoded
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Pragma:
+      - no-cache
+      Expires:
+      - Mon, 01 Jan 1990 00:00:00 GMT
+      Date:
+      - Tue, 28 Feb 2023 07:07:58 GMT
+      Cache-Control:
+      - no-cache, no-store, max-age=0, must-revalidate
+      Content-Type:
+      - application/json; charset=utf-8
+      Vary:
+      - Origin
+      - Referer
+      - X-Origin
+      Server:
+      - scaffolding on HTTPServer2
+      X-Xss-Protection:
+      - '0'
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-Content-Type-Options:
+      - nosniff
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Transfer-Encoding:
+      - chunked
+    body:
+      encoding: UTF-8
+      string: |-
+        {
+          "access_token": "ya29.a0AVvZVsq0I26urHVWHDL7cag-4uJY5K550DUl_LmKaz-_pHFQjFnUi8cOUhx6eaROCG-xkAV2GmDN7Pp2CEAEl9zW6VcnYp_McAx9WIwc7nHp74WlS0DWORlKD2OYKk98a7jLDcOqfj7kMhp26HaCgYKAYYSARASFQGbdwaIvOd5sidJ6UJlkn7bGhCGkQ0163",
+          "expires_in": 3599,
+          "refresh_token": "1//06cLP9VFEfpZjCgYIARAASNwF-L9IrIjMpdKXICN2JaQ_Pxb_J4iAtCusXiUKQYzpwyoLQnI8JfSGxHci2Hr3VL-Wp5AHQ",
+          "scope": "https://www.googleapis.com/auth/tasks",
+          "token_type": "Bearer"
+        }
+  recorded_at: Tue, 28 Feb 2023 07:07:58 GMT
+recorded_with: VCR 6.1.0

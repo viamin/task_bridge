@@ -15,14 +15,14 @@ RSpec.describe "Omnifocus::Service" do
     let(:inbox) { false }
     let(:incomplete_only) { true }
 
-    it "returns an empty array" do
+    it "returns an empty array", :no_ci do
       expect(subject).to eq([])
     end
 
     context "with tags" do
       let(:tags) { ["TaskBridge"] }
 
-      it "returns tasks with a matching tag" do
+      it "returns tasks with a matching tag", :no_ci do
         expect(subject).not_to be_empty
       end
     end
@@ -30,7 +30,7 @@ RSpec.describe "Omnifocus::Service" do
     context "with projects" do
       let(:projects) { "TaskBridge" }
 
-      it "returns tasks in a project" do
+      it "returns tasks in a project", :no_ci do
         expect(subject.count).to eq(1)
       end
     end
@@ -38,7 +38,7 @@ RSpec.describe "Omnifocus::Service" do
     context "with a folder" do
       let(:folder) { "TaskBridge" }
 
-      it "returns all tasks in a folder" do
+      it "returns all tasks in a folder", :no_ci do
         expect(subject.count).to eq(3)
       end
     end
@@ -46,7 +46,7 @@ RSpec.describe "Omnifocus::Service" do
     context "with inbox: true" do
       let(:inbox) { true }
 
-      it "returns inbox tasks" do
+      it "returns inbox tasks", :no_ci do
         expect(subject.length).to eq(service.send(:inbox_tasks).length)
       end
     end

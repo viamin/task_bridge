@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-ruby '~> 3.1'
+ruby "~> 3.1"
 
 source "https://rubygems.org"
 
@@ -60,6 +60,7 @@ group :development do
   gem "pry" # https://github.com/pry/pry
   gem "rubocop"
   gem "rubocop-performance"
+  gem "ruby-lsp", "~> 0.4.1", require: false
   gem "solargraph"
   gem "standard"
 end
@@ -67,4 +68,6 @@ end
 group :test do
   gem "faker" # https://github.com/faker-ruby/faker
   gem "rspec"
+  gem "vcr"
+  gem "webmock"
 end
