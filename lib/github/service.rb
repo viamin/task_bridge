@@ -2,18 +2,16 @@
 
 require_relative "authentication"
 require_relative "issue"
+require_relative "../base/service"
 
 module Github
   # A service class to connect to the Github API
-  class Service
-    prepend MemoWise
-    include Debug
-
-    attr_reader :options, :authentication
+  class Service < Base::Service
+    attr_reader :authentication
 
     def initialize(options:)
-      @options = options
       @authentication = Authentication.new(options).authenticate!
+      super
     rescue StandardError
       # If authentication fails, skip the service
       nil
@@ -51,17 +49,6 @@ module Github
       { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: issues.length }.stringify_keys
     end
 
-    def should_sync?(task_updated_at = nil)
-      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
-      return true if time_since_last_sync.nil?
-
-      if task_updated_at.present?
-        time_since_last_sync < task_updated_at
-      else
-        time_since_last_sync > min_sync_interval
-      end
-    end
-
     private
 
     # the minimum time we should wait between syncing tasks
@@ -91,10 +78,10 @@ module Github
       tagged_issues = sync_repositories
                       .map { |repo| list_issues(repo, tags) }
                       .flatten
-                      .map { |issue| Issue.new(issue, options) }
+                      .map { |issue| Issue.new(github_issue: issue, options:) }
       assigned_issues = list_assigned
                         .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
-                        .map { |issue| Issue.new(issue, options) }
+                        .map { |issue| Issue.new(github_issue: issue, options:) }
       (tagged_issues + assigned_issues).uniq(&:id)
     end
     memo_wise :issues_to_sync

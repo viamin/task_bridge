@@ -13,7 +13,7 @@ module Base
     end
 
     def friendly_name
-      raise "not implemented in subclass"
+      raise "not implemented"
     end
 
     def should_sync?(item_updated_at = nil)
@@ -33,6 +33,5 @@ module Base
     def min_sync_interval
       15.minutes.to_i
     end
-
   end
 end

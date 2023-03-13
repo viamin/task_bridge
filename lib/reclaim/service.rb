@@ -1,19 +1,15 @@
 # frozen_string_literal: true
 
 require_relative "task"
+require_relative "../base/service"
 
 module Reclaim
   # Reclaim sync is currently unsupported since the API is not public and
   # this is not expected to work
-  class Service
-    prepend MemoWise
-    include Debug
-
-    attr_reader :options
-
+  class Service < Base::Service
     def initialize(options:)
       @api_key = ENV.fetch("RECLAIM_API_KEY", nil)
-      super(options: options)
+      super
     end
 
     def friendly_name
@@ -47,7 +43,7 @@ module Reclaim
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
     def tasks_to_sync(*)
-      list_tasks.map { |reclaim_task| Task.new(reclaim_task, options) }
+      list_tasks.map { |reclaim_task| Task.new(reclaim_task:, options:) }
     end
     memo_wise :tasks_to_sync
 
@@ -80,17 +76,6 @@ module Reclaim
           debug(response.body) if options[:debug]
           "Failed to update Reclaim task ##{reclaim_task.id} with code #{response.code} - check api key"
         end
-      end
-    end
-
-    def should_sync?(task_updated_at = nil)
-      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
-      return true if time_since_last_sync.nil?
-
-      if task_updated_at.present?
-        time_since_last_sync < task_updated_at
-      else
-        time_since_last_sync > min_sync_interval
       end
     end
 

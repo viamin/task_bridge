@@ -1,23 +1,26 @@
 # frozen_string_literal: true
 
+require_relative "../base/sync_item"
+
 module Instapaper
-  class Article
-    prepend MemoWise
-    include NoteParser
+  class Article < Base::SyncItem
+    attr_reader :folder, :project, :tags, :estimated_minutes, :updated_at
 
-    attr_reader :options, :id, :folder, :project, :title, :tags, :url, :updated_at, :estimated_minutes, :debug_data
+    def initialize(instapaper_article:, options:)
+      super(sync_item: instapaper_article, options:)
 
-    def initialize(instapaper_article, options)
-      @options = options
-      @id = instapaper_article["bookmark_id"]
-      @title = instapaper_article["title"]
-      @url = instapaper_article["url"]
       @folder = instapaper_article["folder"]
       @tags = default_tags
       @project = ENV.fetch("INSTAPAPER_PROJECT", nil)
       @updated_at = Time.at(instapaper_article["progress_timestamp"])
       @estimated_minutes = nil
-      @debug_data = instapaper_article if @options[:debug]
+    end
+
+    def attribute_map
+      {
+        id: "bookmark_id",
+        updated_at: nil
+      }
     end
 
     def provider
@@ -79,10 +82,6 @@ module Instapaper
     end
 
     private
-
-    def default_tags
-      options[:tags] + ["Instapaper"]
-    end
 
     def image_time(image_count)
       # because I'm too lazy to do the math on this...

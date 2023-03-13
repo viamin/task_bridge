@@ -17,7 +17,7 @@ RSpec.describe "Instapaper::Article" do
     }
   end
   let(:options) { { tags: [] } }
-  let(:article) { Instapaper::Article.new(article_props, options) }
+  let(:article) { Instapaper::Article.new(instapaper_article: article_props, options:) }
 
   describe "#completed?" do
     before { allow(article).to receive(:unread?).and_return(true) }

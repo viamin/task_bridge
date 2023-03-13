@@ -3,7 +3,7 @@
 require "spec_helper"
 
 RSpec.describe "Asana::Service" do
-  let(:service) { Asana::Service.new(options) }
+  let(:service) { Asana::Service.new(options:) }
   let(:options) { { logger: } }
   let(:logger)  { double(StructuredLogger) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
@@ -16,7 +16,7 @@ RSpec.describe "Asana::Service" do
 
   describe "#sync_with_primary" do
     context "with omnifocus" do
-      let(:primary_service) { Omnifocus::Service.new({}) }
+      let(:primary_service) { Omnifocus::Service.new(options: {}) }
 
       it "responds to #sync_with_primary" do
         expect(service).to be_respond_to(:sync_with_primary)

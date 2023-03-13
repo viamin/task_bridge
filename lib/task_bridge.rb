@@ -44,6 +44,7 @@ class TaskBridge
       conflicts :only_from_primary, :only_to_primary
       opt :pretend, "List the found tasks, don't sync", default: false
       opt :quiet, "No output - except a 'finished sync' with timestamp", default: false
+      opt :force, "Ignore minimum sync interval", default: false
       opt :verbose, "Verbose output", default: false
       conflicts :quiet, :verbose
       opt :log_file, "File name for service log", default: ENV.fetch("LOG_FILE", "service_sync.log")

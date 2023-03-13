@@ -1,36 +1,37 @@
 # frozen_string_literal: true
 
+require_relative "../base/sync_item"
+
 module Asana
   # A representation of an Asana task
-  class Task
-    prepend MemoWise
-    include NoteParser
+  class Task < Base::SyncItem
+    attr_reader :project, :section, :notes, :subtask_count, :subtasks, :assignee, :sync_id
 
-    attr_reader :options, :id, :title, :url, :tags, :completed, :completed_at, :project, :section, :due_date, :due_at, :updated_at, :flagged, :notes, :type, :start_date, :start_at, :subtask_count, :subtasks, :assignee, :sync_id, :debug_data
+    def initialize(asana_task:, options:)
+      super(sync_item: asana_task, options:)
 
-    def initialize(asana_task, options)
-      @options = options
-      @id = asana_task["gid"]
-      @title = asana_task["name"]
-      @url = asana_task["permalink_url"]
-      @tags = default_tags
-      @completed = asana_task["completed"]
-      @completed_at = Chronic.parse(asana_task["completed_at"])
       @project = project_from_memberships(asana_task)
-      @due_date = Chronic.parse(asana_task["due_on"])
-      @due_at = Chronic.parse(asana_task["due_at"])
-      @updated_at = Chronic.parse(asana_task["modified_at"])
-      @flagged = asana_task["hearted"]
-      @type = asana_task["resource_type"]
-      @start_date = Chronic.parse(asana_task["start_on"])
-      @start_at = Chronic.parse(asana_task["start_at"])
       @subtask_count = asana_task.fetch("num_subtasks", 0).to_i
       @subtasks = []
       @assignee = asana_task.dig("assignee", "gid")
-
       @sync_id, @notes = parsed_notes("sync_id", asana_task["notes"])
+    end
 
-      @debug_data = asana_task if @options[:debug]
+    def attribute_map
+      {
+        id: "gid",
+        title: "name",
+        url: "permalink_url",
+        due_date: "due_on",
+        flagged: "hearted",
+        type: "resource_type",
+        start_date: "start_on",
+        updated_at: "modified_at"
+      }
+    end
+
+    def chronic_attributes
+      %i[completed_at due_date due_at updated_at start_date start_at]
     end
 
     def provider
@@ -47,10 +48,6 @@ module Asana
 
     def open?
       !completed?
-    end
-
-    def friendly_title
-      title.strip
     end
 
     # For now, default to true
@@ -77,17 +74,6 @@ module Asana
           projects: [project["gid"]]
         }.compact
       }.to_json
-    end
-
-    def to_s
-      "#{provider}::Task: (#{id})#{title}"
-    end
-
-    # Converts the task to a format required by the primary service
-    def to_primary
-      raise "Unsupported service" unless TaskBridge.task_services.include?(options[:primary])
-
-      send("to_#{options[:primary]}".downcase.to_sym)
     end
 
     #       #####
@@ -129,10 +115,6 @@ module Asana
     end
 
     private
-
-    def default_tags
-      options[:tags] + ["Asana"]
-    end
 
     # try to read the project and sections from the memberships array
     # If there isn't anything there, use the projects array

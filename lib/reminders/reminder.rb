@@ -1,42 +1,42 @@
 # frozen_string_literal: true
 
+require_relative "../base/sync_item"
+
 module Reminders
   # A representation of an Reminders reminder
-  class Reminder
-    prepend MemoWise
+  class Reminder < Base::SyncItem
+    attr_reader :list, :notes, :priority
 
-    attr_reader :options, :id, :title, :list, :completed, :completion_date, :start_date, :flagged, :notes, :due_date, :due_on, :updated_at, :priority, :debug_data
-
-    def initialize(reminder, options)
-      @options = options
-      @id = read_attribute(reminder, :id_)
-      @title = read_attribute(reminder, :name)
+    def initialize(reminder:, options:)
+      super(sync_item: reminder, options:)
       containing_list = read_attribute(reminder, :container)
       @list = if containing_list.respond_to?(:get)
         containing_list.name.get
       else
         ""
       end
-      @completed = read_attribute(reminder, :completed)
-      @completion_date = read_attribute(reminder, :completion_date)
-      @start_date = read_attribute(reminder, :remind_me_date)
-      # @estimated_minutes = read_attribute(reminder, :estimated_minutes)
-      @flagged = read_attribute(reminder, :flagged)
       @notes = read_attribute(reminder, :body)
-      # TODO: Tags seem to be an OS-wide feature? It's not in the AppleScript
-      # dictionary in macOS 13.1
+      # TODO: Tags seem to be an OS-wide feature? It's not in the
+      # AppleScript dictionary in macOS 13.1
       # @tags = read_attribute(reminder, :tags)
       # @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
-      @due_date = read_attribute(reminder, @tags)
-      @due_on = read_attribute(reminder, :allday_due_date)
-      @updated_at = read_attribute(reminder, :modification_date)
       @priority = read_attribute(reminder, :priority)
-      # Same with subtasks/subreminders - they are supported in the app# but don't seem to be accessible via Applescript
+      # Same with subtasks/subreminders - they are supported in the app
+      # but don't seem to be accessible via Applescript
       # @subreminders = read_attribute(reminder, :reminders).map do |subreminder|
       #   reminder.new(subreminder, @options)
       # end
       # @subreminder_count = @subreminders.count
-      @debug_data = reminder if @options[:debug]
+    end
+
+    def attribute_map
+      {
+        id: "id_",
+        title: "name",
+        start_date: "remind_me_date",
+        due_on: "allday_due_date",
+        updated_at: "modification_date"
+      }
     end
 
     def provider
@@ -96,14 +96,6 @@ module Reminders
       }.compact
     end
     memo_wise :to_omnifocus
-
-    private
-
-    def read_attribute(reminder, attribute, missing_value = nil)
-      value = reminder.send(attribute)
-      value = value.get if value.respond_to?(:get)
-      value == :missing_value ? missing_value : value
-    end
   end
 end
 

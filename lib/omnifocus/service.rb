@@ -1,18 +1,16 @@
 # frozen_string_literal: true
 
 require_relative "task"
+require_relative "../base/service"
 
 module Omnifocus
-  class Service
-    prepend MemoWise
-    include Debug
-
-    attr_reader :options, :omnifocus
+  class Service < Base::Service
+    attr_reader :omnifocus
 
     def initialize(options: {})
-      @options = options
       # Assumes you already have OmniFocus installed
       @omnifocus = Appscript.app.by_name(friendly_name).default_document
+      super
     end
 
     def friendly_name
@@ -54,7 +52,7 @@ module Omnifocus
       omnifocus_tasks = []
       omnifocus_tasks += tagged_project_tasks
       omnifocus_tasks += inbox_tasks if inbox
-      tasks = omnifocus_tasks.map { |task| Task.new(task, @options) }
+      tasks = omnifocus_tasks.map { |task| Task.new(omnifocus_task: task, options: @options) }
       # remove subtasks from the list
       tasks_with_subtasks = tasks.select { |task| task.subtask_count.positive? }
       subtask_ids = tasks_with_subtasks.map(&:subtasks).flatten.map(&:id)
@@ -86,7 +84,7 @@ module Omnifocus
       tags(external_task).each do |tag|
         add_tag(tag:, task: new_task)
       end
-      handle_subtasks(Omnifocus::Task.new(new_task, options), external_task)
+      handle_subtasks(Omnifocus::Task.new(omnifocus_task: new_task, options:), external_task)
       new_task
     end
 

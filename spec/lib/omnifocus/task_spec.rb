@@ -4,8 +4,8 @@ require "spec_helper"
 
 RSpec.describe "Omnifocus::Task" do
   let(:service) { Omnifocus::Service.new }
-  let(:task) { Omnifocus::Task.new(properties, options) }
-  let(:options) { {} }
+  let(:task) { Omnifocus::Task.new(omnifocus_task: properties, options:) }
+  let(:options) { { tags: tags } }
   let(:id) { SecureRandom.alphanumeric(11) }
   let(:name) { Faker::Lorem.sentence }
   let(:notes) { "notes" }

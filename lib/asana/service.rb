@@ -1,19 +1,14 @@
 # frozen_string_literal: true
 
 require_relative "task"
+require_relative "../base/service"
 
 module Asana
   # A service class to talk to the Asana API
-  class Service
-    prepend MemoWise
-    include Debug
-
-    attr_reader :options
-
-    def initialize(options)
-      @options = options
+  class Service < Base::Service
+    def initialize(options:)
       @personal_access_token = ENV.fetch("ASANA_PERSONAL_ACCESS_TOKEN", nil)
-      @last_sync_data = options[:logger].sync_data_for(friendly_name)
+      super
     end
 
     def friendly_name
@@ -97,13 +92,13 @@ module Asana
     def tasks_to_sync(*)
       visible_project_gids = list_projects.map { |project| project["gid"] }
       task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid) }.flatten.uniq
-      tasks = task_list.map { |task| Task.new(task, options) }
+      tasks = task_list.map { |task| Task.new(asana_task: task, options:) }
       tasks_with_subtasks = tasks.select { |task| task.subtask_count.positive? }
       if tasks_with_subtasks.any?
         tasks_with_subtasks.each do |parent_task|
           subtask_hashes = list_task_subtasks(parent_task.id)
           subtask_hashes.each do |subtask_hash|
-            subtask = Task.new(subtask_hash, options)
+            subtask = Task.new(asana_task: subtask_hash, options:)
             parent_task.subtasks << subtask
             # Remove the subtask from the main task list
             # so we don't double sync them
@@ -130,7 +125,7 @@ module Asana
         response = HTTParty.post("#{base_url}/#{endpoint}", authenticated_options.merge(request_body))
         if response.success?
           response_body = JSON.parse(response.body)
-          new_task = Task.new(response_body["data"], options)
+          new_task = Task.new(asana_task: response_body["data"], options:)
           if (section = memberships_for_task(external_task)["section"])
             request_body = { body: { data: { task: new_task.id } }.to_json }
             response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))
@@ -181,19 +176,6 @@ module Asana
           debug(response.body) if options[:debug]
           "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
         end
-      end
-    end
-
-    def should_sync?(task_updated_at = nil)
-      return true if options[:force]
-
-      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
-      return true if time_since_last_sync.nil?
-
-      if task_updated_at.present?
-        time_since_last_sync < task_updated_at
-      else
-        time_since_last_sync > min_sync_interval
       end
     end
 
