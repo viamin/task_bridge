@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe "Instapaper::Service" do
+RSpec.describe "Instapaper::Service", :vcr do
   let(:service) { Instapaper::Service.new(options:) }
   let(:options) { { logger: } }
   let(:logger)  { double(StructuredLogger) }
@@ -12,6 +12,12 @@ RSpec.describe "Instapaper::Service" do
   before do
     allow(logger).to receive(:sync_data_for).and_return({})
     allow(logger).to receive(:last_synced).and_return(last_sync)
+  end
+
+  it "is set up properly" do
+    expect(service).to be_instance_of(Instapaper::Service)
+    expect(service.options).to eq(options)
+    expect(service.options[:logger]).to eq(logger)
   end
 
   describe "#sync_to_primary" do
