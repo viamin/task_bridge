@@ -26,7 +26,7 @@ class StructuredLogger
     raw_sync_data = sync_data_for(service_name)
     return if raw_sync_data.nil?
 
-    last_sync = Chronic.parse(raw_sync_data["last_successful"])
+    last_sync = Time.parse(raw_sync_data["last_successful"])
     if interval
       Time.now - last_sync
     else
