@@ -7,12 +7,12 @@ Bundler.require(:default)
 require_relative "debug"
 require_relative "note_parser"
 require_relative "structured_logger"
-require_relative "omnifocus/service"
-require_relative "google_tasks/service"
-require_relative "github/service"
-require_relative "instapaper/service"
-require_relative "reclaim/service"
 require_relative "asana/service"
+require_relative "github/service"
+require_relative "google_tasks/service"
+require_relative "instapaper/service"
+require_relative "omnifocus/service"
+require_relative "reclaim/service"
 require_relative "reminders/service"
 
 class TaskBridge

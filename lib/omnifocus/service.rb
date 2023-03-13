@@ -5,11 +5,11 @@ require_relative "../base/service"
 
 module Omnifocus
   class Service < Base::Service
-    attr_reader :omnifocus
+    attr_reader :omnifocus_app
 
     def initialize(options: {})
       # Assumes you already have OmniFocus installed
-      @omnifocus = Appscript.app.by_name(friendly_name).default_document
+      @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
       super
     end
 
@@ -67,7 +67,7 @@ module Omnifocus
         if project(external_task).is_a?(Appscript::Reference)
           parent_object = project(external_task)
         else
-          parent_object = omnifocus
+          parent_object = omnifocus_app
           task_type = :inbox_task
         end
       elsif parent_object.is_a?(Omnifocus::Task)
@@ -190,14 +190,14 @@ module Omnifocus
         debug("Task (#{target_task.name.get}) already has tag #{tag.name.get}") if options[:debug]
       else
         debug("Adding tag #{tag.name.get} to task \"#{target_task.name.get}\"") if options[:debug]
-        omnifocus.add(tag, to: target_task.tags)
+        omnifocus_app.add(tag, to: target_task.tags)
       end
     end
 
     # Looks for an Omnifocus folder matching the folder_name
     def folder(folder_name)
       debug("folder_name: #{folder_name}") if options[:debug]
-      omnifocus.flattened_folders[folder_name].get
+      omnifocus_app.flattened_folders[folder_name].get
     rescue StandardError
       puts "The folder #{folder_name} could not be found in Omnifocus" if options[:verbose]
       nil
@@ -221,7 +221,7 @@ module Omnifocus
           project = folder.flattened_projects[project_structure].get
         else
           # If a folder project can't be found, check for any matching project
-          project ||= omnifocus.flattened_projects[project_structure]
+          project ||= omnifocus_app.flattened_projects[project_structure]
         end
         debug("project: #{project.name.get}") if options[:debug]
       end
@@ -236,7 +236,7 @@ module Omnifocus
 
     # Checks that a tag exists in Omnifocus and if it does, returns it
     def tag(name)
-      tag = omnifocus.flattened_tags[name]
+      tag = omnifocus_app.flattened_tags[name]
       tag.get
     rescue StandardError
       puts "The tag #{name} does not exist in Omnifocus" if options[:verbose]
@@ -256,7 +256,7 @@ module Omnifocus
 
     def inbox_tasks
       debug("called") if options[:debug]
-      inbox_tasks = omnifocus.inbox_tasks.get.map { |t| all_omnifocus_subtasks(t) }.flatten
+      inbox_tasks = omnifocus_app.inbox_tasks.get.map { |t| all_omnifocus_subtasks(t) }.flatten
       inbox_tasks.compact.uniq(&:id_)
     end
     memo_wise :inbox_tasks
@@ -286,7 +286,7 @@ module Omnifocus
       debug("tags: #{tags}") if options[:debug]
       return [] if tags.nil?
 
-      matching_tags = omnifocus.flattened_tags.get.select { |tag| tags.include?(tag.name.get) }
+      matching_tags = omnifocus_app.flattened_tags.get.select { |tag| tags.include?(tag.name.get) }
       all_tasks_in_container(matching_tags, incomplete_only:)
       # matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
     end

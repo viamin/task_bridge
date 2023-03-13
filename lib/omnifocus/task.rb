@@ -108,7 +108,7 @@ module Omnifocus
     end
 
     def original_task
-      Service.new(options:).omnifocus.flattened_tags[*options[:tags]].tasks[title].get
+      Service.new(options:).omnifocus_app.flattened_tags[*options[:tags]].tasks[title].get
     end
     memo_wise :original_task
 

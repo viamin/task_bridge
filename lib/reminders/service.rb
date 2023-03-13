@@ -5,11 +5,11 @@ require_relative "../base/service"
 
 module Reminders
   class Service < Base::Service
-    attr_reader :reminders
+    attr_reader :reminders_app
 
     def initialize(options:)
       # Assumes you already have Reminders installed
-      @reminders = Appscript.app.by_name(tag_name)
+      @reminders_app = Appscript.app.by_name(tag_name)
       super
     end
 
@@ -43,13 +43,13 @@ module Reminders
     end
 
     def lists
-      reminders.lists.get
+      reminders_app.lists.get
     end
     memo_wise :lists
 
     def reminders_in_list(list_name)
       list = lists.find { |list| list.name.get == list_name }
-      list.reminders.get
+      list.reminders_app.get
     end
     memo_wise :reminders_in_list
 
