@@ -31,7 +31,7 @@ module Base
 
     # the default minimum time we should wait between syncing items
     def min_sync_interval
-      15.minutes.to_i
+      raise "not implemented"
     end
   end
 end

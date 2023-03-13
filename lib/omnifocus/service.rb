@@ -126,6 +126,10 @@ module Omnifocus
 
     private
 
+    def min_sync_interval
+      15.minutes.to_i
+    end
+
     # create or update subtasks on a task
     def handle_subtasks(omnifocus_task, external_task)
       debug("omnifocus_task: #{omnifocus_task}, external_task: #{external_task}") if options[:debug]
