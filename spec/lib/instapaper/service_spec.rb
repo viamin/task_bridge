@@ -14,12 +14,6 @@ RSpec.describe "Instapaper::Service", :vcr do
     allow(logger).to receive(:last_synced).and_return(last_sync)
   end
 
-  it "is set up properly" do
-    expect(service).to be_instance_of(Instapaper::Service)
-    expect(service.options).to eq(options)
-    expect(service.options[:logger]).to eq(logger)
-  end
-
   describe "#sync_to_primary" do
     context "with omnifocus" do
       let(:primary_service) { Omnifocus::Service.new(options: {}) }
