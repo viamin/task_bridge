@@ -5,7 +5,7 @@ require_relative "../base/sync_item"
 module Asana
   # A representation of an Asana task
   class Task < Base::SyncItem
-    attr_reader :project, :section, :notes, :subtask_count, :subtasks, :assignee, :sync_id
+    attr_reader :project, :section, :subtask_count, :subtasks, :assignee
 
     def initialize(asana_task:, options:)
       super(sync_item: asana_task, options:)
@@ -14,7 +14,6 @@ module Asana
       @subtask_count = asana_task.fetch("num_subtasks", 0).to_i
       @subtasks = []
       @assignee = asana_task.dig("assignee", "gid")
-      @sync_id, @notes = parsed_notes("sync_id", asana_task["notes"])
     end
 
     def attribute_map

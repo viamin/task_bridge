@@ -41,7 +41,7 @@ module Omnifocus
 
     TIME_TAGS = WEEKDAY_TAGS + MONTH_TAGS + RELATIVE_TIME_TAGS
 
-    attr_reader :estimated_minutes, :notes, :tags, :project, :subtask_count, :subtasks, :sync_id, :sync_url, :due_date # :completion_date
+    attr_reader :estimated_minutes, :tags, :project, :subtask_count, :subtasks, :due_date # :completion_date
 
     def initialize(omnifocus_task:, options:)
       super(sync_item: omnifocus_task, options:)
@@ -53,9 +53,6 @@ module Omnifocus
         ""
       end
       @estimated_minutes = read_attribute(omnifocus_task, :estimated_minutes)
-
-      @sync_id, temp_notes = parsed_notes("sync_id", read_attribute(omnifocus_task, :note))
-      @sync_url, @notes = parsed_notes("url", temp_notes)
 
       @tags = read_attribute(omnifocus_task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
@@ -69,10 +66,13 @@ module Omnifocus
     def attribute_map
       {
         id: "id_",
-        title: "name",
         completed_at: "completion_date",
-        start_date: "defer_date",
         due_date: nil,
+        notes: "note",
+        start_date: "defer_date",
+        status: nil,
+        tags: nil,
+        title: "name",
         updated_at: "modification_date"
       }
     end
@@ -139,10 +139,6 @@ module Omnifocus
       parents
     end
     memo_wise :containers
-
-    def sync_notes
-      notes_with_values(notes, sync_id:, sync_url:)
-    end
 
     # start_at is a "premium" feature, apparently
     def to_asana

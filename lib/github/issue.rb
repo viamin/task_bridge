@@ -5,26 +5,26 @@ require_relative "../base/sync_item"
 module Github
   # A representation of a Github issue
   class Issue < Base::SyncItem
-    attr_reader :number, :tags, :status, :project, :is_pr
+    attr_reader :number, :tags, :project, :is_pr
 
     def initialize(github_issue:, options:)
       super(sync_item: github_issue, options:)
 
-      @number = github_issue["number"]
+      @number = read_attribute(github_issue, "number")
       # Add "Github" to the labels
       @tags = (default_tags + github_issue["labels"].map { |label| label["name"] }).uniq
-      @status = github_issue["state"]
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
       @updated_at = Chronic.parse(github_issue["updated_at"])&.getlocal
     end
 
     def attribute_map
-      standard_attribute_map.merge({
+      {
+        status: "state",
         tags: nil,
         url: "html_url",
         updated_at: nil
-      }).compact
+      }
     end
 
     def provider

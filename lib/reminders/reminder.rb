@@ -5,7 +5,7 @@ require_relative "../base/sync_item"
 module Reminders
   # A representation of an Reminders reminder
   class Reminder < Base::SyncItem
-    attr_reader :list, :notes, :priority
+    attr_reader :list, :priority
 
     def initialize(reminder:, options:)
       super(sync_item: reminder, options:)
@@ -15,7 +15,6 @@ module Reminders
       else
         ""
       end
-      @notes = read_attribute(reminder, :body)
       # TODO: Tags seem to be an OS-wide feature? It's not in the
       # AppleScript dictionary in macOS 13.1
       # @tags = read_attribute(reminder, :tags)
@@ -32,9 +31,10 @@ module Reminders
     def attribute_map
       {
         id: "id_",
-        title: "name",
-        start_date: "remind_me_date",
         due_on: "allday_due_date",
+        notes: "body",
+        start_date: "remind_me_date",
+        title: "name",
         updated_at: "modification_date"
       }
     end

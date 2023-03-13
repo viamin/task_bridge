@@ -4,26 +4,23 @@ require_relative "../base/sync_item"
 
 module Reclaim
   class Task < Base::SyncItem
-    attr_reader :notes, :category, :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :status, :always_private, :sync_id
+    attr_reader :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :always_private
 
     def initialize(reclaim_task:, options:)
       super(sync_item: reclaim_task, options:)
-      @category = reclaim_task["eventCategory"]
-      @time_required = reclaim_task["timeChunksRequired"]
-      @time_spent = reclaim_task["timeChunksSpent"]
-      @time_remaining = reclaim_task["timeChunksRemaining"]
-      @minimum_chunk_size = reclaim_task["minChunkSize"]
-      @maximum_chunk_size = reclaim_task["maxChunkSize"]
-      @status = reclaim_task["status"]
-      @always_private = reclaim_task["alwaysPrivate"]
+
+      @time_required = read_attribute(reclaim_task, "timeChunksRequired")
+      @time_spent = read_attribute(reclaim_task, "timeChunksSpent")
+      @time_remaining = read_attribute(reclaim_task, "timeChunksRemaining")
+      @minimum_chunk_size = read_attribute(reclaim_task, "minChunkSize")
+      @maximum_chunk_size = read_attribute(reclaim_task, "maxChunkSize")
+      @always_private = read_attribute(reclaim_task, "alwaysPrivate")
       @tags = default_tags
       @tags = if personal?
         @tags + @options[:personal_tags].split(",")
       else
         @tags + @options[:work_tags].split(",")
       end
-
-      @sync_id, @notes = parsed_notes("sync_id", reclaim_task["notes"])
     end
 
     def attribute_map
@@ -31,7 +28,8 @@ module Reclaim
         due_date: "due",
         start_date: "snoozeUntil",
         updated_at: "updated",
-        tags: nil
+        tags: nil,
+        type: "eventCategory"
       }
     end
 
@@ -52,14 +50,14 @@ module Reclaim
     end
 
     def personal?
-      category == "PERSONAL"
+      type == "PERSONAL"
     end
 
     def to_json(*_args)
       {
         title:,
         eventColor: nil,
-        eventCategory: category,
+        eventCategory: type,
         timeChunksRequired: time_required,
         snoozeUntil: start_date.rfc3339,
         due: due_date.rfc3339, # "2022-10-08T03:00:00.000Z"

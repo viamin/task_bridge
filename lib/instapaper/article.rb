@@ -4,13 +4,12 @@ require_relative "../base/sync_item"
 
 module Instapaper
   class Article < Base::SyncItem
-    attr_reader :folder, :project, :tags, :estimated_minutes, :updated_at
+    attr_reader :folder, :project, :estimated_minutes, :updated_at
 
     def initialize(instapaper_article:, options:)
       super(sync_item: instapaper_article, options:)
 
-      @folder = instapaper_article["folder"]
-      @tags = default_tags
+      @folder = read_attribute(instapaper_article, "folder")
       @project = ENV.fetch("INSTAPAPER_PROJECT", nil)
       @updated_at = Time.at(instapaper_article["progress_timestamp"])
       @estimated_minutes = nil
