@@ -5,7 +5,7 @@ require_relative "../base/sync_item"
 module Github
   # A representation of a Github issue
   class Issue < Base::SyncItem
-    attr_reader :number, :tags, :project, :is_pr
+    attr_reader :number, :tags, :project, :is_pr, :updated_at
 
     def initialize(github_issue:, options:)
       super(sync_item: github_issue, options:)
