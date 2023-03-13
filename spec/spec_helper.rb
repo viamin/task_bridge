@@ -100,3 +100,16 @@ RSpec.configure do |config|
   # as the one that triggered the failure.
   Kernel.srand config.seed
 end
+
+require "vcr"
+
+VCR.configure do |c|
+  c.cassette_library_dir = "spec/cassettes"
+  c.hook_into :webmock
+  c.configure_rspec_metadata!
+  # From https://stackoverflow.com/a/25571825/5661887
+  c.before_record do |i|
+    i.response.body.force_encoding("UTF-8")
+  end
+  c.ignore_localhost = true
+end

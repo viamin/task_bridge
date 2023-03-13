@@ -19,7 +19,7 @@ RSpec.describe "GoogleTasks::Service" do
     context "with omnifocus" do
       let(:primary_service) { Omnifocus::Service.new({}) }
 
-      it "responds to #sync_from_primary" do
+      it "responds to #sync_from_primary", :vcr, :no_ci do
         expect(service).to be_respond_to(:sync_from_primary)
       end
     end
@@ -35,27 +35,27 @@ RSpec.describe "GoogleTasks::Service" do
     context "when task_updated_at is nil" do
       let(:task_updated_at) { nil }
 
-      context "when last sync was less than min_sync_interval" do
-        let(:last_sync) { Time.now - Chronic.parse("14 minutes ago") }
+      context "when last sync was less than min_sync_interval", :no_ci do
+        let(:last_sync) { Time.now - Chronic.parse("29 minutes ago") }
 
         it { is_expected.to be false }
       end
 
-      context "when last sync was more than min_sync_interval" do
-        let(:last_sync) { Time.now - Chronic.parse("16 minutes ago") }
+      context "when last sync was more than min_sync_interval", :no_ci do
+        let(:last_sync) { Time.now - Chronic.parse("31 minutes ago") }
 
         it { is_expected.to be true }
       end
     end
 
-    context "when task_updated_at is less than min_sync_interval" do
-      let(:task_updated_at) { Chronic.parse("14 minutes ago") }
+    context "when task_updated_at is less than min_sync_interval", :no_ci do
+      let(:task_updated_at) { Chronic.parse("29 minutes ago") }
 
       it { is_expected.to be true }
     end
 
-    context "when task_updated_at is more than min_sync_interval" do
-      let(:task_updated_at) { Chronic.parse("16 minutes ago") }
+    context "when task_updated_at is more than min_sync_interval", :no_ci do
+      let(:task_updated_at) { Chronic.parse("31 minutes ago") }
 
       it { is_expected.to be false }
     end
@@ -72,7 +72,7 @@ RSpec.describe "GoogleTasks::Service" do
       allow(HTTParty).to receive(:post).and_return(httparty_success_mock)
     end
 
-    it "raises an error" do
+    it "raises an error", :no_ci do
       expect { subject }.to raise_error NoMethodError
     end
 
@@ -96,7 +96,7 @@ RSpec.describe "GoogleTasks::Service" do
     let(:google_task) { nil }
     let(:external_task) { nil }
 
-    it "raises an error" do
+    it "raises an error", :vcr, :no_ci do
       expect { subject }.to raise_error NoMethodError
     end
   end

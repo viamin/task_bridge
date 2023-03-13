@@ -19,7 +19,13 @@ RSpec.describe "Asana::Task" do
     it "adds a sync_id to the notes" do
       expect(asana_task.notes).to eq("notes")
       expect(asana_task.sync_id).to eq("jU466dYHf2o")
-      expect(asana_task.sync_notes).to eq("notes\n\nsync_id: jU466dYHf2o\n")
+      expect(asana_task.sync_notes).to start_with("notes\n\nsync_id: jU466dYHf2o\n")
+    end
+
+    it "adds a url to the notes" do
+      expect(asana_task.notes).to eq("notes")
+      expect(asana_task.url).to eq("https://app.asana.com/0/1203152506994879/1203526342802924")
+      expect(asana_task.sync_notes).to end_with("url: https://app.asana.com/0/1203152506994879/1203526342802924\n")
     end
   end
 end
