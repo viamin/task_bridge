@@ -4,7 +4,7 @@ require "spec_helper"
 
 RSpec.describe "Reminders::Reminder" do
   let(:service) { Reminders::Service.new }
-  let(:reminder) { Reminders::Reminder.new(properties, options) }
+  let(:reminder) { Reminders::Reminder.new(reminder: properties, options:) }
   let(:options) { { tags: [] } }
   let(:id) { "x-apple-reminder://#{SecureRandom.uuid.upcase}" }
   let(:name) { Faker::Lorem.sentence }
@@ -23,7 +23,7 @@ RSpec.describe "Reminders::Reminder" do
 
   describe "new" do
     it "parses out the sync_id from notes" do
-      expect(asana_task.sync_id).to eq("jU466dYHf2o")
+      expect(reminder.sync_id).to eq("jU466dYHf2o")
     end
   end
 

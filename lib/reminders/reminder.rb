@@ -44,14 +44,6 @@ module Reminders
       "Reminders"
     end
 
-    def completed?
-      completed
-    end
-
-    def incomplete?
-      !completed?
-    end
-
     def personal?
       true
     end

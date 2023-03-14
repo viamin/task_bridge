@@ -29,6 +29,14 @@ module Base
       @notes = parsed_data["notes"]
     end
 
+    def completed?
+      completed
+    end
+
+    def incomplete?
+      !completed?
+    end
+
     def attribute_map
       raise "not implemented in #{self.class.name}"
     end

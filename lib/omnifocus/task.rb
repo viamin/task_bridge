@@ -86,14 +86,6 @@ module Omnifocus
       "Omnifocus"
     end
 
-    def completed?
-      completed
-    end
-
-    def incomplete?
-      !completed
-    end
-
     def personal?
       if @options[:uses_personal_tags]
         @tags.intersect?(@options[:personal_tags].split(","))
