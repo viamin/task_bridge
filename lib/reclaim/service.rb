@@ -81,6 +81,10 @@ module Reclaim
 
     private
 
+    def min_sync_interval
+      15.minutes.to_i
+    end
+
     # a helper method to fix bad syncs
     def delete_all_tasks
       tasks = list_tasks
