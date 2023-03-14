@@ -68,6 +68,4 @@ end
 group :test do
   gem "faker" # https://github.com/faker-ruby/faker
   gem "rspec"
-  gem "vcr"
-  gem "webmock"
 end

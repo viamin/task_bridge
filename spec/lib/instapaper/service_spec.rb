@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 require "spec_helper"
+require "oauth/request_proxy/mock_request"
 
-RSpec.describe "Instapaper::Service", :vcr do
+RSpec.describe "Instapaper::Service" do
   let(:service) { Instapaper::Service.new(options:) }
   let(:options) { { logger: } }
   let(:logger)  { double(StructuredLogger) }
@@ -12,6 +13,9 @@ RSpec.describe "Instapaper::Service", :vcr do
   before do
     allow(logger).to receive(:sync_data_for).and_return({})
     allow(logger).to receive(:last_synced).and_return(last_sync)
+    allow_any_instance_of(Instapaper::Authentication).to receive(:authenticate!).and_return(
+      OAuth::RequestProxy.proxy({ "parameters" => {}, "method" => "POST", "uri" => "https://www.instapaper.com/api/1/oauth/access_token" })
+    )
   end
 
   describe "#sync_to_primary" do
