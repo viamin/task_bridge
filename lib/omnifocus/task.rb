@@ -1,11 +1,10 @@
 # frozen_string_literal: true
 
+require_relative "../base/sync_item"
+
 module Omnifocus
   # A representation of an Omnifocus task
-  class Task
-    prepend MemoWise
-    include NoteParser
-
+  class Task < Base::SyncItem
     WEEKDAY_TAGS = %w[
       Monday
       Tuesday
@@ -42,36 +41,40 @@ module Omnifocus
 
     TIME_TAGS = WEEKDAY_TAGS + MONTH_TAGS + RELATIVE_TIME_TAGS
 
-    attr_reader :options, :id, :title, :due_date, :completed, :completion_date, :start_date, :flagged, :estimated_minutes, :notes, :tags, :project, :updated_at, :subtask_count, :subtasks, :sync_id, :sync_url, :debug_data
+    attr_reader :estimated_minutes, :tags, :project, :subtask_count, :subtasks, :due_date # :completion_date
 
-    def initialize(task, options)
-      @options = options
-      @id = read_attribute(task, :id_)
-      @title = read_attribute(task, :name)
-      containing_project = read_attribute(task, :containing_project)
+    def initialize(omnifocus_task:, options:)
+      super(sync_item: omnifocus_task, options:)
+
+      containing_project = read_attribute(omnifocus_task, :containing_project)
       @project = if containing_project.respond_to?(:get)
         containing_project.name.get
       else
         ""
       end
-      @completed = read_attribute(task, :completed)
-      @completion_date = read_attribute(task, :completion_date)
-      @start_date = read_attribute(task, :defer_date)
-      @estimated_minutes = read_attribute(task, :estimated_minutes)
-      @flagged = read_attribute(task, :flagged)
+      @estimated_minutes = read_attribute(omnifocus_task, :estimated_minutes)
 
-      @sync_id, temp_notes = parsed_notes("sync_id", read_attribute(task, :note))
-      @sync_url, @notes = parsed_notes("url", temp_notes)
-
-      @tags = read_attribute(task, :tags)
+      @tags = read_attribute(omnifocus_task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
-      @due_date = date_from_tags(task, @tags)
-      @updated_at = read_attribute(task, :modification_date)
-      @subtasks = read_attribute(task, :tasks).map do |subtask|
-        Task.new(subtask, @options)
+      @due_date = date_from_tags(omnifocus_task, @tags)
+      @subtasks = read_attribute(omnifocus_task, :tasks).map do |subtask|
+        Task.new(omnifocus_task: subtask, options: @options)
       end
       @subtask_count = @subtasks.count
-      @debug_data = task if @options[:debug]
+    end
+
+    def attribute_map
+      {
+        id: "id_",
+        completed_at: "completion_date",
+        due_date: nil,
+        notes: "note",
+        start_date: "defer_date",
+        status: nil,
+        tags: nil,
+        title: "name",
+        updated_at: "modification_date"
+      }
     end
 
     def provider
@@ -105,7 +108,7 @@ module Omnifocus
     end
 
     def original_task
-      Service.new(options).omnifocus.flattened_tags[*options[:tags]].tasks[title].get
+      Service.new(options:).omnifocus_app.flattened_tags[*options[:tags]].tasks[title].get
     end
     memo_wise :original_task
 
@@ -136,18 +139,6 @@ module Omnifocus
       parents
     end
     memo_wise :containers
-
-    def friendly_title
-      title
-    end
-
-    def to_s
-      "#{provider}::Task:(#{id})#{title}"
-    end
-
-    def sync_notes
-      notes_with_values(notes, sync_id:, sync_url:)
-    end
 
     # start_at is a "premium" feature, apparently
     def to_asana
@@ -190,7 +181,7 @@ module Omnifocus
         snoozeUntil: start_date&.iso8601,
         timeChunksRequired: time_chunks_required,
         title:
-      }.to_json
+      }
     end
 
     private
@@ -210,12 +201,6 @@ module Omnifocus
         date += 1.year if tags & MONTH_TAGS
       end
       date
-    end
-
-    def read_attribute(task, attribute, missing_value = nil)
-      value = task.send(attribute)
-      value = value.get if value.respond_to?(:get)
-      value == :missing_value ? missing_value : value
     end
   end
 end

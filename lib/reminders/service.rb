@@ -1,18 +1,16 @@
 # frozen_string_literal: true
 
-require_relative "task"
+require_relative "reminder"
+require_relative "../base/service"
 
 module Reminders
-  class Service
-    prepend MemoWise
-    include Debug
+  class Service < Base::Service
+    attr_reader :reminders_app
 
-    attr_reader :options, :reminders
-
-    def initialize(options = {})
-      @options = options
+    def initialize(options:)
+      super
       # Assumes you already have Reminders installed
-      @reminders = Appscript.app.by_name(tag_name)
+      @reminders_app = Appscript.app.by_name(tag_name)
     end
 
     def tag_name
@@ -37,15 +35,6 @@ module Reminders
 
     def update_task(reminder, external_task); end
 
-    def should_sync?(task_updated_at = nil)
-      time_since_last_sync = options[:logger].last_synced(tag_name, interval: task_updated_at.nil?)
-      if task_updated_at.present?
-        time_since_last_sync < task_updated_at
-      else
-        time_since_last_sync > min_sync_interval
-      end
-    end
-
     private
 
     # the minimum time we should wait between syncing tasks
@@ -54,13 +43,13 @@ module Reminders
     end
 
     def lists
-      reminders.lists.get
+      reminders_app.lists.get
     end
     memo_wise :lists
 
     def reminders_in_list(list_name)
       list = lists.find { |list| list.name.get == list_name }
-      list.reminders.get
+      list.reminders_app.get
     end
     memo_wise :reminders_in_list
 

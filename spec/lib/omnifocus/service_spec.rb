@@ -3,8 +3,15 @@
 require "spec_helper"
 
 RSpec.describe "Omnifocus::Service" do
-  let(:service) { Omnifocus::Service.new(options) }
-  let(:options) { {} }
+  let(:service) { Omnifocus::Service.new(options:) }
+  let(:options) { { logger:, tags: [] } }
+  let(:logger)  { double(StructuredLogger) }
+  let(:last_sync) { Time.now - service.send(:min_sync_interval) }
+
+  before do
+    allow(logger).to receive(:sync_data_for).and_return({})
+    allow(logger).to receive(:last_synced).and_return(last_sync)
+  end
 
   describe "#tasks_to_sync" do
     subject { service.tasks_to_sync(tags:, projects:, folder:, inbox:, incomplete_only:) }
@@ -31,7 +38,7 @@ RSpec.describe "Omnifocus::Service" do
       let(:projects) { "TaskBridge" }
 
       it "returns tasks in a project", :no_ci do
-        expect(subject.count).to eq(1)
+        expect(subject.count).to eq(4)
       end
     end
 
@@ -39,7 +46,7 @@ RSpec.describe "Omnifocus::Service" do
       let(:folder) { "TaskBridge" }
 
       it "returns all tasks in a folder", :no_ci do
-        expect(subject.count).to eq(3)
+        expect(subject.count).to eq(6)
       end
     end
 

@@ -1,23 +1,30 @@
 # frozen_string_literal: true
 
+require_relative "../base/sync_item"
+
 module Github
   # A representation of a Github issue
-  class Issue
-    attr_reader :options, :id, :title, :url, :number, :tags, :status, :project, :is_pr, :updated_at, :debug_data
+  class Issue < Base::SyncItem
+    attr_reader :number, :tags, :project, :is_pr, :updated_at
 
-    def initialize(github_issue, options)
-      @options = options
-      @url = github_issue["html_url"]
-      @id = github_issue["id"]
-      @number = github_issue["number"]
-      @title = github_issue["title"]
+    def initialize(github_issue:, options:)
+      super(sync_item: github_issue, options:)
+
+      @number = read_attribute(github_issue, "number")
       # Add "Github" to the labels
       @tags = (default_tags + github_issue["labels"].map { |label| label["name"] }).uniq
-      @status = github_issue["state"]
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
       @updated_at = Chronic.parse(github_issue["updated_at"])&.getlocal
-      @debug_data = github_issue if @options[:debug]
+    end
+
+    def attribute_map
+      {
+        status: "state",
+        tags: nil,
+        url: "html_url",
+        updated_at: nil
+      }
     end
 
     def provider
@@ -36,10 +43,6 @@ module Github
       "#{project}-##{number}: #{is_pr ? '[PR] ' : ''}#{title.strip}"
     end
 
-    def to_s
-      "#{provider}::Issue:(#{id})#{friendly_title}"
-    end
-
     #       #####
     #      #     # ###### #####  #    # #  ####  ######  ####
     #      #       #      #    # #    # # #    # #      #
@@ -56,10 +59,6 @@ module Github
     end
 
     private
-
-    def default_tags
-      options[:tags] + ["Github"]
-    end
 
     def short_repo_name(github_issue)
       github_issue["repository_url"].split("/").last

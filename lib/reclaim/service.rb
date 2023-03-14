@@ -1,20 +1,15 @@
 # frozen_string_literal: true
 
 require_relative "task"
+require_relative "../base/service"
 
 module Reclaim
   # Reclaim sync is currently unsupported since the API is not public and
   # this is not expected to work
-  class Service
-    prepend MemoWise
-    include Debug
-
-    attr_reader :options
-
-    def initialize(options)
-      @options = options
+  class Service < Base::Service
+    def initialize(options:)
+      super
       @api_key = ENV.fetch("RECLAIM_API_KEY", nil)
-      @last_sync_data = options[:logger].sync_data_for(friendly_name)
     end
 
     def friendly_name
@@ -48,7 +43,7 @@ module Reclaim
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
     def tasks_to_sync(*)
-      list_tasks.map { |reclaim_task| Task.new(reclaim_task, options) }
+      list_tasks.map { |reclaim_task| Task.new(reclaim_task:, options:) }
     end
     memo_wise :tasks_to_sync
 
@@ -70,7 +65,7 @@ module Reclaim
 
     def update_task(reclaim_task, external_task)
       debug("reclaim_task: #{reclaim_task.title}") if options[:debug]
-      request_body = { body: external_task.to_reclaim }
+      request_body = { body: external_task.to_reclaim.to_json }
       if options[:pretend]
         "Would have updated task #{external_task.title} in Reclaim"
       else
@@ -78,30 +73,13 @@ module Reclaim
         if response.success?
           JSON.parse(response.body)
         else
-          binding.pry
           debug(response.body) if options[:debug]
           "Failed to update Reclaim task ##{reclaim_task.id} with code #{response.code} - check api key"
         end
       end
     end
 
-    def should_sync?(task_updated_at = nil)
-      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
-      return true if time_since_last_sync.nil?
-
-      if task_updated_at.present?
-        time_since_last_sync < task_updated_at
-      else
-        time_since_last_sync > min_sync_interval
-      end
-    end
-
     private
-
-    # the minimum time we should wait between syncing tasks
-    def min_sync_interval
-      15.minutes.to_i
-    end
 
     # a helper method to fix bad syncs
     def delete_all_tasks
