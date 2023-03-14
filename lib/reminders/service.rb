@@ -30,7 +30,7 @@ module Reminders
     end
 
     def items_to_sync(*)
-      sync_maps = options[:reminders_mapping].split(",").map { |mapping| mapping.split("|") }
+      sync_maps = options[:reminders_mapping].split(",").map { |mapping| mapping.split("~") }
       reminders_lists = sync_maps.map(&:first)
     end
     memo_wise :items_to_sync

@@ -48,7 +48,10 @@ module Reminders
       true
     end
 
-    def original_reminder; end
+    def original_reminder
+      # TODO: Figure out how to find the original reminder from a synced copy (probably this will just be the URL)
+      # Service.new(options:).reminders_app.flattened_tags[*options[:tags]].tasks[title].get
+    end
     memo_wise :original_reminder
 
     def friendly_title
