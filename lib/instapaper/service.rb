@@ -13,8 +13,8 @@ module Instapaper
     attr_reader :authentication
 
     def initialize(options:)
-      @authentication = Authentication.new(options).authenticate!
       super
+      @authentication = Authentication.new(options).authenticate!
     rescue StandardError
       # If authentication fails, skip the service
       nil

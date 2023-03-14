@@ -8,9 +8,9 @@ module Omnifocus
     attr_reader :omnifocus_app
 
     def initialize(options: {})
+      super
       # Assumes you already have OmniFocus installed
       @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
-      super
     end
 
     def friendly_name

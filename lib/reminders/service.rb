@@ -8,9 +8,9 @@ module Reminders
     attr_reader :reminders_app
 
     def initialize(options:)
+      super
       # Assumes you already have Reminders installed
       @reminders_app = Appscript.app.by_name(tag_name)
-      super
     end
 
     def tag_name

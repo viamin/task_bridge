@@ -8,8 +8,8 @@ module Reclaim
   # this is not expected to work
   class Service < Base::Service
     def initialize(options:)
-      @api_key = ENV.fetch("RECLAIM_API_KEY", nil)
       super
+      @api_key = ENV.fetch("RECLAIM_API_KEY", nil)
     end
 
     def friendly_name

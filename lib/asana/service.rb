@@ -7,8 +7,8 @@ module Asana
   # A service class to talk to the Asana API
   class Service < Base::Service
     def initialize(options:)
-      @personal_access_token = ENV.fetch("ASANA_PERSONAL_ACCESS_TOKEN", nil)
       super
+      @personal_access_token = ENV.fetch("ASANA_PERSONAL_ACCESS_TOKEN", nil)
     end
 
     def friendly_name
