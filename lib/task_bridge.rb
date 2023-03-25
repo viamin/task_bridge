@@ -83,14 +83,14 @@ class TaskBridge
         @service_logs << service.sync_to_primary(@primary_service)
       elsif @options[:only_from_primary] && service.respond_to?(:sync_from_primary)
         @service_logs << service.sync_from_primary(@primary_service)
-      elsif service.respond_to?(:sync_with_primary)
+      elsif service.sync_strategies.include?(:two_way)
         # if the #sync_with_primary method exists, we should use it unless options force us not to
         @service_logs << service.sync_with_primary(@primary_service)
       else
         # Generally we should sync FROM the primary service first, since it should be the source of truth
         # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-        @service_logs << service.sync_from_primary(@primary_service) if service.respond_to?(:sync_from_primary)
-        @service_logs << service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary)
+        @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
+        @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
       end
       @options[:logger].save_service_log!(@service_logs)
     end

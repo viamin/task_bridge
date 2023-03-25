@@ -4,6 +4,9 @@ require_relative "../base/sync_item"
 
 module Reclaim
   class Task < Base::SyncItem
+    PERSONAL = "PERSONAL"
+    WORK = "WORK"
+
     attr_reader :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :always_private
 
     def initialize(reclaim_task:, options:)
@@ -41,7 +44,7 @@ module Reclaim
       "Reclaim"
     end
 
-    def complete?
+    def completed?
       time_remaining <= 0
     end
 

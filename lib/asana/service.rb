@@ -11,85 +11,20 @@ module Asana
       @personal_access_token = ENV.fetch("ASANA_PERSONAL_ACCESS_TOKEN", nil)
     end
 
+    def item_class
+      Task
+    end
+
     def friendly_name
       "Asana"
     end
 
-    # For new tasks on either service, creates new matching ones
-    # for existing tasks, first check for an updated_at timestamp
-    # and sync from the service with the newer modification
-    def sync_with_primary(primary_service)
-      return @last_sync_data unless should_sync?
-
-      primary_tasks = primary_service.tasks_to_sync(tags: [friendly_name])
-      asana_tasks = tasks_to_sync
-      # Step 1: pair tasks that have matching sync_ids
-      paired_tasks = {}
-      primary_tasks.each do |primary_task|
-        matching_task = asana_tasks.find { |asana_task| (asana_task.sync_id == primary_task.id) || (asana_task.id == primary_task.sync_id) }
-        paired_tasks[primary_task] = matching_task if matching_task
-      end
-      unmatched_primary_tasks = primary_tasks - paired_tasks.keys
-      unmatched_asana_tasks = asana_tasks - paired_tasks.values
-      tasks_grouped_by_title = (unmatched_primary_tasks + unmatched_asana_tasks).group_by { |task| task.title.downcase.strip }
-      unless options[:quiet]
-        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ",
-                                         total: paired_tasks.length + tasks_grouped_by_title.length,
-                                         title: "#{primary_service.class.name} syncing with Asana")
-      end
-      paired_tasks.each do |primary_task, asana_task|
-        if primary_task.updated_at > asana_task.updated_at
-          update_task(asana_task, primary_task)
-        else
-          primary_service.update_task(primary_task, asana_task)
-        end
-      end
-      tasks_grouped_by_title.each do |_title, tasks|
-        output = case tasks.length
-                 when 1
-                   task = tasks.first
-                   if task.instance_of?(Asana::Task)
-                     unless task.assignee == asana_user["gid"] || task.assignee.nil?
-                       # Skip creating new tasks that are not assigned to the owner of the Personal Access Token
-                       # Unassigned tasks are fine to create as well
-                       progressbar.increment unless options[:quiet]
-                       next
-                     end
-                     primary_service.add_task(task) unless task.completed?
-                   else # task is a primary_service task
-                     add_task(task) unless task.completed?
-                   end
-                 when 2 # task already exists
-                   newer_task = tasks.max_by(&:updated_at)
-                   older_task = tasks.min_by(&:updated_at)
-                   if should_sync?(newer_task.updated_at)
-                     if newer_task.instance_of?(Asana::Task) && !older_task.instance_of?(Asana::Task)
-                       primary_service.update_task(older_task, newer_task)
-                     elsif newer_task.instance_of?(Asana::Task) && older_task.instance_of?(Asana::Task)
-                       primary_service.add_task(older_task) unless older_task.completed?
-                       primary_service.add_task(newer_task) unless newer_task.completed?
-                     elsif !newer_task.instance_of?(Asana::Task) && !older_task.instance_of?(Asana::Task)
-                       add_task(older_task) unless older_task.completed?
-                       add_task(newer_task) unless newer_task.completed?
-                     else
-                       update_task(older_task, newer_task)
-                     end
-                   elsif options[:debug]
-                     debug("Skipping sync of #{newer_task.title} (should_sync? == false)")
-                   end
-                 else
-                   puts tasks.map(&:title)
-          # raise "Too many tasks!"
-        end
-        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
-        progressbar.increment unless options[:quiet]
-      end
-      puts "Synced #{paired_tasks.length + tasks_grouped_by_title.length} #{options[:primary]} and Asana items" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: paired_tasks.length + tasks_grouped_by_title.length }.stringify_keys
+    def sync_strategies
+      [:two_way]
     end
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
-    def tasks_to_sync(*)
+    def items_to_sync(*)
       visible_project_gids = list_projects.map { |project| project["gid"] }
       task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid) }.flatten.uniq
       tasks = task_list.map { |task| Task.new(asana_task: task, options:) }
@@ -109,9 +44,9 @@ module Asana
       end
       tasks
     end
-    memo_wise :tasks_to_sync
+    memo_wise :items_to_sync
 
-    def add_task(external_task, parent_task_gid = nil)
+    def add_item(external_task, parent_task_gid = nil)
       debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}") if options[:debug]
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
@@ -142,7 +77,7 @@ module Asana
       end
     end
 
-    def update_task(asana_task, external_task)
+    def update_item(asana_task, external_task)
       debug("asana_task: #{asana_task.title}") if options[:debug]
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
@@ -186,6 +121,18 @@ module Asana
       5.minutes.to_i
     end
 
+    # Defines the conditions under which a task should be not be created,
+    # either in the primary_service or in Asana
+    def skip_create?(task)
+      return true if task.completed?
+
+      # Don't create a task in the primary service if the Asana task
+      # is assigned to someone other than the API user
+      return true if task.instance_of?(item_class) && (task.assignee == asana_user["gid"] || task.assignee.nil?)
+
+      false
+    end
+
     # create or update subtasks on a task
     def handle_subtasks(asana_task, external_task)
       debug("") if options[:debug]
@@ -193,10 +140,10 @@ module Asana
 
       external_task.subtasks.each do |subtask|
         if (existing_task = asana_task.subtasks.find { |asana_subtask| friendly_titles_match?(asana_subtask, subtask) })
-          update_task(existing_task, subtask)
+          update_item(existing_task, subtask)
           "Updated subtask #{subtask.title} of task #{external_task.title} in Asana"
         else
-          add_task(subtask, asana_task.id) unless subtask.completed?
+          add_item(subtask, asana_task.id) unless subtask.completed?
           "Created subtask #{subtask.title} of task #{external_task.title} in Asana"
         end
       end

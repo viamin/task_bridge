@@ -25,8 +25,8 @@ RSpec.describe "GoogleTasks::Service" do
     end
   end
 
-  describe "#tasks_to_sync" do
-    subject { service.tasks_to_sync }
+  describe "#items_to_sync" do
+    subject { service.items_to_sync }
   end
 
   describe "#should_sync?" do
@@ -61,8 +61,8 @@ RSpec.describe "GoogleTasks::Service" do
     end
   end
 
-  describe "#add_task" do
-    subject { service.add_task(tasklist, external_task, parent_task_gid) }
+  describe "#add_item" do
+    subject { service.add_item(tasklist, external_task, parent_task_gid) }
 
     let(:external_task) { nil }
     let(:parent_task_gid) { nil }
@@ -77,7 +77,7 @@ RSpec.describe "GoogleTasks::Service" do
     end
 
     context "with Omnifocus task" do
-      let(:external_task) { Omnifocus::Service.new.tasks_to_sync(projects: "TaskBridge:Test").first }
+      let(:external_task) { Omnifocus::Service.new.items_to_sync(projects: "TaskBridge:Test").first }
 
       context "with a regular task" do
       end
@@ -90,8 +90,8 @@ RSpec.describe "GoogleTasks::Service" do
     end
   end
 
-  describe "#update_task" do
-    subject { service.update_task(tasklist, google_task, external_task, options) }
+  describe "#update_item" do
+    subject { service.update_item(tasklist, google_task, external_task, options) }
 
     let(:google_task) { nil }
     let(:external_task) { nil }

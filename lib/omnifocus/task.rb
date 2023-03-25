@@ -140,6 +140,10 @@ module Omnifocus
     end
     memo_wise :containers
 
+    def sync_url
+      "omnifocus:///task/#{id}"
+    end
+
     # start_at is a "premium" feature, apparently
     def to_asana
       {

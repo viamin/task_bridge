@@ -24,8 +24,8 @@ RSpec.describe "Asana::Service" do
     end
   end
 
-  describe "#tasks_to_sync" do
-    subject { service.tasks_to_sync }
+  describe "#items_to_sync" do
+    subject { service.items_to_sync }
   end
 
   describe "#should_sync?" do
@@ -60,8 +60,8 @@ RSpec.describe "Asana::Service" do
     end
   end
 
-  describe "#add_task" do
-    subject { service.add_task(external_task, parent_task_gid) }
+  describe "#add_item" do
+    subject { service.add_item(external_task, parent_task_gid) }
 
     let(:external_task) { nil }
     let(:parent_task_gid) { nil }
@@ -76,7 +76,7 @@ RSpec.describe "Asana::Service" do
     end
 
     context "with Omnifocus task" do
-      let(:external_task) { Omnifocus::Service.new.tasks_to_sync(projects: "TaskBridge:Test").first }
+      let(:external_task) { Omnifocus::Service.new.items_to_sync(projects: "TaskBridge:Test").first }
 
       context "with a regular task" do
       end
@@ -89,8 +89,8 @@ RSpec.describe "Asana::Service" do
     end
   end
 
-  describe "#update_task" do
-    subject { service.update_task(asana_task, external_task) }
+  describe "#update_item" do
+    subject { service.update_item(asana_task, external_task) }
 
     let(:asana_task) { nil }
     let(:external_task) { nil }

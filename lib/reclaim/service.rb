@@ -12,6 +12,10 @@ module Reclaim
       @api_key = ENV.fetch("RECLAIM_API_KEY", nil)
     end
 
+    def item_class
+      Task
+    end
+
     def friendly_name
       "Reclaim"
     end
@@ -19,8 +23,8 @@ module Reclaim
     def sync_from_primary(primary_service)
       return @last_sync_data unless should_sync?
 
-      primary_tasks = primary_service.tasks_to_sync(tags: [friendly_name])
-      reclaim_tasks = tasks_to_sync
+      primary_tasks = primary_service.items_to_sync(tags: [friendly_name])
+      reclaim_tasks = items_to_sync
       unless options[:quiet]
         progressbar = ProgressBar.create(
           format: "%t: %c/%C |%w>%i| %e ",
@@ -30,9 +34,9 @@ module Reclaim
       end
       primary_tasks.each do |primary_task|
         output = if (existing_task = reclaim_tasks.find { |reclaim_task| friendly_titles_match?(reclaim_task, primary_task) })
-          update_task(existing_task, primary_task)
+          update_item(existing_task, primary_task)
         else
-          add_task(primary_task) unless primary_task.completed
+          add_item(primary_task) unless primary_task.completed
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
@@ -42,12 +46,12 @@ module Reclaim
     end
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
-    def tasks_to_sync(*)
+    def items_to_sync(*)
       list_tasks.map { |reclaim_task| Task.new(reclaim_task:, options:) }
     end
-    memo_wise :tasks_to_sync
+    memo_wise :items_to_sync
 
-    def add_task(external_task)
+    def add_item(external_task)
       debug("external_task: #{external_task}") if options[:debug]
       request_body = { body: external_task.to_reclaim }
       if options[:pretend]
@@ -63,7 +67,7 @@ module Reclaim
       end
     end
 
-    def update_task(reclaim_task, external_task)
+    def update_item(reclaim_task, external_task)
       debug("reclaim_task: #{reclaim_task.title}") if options[:debug]
       request_body = { body: external_task.to_reclaim.to_json }
       if options[:pretend]

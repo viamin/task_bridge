@@ -39,7 +39,7 @@ module Base
     end
 
     def sync_notes
-      notes_with_values(notes, sync_id:, sync_url:)
+      notes_with_values(notes, sync_id:, url: sync_url)
     end
 
     def to_s
@@ -57,11 +57,6 @@ module Base
 
     def default_tags
       options[:tags] + [provider]
-    end
-
-    # Subclasses should override this
-    def attribute_map
-      raise "Not implemented"
     end
 
     def standard_attribute_map

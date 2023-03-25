@@ -23,6 +23,7 @@ module Github
         status: "state",
         tags: nil,
         url: "html_url",
+        notes: "body",
         updated_at: nil
       }
     end
@@ -41,6 +42,10 @@ module Github
 
     def friendly_title
       "#{project}-##{number}: #{is_pr ? '[PR] ' : ''}#{title.strip}"
+    end
+
+    def sync_url
+      url
     end
 
     #       #####

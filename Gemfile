@@ -60,8 +60,6 @@ group :development do
   gem "pry" # https://github.com/pry/pry
   gem "rubocop"
   gem "rubocop-performance"
-  gem "ruby-lsp", "~> 0.4.1", require: false
-  gem "solargraph"
   gem "standard"
 end
 

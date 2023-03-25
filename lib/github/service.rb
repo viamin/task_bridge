@@ -17,14 +17,18 @@ module Github
       nil
     end
 
+    def item_class
+      Issue
+    end
+
     def friendly_name
       "Github"
     end
 
     # By default Github syncs TO the primary service
     def sync_to_primary(primary_service)
-      issues = issues_to_sync(options[:tags])
-      existing_tasks = primary_service.tasks_to_sync(tags: [friendly_name], inbox: true)
+      issues = items_to_sync(options[:tags])
+      existing_tasks = primary_service.items_to_sync(tags: [friendly_name], inbox: true)
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length,
                                          title: "Github issues")
@@ -35,12 +39,12 @@ module Github
                        issue.friendly_title.downcase == task.title.downcase.strip
                      end)
           if should_sync?(issue.updated_at)
-            primary_service.update_task(existing_task, issue)
+            primary_service.update_item(existing_task, issue)
           elsif options[:debug]
             debug("Skipping sync of #{issue.title} (should_sync? == false)")
           end
         elsif issue.open?
-          primary_service.add_task(issue, options)
+          primary_service.add_item(issue, options)
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
@@ -74,7 +78,7 @@ module Github
       end
     end
 
-    def issues_to_sync(tags = nil)
+    def items_to_sync(tags = nil)
       tagged_issues = sync_repositories
                       .map { |repo| list_issues(repo, tags) }
                       .flatten
@@ -84,7 +88,7 @@ module Github
                         .map { |issue| Issue.new(github_issue: issue, options:) }
       (tagged_issues + assigned_issues).uniq(&:id)
     end
-    memo_wise :issues_to_sync
+    memo_wise :items_to_sync
 
     # https://docs.github.com/en/rest/issues/issues#list-issues-assigned-to-the-authenticated-user
     # For some reason this API call doesn't always return

@@ -29,6 +29,11 @@ module GoogleTasks
       @authorized = false
     end
 
+    desc "item_class", "The class of the item to sync"
+    def item_class
+      Google::Apis::TasksV1::Task
+    end
+
     desc "friendly_name", "The friendly name of the service for use in tagging (and elsewhere)"
     def friendly_name
       "Google Tasks"
@@ -36,7 +41,7 @@ module GoogleTasks
 
     desc "sync_from_primary", "Sync from primary service tasks to Google Tasks"
     def sync_from_primary(primary_service)
-      tasks = primary_service.tasks_to_sync(tags: [friendly_name])
+      tasks = primary_service.items_to_sync(tags: [friendly_name])
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
                                          title: friendly_name)
@@ -44,10 +49,10 @@ module GoogleTasks
       tasks.each do |task|
         # next if options[:max_age] && task.updated_at && (task.updated_at < options[:max_age])
 
-        output = if (existing_task = tasks_to_sync.find { |t| friendly_titles_match?(t, task) })
-          update_task(tasklist, existing_task, task, options)
+        output = if (existing_task = items_to_sync.find { |t| friendly_titles_match?(t, task) })
+          update_item(tasklist, existing_task, task, options)
         else
-          add_task(tasklist, task, options) unless task.completed
+          add_item(tasklist, task, options) unless task.completed
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
@@ -56,14 +61,14 @@ module GoogleTasks
       { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
     end
 
-    desc "tasks_to_sync", "Get all of the tasks to sync in options[:list]"
-    def tasks_to_sync(*)
+    desc "items_to_sync", "Get all of the tasks to sync in options[:list]"
+    def items_to_sync(*)
       debug("called") if options[:debug]
-      @tasks_to_sync ||= tasks_service.list_tasks(tasklist.id, max_results: 100).items
+      @items_to_sync ||= tasks_service.list_tasks(tasklist.id, max_results: 100).items
     end
 
-    desc "add_task", "Add a new task to a given task list"
-    def add_task(tasklist, external_task, options)
+    desc "add_item", "Add a new task to a given task list"
+    def add_item(tasklist, external_task, options)
       return external_task.flag! if external_task.respond_to?(:estimated_minutes) && external_task.estimated_minutes.nil?
 
       google_task = Google::Apis::TasksV1::Task.new(**external_task.to_google)
@@ -73,8 +78,8 @@ module GoogleTasks
       google_task.to_h
     end
 
-    desc "update_task", "Update an existing task in a task list"
-    def update_task(tasklist, google_task, external_task, options)
+    desc "update_item", "Update an existing task in a task list"
+    def update_item(tasklist, google_task, external_task, options)
       puts "#{self.class}##{__method__} existing_task: #{google_task.pretty_inspect}" if options[:debug]
       updated_task = Google::Apis::TasksV1::Task.new(**external_task.to_google)
       puts "#{self.class}##{__method__} updated_task: #{updated_task.pretty_inspect}" if options[:debug]
@@ -106,13 +111,13 @@ module GoogleTasks
     # a helper method to fix bad syncs
     # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L291
     def delete_all_tasks
-      progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: tasks_to_sync.length)
-      tasks_to_sync.each do |task|
+      progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: items_to_sync.length)
+      items_to_sync.each do |task|
         tasks_service.delete_task(tasklist.id, task.id)
         sleep 0.5
         progressbar.increment
       end
-      puts "Deleted #{tasks_to_sync.count} tasks"
+      puts "Deleted #{items_to_sync.count} tasks"
     end
 
     # the minimum time we should wait between syncing tasks

@@ -20,6 +20,10 @@ module Instapaper
       nil
     end
 
+    def item_class
+      Article
+    end
+
     def friendly_name
       "Instapaper"
     end
@@ -27,7 +31,7 @@ module Instapaper
     # Instapaper only syncs TO another service
     def sync_to_primary(primary_service)
       articles = unread_and_recent_articles
-      existing_tasks = primary_service.tasks_to_sync(tags: [friendly_name], inbox: true)
+      existing_tasks = primary_service.items_to_sync(tags: [friendly_name], inbox: true)
       unless options[:quiet]
         progressbar = ProgressBar.create(
           format: "%t: %c/%C |%w>%i| %e ",
@@ -41,13 +45,13 @@ module Instapaper
                        article.friendly_title.downcase == task.title.downcase.strip
                      end)
           if should_sync?(article.updated_at)
-            primary_service.update_task(existing_task, article)
+            primary_service.update_item(existing_task, article)
           elsif options[:debug]
             debug("Skipping sync of #{article.title} (should_sync? == false)")
           end
         elsif article.unread?
           article.read_time(self)
-          primary_service.add_task(article, options)
+          primary_service.add_item(article, options)
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]

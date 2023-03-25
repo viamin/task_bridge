@@ -61,12 +61,13 @@ RSpec.describe "Omnifocus::Task" do
   end
 
   describe "#sync_notes" do
-    let(:notes) { "notes\n\nsync_id: jU466dYHf2o\n" }
+    let(:notes) { "notes\n\nsync_id: #{id}\n" }
 
     it "adds a sync_id to the notes" do
       expect(task.notes).to eq("notes")
-      expect(task.sync_id).to eq("jU466dYHf2o")
-      expect(task.sync_notes).to eq("notes\n\nsync_id: jU466dYHf2o\n")
+      expect(task.sync_id).to eq(id)
+      expect(task.sync_url).to eq("omnifocus:///task/#{id}")
+      expect(task.sync_notes).to eq("notes\n\nsync_id: #{id}\nurl: omnifocus:///task/#{id}\n")
     end
   end
 end

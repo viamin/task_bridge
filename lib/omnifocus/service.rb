@@ -13,23 +13,27 @@ module Omnifocus
       @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
     end
 
+    def item_class
+      Task
+    end
+
     def friendly_name
       "Omnifocus"
     end
 
     # Sync primary service tasks to Omnifocus
     def sync_from_primary(primary_service)
-      tasks = primary_service.tasks_to_sync(tags: [friendly_name])
-      existing_tasks = tasks_to_sync(tags: options[:tags], inbox: true)
+      tasks = primary_service.items_to_sync(tags: [friendly_name])
+      existing_tasks = items_to_sync(tags: options[:tags], inbox: true)
       unless options[:quiet]
         progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
                                          title: "Omnifocus Tasks")
       end
       tasks.each do |task|
         output = if (existing_task = existing_tasks.find { |t| friendly_titles_match?(t, task) })
-          update_task(existing_task, task)
+          update_item(existing_task, task)
         else
-          add_task(task) unless task.completed
+          add_item(task) unless task.completed
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
@@ -38,7 +42,7 @@ module Omnifocus
       { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
     end
 
-    def tasks_to_sync(tags: nil, projects: nil, folder: nil, inbox: false, incomplete_only: false)
+    def items_to_sync(tags: nil, projects: nil, folder: nil, inbox: false, incomplete_only: false)
       tagged_tasks = tagged_tasks(tags, incomplete_only:)
       project_tasks = project_tasks(projects, incomplete_only:)
       folder_tasks = folder_tasks(folder, incomplete_only:)
@@ -58,9 +62,9 @@ module Omnifocus
       subtask_ids = tasks_with_subtasks.map(&:subtasks).flatten.map(&:id)
       tasks.delete_if { |task| subtask_ids.include?(task.id) }
     end
-    memo_wise :tasks_to_sync
+    memo_wise :items_to_sync
 
-    def add_task(external_task, options = {}, parent_object = nil)
+    def add_item(external_task, options = {}, parent_object = nil)
       debug("external_task: #{external_task}, parent_object: #{parent_object}") if options[:debug]
       task_type = :task
       if parent_object.nil?
@@ -88,7 +92,7 @@ module Omnifocus
       new_task
     end
 
-    def update_task(omnifocus_task, external_task)
+    def update_item(omnifocus_task, external_task)
       debug("omnifocus_task: #{omnifocus_task}, external_task: #{external_task}") if options[:debug]
       if options[:max_age_timestamp] && external_task.updated_at && (external_task.updated_at < options[:max_age_timestamp])
         "Last modified more than #{options[:max_age]} ago - skipping #{external_task.title}"
@@ -138,10 +142,10 @@ module Omnifocus
       omnifocus_subtasks = omnifocus_task.subtasks
       external_task.subtasks.each do |subtask|
         if (existing_subtask = omnifocus_subtasks.find { |omnifocus_subtask| friendly_titles_match?(omnifocus_subtask, subtask) })
-          update_task(existing_subtask, subtask)
+          update_item(existing_subtask, subtask)
           "Updated subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
         else
-          add_task(subtask, options, omnifocus_task) unless subtask.completed?
+          add_item(subtask, options, omnifocus_task) unless subtask.completed?
           "Created subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
         end
       end
