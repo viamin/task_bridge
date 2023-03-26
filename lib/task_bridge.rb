@@ -63,6 +63,7 @@ class TaskBridge
     @options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
     @options[:logger] = StructuredLogger.new(@options)
     @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(options: @options)
+    @options[:primary_service] = @primary_service
     @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(options: @options)] }
   end
 

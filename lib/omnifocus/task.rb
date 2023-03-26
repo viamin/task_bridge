@@ -63,6 +63,10 @@ module Omnifocus
       @subtask_count = @subtasks.count
     end
 
+    def id_
+      OpenStruct.new(get: id)
+    end
+
     # setting some of these as nil so they will be skipped in the superclass initialization
     def attribute_map
       {
@@ -109,11 +113,12 @@ module Omnifocus
     end
 
     def original_task(include_inbox: false)
-      if include_inbox
-        (service.inbox_tasks + service.tagged_tasks(tags)).find { |task| task.id_.get == id }
+      search_tasks = if include_inbox
+        (service.inbox_tasks + service.tagged_tasks(tags))
       else
-        service.omnifocus_app.flattened_tags[*options[:tags]].tasks[id].get
+        service.omnifocus_app.flattened_tags[*options[:tags]].tasks.get
       end
+      search_tasks.find { |task| task.id_.get == id }
     end
     memo_wise :original_task
 
@@ -151,8 +156,10 @@ module Omnifocus
 
     def update_attributes(attributes)
       attributes.each do |key, value|
-        original_attribute_key = inverted_attributes[key]
-        original_task.send(original_attribute_key.to_sym).set(value)
+        puts "Trying to update #{key} to #{value}"
+        original_attribute_key = attribute_map[key].to_sym
+        puts "Original attribute key is #{original_attribute_key}"
+        original_task.send(original_attribute_key).set(value)
       end
     end
 

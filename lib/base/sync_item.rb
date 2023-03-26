@@ -38,12 +38,13 @@ module Base
     end
 
     def service
-      if options[:primary_service].provider == provider
+      if options[:primary] == provider
         options[:primary_service]
       else
-        options[:services][provider]
+        "#{provider}::Service".safe_constantize.new(options:)
       end
     end
+    memo_wise :service
 
     # First, check for a matching sync_id, if supported. Then, check for matching titles
     def find_matching_item_in(collection = [])
