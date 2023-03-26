@@ -70,6 +70,7 @@ module Asana
             end
           end
           handle_subtasks(new_task, external_task)
+          update_sync_data(external_task, new_task.id, new_task.url)
         else
           debug(response.body, options[:debug])
           "Failed to create an Asana task - code #{response.code}"
@@ -122,6 +123,7 @@ module Asana
           end
         end
         handle_subtasks(asana_task, external_task)
+        update_sync_data(external_task, asana_task.id, asana_task.url) if options[:update_ids_for_existing]
       else
         debug(response.body, options[:debug])
         "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
@@ -153,7 +155,7 @@ module Asana
       return unless external_task.respond_to?(:subtask_count) && external_task.subtask_count.positive?
 
       external_task.subtasks.each do |subtask|
-        if (existing_task = asana_task.subtasks.find { |asana_subtask| friendly_titles_match?(asana_subtask, subtask) })
+        if (existing_task = subtask.find_matching_item_in(asana_task.subtasks))
           update_item(existing_task, subtask)
           "Updated subtask #{subtask.title} of task #{external_task.title} in Asana"
         else

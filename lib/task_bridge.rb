@@ -36,6 +36,7 @@ class TaskBridge
       opt :repositories, "Github repositories to sync from", type: :strings, default: ENV.fetch("GITHUB_REPOSITORIES", "").split(",")
       opt :reminders_mapping, "Reminder lists to map to primary service lists/projects", default: ENV.fetch("REMINDERS_LIST_MAPPING", "")
       opt :max_age, "Skip syncing asks that have not been modified within this time (0 to disable)", default: ENV.fetch("SYNC_MAX_AGE", 0).to_i
+      opt :update_ids_for_existing, "Update Sync IDs for already synced items", default: ENV.fetch("UPDATE_IDS_FOR_EXISTING_ITEMS", false)
       opt :delete,
           "Delete completed tasks on service",
           default: %w[true t yes 1].include?(ENV.fetch("DELETE_COMPLETED", "false").downcase)

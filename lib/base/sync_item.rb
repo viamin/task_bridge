@@ -5,7 +5,8 @@ module Base
     prepend MemoWise
     include NoteParser
 
-    attr_reader :options, :tags, :sync_id, :sync_url, :notes, :debug_data
+    attr_reader :options, :tags, :notes, :debug_data
+    attr_accessor :sync_id, :sync_url
 
     def initialize(sync_item:, options:)
       @options = options
@@ -26,6 +27,8 @@ module Base
       raise "not implemented in #{self.class.name}"
     end
 
+    # no, this is a list of attributes that are always there, it's a list of
+    # attributes that need to be parsed by Chronic, the date/time parsing gem
     def chronic_attributes
       []
     end
@@ -85,7 +88,7 @@ module Base
     # Sync items that use an API to update attributes need to call the service's patch_item method
     # Items that use applescript to update attributes can override this method
     def update_attributes(attributes)
-      service.patch_item(self, attributes)
+      service.patch_item(self, attributes) if attributes_have_changed?(attributes)
     end
 
     private
@@ -112,6 +115,10 @@ module Base
         updated_at: "updated_at",
         url: "url"
       }
+    end
+
+    def attributes_have_changed?(attributes)
+      attributes.any? { |key, value| send(key.to_sym) != value }
     end
 
     # used to convert a sync_item back to the original attribute names

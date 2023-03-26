@@ -142,6 +142,12 @@ module Base
       end
     end
 
+    def update_sync_data(existing_item, sync_id, sync_url = nil)
+      existing_item.sync_id ||= sync_id
+      existing_item.sync_url = sync_url if sync_url
+      existing_item.update_attributes(notes: existing_item.sync_notes)
+    end
+
     def existing_items(primary_service)
       primary_service.items_to_sync(tags: [friendly_name], inbox: true)
     end
