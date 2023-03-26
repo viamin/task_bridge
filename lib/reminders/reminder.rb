@@ -58,6 +58,13 @@ module Reminders
       "#{provider}::Reminder:(#{id})#{title}"
     end
 
+    def update_attributes(attributes)
+      attributes.each do |key, value|
+        original_attribute_key = inverted_attributes[key]
+        original_task.send(original_attribute_key.to_sym).set(value)
+      end
+    end
+
     # start_at is a "premium" feature, apparently
     def to_asana
       {

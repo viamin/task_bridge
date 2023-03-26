@@ -56,7 +56,7 @@ module Reclaim
       type == "PERSONAL"
     end
 
-    def to_json(*_args)
+    def to_h(*_args)
       {
         title:,
         eventColor: nil,
@@ -69,7 +69,11 @@ module Reclaim
         notes:,
         priority: "DEFAULT",
         alwaysPrivate: always_private
-      }.to_json
+      }
+    end
+
+    def to_json(*_args)
+      to_h.to_json
     end
 
     class << self

@@ -39,31 +39,14 @@ module GoogleTasks
       "Google Tasks"
     end
 
-    desc "sync_from_primary", "Sync from primary service tasks to Google Tasks"
-    def sync_from_primary(primary_service)
-      tasks = primary_service.items_to_sync(tags: [friendly_name])
-      unless options[:quiet]
-        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
-                                         title: friendly_name)
-      end
-      tasks.each do |task|
-        # next if options[:max_age] && task.updated_at && (task.updated_at < options[:max_age])
-
-        output = if (existing_task = items_to_sync.find { |t| friendly_titles_match?(t, task) })
-          update_item(tasklist, existing_task, task, options)
-        else
-          add_item(tasklist, task, options) unless task.completed
-        end
-        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
-        progressbar.increment unless options[:quiet]
-      end
-      puts "Synced #{tasks.length} #{options[:primary]} tasks to Google Tasks" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
+    desc "sync_strategies", "Supported sync strategies for Google Tasks"
+    def sync_strategies
+      [:from_primary]
     end
 
     desc "items_to_sync", "Get all of the tasks to sync in options[:list]"
     def items_to_sync(*)
-      debug("called") if options[:debug]
+      debug("called", options[:debug])
       @items_to_sync ||= tasks_service.list_tasks(tasklist.id, max_results: 100).items
     end
 
@@ -72,17 +55,26 @@ module GoogleTasks
       return external_task.flag! if external_task.respond_to?(:estimated_minutes) && external_task.estimated_minutes.nil?
 
       google_task = Google::Apis::TasksV1::Task.new(**external_task.to_google)
-      puts "#{self.class}##{__method__}: #{google_task.pretty_inspect}" if options[:debug]
+      debug("google_task: #{google_task.pretty_inspect}", options[:debug])
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L360
       tasks_service.insert_task(tasklist.id, google_task)
       google_task.to_h
     end
 
+    desc "patch_item", "Patch an existing task in a task list"
+    def patch_item(google_task, attributes_hash)
+      debug("task: #{google_task.title}, attributes_hash: #{attributes_hash.pretty_inspect}", options[:debug])
+      updated_task = Google::Apis::TasksV1::Task.new(**attributes_hash)
+      debug("updated_task: #{updated_task.pretty_inspect}", options[:debug])
+      tasks_service.patch(tasklist.id, google_task.id, updated_task)
+      updated_task.to_h
+    end
+
     desc "update_item", "Update an existing task in a task list"
     def update_item(tasklist, google_task, external_task, options)
-      puts "#{self.class}##{__method__} existing_task: #{google_task.pretty_inspect}" if options[:debug]
+      debug("existing_task: #{google_task.pretty_inspect}", options[:debug])
       updated_task = Google::Apis::TasksV1::Task.new(**external_task.to_google)
-      puts "#{self.class}##{__method__} updated_task: #{updated_task.pretty_inspect}" if options[:debug]
+      debug("updated_task: #{updated_task.pretty_inspect}", options[:debug])
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L510
       tasks_service.patch_task(tasklist.id, google_task.id, updated_task)
       updated_task.to_h
@@ -127,7 +119,7 @@ module GoogleTasks
 
     # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L175
     def tasklist
-      debug("called") if options[:debug]
+      debug("called", options[:debug])
       tasklists = tasks_service.list_tasklists.items
       tasklist = tasklists.find { |list| list.title == options[:list] }
       raise "tasklist (#{options[:list]}) not found in #{tasklists}" if tasklist.nil?

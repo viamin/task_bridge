@@ -48,7 +48,7 @@ class TaskBridge
       opt :verbose, "Verbose output", default: false
       conflicts :quiet, :verbose
       opt :log_file, "File name for service log", default: ENV.fetch("LOG_FILE", "service_sync.log")
-      opt :debug, "Print debug output", default: false
+      opt :debug, "Print debug output", default: ENV.fetch("DEBUG", false)
       opt :console, "Run live console session", default: false
       opt :history, "Print sync service history", default: false
       opt :testing, "For testing purposes only", default: false
@@ -79,9 +79,9 @@ class TaskBridge
         @service_logs << { service: service.friendly_name, last_attempted: @options[:sync_started_at] }.stringify_keys
       elsif @options[:delete]
         service.prune if service.respond_to?(:prune)
-      elsif @options[:only_to_primary] && service.respond_to?(:sync_to_primary)
+      elsif @options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
         @service_logs << service.sync_to_primary(@primary_service)
-      elsif @options[:only_from_primary] && service.respond_to?(:sync_from_primary)
+      elsif @options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
         @service_logs << service.sync_from_primary(@primary_service)
       elsif service.sync_strategies.include?(:two_way)
         # if the #sync_with_primary method exists, we should use it unless options force us not to

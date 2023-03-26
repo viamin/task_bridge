@@ -63,6 +63,7 @@ module Omnifocus
       @subtask_count = @subtasks.count
     end
 
+    # setting some of these as nil so they will be skipped in the superclass initialization
     def attribute_map
       {
         id: "id_",
@@ -103,12 +104,16 @@ module Omnifocus
     end
 
     def mark_complete
-      debug("Called") if options[:debug]
+      debug("Called", options[:debug])
       original_task.mark_complete
     end
 
-    def original_task
-      Service.new(options:).omnifocus_app.flattened_tags[*options[:tags]].tasks[title].get
+    def original_task(include_inbox: false)
+      if include_inbox
+        (service.inbox_tasks + service.tagged_tasks(tags)).find { |task| task.id_.get == id }
+      else
+        service.omnifocus_app.flattened_tags[*options[:tags]].tasks[id].get
+      end
     end
     memo_wise :original_task
 
@@ -142,6 +147,13 @@ module Omnifocus
 
     def sync_url
       "omnifocus:///task/#{id}"
+    end
+
+    def update_attributes(attributes)
+      attributes.each do |key, value|
+        original_attribute_key = inverted_attributes[key]
+        original_task.send(original_attribute_key.to_sym).set(value)
+      end
     end
 
     # start_at is a "premium" feature, apparently

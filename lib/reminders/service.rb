@@ -56,7 +56,5 @@ module Reminders
       list.reminders_app.get
     end
     memo_wise :reminders_in_list
-
-    def friendly_titles_match?(reminder, external_task); end
   end
 end

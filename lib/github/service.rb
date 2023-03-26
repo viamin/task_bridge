@@ -25,33 +25,21 @@ module Github
       "Github"
     end
 
-    # By default Github syncs TO the primary service
-    def sync_to_primary(primary_service)
-      issues = items_to_sync(options[:tags])
-      existing_tasks = primary_service.items_to_sync(tags: [friendly_name], inbox: true)
-      unless options[:quiet]
-        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: issues.length,
-                                         title: "Github issues")
-      end
-      issues.each do |issue|
-        debug("Looking for #{issue.friendly_title} (#{issue.status})") if options[:debug]
-        output = if (existing_task = existing_tasks.find do |task|
-                       issue.friendly_title.downcase == task.title.downcase.strip
-                     end)
-          if should_sync?(issue.updated_at)
-            primary_service.update_item(existing_task, issue)
-          elsif options[:debug]
-            debug("Skipping sync of #{issue.title} (should_sync? == false)")
-          end
-        elsif issue.open?
-          primary_service.add_item(issue, options)
-        end
-        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
-        progressbar.increment unless options[:quiet]
-      end
-      puts "Synced #{issues.length} Github issues to #{options[:primary]}" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: issues.length }.stringify_keys
+    def sync_strategies
+      [:to_primary]
     end
+
+    def items_to_sync(tags = nil)
+      tagged_issues = sync_repositories
+                      .map { |repo| list_issues(repo, tags) }
+                      .flatten
+                      .map { |issue| Issue.new(github_issue: issue, options:) }
+      assigned_issues = list_assigned
+                        .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
+                        .map { |issue| Issue.new(github_issue: issue, options:) }
+      (tagged_issues + assigned_issues).uniq(&:id)
+    end
+    memo_wise :items_to_sync
 
     private
 
@@ -77,18 +65,6 @@ module Github
         repos
       end
     end
-
-    def items_to_sync(tags = nil)
-      tagged_issues = sync_repositories
-                      .map { |repo| list_issues(repo, tags) }
-                      .flatten
-                      .map { |issue| Issue.new(github_issue: issue, options:) }
-      assigned_issues = list_assigned
-                        .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
-                        .map { |issue| Issue.new(github_issue: issue, options:) }
-      (tagged_issues + assigned_issues).uniq(&:id)
-    end
-    memo_wise :items_to_sync
 
     # https://docs.github.com/en/rest/issues/issues#list-issues-assigned-to-the-authenticated-user
     # For some reason this API call doesn't always return

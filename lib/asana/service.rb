@@ -47,7 +47,7 @@ module Asana
     memo_wise :items_to_sync
 
     def add_item(external_task, parent_task_gid = nil)
-      debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}") if options[:debug]
+      debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}", options[:debug])
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
         body: { data: external_task.to_asana.merge(memberships_for_task(external_task, for_create: true)) }.to_json
@@ -56,7 +56,7 @@ module Asana
         "Would have added #{external_task.title} to Asana"
       else
         endpoint = parent_task_gid.nil? ? "tasks" : "tasks/#{parent_task_gid}/subtasks"
-        debug("request_body: #{request_body.pretty_inspect} sending to #{endpoint}") if options[:debug]
+        debug("request_body: #{request_body.pretty_inspect} sending to #{endpoint}", options[:debug])
         response = HTTParty.post("#{base_url}/#{endpoint}", authenticated_options.merge(request_body))
         if response.success?
           response_body = JSON.parse(response.body)
@@ -65,52 +65,66 @@ module Asana
             request_body = { body: { data: { task: new_task.id } }.to_json }
             response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))
             unless response.success?
-              debug(response.body) if options[:debug]
+              debug(response.body, options[:debug])
               "Failed to move an Asana task to a section - code #{response.code}"
             end
           end
           handle_subtasks(new_task, external_task)
         else
-          debug(response.body) if options[:debug]
+          debug(response.body, options[:debug])
           "Failed to create an Asana task - code #{response.code}"
         end
       end
     end
 
+    # Asana's update task API supports a PATCH-like syntax using PUT
+    def patch_item(asana_task, updated_attributes)
+      debug("asana_task: #{asana_task.title}", options[:debug])
+      request_body = {
+        query: { opt_fields: Task.requested_fields.join(",") },
+        body: updated_attributes.to_json
+      }
+      return "Would have patched task #{asana.title} with #{updated_attributes.to_json}" if options[:pretend]
+
+      response = HTTParty.put("#{base_url}/tasks/#{asana_task.id}", authenticated_options.merge(request_body))
+      return if response.success?
+
+      debug(response.body, options[:debug])
+      "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
+    end
+
     def update_item(asana_task, external_task)
-      debug("asana_task: #{asana_task.title}") if options[:debug]
+      debug("asana_task: #{asana_task.title}", options[:debug])
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
         body: { data: external_task.to_asana }.to_json
       }
-      if options[:pretend]
-        "Would have updated task #{external_task.title} in Asana"
-      else
-        response = HTTParty.put("#{base_url}/tasks/#{asana_task.id}", authenticated_options.merge(request_body))
-        if response.success?
-          # check if the project or section need to change
-          if external_task.project && (asana_task.project != external_task.project)
-            request_body = { body: JSON.dump({ data: memberships_for_task(external_task) }) }
-            project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.id}/addProject", authenticated_options.merge(request_body))
-            if project_response.success?
-              if (section = memberships_for_task(external_task)["section"])
-                request_body = { body: { data: { task: asana_task.id } }.to_json }
-                response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))
-                unless response.success?
-                  debug(response.body) if options[:debug]
-                  "Failed to move an Asana task to a section - code #{response.code}"
-                end
+      return "Would have updated task #{external_task.title} in Asana" if options[:pretend]
+
+      response = HTTParty.put("#{base_url}/tasks/#{asana_task.id}", authenticated_options.merge(request_body))
+      if response.success?
+        # check if the project or section need to change
+        if external_task.project && (asana_task.project != external_task.project)
+          request_body = { body: JSON.dump({ data: memberships_for_task(external_task) }) }
+          project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.id}/addProject", authenticated_options.merge(request_body))
+          if project_response.success?
+            if (section = memberships_for_task(external_task)["section"])
+              request_body = { body: { data: { task: asana_task.id } }.to_json }
+              response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))
+              unless response.success?
+                debug(response.body, options[:debug])
+                "Failed to move an Asana task to a section - code #{response.code}"
               end
-            else
-              debug(project_response.body) if options[:debug]
-              "Failed to update Asana task ##{asana_task.id} with code #{project_response.code}"
             end
+          else
+            debug(project_response.body, options[:debug])
+            "Failed to update Asana task ##{asana_task.id} with code #{project_response.code}"
           end
-          handle_subtasks(asana_task, external_task)
-        else
-          debug(response.body) if options[:debug]
-          "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
         end
+        handle_subtasks(asana_task, external_task)
+      else
+        debug(response.body, options[:debug])
+        "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
       end
     end
 
@@ -135,7 +149,7 @@ module Asana
 
     # create or update subtasks on a task
     def handle_subtasks(asana_task, external_task)
-      debug("") if options[:debug]
+      debug("", options[:debug])
       return unless external_task.respond_to?(:subtask_count) && external_task.subtask_count.positive?
 
       external_task.subtasks.each do |subtask|
@@ -147,10 +161,6 @@ module Asana
           "Created subtask #{subtask.title} of task #{external_task.title} in Asana"
         end
       end
-    end
-
-    def friendly_titles_match?(task, other_task)
-      task.title.downcase.strip == other_task.title.downcase.strip
     end
 
     # By default, this will list only active (unarchived) projects. Passing archived: true

@@ -23,7 +23,7 @@ module Base
     end
 
     def attribute_map
-      raise "not implemented"
+      raise "not implemented in #{self.class.name}"
     end
 
     def chronic_attributes
@@ -31,11 +31,40 @@ module Base
     end
 
     def provider
-      raise "not implemented"
+      raise "not implemented in #{self.class.name}"
+    end
+
+    def service
+      if options[:primary_service].provider == provider
+        options[:primary_service]
+      else
+        options[:services][provider]
+      end
+    end
+
+    # First, check for a matching sync_id, if supported. Then, check for matching titles
+    def find_matching_item_in(collection = [])
+      id_match = collection.find { |item| id == item.sync_id } if respond_to?(:id) && sync_id
+      return id_match if id_match
+
+      # This should only match older items that don't have sync_ids
+      # TODO: this should be removed after items have updated their sync_ids
+      notes_and_title_match = collection.find do |item|
+        friendly_title_matches(item) && notes == item.notes
+      end
+      return notes_and_title_match if notes_and_title_match
+
+      collection.find do |item|
+        friendly_title_matches(item)
+      end
     end
 
     def friendly_title
       title.strip
+    end
+
+    def friendly_title_matches(item)
+      friendly_title.downcase == item.friendly_title.downcase
     end
 
     def sync_notes
@@ -51,6 +80,12 @@ module Base
       raise "Unsupported service" unless TaskBridge.task_services.include?(options[:primary])
 
       send("to_#{options[:primary]}".downcase.to_sym)
+    end
+
+    # Sync items that use an API to update attributes need to call the service's patch_item method
+    # Items that use applescript to update attributes can override this method
+    def update_attributes(attributes)
+      service.patch_item(self, attributes)
     end
 
     private
@@ -77,6 +112,11 @@ module Base
         updated_at: "updated_at",
         url: "url"
       }
+    end
+
+    # used to convert a sync_item back to the original attribute names
+    def inverted_attributes
+      standard_attribute_map.merge(attribute_map.compact).invert.with_indifferent_access
     end
 
     # read attributes using applescript
