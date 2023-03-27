@@ -60,10 +60,6 @@ module Instapaper
       id
     end
 
-    def sync_notes
-      notes_with_values(url, sync_id:)
-    end
-
     #       #####
     #      #     # ###### #####  #    # #  ####  ######  ####
     #      #       #      #    # #    # # #    # #      #
