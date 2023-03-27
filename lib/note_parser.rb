@@ -5,6 +5,8 @@ module NoteParser
   # which currently is all of them?
   # parsed_notes expects key value pairs of the form "key: value" on its own line
   def parsed_notes(keys:, notes:)
+    return if notes.nil?
+
     values = []
     keys.each do |key|
       key_value_matcher = /(?:#{key}:\s(?<value>.+))(\R|\z)/
