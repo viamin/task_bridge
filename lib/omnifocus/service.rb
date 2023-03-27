@@ -64,7 +64,7 @@ module Omnifocus
     end
     memo_wise :items_to_sync
 
-    def add_item(external_task, options = {}, parent_object = nil)
+    def add_item(external_task, parent_object = nil)
       debug("external_task: #{external_task}, parent_object: #{parent_object}", options[:debug])
       task_type = :task
       if parent_object.nil?
@@ -189,7 +189,7 @@ module Omnifocus
           update_item(existing_subtask, subtask)
           "Updated subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
         else
-          add_item(subtask, options, omnifocus_task) unless subtask.completed?
+          add_item(subtask, omnifocus_task) unless subtask.completed?
           "Created subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
         end
       end

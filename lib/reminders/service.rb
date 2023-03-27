@@ -35,7 +35,7 @@ module Reminders
     end
     memo_wise :items_to_sync
 
-    def add_item(external_task, options = {}, parent_object = nil); end
+    def add_item(external_task, parent_object = nil); end
 
     def update_item(reminder, external_task); end
 

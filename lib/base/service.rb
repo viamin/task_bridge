@@ -96,7 +96,7 @@ module Base
             debug("Skipping sync of #{service_item.title} (should_sync? == false)", options[:debug])
           end
         elsif !service_item.completed?
-          primary_service.add_item(service_item, options)
+          primary_service.add_item(service_item)
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]

@@ -51,7 +51,7 @@ module GoogleTasks
     end
 
     desc "add_item", "Add a new task to a given task list"
-    def add_item(tasklist, external_task, options)
+    def add_item(tasklist, external_task)
       return external_task.flag! if external_task.respond_to?(:estimated_minutes) && external_task.estimated_minutes.nil?
 
       google_task = Google::Apis::TasksV1::Task.new(**external_task.to_google)

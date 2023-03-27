@@ -156,9 +156,7 @@ module Omnifocus
 
     def update_attributes(attributes)
       attributes.each do |key, value|
-        puts "Trying to update #{key} to #{value}"
         original_attribute_key = attribute_map[key].to_sym
-        puts "Original attribute key is #{original_attribute_key}"
         original_task.send(original_attribute_key).set(value)
       end
     end
