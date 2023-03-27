@@ -3,6 +3,7 @@
 module Base
   class SyncItem
     prepend MemoWise
+    include Debug
     include NoteParser
 
     attr_reader :options, :tags, :notes, :debug_data
