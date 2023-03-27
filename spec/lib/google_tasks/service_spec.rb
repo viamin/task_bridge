@@ -63,10 +63,9 @@ RSpec.describe "GoogleTasks::Service" do
   end
 
   describe "#add_item" do
-    subject { service.add_item(tasklist, external_task, parent_task_gid) }
+    subject { service.add_item(tasklist, external_task) }
 
     let(:external_task) { nil }
-    let(:parent_task_gid) { nil }
     let(:title) { "Test" }
 
     before do
