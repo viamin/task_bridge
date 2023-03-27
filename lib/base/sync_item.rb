@@ -20,7 +20,7 @@ module Base
         define_singleton_method(attribute_key.to_sym) { instance_variable_get("@#{attribute_key}") }
       end
 
-      @sync_id, @sync_url, @notes = parsed_notes(keys: %w[sync_id sync_url], notes: read_attribute(sync_item, attributes[:notes]))
+      @sync_id, @sync_url, @notes = parsed_notes(keys: %w[sync_id url], notes: read_attribute(sync_item, attributes[:notes]))
     end
 
     def attribute_map
