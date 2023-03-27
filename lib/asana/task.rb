@@ -71,10 +71,6 @@ module Asana
       }.to_json
     end
 
-    def sync_url
-      url
-    end
-
     #       #####
     #      #     # ###### #####  #    # #  ####  ######  ####
     #      #       #      #    # #    # # #    # #      #
