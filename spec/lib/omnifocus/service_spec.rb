@@ -13,8 +13,8 @@ RSpec.describe "Omnifocus::Service" do
     allow(logger).to receive(:last_synced).and_return(last_sync)
   end
 
-  describe "#tasks_to_sync" do
-    subject { service.tasks_to_sync(tags:, projects:, folder:, inbox:, incomplete_only:) }
+  describe "#items_to_sync" do
+    subject { service.items_to_sync(tags:, projects:, folder:, inbox:, incomplete_only:) }
 
     let(:tags) { nil }
     let(:projects) { nil }
@@ -38,7 +38,7 @@ RSpec.describe "Omnifocus::Service" do
       let(:projects) { "TaskBridge" }
 
       it "returns tasks in a project", :no_ci do
-        expect(subject.count).to eq(4)
+        expect(subject.count).to eq(3)
       end
     end
 
@@ -46,7 +46,7 @@ RSpec.describe "Omnifocus::Service" do
       let(:folder) { "TaskBridge" }
 
       it "returns all tasks in a folder", :no_ci do
-        expect(subject.count).to eq(6)
+        expect(subject.count).to eq(5)
       end
     end
 
@@ -59,9 +59,9 @@ RSpec.describe "Omnifocus::Service" do
     end
   end
 
-  describe "#add_task" do
+  describe "#add_item" do
   end
 
-  describe "#update_task" do
+  describe "#update_item" do
   end
 end

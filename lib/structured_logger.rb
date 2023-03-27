@@ -17,12 +17,12 @@ class StructuredLogger
   end
 
   def sync_data_for(service_name)
-    debug("service_name: #{service_name}") if options[:debug]
+    debug("service_name: #{service_name}", options[:debug])
     @existing_logs.find { |log_hash| log_hash["service"] == service_name }
   end
 
   def last_synced(service_name, interval: false)
-    debug("service_name: #{service_name}, interval: #{interval}") if options[:debug]
+    debug("service_name: #{service_name}, interval: #{interval}", options[:debug])
     raw_sync_data = sync_data_for(service_name)
     return if raw_sync_data.nil?
 
@@ -43,7 +43,7 @@ class StructuredLogger
   end
 
   def save_service_log!(service_logs)
-    debug("service_logs.count: #{service_logs.count}") if options[:debug]
+    debug("service_logs.count: #{service_logs.count}", options[:debug])
     return if service_logs.empty?
 
     output = service_logs.map do |service_log|

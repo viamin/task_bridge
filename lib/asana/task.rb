@@ -54,10 +54,6 @@ module Asana
       true
     end
 
-    def sync_notes
-      notes_with_values(notes, sync_id:, url:)
-    end
-
     # fields required for Asana
     def to_json(*)
       {
@@ -73,6 +69,10 @@ module Asana
           projects: [project["gid"]]
         }.compact
       }.to_json
+    end
+
+    def sync_url
+      url
     end
 
     #       #####

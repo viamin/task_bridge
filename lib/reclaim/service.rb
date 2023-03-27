@@ -12,68 +12,64 @@ module Reclaim
       @api_key = ENV.fetch("RECLAIM_API_KEY", nil)
     end
 
+    def item_class
+      Task
+    end
+
     def friendly_name
       "Reclaim"
     end
 
-    def sync_from_primary(primary_service)
-      return @last_sync_data unless should_sync?
-
-      primary_tasks = primary_service.tasks_to_sync(tags: [friendly_name])
-      reclaim_tasks = tasks_to_sync
-      unless options[:quiet]
-        progressbar = ProgressBar.create(
-          format: "%t: %c/%C |%w>%i| %e ",
-          total: primary_tasks.length,
-          title: "Reclaim Tasks"
-        )
-      end
-      primary_tasks.each do |primary_task|
-        output = if (existing_task = reclaim_tasks.find { |reclaim_task| friendly_titles_match?(reclaim_task, primary_task) })
-          update_task(existing_task, primary_task)
-        else
-          add_task(primary_task) unless primary_task.completed
-        end
-        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
-        progressbar.increment unless options[:quiet]
-      end
-      puts "Synced #{primary_tasks.length} #{options[:primary]} items to Reclaim Tasks" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: primary_tasks.length }.stringify_keys
+    def sync_strategies
+      [:from_primary]
     end
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
-    def tasks_to_sync(*)
+    def items_to_sync(*)
       list_tasks.map { |reclaim_task| Task.new(reclaim_task:, options:) }
     end
-    memo_wise :tasks_to_sync
+    memo_wise :items_to_sync
 
-    def add_task(external_task)
-      debug("external_task: #{external_task}") if options[:debug]
+    def add_item(external_task)
+      debug("external_task: #{external_task}", options[:debug])
       request_body = { body: external_task.to_reclaim }
       if options[:pretend]
         "Would have added #{external_task.title} to Reclaim"
       else
         response = HTTParty.post("#{base_url}/tasks", authenticated_options.merge(request_body))
         if response.success?
-          JSON.parse(response.body)
+          new_item = JSON.parse(response.body)
+          update_sync_data(external_task, new_item["id"]) if options[:update_ids_for_existing]
         else
-          debug(response) if options[:debug]
+          debug(response, options[:debug])
           "Failed to create a Reclaim task - check api key"
         end
       end
     end
 
-    def update_task(reclaim_task, external_task)
-      debug("reclaim_task: #{reclaim_task.title}") if options[:debug]
+    # Reclaim doesn't support PATCH semantics, so we need to do a PUT
+    def patch_item(reclaim_task, attributes_hash)
+      debug("reclaim_task: #{reclaim_task.title}, attributes_hash: #{attributes_hash.pretty_inspect}", options[:debug])
+      put_request_body = { body: reclaim_task.to_h.merge(attributes_hash).to_json }
+      put_response = HTTParty.put("#{base_url}/tasks/#{reclaim_task.id}", authenticated_options.merge(put_request_body))
+      return if put_response.success?
+
+      debug(response.body, options[:debug])
+      "Failed to update Reclaim task ##{reclaim_task.id} with code #{response.code} - check api key"
+    end
+
+    def update_item(reclaim_task, external_task)
+      debug("reclaim_task: #{reclaim_task.title}", options[:debug])
       request_body = { body: external_task.to_reclaim.to_json }
       if options[:pretend]
         "Would have updated task #{external_task.title} in Reclaim"
       else
         response = HTTParty.patch("#{base_url}/tasks/#{reclaim_task.id}", authenticated_options.merge(request_body))
         if response.success?
+          update_sync_data(external_task, reclaim_task.id) if options[:update_ids_for_existing]
           JSON.parse(response.body)
         else
-          debug(response.body) if options[:debug]
+          debug(response.body, options[:debug])
           "Failed to update Reclaim task ##{reclaim_task.id} with code #{response.code} - check api key"
         end
       end
@@ -99,10 +95,6 @@ module Reclaim
 
     def delete_task(task_id)
       HTTParty.delete("#{base_url}/planner/policy/task/#{task_id}", authenticated_options)
-    end
-
-    def friendly_titles_match?(task, other_task)
-      task.title.downcase.strip == other_task.title.downcase.strip
     end
 
     def list_tasks

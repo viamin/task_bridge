@@ -14,7 +14,7 @@ module Instapaper
     end
 
     def authenticate!
-      debug("Called") if options[:debug]
+      debug("Called", options[:debug])
       params = {
         site: "https://www.instapaper.com/api/1",
         scheme: :header,

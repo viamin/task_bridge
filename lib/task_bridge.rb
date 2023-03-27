@@ -36,6 +36,7 @@ class TaskBridge
       opt :repositories, "Github repositories to sync from", type: :strings, default: ENV.fetch("GITHUB_REPOSITORIES", "").split(",")
       opt :reminders_mapping, "Reminder lists to map to primary service lists/projects", default: ENV.fetch("REMINDERS_LIST_MAPPING", "")
       opt :max_age, "Skip syncing asks that have not been modified within this time (0 to disable)", default: ENV.fetch("SYNC_MAX_AGE", 0).to_i
+      opt :update_ids_for_existing, "Update Sync IDs for already synced items", default: ENV.fetch("UPDATE_IDS_FOR_EXISTING_ITEMS", false)
       opt :delete,
           "Delete completed tasks on service",
           default: %w[true t yes 1].include?(ENV.fetch("DELETE_COMPLETED", "false").downcase)
@@ -48,7 +49,7 @@ class TaskBridge
       opt :verbose, "Verbose output", default: false
       conflicts :quiet, :verbose
       opt :log_file, "File name for service log", default: ENV.fetch("LOG_FILE", "service_sync.log")
-      opt :debug, "Print debug output", default: false
+      opt :debug, "Print debug output", default: ENV.fetch("DEBUG", false)
       opt :console, "Run live console session", default: false
       opt :history, "Print sync service history", default: false
       opt :testing, "For testing purposes only", default: false
@@ -62,6 +63,7 @@ class TaskBridge
     @options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
     @options[:logger] = StructuredLogger.new(@options)
     @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(options: @options)
+    @options[:primary_service] = @primary_service
     @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(options: @options)] }
   end
 
@@ -79,18 +81,18 @@ class TaskBridge
         @service_logs << { service: service.friendly_name, last_attempted: @options[:sync_started_at] }.stringify_keys
       elsif @options[:delete]
         service.prune if service.respond_to?(:prune)
-      elsif @options[:only_to_primary] && service.respond_to?(:sync_to_primary)
+      elsif @options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
         @service_logs << service.sync_to_primary(@primary_service)
-      elsif @options[:only_from_primary] && service.respond_to?(:sync_from_primary)
+      elsif @options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
         @service_logs << service.sync_from_primary(@primary_service)
-      elsif service.respond_to?(:sync_with_primary)
+      elsif service.sync_strategies.include?(:two_way)
         # if the #sync_with_primary method exists, we should use it unless options force us not to
         @service_logs << service.sync_with_primary(@primary_service)
       else
         # Generally we should sync FROM the primary service first, since it should be the source of truth
         # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-        @service_logs << service.sync_from_primary(@primary_service) if service.respond_to?(:sync_from_primary)
-        @service_logs << service.sync_to_primary(@primary_service) if service.respond_to?(:sync_to_primary)
+        @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
+        @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
       end
       @options[:logger].save_service_log!(@service_logs)
     end

@@ -63,6 +63,11 @@ module Omnifocus
       @subtask_count = @subtasks.count
     end
 
+    def id_
+      OpenStruct.new(get: id)
+    end
+
+    # setting some of these as nil so they will be skipped in the superclass initialization
     def attribute_map
       {
         id: "id_",
@@ -103,12 +108,17 @@ module Omnifocus
     end
 
     def mark_complete
-      debug("Called") if options[:debug]
+      debug("Called", options[:debug])
       original_task.mark_complete
     end
 
-    def original_task
-      Service.new(options:).omnifocus_app.flattened_tags[*options[:tags]].tasks[title].get
+    def original_task(include_inbox: false)
+      search_tasks = if include_inbox
+        (service.inbox_tasks + service.tagged_tasks(tags))
+      else
+        service.omnifocus_app.flattened_tags[*options[:tags]].tasks.get
+      end
+      search_tasks.find { |task| task.id_.get == id }
     end
     memo_wise :original_task
 
@@ -139,6 +149,17 @@ module Omnifocus
       parents
     end
     memo_wise :containers
+
+    def sync_url
+      "omnifocus:///task/#{id}"
+    end
+
+    def update_attributes(attributes)
+      attributes.each do |key, value|
+        original_attribute_key = attribute_map[key].to_sym
+        original_task.send(original_attribute_key).set(value)
+      end
+    end
 
     # start_at is a "premium" feature, apparently
     def to_asana
