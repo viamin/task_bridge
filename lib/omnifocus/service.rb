@@ -227,7 +227,7 @@ module Omnifocus
       debug("task: #{task}, tag: #{tag}", options[:debug])
       target_task = if task.instance_of?(Omnifocus::Task)
         debug("Finding native Omnifocus task for #{task.title}", options[:debug])
-        found_task = (inbox_tasks + tagged_tasks(task.tags)).find { |t| t.name.get == task.friendly_title }
+        found_task = (inbox_tasks + tagged_tasks(task.tags)).find { |t| t.name.get.strip == task.friendly_title }
         debug("Found task: #{found_task}", options[:debug]) if found_task
         found_task
       else
