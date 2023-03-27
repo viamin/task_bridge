@@ -6,29 +6,44 @@ RSpec.describe "NoteParser" do
   let(:note_parser_class) { Class.new { include NoteParser }.new }
   let(:id) { 12_345 }
   let(:url) { Faker::Internet.url }
+  let(:previous_notes) { "notes" }
 
   describe "#parsed_notes" do
-    let(:notes) { "notes\n\nsync_id: #{id}\nurl: #{url}\n" }
+    let(:notes) { "#{previous_notes}\n\nsync_id: #{id}\nurl: #{url}\n" }
 
     it "parses out the values for the given list of keys" do
       parsed_id, parsed_url, parsed_notes = note_parser_class.parsed_notes(keys: %w[sync_id url], notes:)
       expect(parsed_id).to eq(id.to_s)
       expect(parsed_url).to eq(url)
-      expect(parsed_notes).to eq("notes")
+      expect(parsed_notes).to eq(previous_notes)
     end
 
     it "works when there's no newline at the end of the notes" do
       parsed_id, parsed_url, parsed_notes = note_parser_class.parsed_notes(keys: %w[sync_id url], notes: notes.strip)
       expect(parsed_id).to eq(id.to_s)
       expect(parsed_url).to eq(url)
-      expect(parsed_notes).to eq("notes")
+      expect(parsed_notes).to eq(previous_notes)
     end
 
     it "works when the keys are processed in a different order" do
       parsed_url, parsed_id, parsed_notes = note_parser_class.parsed_notes(keys: %w[url sync_id], notes:)
       expect(parsed_id).to eq(id.to_s)
       expect(parsed_url).to eq(url)
-      expect(parsed_notes).to eq("notes")
+      expect(parsed_notes).to eq(previous_notes)
+    end
+
+    it "works when there aren't extra newlines" do
+      parsed_url, parsed_id, parsed_notes = note_parser_class.parsed_notes(keys: %w[url sync_id], notes: notes.squish)
+      expect(parsed_id).to eq(id.to_s)
+      expect(parsed_url).to eq(url)
+      expect(parsed_notes).to eq(previous_notes)
+    end
+
+    it "works when there aren't any notes" do
+      parsed_url, parsed_id, parsed_notes = note_parser_class.parsed_notes(keys: %w[url sync_id], notes: "")
+      expect(parsed_id).to be_nil
+      expect(parsed_url).to be_nil
+      expect(parsed_notes).to eq("")
     end
   end
 

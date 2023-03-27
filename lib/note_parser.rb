@@ -12,7 +12,7 @@ module NoteParser
       if match_data.nil?
         values << nil
       else
-        values << match_data[:value]
+        values << match_data[:value].strip
         notes = notes.split(match_data[0]).join
       end
     end
