@@ -44,10 +44,6 @@ module Github
       "#{project}-##{number}: #{is_pr ? '[PR] ' : ''}#{title.strip}"
     end
 
-    def sync_url
-      url
-    end
-
     #       #####
     #      #     # ###### #####  #    # #  ####  ######  ####
     #      #       #      #    # #    # # #    # #      #
