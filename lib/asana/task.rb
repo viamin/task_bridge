@@ -5,14 +5,14 @@ require_relative "../base/sync_item"
 module Asana
   # A representation of an Asana task
   class Task < Base::SyncItem
-    attr_reader :project, :section, :subtask_count, :subtasks, :assignee
+    attr_reader :project, :section, :sub_item_count, :sub_items, :assignee
 
     def initialize(asana_task:, options:)
       super(sync_item: asana_task, options:)
 
       @project = project_from_memberships(asana_task)
-      @subtask_count = asana_task.fetch("num_subtasks", 0).to_i
-      @subtasks = []
+      @sub_item_count = asana_task.fetch("num_subtasks", 0).to_i
+      @sub_items = []
       @assignee = asana_task.dig("assignee", "gid")
     end
 
@@ -80,7 +80,7 @@ module Asana
     #       #####  ###### #    #   ##   #  ####  ######  ####
 
     # Fields required for omnifocus service
-    def to_omnifocus(with_subtasks: false)
+    def to_omnifocus(with_sub_items: false)
       omnifocus_properties = {
         name: friendly_title,
         note: sync_notes,
@@ -89,7 +89,7 @@ module Asana
         defer_date: start_at || start_date,
         due_date: due_at || due_date
       }.compact
-      omnifocus_properties[:subtasks] = subtasks.map(&:to_omnifocus) if with_subtasks
+      omnifocus_properties[:sub_items] = sub_items.map(&:to_omnifocus) if with_sub_items
       omnifocus_properties
     end
     memo_wise :to_omnifocus

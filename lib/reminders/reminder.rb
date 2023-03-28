@@ -20,7 +20,7 @@ module Reminders
       # @tags = read_attribute(reminder, :tags)
       # @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       @priority = read_attribute(reminder, :priority)
-      # Same with subtasks/subreminders - they are supported in the app
+      # Same with sub_items/subreminders - they are supported in the app
       # but don't seem to be accessible via Applescript
       # @subreminders = read_attribute(reminder, :reminders).map do |subreminder|
       #   reminder.new(subreminder, @options)

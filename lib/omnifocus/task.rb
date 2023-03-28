@@ -41,7 +41,7 @@ module Omnifocus
 
     TIME_TAGS = WEEKDAY_TAGS + MONTH_TAGS + RELATIVE_TIME_TAGS
 
-    attr_reader :estimated_minutes, :tags, :project, :subtask_count, :subtasks, :due_date # :completion_date
+    attr_reader :estimated_minutes, :tags, :project, :sub_item_count, :sub_items, :due_date # :completion_date
 
     def initialize(omnifocus_task:, options:)
       super(sync_item: omnifocus_task, options:)
@@ -57,10 +57,10 @@ module Omnifocus
       @tags = read_attribute(omnifocus_task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       @due_date = date_from_tags(omnifocus_task, @tags)
-      @subtasks = read_attribute(omnifocus_task, :tasks).map do |subtask|
-        Task.new(omnifocus_task: subtask, options: @options)
+      @sub_items = read_attribute(omnifocus_task, :tasks).map do |sub_item|
+        Task.new(omnifocus_task: sub_item, options: @options)
       end
-      @subtask_count = @subtasks.count
+      @sub_item_count = @sub_items.count
     end
 
     def id_
@@ -154,10 +154,6 @@ module Omnifocus
       "omnifocus:///task/#{id}"
     end
 
-    def self.url(id)
-      "omnifocus:///task/#{id}"
-    end
-
     def update_attributes(attributes)
       attributes.each do |key, value|
         original_attribute_key = attribute_map[key].to_sym
@@ -165,10 +161,16 @@ module Omnifocus
       end
     end
 
+    class << self
+      def url(id)
+        "omnifocus:///task/#{id}"
+      end
+    end
+
     # start_at is a "premium" feature, apparently
     def to_asana
       {
-        completed:,
+        completed: completed?,
         due_at: due_date&.iso8601,
         liked: flagged,
         name: title,
