@@ -10,7 +10,7 @@ RSpec.describe "Reminders::Reminder" do
   let(:name) { Faker::Lorem.sentence }
   let(:completed) { [true, false].sample }
   let(:containing_list) { SecureRandom.uuid.upcase }
-  let(:body) { "notes" }
+  let(:body) { "notes\n\nsync_id: jU466dYHf2o" }
   let(:properties) do
     OpenStruct.new({
       id:,
@@ -28,8 +28,6 @@ RSpec.describe "Reminders::Reminder" do
   end
 
   describe "#sync_notes" do
-    let(:body) { "notes\n\nsync_id: jU466dYHf2o\n" }
-
     it "adds a sync_id to the notes" do
       expect(reminder.notes).to eq("notes")
       expect(reminder.sync_id).to eq("jU466dYHf2o")
