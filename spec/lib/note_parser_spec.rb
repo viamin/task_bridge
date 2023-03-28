@@ -11,39 +11,50 @@ RSpec.describe "NoteParser" do
   describe "#parsed_notes" do
     let(:notes) { "#{previous_notes}\n\nsync_id: #{id}\nurl: #{url}\n" }
 
+    it "returns a Hash" do
+      expect(note_parser_class.parsed_notes(keys: %w[sync_id url], notes:)).to be_a(Hash)
+    end
+
     it "parses out the values for the given list of keys" do
-      parsed_id, parsed_url, parsed_notes = note_parser_class.parsed_notes(keys: %w[sync_id url], notes:)
-      expect(parsed_id).to eq(id.to_s)
-      expect(parsed_url).to eq(url)
-      expect(parsed_notes).to eq(previous_notes)
+      parsed_data = note_parser_class.parsed_notes(keys: %w[sync_id url], notes:)
+      expect(parsed_data["sync_id"]).to eq(id.to_s)
+      expect(parsed_data["url"]).to eq(url)
+      expect(parsed_data["notes"]).to eq(previous_notes)
     end
 
     it "works when there's no newline at the end of the notes" do
-      parsed_id, parsed_url, parsed_notes = note_parser_class.parsed_notes(keys: %w[sync_id url], notes: notes.strip)
-      expect(parsed_id).to eq(id.to_s)
-      expect(parsed_url).to eq(url)
-      expect(parsed_notes).to eq(previous_notes)
+      parsed_data = note_parser_class.parsed_notes(keys: %w[sync_id url], notes: notes.strip)
+      expect(parsed_data["sync_id"]).to eq(id.to_s)
+      expect(parsed_data["url"]).to eq(url)
+      expect(parsed_data["notes"]).to eq(previous_notes)
     end
 
     it "works when the keys are processed in a different order" do
-      parsed_url, parsed_id, parsed_notes = note_parser_class.parsed_notes(keys: %w[url sync_id], notes:)
-      expect(parsed_id).to eq(id.to_s)
-      expect(parsed_url).to eq(url)
-      expect(parsed_notes).to eq(previous_notes)
+      parsed_data = note_parser_class.parsed_notes(keys: %w[url sync_id], notes:)
+      expect(parsed_data["sync_id"]).to eq(id.to_s)
+      expect(parsed_data["url"]).to eq(url)
+      expect(parsed_data["notes"]).to eq(previous_notes)
     end
 
     it "works when there aren't extra newlines" do
-      parsed_url, parsed_id, parsed_notes = note_parser_class.parsed_notes(keys: %w[url sync_id], notes: notes.squish)
-      expect(parsed_id).to eq(id.to_s)
-      expect(parsed_url).to eq(url)
-      expect(parsed_notes).to eq(previous_notes)
+      parsed_data = note_parser_class.parsed_notes(keys: %w[url sync_id], notes: notes.squish)
+      expect(parsed_data["sync_id"]).to eq(id.to_s)
+      expect(parsed_data["url"]).to eq(url)
+      expect(parsed_data["notes"]).to eq(previous_notes)
     end
 
     it "works when there aren't any notes" do
-      parsed_url, parsed_id, parsed_notes = note_parser_class.parsed_notes(keys: %w[url sync_id], notes: "")
-      expect(parsed_id).to be_nil
-      expect(parsed_url).to be_nil
-      expect(parsed_notes).to eq("")
+      parsed_data = note_parser_class.parsed_notes(keys: %w[url sync_id], notes: "")
+      expect(parsed_data["sync_id"]).to be_nil
+      expect(parsed_data["url"]).to be_nil
+      expect(parsed_data["notes"]).to eq("")
+    end
+
+    it "returns notes when there aren't any keys" do
+      parsed_data = note_parser_class.parsed_notes(notes:)
+      expect(parsed_data["sync_id"]).to be_nil
+      expect(parsed_data["url"]).to be_nil
+      expect(parsed_data["notes"]).to eq(notes.strip)
     end
   end
 

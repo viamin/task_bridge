@@ -7,7 +7,7 @@ module Base
     include NoteParser
 
     attr_reader :options, :tags, :notes, :debug_data
-    attr_accessor :sync_id
+    attr_accessor :sync_id, :sync_url
 
     def initialize(sync_item:, options:)
       @options = options
@@ -21,7 +21,12 @@ module Base
         define_singleton_method(attribute_key.to_sym) { instance_variable_get("@#{attribute_key}") }
       end
 
-      @sync_id, _old_sync_url, @notes = parsed_notes(keys: %w[sync_id url], notes: read_attribute(sync_item, attributes[:notes]))
+      parsed_data = parsed_notes(keys: %w[sync_id url], notes: read_attribute(sync_item, attributes[:notes]))
+      return unless parsed_data
+
+      @sync_id = parsed_data["sync_id"]
+      @sync_url = parsed_data["url"]
+      @notes = parsed_data["notes"]
     end
 
     def attribute_map
@@ -46,11 +51,6 @@ module Base
       end
     end
     memo_wise :service
-
-    # Overwrite this for any subclasses that don't use the standard url attribute
-    def sync_url
-      url if defined?(:url)
-    end
 
     # First, check for a matching sync_id, if supported. Then, check for matching titles
     def find_matching_item_in(collection = [])

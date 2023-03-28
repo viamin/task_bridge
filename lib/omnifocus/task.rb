@@ -150,7 +150,11 @@ module Omnifocus
     end
     memo_wise :containers
 
-    def sync_url
+    def url
+      "omnifocus:///task/#{id}"
+    end
+
+    def self.url(id)
       "omnifocus:///task/#{id}"
     end
 
