@@ -130,7 +130,7 @@ module Base
 
     # used to convert a sync_item back to the original attribute names
     def inverted_attributes
-      standard_attribute_map.merge(attribute_map.compact).invert.with_indifferent_access
+      standard_attribute_map.merge(attribute_map.compact).invert.stringify_keys
     end
 
     # read attributes using applescript

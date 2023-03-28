@@ -66,12 +66,12 @@ module Base
         end
         progressbar.increment unless options[:quiet]
       end
-      unmatched_primary_items.each do |item|
-        add_item(item) unless skip_create?(item)
+      unmatched_primary_items.each do |primary_item|
+        add_item(primary_item) unless primary_service.skip_create?(primary_item)
         progressbar.increment unless options[:quiet]
       end
-      unmatched_service_items.each do |item|
-        primary_service.add_item(item) unless skip_create?(item)
+      unmatched_service_items.each do |service_item|
+        primary_service.add_item(service_item) unless skip_create?(service_item)
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{item_count} #{options[:primary]} and #{friendly_name} items" unless options[:quiet]
@@ -133,7 +133,7 @@ module Base
 
     def should_sync?(item_updated_at = nil)
       time_since_last_sync = options[:logger].last_synced(friendly_name, interval: item_updated_at.nil?)
-      return true if time_since_last_sync.nil?
+      return true if time_since_last_sync.nil? || options[:force]
 
       if item_updated_at.present?
         time_since_last_sync < item_updated_at
@@ -160,6 +160,15 @@ module Base
       raise "not implemented in #{self.class.name}"
     end
 
+    # Defines the conditions under which a task should be not be created,
+    # either in the primary_service or in the current service
+    def skip_create?(item)
+      # Never create new completed items
+      return true if item.completed?
+
+      false
+    end
+
     private
 
     # find all paired items
@@ -180,15 +189,6 @@ module Base
     # the default minimum time we should wait between syncing items
     def min_sync_interval
       raise "not implemented in #{self.class.name}"
-    end
-
-    # Defines the conditions under which a task should be not be created,
-    # either in the primary_service or in the current service
-    def skip_create?(item)
-      # Never create new completed items
-      return true if item.completed?
-
-      false
     end
   end
 end

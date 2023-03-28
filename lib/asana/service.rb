@@ -130,23 +130,26 @@ module Asana
       end
     end
 
-    private
-
-    # the minimum time we should wait between syncing tasks
-    def min_sync_interval
-      5.minutes.to_i
-    end
-
     # Defines the conditions under which a task should be not be created,
     # either in the primary_service or in Asana
     def skip_create?(task)
       return true if task.completed?
 
-      # Don't create a task in the primary service if the Asana task
-      # is assigned to someone other than the API user
-      return true if task.instance_of?(item_class) && (task.assignee == asana_user["gid"] || task.assignee.nil?)
+      raise "task #{task.friendly_title} doesn't respond to :assignee" unless task.respond_to?(:assignee)
 
-      false
+      # create the task (don't skip) if it's unassigned
+      return false if task.assignee.nil?
+
+      # Skip creation if the Asana task is assigned to someone
+      # other than the API user
+      task.assignee != asana_user["gid"]
+    end
+
+    private
+
+    # the minimum time we should wait between syncing tasks
+    def min_sync_interval
+      5.minutes.to_i
     end
 
     # create or update subtasks on a task
@@ -272,7 +275,7 @@ module Asana
       response = HTTParty.get("#{base_url}/users/me", authenticated_options)
       raise "Error loading Asana user - check personal access token" unless response.success?
 
-      JSON.parse(response.body)["data"]
+      JSON.parse(response.body)["data"]&.stringify_keys
     end
     memo_wise :asana_user
 
