@@ -4,7 +4,7 @@ require "spec_helper"
 
 RSpec.describe "Asana::Service" do
   let(:service) { Asana::Service.new(options:) }
-  let(:options) { { logger: } }
+  let(:options) { { logger:, tags: ["Asana"] } }
   let(:logger)  { double(StructuredLogger) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
@@ -97,6 +97,47 @@ RSpec.describe "Asana::Service" do
 
     it "raises an error" do
       expect { subject }.to raise_error NoMethodError
+    end
+  end
+
+  describe "#skip_create?" do
+    subject { service.skip_create?(asana_task) }
+
+    let(:asana_task_json) { JSON.parse(File.read(File.expand_path(File.join(__dir__, "..", "..", "fixtures", "asana_task.json")))) }
+    let(:asana_task) { Asana::Task.new(asana_task: asana_task_json, options:) }
+
+    context "with a completed task" do
+      before { allow(asana_task).to receive(:completed?).and_return(true) }
+
+      it { is_expected.to be true }
+    end
+
+    context "with a incomplete task" do
+      before { allow(asana_task).to receive(:completed?).and_return(false) }
+
+      context "with a nil assignee" do
+        before { allow(asana_task).to receive(:assignee).and_return(nil) }
+
+        it { is_expected.to be false }
+      end
+
+      context "with an assignee that matches asana_user" do
+        before do
+          allow(asana_task).to receive(:assignee).and_return("123")
+          allow(service).to receive(:asana_user).and_return({ gid: "123" }.stringify_keys)
+        end
+
+        it { is_expected.to be false }
+      end
+
+      context "with an assignee that does not match asana_user" do
+        before do
+          allow(asana_task).to receive(:assignee).and_return("123")
+          allow(service).to receive(:asana_user).and_return({ gid: "456" }.stringify_keys)
+        end
+
+        it { is_expected.to be true }
+      end
     end
   end
 end
