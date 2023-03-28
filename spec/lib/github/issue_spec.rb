@@ -40,14 +40,4 @@ RSpec.describe "Github::Issue" do
       expect(issue).to be_completed
     end
   end
-
-  describe "#sync_notes" do
-    let(:notes) { "notes\n\nsync_id: #{id}\n" }
-
-    it "adds a sync_url to the notes" do
-      expect(issue.notes).to eq("body")
-      expect(issue.sync_url).to eq("#{repo_url}/issues/#{number}")
-      expect(issue.sync_notes).to eq("body\n\nurl: #{repo_url}/issues/#{number}\n")
-    end
-  end
 end

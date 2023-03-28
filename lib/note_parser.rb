@@ -4,21 +4,22 @@ module NoteParser
   # The NoteParser will be used in the notes field for services that don't support custom fields
   # which currently is all of them?
   # parsed_notes expects key value pairs of the form "key: value" on its own line
-  def parsed_notes(keys:, notes:)
+  def parsed_notes(notes:, keys: [])
     return if notes.nil?
 
-    values = []
+    values = {}
     keys.each do |key|
       key_value_matcher = /(?:#{key}:\s(?<value>.+))(\R|\z)/
       match_data = key_value_matcher.match(notes)
       if match_data.nil?
-        values << nil
+        values[key] = nil
       else
-        values << match_data[:value].strip
+        values[key] = match_data[:value].strip
         notes = notes.split(match_data[0]).join
       end
     end
-    values + [notes.strip]
+    values["notes"] = notes.strip
+    values
   end
 
   # This will serialize the key value pairs in the values hash

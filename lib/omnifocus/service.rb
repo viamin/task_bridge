@@ -80,7 +80,8 @@ module Omnifocus
       end
       if !options[:pretend]
         new_task = parent_object.make(new: task_type, with_properties: external_task.to_omnifocus)
-        update_sync_data(external_task, new_task.id_.get)
+        new_task_id = new_task.id_.get
+        update_sync_data(external_task, new_task_id, Task.url(new_task_id))
       elsif options[:pretend] && options[:verbose]
         "Would have added #{external_task.title} to Omnifocus"
       end
@@ -123,7 +124,8 @@ module Omnifocus
           task_to_update.assigned_container.set(updated_project) if updated_project
         end
         handle_subtasks(omnifocus_task, external_task)
-        update_sync_data(external_task, omnifocus_task.id_.get) if options[:update_ids_for_existing]
+        omnifocus_task_id = omnifocus_task.id_.get
+        update_sync_data(external_task, omnifocus_task_id, Task.url(omnifocus_task_id)) if options[:update_ids_for_existing]
         external_task
       elsif options[:pretend]
         "Would have updated #{external_task.title} in Omnifocus"
