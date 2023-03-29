@@ -11,6 +11,7 @@ gem "activesupport",
       "active_support/core_ext/numeric", # for 1.week
       "active_support/core_ext/integer", # for 1.year
       "active_support/core_ext/hash", # for reverse_merge and stringify_keys
+      "active_support/core_ext/object", # for try
       "active_support/core_ext/string" # for squish
     ]
 

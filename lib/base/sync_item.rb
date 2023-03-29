@@ -95,7 +95,7 @@ module Base
     # Sync items that use an API to update attributes need to call the service's patch_item method
     # Items that use applescript to update attributes can override this method
     def update_attributes(attributes)
-      service.patch_item(self, attributes) if attributes_have_changed?(attributes)
+      service.patch_item(self, attributes) if service.respond_to?(:patch_item) && attributes_have_changed?(attributes)
     end
 
     private

@@ -77,6 +77,23 @@ module Reclaim
     end
 
     class << self
+      def from_external(external_task)
+        time_chunks_required = external_task.estimated_minutes.present? ? (external_task.estimated_minutes / 15.0).ceil : 1 # defaults to 15 minutes
+        {
+          alwaysPrivate: true,
+          due: external_task.due_date&.iso8601,
+          eventCategory: external_task.personal? ? "PERSONAL" : "WORK",
+          eventColor: nil,
+          maxChunkSize: 4, # 1 hour
+          minChunkSize: 1, # 15 minites
+          notes: external_task.sync_notes,
+          priority: "DEFAULT",
+          snoozeUntil: external_task.start_date&.iso8601,
+          timeChunksRequired: time_chunks_required,
+          title: external_task.title
+        }.compact
+      end
+
       # generate a title addition that Reclaim can use to set additional settings
       # Form of TITLE ([DURATION] [DUE_DATE] [NOT_BEFORE] [TYPE])
       # refer to https://help.reclaim.ai/en/articles/4293078-use-natural-language-in-the-google-task-integration

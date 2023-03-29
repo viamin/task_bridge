@@ -165,50 +165,24 @@ module Omnifocus
       def url(id)
         "omnifocus:///task/#{id}"
       end
-    end
 
-    # start_at is a "premium" feature, apparently
-    def to_asana
-      {
-        completed: completed?,
-        due_at: due_date&.iso8601,
-        liked: flagged,
-        name: title,
-        notes: sync_notes
-        # start_at: start_date&.iso8601
-      }.compact
-    end
+      def from_external(external_item, with_sub_items: false)
+        omnifocus_properties = {
+          name: external_item.try(:friendly_title) || external_item.try(:title),
+          note: external_item.try(:sync_notes) || external_item.try(:notes),
+          flagged: external_item.try(:flagged),
+          completion_date: external_item.try(:completed_at) || external_item.try(:completed_on),
+          defer_date: external_item.try(:start_at) || external_item.try(:start_date),
+          due_date: external_item.try(:due_at) || external_item.try(:due_date),
+          estimated_minutes: external_item.try(:estimated_minutes)
+        }.compact
+        return omnifocus_properties unless with_sub_items
 
-    # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
-    def to_google(with_due: false, skip_reclaim: false)
-      # using to_date since GoogleTasks doesn't seem to care about the time (for due date)
-      # and the exact time probably doesn't matter for completed
-      google_task = with_due ? { due: due_date&.to_date&.rfc3339 } : {}
-      google_task.merge(
-        {
-          completed: completion_date&.to_date&.rfc3339,
-          notes:,
-          status: completed ? "completed" : "needsAction",
-          title: title + Reclaim::Task.title_addon(self, skip: skip_reclaim)
-        }
-      ).compact
-    end
-
-    def to_reclaim
-      time_chunks_required = estimated_minutes.present? ? (estimated_minutes / 15.0).ceil : 1 # defaults to 15 minutes
-      {
-        alwaysPrivate: true,
-        due: due_date&.iso8601,
-        eventCategory: personal? ? "PERSONAL" : "WORK",
-        eventColor: nil,
-        maxChunkSize: 4, # 1 hour
-        minChunkSize: 1, # 15 minites
-        notes: sync_notes,
-        priority: "DEFAULT",
-        snoozeUntil: start_date&.iso8601,
-        timeChunksRequired: time_chunks_required,
-        title:
-      }
+        omnifocus_properties[:sub_items] = external_item.sub_items.map do |sub_item|
+          Task.from_external(sub_item, with_sub_items:)
+        end
+        omnifocus_properties
+      end
     end
 
     private

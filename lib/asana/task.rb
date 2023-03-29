@@ -37,10 +37,6 @@ module Asana
       "Asana"
     end
 
-    def self.requested_fields
-      %w[name permalink_url completed completed_at projects due_on due_at modified_at hearted notes start_on start_at num_subtasks memberships.section.name memberships.project.name subtasks_name assignee]
-    end
-
     def completed?
       completed
     end
@@ -71,42 +67,22 @@ module Asana
       }.to_json
     end
 
-    #       #####
-    #      #     # ###### #####  #    # #  ####  ######  ####
-    #      #       #      #    # #    # # #    # #      #
-    #       #####  #####  #    # #    # # #      #####   ####
-    #            # #      #####  #    # # #      #           #
-    #      #     # #      #   #   #  #  # #    # #      #    #
-    #       #####  ###### #    #   ##   #  ####  ######  ####
-
-    # Fields required for omnifocus service
-    def to_omnifocus(with_sub_items: false)
-      omnifocus_properties = {
-        name: friendly_title,
-        note: sync_notes,
-        flagged:,
-        completion_date: completed_at,
-        defer_date: start_at || start_date,
-        due_date: due_at || due_date
-      }.compact
-      omnifocus_properties[:sub_items] = sub_items.map(&:to_omnifocus) if with_sub_items
-      omnifocus_properties
-    end
-    memo_wise :to_omnifocus
-
-    # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
-    def to_google(with_due: false, skip_reclaim: false)
-      # using to_date since GoogleTasks doesn't seem to care about the time (for due date)
-      # and the exact time probably doesn't matter for completed
-      google_task = with_due ? { due: due_date&.to_date&.rfc3339 } : {}
-      google_task.merge(
+    class << self
+      def from_external(external_item)
         {
-          completed: completed_at&.to_date&.rfc3339,
-          notes: sync_notes,
-          status: completed ? "completed" : "needsAction",
-          title: title + Reclaim::Task.title_addon(self, skip: skip_reclaim)
-        }
-      ).compact
+          completed: external_item.completed?,
+          due_at: external_item.due_date&.iso8601,
+          liked: external_item.flagged,
+          name: external_item.title,
+          notes: external_item.sync_notes
+          # start_at is a "premium" feature, apparently
+          # start_at: external_item.start_date&.iso8601
+        }.compact
+      end
+
+      def requested_fields
+        %w[name permalink_url completed completed_at projects due_on due_at modified_at hearted notes start_on start_at num_subtasks memberships.section.name memberships.project.name subtasks_name assignee]
+      end
     end
 
     private

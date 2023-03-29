@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "google/apis/tasks_v1"
+require_relative "task"
 require_relative "base_cli"
 
 module GoogleTasks
@@ -54,7 +55,8 @@ module GoogleTasks
     def add_item(tasklist, external_task)
       return external_task.flag! if external_task.respond_to?(:estimated_minutes) && external_task.estimated_minutes.nil?
 
-      google_task = Google::Apis::TasksV1::Task.new(**external_task.to_google)
+      google_task_json = GoogleTasks::Task.from_external(external_task)
+      google_task = Google::Apis::TasksV1::Task.new(**google_task_json)
       debug("google_task: #{google_task.pretty_inspect}", options[:debug])
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L360
       tasks_service.insert_task(tasklist.id, google_task)
@@ -73,7 +75,8 @@ module GoogleTasks
     desc "update_item", "Update an existing task in a task list"
     def update_item(tasklist, google_task, external_task, options)
       debug("existing_task: #{google_task.pretty_inspect}", options[:debug])
-      updated_task = Google::Apis::TasksV1::Task.new(**external_task.to_google)
+      updated_task_json = GoogleTasks::Task.from_external(external_task)
+      updated_task = Google::Apis::TasksV1::Task.new(**updated_task_json)
       debug("updated_task: #{updated_task.pretty_inspect}", options[:debug])
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L510
       tasks_service.patch_task(tasklist.id, google_task.id, updated_task)

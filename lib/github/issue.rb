@@ -44,19 +44,8 @@ module Github
       "#{project}-##{number}: #{is_pr ? '[PR] ' : ''}#{title.strip}"
     end
 
-    #       #####
-    #      #     # ###### #####  #    # #  ####  ######  ####
-    #      #       #      #    # #    # # #    # #      #
-    #       #####  #####  #    # #    # # #      #####   ####
-    #            # #      #####  #    # # #      #           #
-    #      #     # #      #   #   #  #  # #    # #      #    #
-    #       #####  ###### #    #   ##   #  ####  ######  ####
-
-    def to_omnifocus
-      {
-        name: friendly_title,
-        note: url
-      }
+    def sync_notes
+      url
     end
 
     private

@@ -50,7 +50,7 @@ module Asana
       debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}", options[:debug])
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
-        body: { data: external_task.to_asana.merge(memberships_for_task(external_task, for_create: true)) }.to_json
+        body: { data: Task.from_external(external_task).merge(memberships_for_task(external_task, for_create: true)) }.to_json
       }
       if options[:pretend]
         "Would have added #{external_task.title} to Asana"
@@ -98,7 +98,7 @@ module Asana
       debug("asana_task: #{asana_task.title}", options[:debug])
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
-        body: { data: external_task.to_asana }.to_json
+        body: { data: Task.from_external(external_task) }.to_json
       }
       return "Would have updated task #{external_task.title} in Asana" if options[:pretend]
 

@@ -79,7 +79,7 @@ module Omnifocus
         parent_object = parent_object.original_task
       end
       if !options[:pretend]
-        new_task = parent_object.make(new: task_type, with_properties: external_task.to_omnifocus)
+        new_task = parent_object.make(new: task_type, with_properties: Task.from_external(external_task))
         new_task_id = new_task.id_.get
         update_sync_data(external_task, new_task_id, Task.url(new_task_id))
       elsif options[:pretend] && options[:verbose]

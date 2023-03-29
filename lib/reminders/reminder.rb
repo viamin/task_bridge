@@ -35,7 +35,8 @@ module Reminders
         notes: "body",
         start_date: "remind_me_date",
         title: "name",
-        updated_at: "modification_date"
+        updated_at: "modification_date",
+        completed_on: "completion_date"
       }
     end
 
@@ -64,45 +65,6 @@ module Reminders
         original_task.send(original_attribute_key.to_sym).set(value)
       end
     end
-
-    # start_at is a "premium" feature, apparently
-    def to_asana
-      {
-        completed:,
-        due_at: due_date&.iso8601,
-        liked: flagged,
-        name: title,
-        notes:
-        # start_at: start_date&.iso8601
-      }.compact
-    end
-
-    # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
-    def to_google(with_due: false, skip_reclaim: false)
-      # using to_date since GoogleTasks doesn't seem to care about the time (for due date)
-      # and the exact time probably doesn't matter for completed
-      google_task = with_due ? { due: due_date&.to_date&.rfc3339 } : {}
-      google_task.merge(
-        {
-          completed: completion_date&.to_date&.rfc3339,
-          notes:,
-          status: completed ? "completed" : "needsAction",
-          title: title + Reclaim::Task.title_addon(self, skip: skip_reclaim)
-        }
-      ).compact
-    end
-
-    def to_omnifocus(*)
-      {
-        name: friendly_title,
-        note: notes,
-        flagged:,
-        completion_date:,
-        defer_date: start_date,
-        due_date: due_date || due_on
-      }.compact
-    end
-    memo_wise :to_omnifocus
   end
 end
 
