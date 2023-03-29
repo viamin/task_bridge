@@ -156,10 +156,6 @@ module Base
       raise "not implemented in #{self.class.name}"
     end
 
-    def patch_item(_item, _attributes_hash)
-      raise "not implemented in #{self.class.name}"
-    end
-
     # Defines the conditions under which a task should be not be created,
     # either in the primary_service or in the current service
     def skip_create?(item)

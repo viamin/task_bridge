@@ -60,22 +60,6 @@ module Instapaper
       id
     end
 
-    #       #####
-    #      #     # ###### #####  #    # #  ####  ######  ####
-    #      #       #      #    # #    # # #    # #      #
-    #       #####  #####  #    # #    # # #      #####   ####
-    #            # #      #####  #    # # #      #           #
-    #      #     # #      #   #   #  #  # #    # #      #    #
-    #       #####  ###### #    #   ##   #  ####  ######  ####
-
-    def to_omnifocus
-      {
-        name: friendly_title,
-        note: sync_notes,
-        estimated_minutes:
-      }.compact
-    end
-
     private
 
     def image_time(image_count)

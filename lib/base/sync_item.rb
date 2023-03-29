@@ -74,7 +74,7 @@ module Base
     end
 
     def friendly_title_matches(item)
-      friendly_title.downcase == item.friendly_title.downcase
+      friendly_title.casecmp(item.friendly_title).zero?
     end
 
     def sync_notes
@@ -95,7 +95,7 @@ module Base
     # Sync items that use an API to update attributes need to call the service's patch_item method
     # Items that use applescript to update attributes can override this method
     def update_attributes(attributes)
-      service.patch_item(self, attributes) if attributes_have_changed?(attributes)
+      service.patch_item(self, attributes) if service.respond_to?(:patch_item) && attributes_have_changed?(attributes)
     end
 
     private

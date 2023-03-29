@@ -28,17 +28,17 @@ module Asana
       visible_project_gids = list_projects.map { |project| project["gid"] }
       task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid) }.flatten.uniq
       tasks = task_list.map { |task| Task.new(asana_task: task, options:) }
-      tasks_with_subtasks = tasks.select { |task| task.subtask_count.positive? }
-      if tasks_with_subtasks.any?
-        tasks_with_subtasks.each do |parent_task|
-          subtask_hashes = list_task_subtasks(parent_task.id)
-          subtask_hashes.each do |subtask_hash|
-            subtask = Task.new(asana_task: subtask_hash, options:)
-            parent_task.subtasks << subtask
-            # Remove the subtask from the main task list
+      tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
+      if tasks_with_sub_items.any?
+        tasks_with_sub_items.each do |parent_task|
+          sub_item_hashes = list_task_sub_items(parent_task.id)
+          sub_item_hashes.each do |sub_item_hash|
+            sub_item = Task.new(asana_task: sub_item_hash, options:)
+            parent_task.sub_items << sub_item
+            # Remove the sub_item from the main task list
             # so we don't double sync them
-            # (the Asana API doesn't have a filter for subtasks)
-            tasks.delete_if { |task| task.id == subtask.id }
+            # (the Asana API doesn't have a filter for sub_items)
+            tasks.delete_if { |task| task.id == sub_item.id }
           end
         end
       end
@@ -50,7 +50,7 @@ module Asana
       debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}", options[:debug])
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
-        body: { data: external_task.to_asana.merge(memberships_for_task(external_task, for_create: true)) }.to_json
+        body: { data: Task.from_external(external_task).merge(memberships_for_task(external_task, for_create: true)) }.to_json
       }
       if options[:pretend]
         "Would have added #{external_task.title} to Asana"
@@ -69,7 +69,7 @@ module Asana
               "Failed to move an Asana task to a section - code #{response.code}"
             end
           end
-          handle_subtasks(new_task, external_task)
+          handle_sub_items(new_task, external_task)
           update_sync_data(external_task, new_task.id, new_task.url)
         else
           debug(response.body, options[:debug])
@@ -98,7 +98,7 @@ module Asana
       debug("asana_task: #{asana_task.title}", options[:debug])
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
-        body: { data: external_task.to_asana }.to_json
+        body: { data: Task.from_external(external_task) }.to_json
       }
       return "Would have updated task #{external_task.title} in Asana" if options[:pretend]
 
@@ -122,7 +122,7 @@ module Asana
             "Failed to update Asana task ##{asana_task.id} with code #{project_response.code}"
           end
         end
-        handle_subtasks(asana_task, external_task)
+        handle_sub_items(asana_task, external_task)
         update_sync_data(external_task, asana_task.id, asana_task.url) if options[:update_ids_for_existing]
       else
         debug(response.body, options[:debug])
@@ -152,18 +152,18 @@ module Asana
       5.minutes.to_i
     end
 
-    # create or update subtasks on a task
-    def handle_subtasks(asana_task, external_task)
+    # create or update sub_items on a task
+    def handle_sub_items(asana_task, external_task)
       debug("", options[:debug])
-      return unless external_task.respond_to?(:subtask_count) && external_task.subtask_count.positive?
+      return unless external_task.respond_to?(:sub_item_count) && external_task.sub_item_count.positive?
 
-      external_task.subtasks.each do |subtask|
-        if (existing_task = subtask.find_matching_item_in(asana_task.subtasks))
-          update_item(existing_task, subtask)
-          "Updated subtask #{subtask.title} of task #{external_task.title} in Asana"
+      external_task.sub_items.each do |sub_item|
+        if (existing_task = sub_item.find_matching_item_in(asana_task.sub_items))
+          update_item(existing_task, sub_item)
+          "Updated sub_item #{sub_item.title} of task #{external_task.title} in Asana"
         else
-          add_item(subtask, asana_task.id) unless subtask.completed?
-          "Created subtask #{subtask.title} of task #{external_task.title} in Asana"
+          add_item(sub_item, asana_task.id) unless sub_item.completed?
+          "Created sub_item #{sub_item.title} of task #{external_task.title} in Asana"
         end
       end
     end
@@ -228,7 +228,7 @@ module Asana
     end
     memo_wise :list_project_tasks
 
-    def list_task_subtasks(task_gid)
+    def list_task_sub_items(task_gid)
       query = {
         query: {
           opt_fields: Task.requested_fields.join(",")
@@ -239,13 +239,13 @@ module Asana
 
       JSON.parse(response.body)["data"]
     end
-    memo_wise :list_task_subtasks
+    memo_wise :list_task_sub_items
 
     # Makes some big assumptions about the layout we use in Asana...
     # Namely that all Asana projects passed into TaskBridge
-    # will only have sections or top level tasks and subtasks,
-    # but only one level deep (meaning subtasks will not have
-    # subtasks of their own and sections will not have subsections)
+    # will only have sections or top level tasks and sub_items,
+    # but only one level deep (meaning sub_items will not have
+    # sub_items of their own and sections will not have subsections)
     # Also projects will not have sub-projects
     # And finally, section names are unique across projects (otherwise
     # tasks might get saved into the wrong projects in Asana)

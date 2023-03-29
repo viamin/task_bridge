@@ -41,7 +41,7 @@ module Omnifocus
 
     TIME_TAGS = WEEKDAY_TAGS + MONTH_TAGS + RELATIVE_TIME_TAGS
 
-    attr_reader :estimated_minutes, :tags, :project, :subtask_count, :subtasks, :due_date # :completion_date
+    attr_reader :estimated_minutes, :tags, :project, :sub_item_count, :sub_items, :due_date # :completion_date
 
     def initialize(omnifocus_task:, options:)
       super(sync_item: omnifocus_task, options:)
@@ -57,10 +57,10 @@ module Omnifocus
       @tags = read_attribute(omnifocus_task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       @due_date = date_from_tags(omnifocus_task, @tags)
-      @subtasks = read_attribute(omnifocus_task, :tasks).map do |subtask|
-        Task.new(omnifocus_task: subtask, options: @options)
+      @sub_items = read_attribute(omnifocus_task, :tasks).map do |sub_item|
+        Task.new(omnifocus_task: sub_item, options: @options)
       end
-      @subtask_count = @subtasks.count
+      @sub_item_count = @sub_items.count
     end
 
     def id_
@@ -154,10 +154,6 @@ module Omnifocus
       "omnifocus:///task/#{id}"
     end
 
-    def self.url(id)
-      "omnifocus:///task/#{id}"
-    end
-
     def update_attributes(attributes)
       attributes.each do |key, value|
         original_attribute_key = attribute_map[key].to_sym
@@ -165,48 +161,28 @@ module Omnifocus
       end
     end
 
-    # start_at is a "premium" feature, apparently
-    def to_asana
-      {
-        completed:,
-        due_at: due_date&.iso8601,
-        liked: flagged,
-        name: title,
-        notes: sync_notes
-        # start_at: start_date&.iso8601
-      }.compact
-    end
+    class << self
+      def url(id)
+        "omnifocus:///task/#{id}"
+      end
 
-    # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
-    def to_google(with_due: false, skip_reclaim: false)
-      # using to_date since GoogleTasks doesn't seem to care about the time (for due date)
-      # and the exact time probably doesn't matter for completed
-      google_task = with_due ? { due: due_date&.to_date&.rfc3339 } : {}
-      google_task.merge(
-        {
-          completed: completion_date&.to_date&.rfc3339,
-          notes:,
-          status: completed ? "completed" : "needsAction",
-          title: title + Reclaim::Task.title_addon(self, skip: skip_reclaim)
-        }
-      ).compact
-    end
+      def from_external(external_item, with_sub_items: false)
+        omnifocus_properties = {
+          name: external_item.try(:friendly_title) || external_item.try(:title),
+          note: external_item.try(:sync_notes) || external_item.try(:notes),
+          flagged: external_item.try(:flagged),
+          completion_date: external_item.try(:completed_at) || external_item.try(:completed_on),
+          defer_date: external_item.try(:start_at) || external_item.try(:start_date),
+          due_date: external_item.try(:due_at) || external_item.try(:due_date),
+          estimated_minutes: external_item.try(:estimated_minutes)
+        }.compact
+        return omnifocus_properties unless with_sub_items
 
-    def to_reclaim
-      time_chunks_required = estimated_minutes.present? ? (estimated_minutes / 15.0).ceil : 1 # defaults to 15 minutes
-      {
-        alwaysPrivate: true,
-        due: due_date&.iso8601,
-        eventCategory: personal? ? "PERSONAL" : "WORK",
-        eventColor: nil,
-        maxChunkSize: 4, # 1 hour
-        minChunkSize: 1, # 15 minites
-        notes: sync_notes,
-        priority: "DEFAULT",
-        snoozeUntil: start_date&.iso8601,
-        timeChunksRequired: time_chunks_required,
-        title:
-      }
+        omnifocus_properties[:sub_items] = external_item.sub_items.map do |sub_item|
+          Task.from_external(sub_item, with_sub_items:)
+        end
+        omnifocus_properties
+      end
     end
 
     private

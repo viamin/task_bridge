@@ -57,10 +57,10 @@ module Omnifocus
       omnifocus_tasks += tagged_project_tasks
       omnifocus_tasks += inbox_tasks if inbox
       tasks = omnifocus_tasks.map { |task| Task.new(omnifocus_task: task, options: @options) }
-      # remove subtasks from the list
-      tasks_with_subtasks = tasks.select { |task| task.subtask_count.positive? }
-      subtask_ids = tasks_with_subtasks.map(&:subtasks).flatten.map(&:id)
-      tasks.delete_if { |task| subtask_ids.include?(task.id) }
+      # remove sub_items from the list
+      tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
+      sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:id)
+      tasks.delete_if { |task| sub_item_ids.include?(task.id) }
     end
     memo_wise :items_to_sync
 
@@ -79,7 +79,7 @@ module Omnifocus
         parent_object = parent_object.original_task
       end
       if !options[:pretend]
-        new_task = parent_object.make(new: task_type, with_properties: external_task.to_omnifocus)
+        new_task = parent_object.make(new: task_type, with_properties: Task.from_external(external_task))
         new_task_id = new_task.id_.get
         update_sync_data(external_task, new_task_id, Task.url(new_task_id))
       elsif options[:pretend] && options[:verbose]
@@ -90,7 +90,7 @@ module Omnifocus
       tags(external_task).each do |tag|
         add_tag(tag:, task: new_task)
       end
-      handle_subtasks(Omnifocus::Task.new(omnifocus_task: new_task, options:), external_task)
+      handle_sub_items(Omnifocus::Task.new(omnifocus_task: new_task, options:), external_task)
       new_task
     end
 
@@ -104,7 +104,7 @@ module Omnifocus
           "Would have marked #{omnifocus_task.title} complete in Omnifocus"
         else
           omnifocus_task.mark_complete unless options[:pretend]
-          handle_subtasks(omnifocus_task, external_task)
+          handle_sub_items(omnifocus_task, external_task)
         end
       elsif !options[:pretend] && !external_task.completed? # don't add tags to completed tasks
         debug("Tagging omnifocus_task from (#{external_task.title})", options[:debug])
@@ -123,7 +123,7 @@ module Omnifocus
           end
           task_to_update.assigned_container.set(updated_project) if updated_project
         end
-        handle_subtasks(omnifocus_task, external_task)
+        handle_sub_items(omnifocus_task, external_task)
         omnifocus_task_id = omnifocus_task.id_.get
         update_sync_data(external_task, omnifocus_task_id, Task.url(omnifocus_task_id)) if options[:update_ids_for_existing]
         external_task
@@ -138,7 +138,7 @@ module Omnifocus
 
     def inbox_tasks
       debug("called", options[:debug])
-      inbox_tasks = omnifocus_app.inbox_tasks.get.map { |t| all_omnifocus_subtasks(t) }.flatten
+      inbox_tasks = omnifocus_app.inbox_tasks.get.map { |t| all_omnifocus_sub_items(t) }.flatten
       inbox_tasks.compact.uniq(&:id_)
     end
     memo_wise :inbox_tasks
@@ -170,7 +170,7 @@ module Omnifocus
 
       matching_tags = omnifocus_app.flattened_tags.get.select { |tag| tags.include?(tag.name.get) }
       all_tasks_in_container(matching_tags, incomplete_only:)
-      # matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
+      # matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
     end
     memo_wise :tagged_tasks
 
@@ -180,19 +180,19 @@ module Omnifocus
       15.minutes.to_i
     end
 
-    # create or update subtasks on a task
-    def handle_subtasks(omnifocus_task, external_task)
+    # create or update sub_items on a task
+    def handle_sub_items(omnifocus_task, external_task)
       debug("omnifocus_task: #{omnifocus_task}, external_task: #{external_task}", options[:debug])
-      return unless external_task.respond_to?(:subtask_count) && external_task.subtask_count.positive?
+      return unless external_task.respond_to?(:sub_item_count) && external_task.sub_item_count.positive?
 
-      omnifocus_subtasks = omnifocus_task.subtasks
-      external_task.subtasks.each do |subtask|
-        if (existing_subtask = omnifocus_subtasks.find { |omnifocus_subtask| friendly_titles_match?(omnifocus_subtask, subtask) })
-          update_item(existing_subtask, subtask)
-          "Updated subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
+      omnifocus_sub_items = omnifocus_task.sub_items
+      external_task.sub_items.each do |sub_item|
+        if (existing_sub_item = omnifocus_sub_items.find { |omnifocus_sub_item| friendly_titles_match?(omnifocus_sub_item, sub_item) })
+          update_item(existing_sub_item, sub_item)
+          "Updated sub_item #{sub_item.title} of task #{external_task.title} in Omnifocus"
         else
-          add_item(subtask, omnifocus_task) unless subtask.completed?
-          "Created subtask #{subtask.title} of task #{external_task.title} in Omnifocus"
+          add_item(sub_item, omnifocus_task) unless sub_item.completed?
+          "Created sub_item #{sub_item.title} of task #{external_task.title} in Omnifocus"
         end
       end
     end
@@ -303,9 +303,9 @@ module Omnifocus
     def all_tasks_in_container(container, incomplete_only: false)
       tasks = case container
               when Array
-                container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_) }.flatten
+                container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_) }.flatten
               when Appscript::Reference
-                container.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }.flatten.compact.uniq(&:id_)
+                container.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
       end
       return tasks unless incomplete_only
 
@@ -314,8 +314,8 @@ module Omnifocus
     memo_wise :all_tasks_in_container
 
     # adapted from https://github.com/fredoliveira/forecast
-    def all_omnifocus_subtasks(task)
-      [task] + task.tasks.get.flatten.map { |t| all_omnifocus_subtasks(t) }
+    def all_omnifocus_sub_items(task)
+      [task] + task.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }
     end
   end
 end

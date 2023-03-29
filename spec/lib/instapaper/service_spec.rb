@@ -85,7 +85,7 @@ RSpec.describe "Instapaper::Service" do
       context "with a regular task" do
       end
 
-      context "with a task with a subtask" do
+      context "with a task with a sub_item" do
       end
 
       context "with a task in a section" do
