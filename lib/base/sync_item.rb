@@ -74,7 +74,7 @@ module Base
     end
 
     def friendly_title_matches(item)
-      friendly_title.downcase == item.friendly_title.downcase
+      friendly_title.casecmp(item.friendly_title).zero?
     end
 
     def sync_notes
