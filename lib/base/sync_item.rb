@@ -85,6 +85,10 @@ module Base
       friendly_title.casecmp(item.friendly_title).zero?
     end
 
+    def external_sync_notes
+      notes_with_values(notes, sync_id: id, url:)
+    end
+
     def sync_notes
       notes_with_values(notes, sync_id:, url: sync_url)
     end
@@ -134,11 +138,6 @@ module Base
 
     def attributes_have_changed?(attributes)
       attributes.any? { |key, value| send(key.to_sym) != value }
-    end
-
-    # used to convert a sync_item back to the original attribute names
-    def inverted_attributes
-      standard_attribute_map.merge(attribute_map.compact).invert.stringify_keys
     end
 
     # read attributes using applescript

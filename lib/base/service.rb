@@ -84,9 +84,11 @@ module Base
 
       service_items = items_to_sync(tags: options[:tags])
       unless options[:quiet]
-
-        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: service_items.length,
-                                         title: "#{friendly_name} syncing to #{primary_service.friendly_name}")
+        progressbar = ProgressBar.create(
+          format: "%t: %c/%C |%w>%i| %e ",
+          total: service_items.length,
+          title: "#{friendly_name} syncing to #{primary_service.friendly_name}"
+        )
       end
       service_items.each do |service_item|
         output = if (existing_item = service_item.find_matching_item_in(existing_items(primary_service)))

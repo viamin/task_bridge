@@ -143,7 +143,7 @@ module Omnifocus
     memo_wise :containers
 
     def url
-      "omnifocus:///task/#{id}"
+      Task.url(id)
     end
 
     def update_attributes(attributes)
@@ -161,7 +161,7 @@ module Omnifocus
       def from_external(external_item, with_sub_items: false)
         omnifocus_properties = {
           name: external_item.try(:friendly_title) || external_item.try(:title),
-          note: external_item.try(:sync_notes) || external_item.try(:notes),
+          note: external_item.try(:external_sync_notes) || external_item.try(:notes),
           flagged: external_item.try(:flagged),
           completion_date: external_item.try(:completed_at) || external_item.try(:completed_on),
           defer_date: external_item.try(:start_at) || external_item.try(:start_date),

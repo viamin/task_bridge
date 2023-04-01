@@ -61,19 +61,19 @@ module Reminders
       title
     end
 
-    def sync_notes
-      notes_with_values(notes, sync_id:)
-    end
-
     def to_s
       "#{provider}::Reminder:(#{id})#{title}"
     end
 
     def update_attributes(attributes)
       attributes.each do |key, value|
-        original_attribute_key = inverted_attributes[key]
-        original_reminder.send(original_attribute_key.to_sym).set(value) if original_attribute_key
+        original_attribute_key = attribute_map[key].to_sym
+        original_reminder.send(original_attribute_key).set(value)
       end
+    end
+
+    def url
+      nil
     end
 
     private

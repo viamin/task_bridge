@@ -41,14 +41,12 @@ module Reminders
       if !options[:pretend]
         new_reminder = list(external_task).make(new: :reminder, with_properties: Reminder.from_external(external_task))
         new_reminder_id = new_reminder.id_.get
-        update_sync_data(external_task, new_reminder_id) if options[:update_ids_for_existing]
+        update_sync_data(external_task, new_reminder_id)
         new_reminder
       elsif options[:pretend] && options[:verbose]
         "Would have added #{external_task.title} to Reminders"
       end
     end
-
-    # def patch_item(reminder, attributes_hash); end
 
     def update_item(reminder, external_task)
       debug("reminder: #{reminder}, external_task: #{external_task}", options[:debug])
