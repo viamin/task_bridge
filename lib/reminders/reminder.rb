@@ -40,19 +40,29 @@ module Reminders
       }
     end
 
+    def project
+      project_map[list]
+    end
+
     def provider
       "Reminders"
     end
 
-    def completed?; end
+    def personal?
+      true
+    end
 
-    def incomplete?; end
-
-    def original_reminder; end
+    def original_reminder
+      Service.new(options:).reminders_app.lists[list].reminders.ID(id)
+    end
     memo_wise :original_reminder
 
     def friendly_title
       title
+    end
+
+    def sync_notes
+      notes_with_values(notes, sync_id:)
     end
 
     def to_s
@@ -62,9 +72,16 @@ module Reminders
     def update_attributes(attributes)
       attributes.each do |key, value|
         original_attribute_key = inverted_attributes[key]
-        original_task.send(original_attribute_key.to_sym).set(value)
+        original_reminder.send(original_attribute_key.to_sym).set(value) if original_attribute_key
       end
     end
+
+    private
+
+    def project_map
+      options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
+    end
+    memo_wise :project_map
   end
 end
 

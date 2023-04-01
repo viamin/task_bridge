@@ -21,28 +21,11 @@ module Omnifocus
       "Omnifocus"
     end
 
-    # Sync primary service tasks to Omnifocus
-    def sync_from_primary(primary_service)
-      tasks = primary_service.items_to_sync(tags: [friendly_name])
-      existing_tasks = items_to_sync(tags: options[:tags], inbox: true)
-      unless options[:quiet]
-        progressbar = ProgressBar.create(format: "%t: %c/%C |%w>%i| %e ", total: tasks.length,
-                                         title: "Omnifocus Tasks")
-      end
-      tasks.each do |task|
-        output = if (existing_task = existing_tasks.find { |t| friendly_titles_match?(t, task) })
-          update_item(existing_task, task)
-        else
-          add_item(task) unless task.completed
-        end
-        progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
-        progressbar.increment unless options[:quiet]
-      end
-      puts "Synced #{tasks.length} #{options[:primary]} items to Omnifocus" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: tasks.length }.stringify_keys
+    def sync_strategies
+      [:from_primary]
     end
 
-    def items_to_sync(tags: nil, projects: nil, folder: nil, inbox: false, incomplete_only: false)
+    def items_to_sync(tags: options[:tags], projects: nil, folder: nil, inbox: true, incomplete_only: false)
       tagged_tasks = tagged_tasks(tags, incomplete_only:)
       project_tasks = project_tasks(projects, incomplete_only:)
       folder_tasks = folder_tasks(folder, incomplete_only:)
@@ -111,7 +94,7 @@ module Omnifocus
         tags(external_task).each do |tag|
           add_tag(tag:, task: omnifocus_task)
         end
-        if external_task.project && !task_projects_match(external_task, omnifocus_task)
+        if external_task.try(:project) && !task_projects_match(external_task, omnifocus_task)
           debug("Projects don't match: (#{external_task.provider})#{external_task} <=> (Omnifocus)#{omnifocus_task}", options[:debug])
           # update the project via assigned_container property
           updated_project = project(nil, external_task.project)

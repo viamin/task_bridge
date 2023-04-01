@@ -63,44 +63,4 @@ RSpec.describe "Instapaper::Service" do
       it { is_expected.to be false }
     end
   end
-
-  describe "#add_item" do
-    subject { service.add_item(external_task, parent_task_gid) }
-
-    let(:external_task) { nil }
-    let(:parent_task_gid) { nil }
-    let(:title) { "Test" }
-
-    before do
-      allow(HTTParty).to receive(:post).and_return(httparty_success_mock)
-    end
-
-    it "raises an error" do
-      expect { subject }.to raise_error NoMethodError
-    end
-
-    context "with Omnifocus task" do
-      let(:external_task) { Omnifocus::Service.new.items_to_sync(projects: "TaskBridge:Test").first }
-
-      context "with a regular task" do
-      end
-
-      context "with a task with a sub_item" do
-      end
-
-      context "with a task in a section" do
-      end
-    end
-  end
-
-  describe "#update_item" do
-    subject { service.update_item(instapaper_article, external_task) }
-
-    let(:instapaper_article) { nil }
-    let(:external_task) { nil }
-
-    it "raises an error" do
-      expect { subject }.to raise_error NoMethodError
-    end
-  end
 end

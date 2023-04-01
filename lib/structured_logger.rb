@@ -38,7 +38,7 @@ class StructuredLogger
     puts format("%-#{@space_needed}s |   Last Attempted   |   Last Successful  | Items Synced", "Service")
     puts "#{'-' * @space_needed}-|#{'-' * 20}|#{'-' * 20}|#{'-' * 13}"
     @existing_logs.each do |log_hash|
-      puts format("%-#{@space_needed}s | %18s | %18s | %12d", log_hash["service"], log_hash["last_attempted"] || "", log_hash["last_successful"] || "", log_hash["items_synced"] || 0) if options[:services].include?(log_hash["service"].delete(" "))
+      puts format("%-#{@space_needed}s | %18s | %18s | %12d", log_hash["service"], log_hash.fetch("last_attempted", ""), log_hash.fetch("last_successful", ""), log_hash.fetch("items_synced", 0)) if options[:services].include?(log_hash["service"].delete(" "))
     end
   end
 
