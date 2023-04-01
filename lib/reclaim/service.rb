@@ -39,7 +39,7 @@ module Reclaim
         response = HTTParty.post("#{base_url}/tasks", authenticated_options.merge(request_body))
         if response.success?
           new_item = JSON.parse(response.body)
-          update_sync_data(external_task, new_item["id"]) if options[:update_ids_for_existing]
+          update_sync_data(external_task, new_item["id"])
         else
           debug(response, options[:debug])
           "Failed to create a Reclaim task - check api key"
