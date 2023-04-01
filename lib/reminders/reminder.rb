@@ -40,6 +40,10 @@ module Reminders
       }
     end
 
+    def project
+      project_map[list]
+    end
+
     def provider
       "Reminders"
     end
@@ -49,8 +53,7 @@ module Reminders
     end
 
     def original_reminder
-      # TODO: Figure out how to find the original reminder from a synced copy (probably this will just be the URL)
-      # Service.new(options:).reminders_app.flattened_tags[*options[:tags]].tasks[title].get
+      Service.new(options:).reminders_app.lists[list].reminders.ID(id)
     end
     memo_wise :original_reminder
 
@@ -69,9 +72,16 @@ module Reminders
     def update_attributes(attributes)
       attributes.each do |key, value|
         original_attribute_key = inverted_attributes[key]
-        original_task.send(original_attribute_key.to_sym).set(value)
+        original_reminder.send(original_attribute_key.to_sym).set(value) if original_attribute_key
       end
     end
+
+    private
+
+    def project_map
+      options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
+    end
+    memo_wise :project_map
   end
 end
 

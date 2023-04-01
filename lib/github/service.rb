@@ -29,7 +29,7 @@ module Github
       [:to_primary]
     end
 
-    def items_to_sync(tags = nil)
+    def items_to_sync(tags: nil)
       tagged_issues = sync_repositories
                       .map { |repo| list_issues(repo, tags) }
                       .flatten

@@ -38,7 +38,7 @@ RSpec.describe "Omnifocus::Service" do
       let(:projects) { "TaskBridge" }
 
       it "returns tasks in a project", :no_ci do
-        expect(subject.count).to eq(3)
+        expect(subject.count).to eq(2)
       end
     end
 

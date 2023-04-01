@@ -116,7 +116,7 @@ class TaskBridge
     # These are services that have tasks or task-like objects
     # that should be kept in sync with the primary service
     def task_services
-      %w[Asana GoogleTasks Omnifocus Reclaim]
+      %w[Asana GoogleTasks Omnifocus Reclaim Reminders]
     end
   end
 
