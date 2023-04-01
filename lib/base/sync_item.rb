@@ -62,7 +62,7 @@ module Base
 
     # First, check for a matching sync_id, if supported. Then, check for matching titles
     def find_matching_item_in(collection = [])
-      id_match = collection.find { |item| id == item.sync_id } if respond_to?(:id) && sync_id
+      id_match = collection.find { |item| ((item.id && (item.id == sync_id)) || (item.sync_id && (item.sync_id == id))) }
       return id_match if id_match
 
       # This should only match older items that don't have sync_ids
