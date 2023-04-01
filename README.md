@@ -18,6 +18,21 @@ Most of the command line options can be configured using an environment variable
 
 This script uses AppleScript on your Mac to talk to OmniFocus. OmniFocus needs to be installed on the computer you're running this script on to work.
 
+You'll need to create a "TaskBridge" tag in OmniFocus for sync to work. Additionally, each service you want to sync with OmniFocus requires a matching tag to be created. TaskBridge will not create the tags for you.
+
+Supported services and their tags:
+
+| Service | Tag
+|---------|-----
+| Asana | Asana
+| Github | Github
+| Google Tasks | Google Tasks
+| Instapaper | Instapaper
+| Reclaim.ai | Reclaim
+| Apple Reminders | Reminders
+
+If you forget to add a task for a service, strange things might happen, like duplicate tasks being created. Make sure you have the tags created before you run the script.
+
 ## Github Setup
 
 TaskBridge will sync issues and PRs that are assigned to you or that have a label matching what is configured in the `tags` setting. Issues created in Omnifocus will have the "Github" tag applied.
