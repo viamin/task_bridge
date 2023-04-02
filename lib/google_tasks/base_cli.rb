@@ -92,7 +92,8 @@ module GoogleTasks
         elsif credentials.expired?
           credentials = credentials.fetch_access_token!
           sleep 2
-          raise "Google credentials have expired. Delete #{token_store_path} and re-authenticate" if credentials.expired?
+          # NOTE: that `fetch_access_token!` returns a Hash, not a Credentials object
+          raise "Google credentials have expired. Delete #{token_store_path} and re-authenticate" if credentials["expires_in"] <= 0
         end
         credentials
       end
