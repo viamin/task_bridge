@@ -30,6 +30,6 @@ module NoteParser
     values_hash.each do |key, value|
       value_string += "\n#{key}: #{value}" unless value.nil?
     end
-    "#{notes}\n#{value_string}\n"
+    "#{notes}\n#{value_string}".strip
   end
 end

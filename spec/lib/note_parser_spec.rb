@@ -9,7 +9,7 @@ RSpec.describe "NoteParser" do
   let(:previous_notes) { "notes" }
 
   describe "#parsed_notes" do
-    let(:notes) { "#{previous_notes}\n\nsync_id: #{id}\nurl: #{url}\n" }
+    let(:notes) { "#{previous_notes}\n\nsync_id: #{id}\nurl: #{url}" }
 
     it "returns a Hash" do
       expect(note_parser_class.parsed_notes(keys: %w[sync_id url], notes:)).to be_a(Hash)
@@ -62,7 +62,15 @@ RSpec.describe "NoteParser" do
     let(:notes) { "notes" }
 
     it "adds the values to the notes" do
-      expect(note_parser_class.notes_with_values(notes, { sync_id: id, url: })).to eq("notes\n\nsync_id: #{id}\nurl: #{url}\n")
+      expect(note_parser_class.notes_with_values(notes, { sync_id: id, url: })).to eq("notes\n\nsync_id: #{id}\nurl: #{url}")
+    end
+
+    context "when notes are blank" do
+      let(:notes) { "" }
+
+      it "adds the values to the notes and strips whitespace" do
+        expect(note_parser_class.notes_with_values(notes, { sync_id: id, url: })).to eq("sync_id: #{id}\nurl: #{url}")
+      end
     end
   end
 end
