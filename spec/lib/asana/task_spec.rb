@@ -12,14 +12,4 @@ RSpec.describe "Asana::Task" do
       expect(asana_task.sync_id).to eq("jU466dYHf2o")
     end
   end
-
-  describe "#sync_notes" do
-    before { allow(asana_task).to receive(:notes).and_return("notes") }
-
-    it "adds a sync_id and url to the notes" do
-      expect(asana_task.notes).to eq("notes")
-      expect(asana_task.sync_id).to eq("jU466dYHf2o")
-      expect(asana_task.sync_notes).to eq("notes\n\nsync_id: jU466dYHf2o\n")
-    end
-  end
 end

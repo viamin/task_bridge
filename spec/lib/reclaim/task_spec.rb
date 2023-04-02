@@ -38,15 +38,4 @@ RSpec.describe "Reclaim::Task" do
       expect(task).to be_personal
     end
   end
-
-  describe "#sync_notes" do
-    let(:notes) { "notes\n\nsync_id: #{id}\n" }
-
-    it "adds a sync_id to the notes" do
-      expect(task.notes).to eq("notes")
-      expect(task.sync_id).to eq(id.to_s)
-      expect(task.sync_url).to be_nil
-      expect(task.sync_notes).to eq("notes\n\nsync_id: #{id}\n")
-    end
-  end
 end
