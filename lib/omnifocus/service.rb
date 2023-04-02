@@ -250,15 +250,14 @@ module Omnifocus
         debug("Using project_structure: #{project_structure}", options[:debug])
         # First, try to get a folder and sub-projects of that folder
         folder = folder(project_structure)
-        if folder
-          project = folder.flattened_projects[project_structure].get
+        project = if folder
+          folder.flattened_projects[project_structure].get
         else
           # If a folder project can't be found, check for any matching project
-          project ||= omnifocus_app.flattened_projects[project_structure]
+          omnifocus_app.flattened_projects[project_structure]
         end
-        debug("project: #{project.name.get}", options[:debug])
       end
-      debug("project: #{project}", options[:debug])
+      debug("project: #{project.name.get}", options[:debug])
       project.get
       project
     rescue StandardError
