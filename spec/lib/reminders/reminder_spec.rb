@@ -26,12 +26,4 @@ RSpec.describe "Reminders::Reminder" do
       expect(reminder.sync_id).to eq("jU466dYHf2o")
     end
   end
-
-  describe "#sync_notes" do
-    it "adds a sync_id to the notes" do
-      expect(reminder.notes).to eq("notes")
-      expect(reminder.sync_id).to eq("jU466dYHf2o")
-      expect(reminder.sync_notes).to eq("notes\n\nsync_id: jU466dYHf2o\n")
-    end
-  end
 end

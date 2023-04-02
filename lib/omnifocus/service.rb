@@ -25,19 +25,8 @@ module Omnifocus
       [:from_primary]
     end
 
-    def items_to_sync(tags: options[:tags], projects: nil, folder: nil, inbox: true, incomplete_only: false)
-      tagged_tasks = tagged_tasks(tags, incomplete_only:)
-      project_tasks = project_tasks(projects, incomplete_only:)
-      folder_tasks = folder_tasks(folder, incomplete_only:)
-      tagged_project_tasks = if tags && projects
-        tagged_tasks & project_tasks
-      elsif tags && folder
-        tagged_tasks & folder_tasks
-      else
-        tagged_tasks | project_tasks | folder_tasks
-      end
-      omnifocus_tasks = []
-      omnifocus_tasks += tagged_project_tasks
+    def items_to_sync(tags: options[:tags], inbox: true)
+      omnifocus_tasks = tagged_tasks(tags)
       omnifocus_tasks += inbox_tasks if inbox
       tasks = omnifocus_tasks.map { |task| Task.new(omnifocus_task: task, options: @options) }
       # remove sub_items from the list
@@ -125,27 +114,6 @@ module Omnifocus
       inbox_tasks.compact.uniq(&:id_)
     end
     memo_wise :inbox_tasks
-
-    def folder_tasks(folder_name = nil, incomplete_only: false)
-      debug("folder_name: #{folder_name}", options[:debug])
-      return [] if folder_name.nil?
-
-      folder = folder(folder_name)
-      folder_projects = folder.flattened_projects.get
-      all_tasks_in_container(folder_projects, incomplete_only:)
-    end
-    memo_wise :folder_tasks
-
-    def project_tasks(project_names = nil, incomplete_only: false)
-      debug("project_names: #{project_names}", options[:debug])
-      return [] if project_names.nil?
-
-      project_names.split(",").map do |project_name|
-        project = project(nil, project_name)
-        all_tasks_in_container(project, incomplete_only:)
-      end.flatten
-    end
-    memo_wise :project_tasks
 
     def tagged_tasks(tags = nil, incomplete_only: false)
       debug("tags: #{tags}", options[:debug])

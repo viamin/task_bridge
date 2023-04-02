@@ -14,13 +14,10 @@ RSpec.describe "Omnifocus::Service" do
   end
 
   describe "#items_to_sync" do
-    subject { service.items_to_sync(tags:, projects:, folder:, inbox:, incomplete_only:) }
+    subject { service.items_to_sync(tags:, inbox:) }
 
     let(:tags) { nil }
-    let(:projects) { nil }
-    let(:folder) { nil }
     let(:inbox) { false }
-    let(:incomplete_only) { true }
 
     it "returns an empty array", :no_ci do
       expect(subject).to eq([])
@@ -31,22 +28,6 @@ RSpec.describe "Omnifocus::Service" do
 
       it "returns tasks with a matching tag", :no_ci do
         expect(subject).not_to be_empty
-      end
-    end
-
-    context "with projects" do
-      let(:projects) { "TaskBridge" }
-
-      it "returns tasks in a project", :no_ci do
-        expect(subject.count).to eq(2)
-      end
-    end
-
-    context "with a folder" do
-      let(:folder) { "TaskBridge" }
-
-      it "returns all tasks in a folder", :no_ci do
-        expect(subject.count).to eq(5)
       end
     end
 
