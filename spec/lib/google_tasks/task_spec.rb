@@ -23,7 +23,7 @@ RSpec.describe GoogleTasks::Task, :full_options do
 
   describe "new" do
     it "parses out the omnifocus_id from notes" do
-      expect(google_task.sync_id("Omnifocus")).to eq("jU466dYHf2o")
+      expect(google_task.omnifocus_id).to eq("jU466dYHf2o")
     end
   end
 end

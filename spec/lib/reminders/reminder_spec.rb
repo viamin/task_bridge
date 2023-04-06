@@ -26,7 +26,7 @@ RSpec.describe "Reminders::Reminder", :full_options do
 
   describe "new" do
     it "parses out the omnifocus_id from notes" do
-      expect(reminder.sync_id("Omnifocus")).to eq("jU466dYHf2o")
+      expect(reminder.omnifocus_id).to eq("jU466dYHf2o")
     end
   end
 end

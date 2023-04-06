@@ -22,8 +22,7 @@ module Base
       end
       return if raw_notes.blank?
 
-      all_service_readers = all_services(remove_current: true).map { |service| ["#{service.underscore}_id", "#{service.underscore}_url"] }.flatten
-      note_components = parsed_notes(keys: all_service_readers, notes: raw_notes)
+      note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
       note_components.each do |key, value|
         instance_variable_set("@#{key}", value)
         define_singleton_method(key.to_sym) { instance_variable_get("@#{key}") }
@@ -62,22 +61,14 @@ module Base
     end
     memo_wise :service
 
-    def sync_id(service = nil)
-      service ||= provider
-      send("#{service.underscore}_id")
-    end
-
     # First, check for a matching sync_id, if supported. Then, check for matching titles
-    def find_matching_item_in(collection = [])
-      id_match = collection.find { |item| ((item.id && (item.id == sync_id)) || (item.sync_id(provider) && (item.sync_id(provider) == id))) }
-      return id_match if id_match
+    def find_matching_item_in(collection)
+      return if collection.blank?
 
-      # This should only match older items that don't have sync_ids
-      # TODO: this should be removed after items have updated their sync_ids
-      notes_and_title_match = collection.find do |item|
-        friendly_title_matches(item) && notes == item.notes
-      end
-      return notes_and_title_match if notes_and_title_match
+      external_id = "#{collection.first.provider.underscore}_id".to_sym
+      service_id = "#{provider.underscore}_id".to_sym
+      id_match = collection.find { |item| ((item.id && (item.id == try(external_id))) || (item.try(service_id) && (item.try(service_id) == id))) }
+      return id_match if id_match
 
       collection.find do |item|
         friendly_title_matches(item)
@@ -131,6 +122,11 @@ module Base
       all_services
     end
     memo_wise :all_services
+
+    def all_service_keys
+      all_services(remove_current: true).map { |service| ["#{service.underscore}_id", "#{service.underscore}_url"] }.flatten
+    end
+    memo_wise :all_service_keys
 
     def default_tags
       options[:tags] + [provider]

@@ -58,7 +58,7 @@ module Reminders
     memo_wise :original_reminder
 
     def external_sync_notes
-      notes_with_values(notes, sync_id: id)
+      notes_with_values(notes, reminders_id: id)
     end
 
     def friendly_title
