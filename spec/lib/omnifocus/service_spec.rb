@@ -2,10 +2,8 @@
 
 require "spec_helper"
 
-RSpec.describe "Omnifocus::Service" do
+RSpec.describe "Omnifocus::Service", :full_options do
   let(:service) { Omnifocus::Service.new(options:) }
-  let(:options) { { logger:, tags: [] } }
-  let(:logger)  { double(StructuredLogger) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
 
   before do
@@ -14,9 +12,9 @@ RSpec.describe "Omnifocus::Service" do
   end
 
   describe "#items_to_sync" do
-    subject { service.items_to_sync(tags:, inbox:) }
+    subject { service.items_to_sync(tags: sync_tags, inbox:) }
 
-    let(:tags) { nil }
+    let(:sync_tags) { nil }
     let(:inbox) { false }
 
     it "returns an empty array", :no_ci do
@@ -24,7 +22,7 @@ RSpec.describe "Omnifocus::Service" do
     end
 
     context "with tags" do
-      let(:tags) { ["TaskBridge"] }
+      let(:sync_tags) { ["TaskBridge"] }
 
       it "returns tasks with a matching tag", :no_ci do
         expect(subject).not_to be_empty

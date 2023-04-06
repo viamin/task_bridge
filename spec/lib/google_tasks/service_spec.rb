@@ -2,11 +2,9 @@
 
 require "spec_helper"
 
-RSpec.describe "GoogleTasks::Service" do
+RSpec.describe "GoogleTasks::Service", :full_options do
   let(:service)   { GoogleTasks::Service.new(options:) }
   let(:tasklist)  { "Test" }
-  let(:options)   { { logger: } }
-  let(:logger)    { double(StructuredLogger) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
 

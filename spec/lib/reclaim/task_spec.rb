@@ -2,10 +2,9 @@
 
 require "spec_helper"
 
-RSpec.describe "Reclaim::Task" do
+RSpec.describe "Reclaim::Task", :full_options do
   let(:service) { Reclaim::Service.new }
   let(:task) { Reclaim::Task.new(reclaim_task: properties, options:) }
-  let(:options) { { tags: [], work_tags: "", personal_tags: "" } }
   let(:id) { Faker::Number.number(digits: 7) }
   let(:title) { Faker::Lorem.sentence }
   let(:notes) { "notes" }
@@ -21,6 +20,10 @@ RSpec.describe "Reclaim::Task" do
       "notes" => notes,
       "eventCategory" => event_category
     }.compact
+  end
+
+  it_behaves_like "sync_item" do
+    let(:item) { task }
   end
 
   it "parses the due_date" do

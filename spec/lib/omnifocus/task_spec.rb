@@ -2,16 +2,14 @@
 
 require "spec_helper"
 
-RSpec.describe "Omnifocus::Task" do
+RSpec.describe "Omnifocus::Task", :full_options do
   let(:service) { Omnifocus::Service.new }
   let(:task) { Omnifocus::Task.new(omnifocus_task: properties, options:) }
-  let(:options) { { tags: } }
   let(:id) { SecureRandom.alphanumeric(11) }
   let(:name) { Faker::Lorem.sentence }
   let(:notes) { "notes" }
   let(:completed) { [true, false].sample }
   let(:containing_project) { "Folder:Project" }
-  let(:tags) { [] }
   let(:tasks) { [] }
   let(:properties) do
     OpenStruct.new({
@@ -23,6 +21,10 @@ RSpec.describe "Omnifocus::Task" do
       tags: tags.map { |tag| OpenStruct.new({ name: tag }) },
       tasks:
     }.compact)
+  end
+
+  it_behaves_like "sync_item" do
+    let(:item) { task }
   end
 
   context "with time-related tags" do

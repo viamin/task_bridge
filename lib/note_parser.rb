@@ -5,7 +5,7 @@ module NoteParser
   # which currently is all of them?
   # parsed_notes expects key value pairs of the form "key: value" on its own line
   def parsed_notes(notes:, keys: [])
-    return if notes.nil?
+    return {} if notes.nil?
 
     values = {}
     keys.each do |key|

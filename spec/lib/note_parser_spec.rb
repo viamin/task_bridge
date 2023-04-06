@@ -9,7 +9,7 @@ RSpec.describe "NoteParser" do
   let(:previous_notes) { "notes" }
 
   describe "#parsed_notes" do
-    let(:notes) { "#{previous_notes}\n\nsync_id: #{id}\nurl: #{url}" }
+    let(:notes) { "#{previous_notes}\n\nsync_id: #{id}\nurl: #{url}\n" }
 
     it "returns a Hash" do
       expect(note_parser_class.parsed_notes(keys: %w[sync_id url], notes:)).to be_a(Hash)
@@ -43,10 +43,17 @@ RSpec.describe "NoteParser" do
       expect(parsed_data["notes"]).to eq(previous_notes)
     end
 
-    it "works when there aren't any notes" do
+    it "works when there aren't any notes or ids" do
       parsed_data = note_parser_class.parsed_notes(keys: %w[url sync_id], notes: "")
       expect(parsed_data["sync_id"]).to be_nil
       expect(parsed_data["url"]).to be_nil
+      expect(parsed_data["notes"]).to eq("")
+    end
+
+    it "works when there aren't any notes" do
+      parsed_data = note_parser_class.parsed_notes(keys: %w[url sync_id], notes: "sync_id: #{id}\nurl: #{url}\n")
+      expect(parsed_data["sync_id"]).to eq(id.to_s)
+      expect(parsed_data["url"]).to eq(url)
       expect(parsed_data["notes"]).to eq("")
     end
 

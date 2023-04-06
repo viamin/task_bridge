@@ -2,10 +2,8 @@
 
 require "spec_helper"
 
-RSpec.describe "Asana::Service" do
+RSpec.describe "Asana::Service", :full_options do
   let(:service) { Asana::Service.new(options:) }
-  let(:options) { { logger:, tags: ["Asana"] } }
-  let(:logger)  { double(StructuredLogger) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
 
