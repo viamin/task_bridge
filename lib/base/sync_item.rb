@@ -7,26 +7,27 @@ module Base
     include NoteParser
 
     attr_reader :options, :tags, :notes, :debug_data
-    attr_accessor :sync_id, :sync_url
 
     def initialize(sync_item:, options:)
       @options = options
       @debug_data = sync_item if @options[:debug]
       @tags = default_tags
       attributes = standard_attribute_map.merge(attribute_map).compact
+      raw_notes = read_attribute(sync_item, attributes.delete(:notes))
       attributes.each do |attribute_key, attribute_value|
         value = read_attribute(sync_item, attribute_value)
         value = Chronic.parse(value) if chronic_attributes.include?(attribute_key)
         instance_variable_set("@#{attribute_key}", value)
         define_singleton_method(attribute_key.to_sym) { instance_variable_get("@#{attribute_key}") }
       end
+      return if raw_notes.blank?
 
-      parsed_data = parsed_notes(keys: %w[sync_id url], notes: read_attribute(sync_item, attributes[:notes]))
-      return unless parsed_data
-
-      @sync_id = parsed_data["sync_id"]
-      @sync_url = parsed_data["url"]
-      @notes = parsed_data["notes"]
+      note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
+      note_components.each do |key, value|
+        instance_variable_set("@#{key}", value)
+        define_singleton_method(key.to_sym) { instance_variable_get("@#{key}") }
+        define_singleton_method("#{key}=".to_sym) { |val| instance_variable_set("@#{key}", val) }
+      end
     end
 
     def completed?
@@ -61,16 +62,13 @@ module Base
     memo_wise :service
 
     # First, check for a matching sync_id, if supported. Then, check for matching titles
-    def find_matching_item_in(collection = [])
-      id_match = collection.find { |item| ((item.id && (item.id == sync_id)) || (item.sync_id && (item.sync_id == id))) }
-      return id_match if id_match
+    def find_matching_item_in(collection)
+      return if collection.blank?
 
-      # This should only match older items that don't have sync_ids
-      # TODO: this should be removed after items have updated their sync_ids
-      notes_and_title_match = collection.find do |item|
-        friendly_title_matches(item) && notes == item.notes
-      end
-      return notes_and_title_match if notes_and_title_match
+      external_id = "#{collection.first.provider.underscore}_id".to_sym
+      service_id = "#{provider.underscore}_id".to_sym
+      id_match = collection.find { |item| ((item.id && (item.id == try(external_id))) || (item.try(service_id) && (item.try(service_id) == id))) }
+      return id_match if id_match
 
       collection.find do |item|
         friendly_title_matches(item)
@@ -86,12 +84,18 @@ module Base
     end
 
     def external_sync_notes
-      notes_with_values(notes, sync_id: id, url:)
+      notes_with_values(sync_notes, "#{provider.underscore}_id".to_sym => id, "#{provider.underscore}_url".to_sym => url)
     end
 
     def sync_notes
-      notes_with_values(notes, sync_id:, url: sync_url)
+      service_values = {}
+      all_services(remove_current: true).map do |service|
+        service_values["#{service.underscore}_id"] = instance_variable_get("@#{service.underscore}_id")
+        service_values["#{service.underscore}_url"] = instance_variable_get("@#{service.underscore}_url")
+      end
+      notes_with_values(notes, service_values.compact)
     end
+    memo_wise :sync_notes
 
     def to_s
       "#{provider}::#{self.class.name}: (#{id})#{friendly_title}"
@@ -111,6 +115,18 @@ module Base
     end
 
     private
+
+    def all_services(remove_current: false)
+      all_services = options[:services] + [options[:primary]]
+      all_services.delete(provider) if remove_current
+      all_services
+    end
+    memo_wise :all_services
+
+    def all_service_keys
+      all_services(remove_current: true).map { |service| ["#{service.underscore}_id", "#{service.underscore}_url"] }.flatten
+    end
+    memo_wise :all_service_keys
 
     def default_tags
       options[:tags] + [provider]
@@ -142,6 +158,8 @@ module Base
 
     # read attributes using applescript
     def read_attribute(sync_item, attribute)
+      return if attribute.nil?
+
       value = if sync_item.is_a? Hash
         sync_item.fetch(attribute, nil)
       elsif sync_item.respond_to?(attribute.to_sym)

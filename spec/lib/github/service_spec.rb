@@ -2,10 +2,8 @@
 
 require "spec_helper"
 
-RSpec.describe "Github::Service" do
+RSpec.describe "Github::Service", :full_options do
   let(:service) { Github::Service.new(options:) }
-  let(:options) { { logger: } }
-  let(:logger)  { double(StructuredLogger) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
 
@@ -16,7 +14,7 @@ RSpec.describe "Github::Service" do
 
   describe "#sync_to_primary" do
     context "with omnifocus" do
-      let(:primary_service) { Omnifocus::Service.new(options: {}) }
+      let(:primary_service) { Omnifocus::Service.new(options:) }
 
       it "responds to #sync_to_primary" do
         expect(service).to be_respond_to(:sync_to_primary)

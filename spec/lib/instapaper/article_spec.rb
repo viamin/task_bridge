@@ -2,7 +2,7 @@
 
 require "spec_helper"
 
-RSpec.describe "Instapaper::Article" do
+RSpec.describe Instapaper::Article, :full_options do
   let(:title) { Faker::Lorem.sentence }
   let(:folder) { %w[unread archive].sample }
   let(:article_props) do
@@ -16,7 +16,6 @@ RSpec.describe "Instapaper::Article" do
       "updated_at" => Chronic.parse("1 week ago")
     }
   end
-  let(:options) { { tags: [] } }
   let(:article) { Instapaper::Article.new(instapaper_article: article_props, options:) }
 
   describe "#completed?" do

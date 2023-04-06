@@ -56,10 +56,6 @@ module Instapaper
     end
     memo_wise :read_time
 
-    def sync_id
-      id
-    end
-
     private
 
     def image_time(image_count)

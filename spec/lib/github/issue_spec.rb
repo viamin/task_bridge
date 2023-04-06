@@ -2,10 +2,9 @@
 
 require "spec_helper"
 
-RSpec.describe "Github::Issue" do
+RSpec.describe "Github::Issue", :full_options do
   let(:service) { Github::Service.new }
   let(:issue) { Github::Issue.new(github_issue: properties, options:) }
-  let(:options) { { tags: [] } }
   let(:id) { Faker::Number.number(digits: 10) }
   let(:number) { Faker::Number.number(digits: 3) }
   let(:title) { Faker::Lorem.sentence }
@@ -27,6 +26,10 @@ RSpec.describe "Github::Issue" do
       "state" => status,
       "labels" => labels
     }.compact
+  end
+
+  it_behaves_like "sync_item" do
+    let(:item) { issue }
   end
 
   it "is marked open" do

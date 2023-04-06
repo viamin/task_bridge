@@ -5,7 +5,17 @@ module NoteParser
   # which currently is all of them?
   # parsed_notes expects key value pairs of the form "key: value" on its own line
   def parsed_notes(notes:, keys: [])
-    return if notes.nil?
+    return {} if notes.nil?
+
+    # TODO: remove these after we've migrated all the notes
+    # Strips out the old sync_id from the notes
+    sync_id_matcher = /(?:\bsync_id:\s.+)(\R|\z)/
+    match_data = sync_id_matcher.match(notes)
+    notes = notes.split(match_data[0]).join unless match_data.nil?
+    # Also remove the url
+    sync_url_matcher = /(?:\burl:\s.+)(\R|\z)/
+    match_data = sync_url_matcher.match(notes)
+    notes = notes.split(match_data[0]).join unless match_data.nil?
 
     values = {}
     keys.each do |key|

@@ -7,24 +7,19 @@ module GoogleTasks
   class Task < Base::SyncItem
     def initialize(google_task:, options:)
       super(sync_item: google_task, options:)
-
-      @project = project_from_memberships(google_task)
-      @sub_item_count = google_task.fetch("num_subtasks", 0).to_i
-      @sub_items = []
-      @assignee = google_task.dig("assignee", "gid")
     end
 
     def attribute_map
       {
-        id: "gid",
-        title: "name",
-        url: "permalink_url",
-        due_date: "due_on",
-        flagged: "hearted",
-        type: "resource_type",
-        start_date: "start_on",
-        updated_at: "modified_at"
+        url: "self_link",
+        due_date: "due",
+        type: "kind",
+        updated_at: "updated"
       }
+    end
+
+    def provider
+      "GoogleTasks"
     end
 
     class << self
