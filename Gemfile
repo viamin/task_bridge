@@ -5,57 +5,58 @@ ruby "~> 3.1"
 source "https://rubygems.org"
 
 # https://github.com/rails/rails/tree/main/activesupport
-gem "activesupport",
+gem "activesupport", "~> 7.0",
     require: [
       "active_support",
-      "active_support/core_ext/numeric", # for 1.week
-      "active_support/core_ext/integer", # for 1.year
       "active_support/core_ext/hash", # for reverse_merge and stringify_keys
+      "active_support/core_ext/integer", # for 1.year
+      "active_support/core_ext/module", # for delegate
+      "active_support/core_ext/numeric", # for 1.week
       "active_support/core_ext/object", # for try
       "active_support/core_ext/string" # for squish
     ]
 
 # https://github.com/mojombo/chronic
-gem "chronic"
+gem "chronic", "~> 0.10"
 
 # https://github.com/fazibear/colorize
-gem "colorize"
+gem "colorize", "~> 0.8"
 
 # https://github.com/bkeepers/dotenv
-gem "dotenv", require: "dotenv/load"
+gem "dotenv", "~> 2.8", require: "dotenv/load"
 
 # https://github.com/googleapis/google-auth-library-ruby
-gem "googleauth"
+gem "googleauth", "~> 1.5"
 
 # https://github.com/googleapis/google-api-ruby-client/tree/main/google-api-client/generated/google/apis/tasks_v1
-gem "google-apis-tasks_v1"
+gem "google-apis-tasks_v1", "~> 0.15"
 
 # https://github.com/jnunemaker/httparty
-gem "httparty"
+gem "httparty", "~> 0.21"
 
 # https://github.com/flavorjones/loofah
-gem "loofah"
+gem "loofah", "~> 2.20"
 
 # https://github.com/panorama-ed/memo_wise
-gem "memo_wise"
+gem "memo_wise", "~> 1.7"
 
 # https://github.com/sparklemotion/nokogiri
-gem "nokogiri"
+gem "nokogiri", "~> 1.14"
 
 # https://gitlab.com/oauth-xx/oauth
-gem "oauth"
+gem "oauth", "~> 1.1"
 
 # https://github.com/ManageIQ/optimist
-gem "optimist"
+gem "optimist", "~> 3.0"
 
 # https://github.com/BrendanThompson/rb-scpt
-gem "rb-scpt"
+gem "rb-scpt", "~> 1.0"
 
 # https://github.com/jfelchner/ruby-progressbar
-gem "ruby-progressbar"
+gem "ruby-progressbar", "~> 1.13"
 
 # https://github.com/rails/thor
-gem "thor"
+gem "thor", "~> 1.2"
 
 group :development do
   gem "pry" # https://github.com/pry/pry
@@ -65,6 +66,6 @@ group :development do
 end
 
 group :test do
-  gem "faker" # https://github.com/faker-ruby/faker
-  gem "rspec"
+  gem "faker", "~> 3.2" # https://github.com/faker-ruby/faker
+  gem "rspec", "~> 3.10"
 end

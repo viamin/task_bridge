@@ -4,6 +4,7 @@
 require "rubygems"
 require "bundler/setup"
 Bundler.require(:default)
+require_relative "configuration"
 require_relative "debug"
 require_relative "note_parser"
 require_relative "structured_logger"
@@ -65,6 +66,7 @@ class TaskBridge
     @primary_service = "#{@options[:primary]}::Service".safe_constantize.new(options: @options)
     @options[:primary_service] = @primary_service
     @services = @options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new(options: @options)] }
+    @configuration = Configuration.new(@options)
   end
 
   def call
@@ -97,9 +99,9 @@ class TaskBridge
       @options[:logger].save_service_log!(@service_logs)
     end
     end_time = Time.now
-    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
     return if @options[:quiet]
 
+    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
     puts "Sync took #{end_time - start_time} seconds"
   end
 
