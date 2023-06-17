@@ -20,9 +20,9 @@ module Reclaim
       @always_private = read_attribute(reclaim_task, "alwaysPrivate")
       @tags = default_tags
       @tags = if personal?
-        @tags + @options[:personal_tags].split(",")
+        @tags + @options[:personal_tags]
       else
-        @tags + @options[:work_tags].split(",")
+        @tags + @options[:work_tags]
       end
     end
 

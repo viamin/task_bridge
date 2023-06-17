@@ -27,7 +27,7 @@ module Github
       {
         headers: device_options[:headers],
         body: {
-          client_id: ENV.fetch("GITHUB_CLIENT_ID"),
+          client_id: Chamber.dig!(:github, :client_id),
           device_code: auth_params["device_code"],
           grant_type: "urn:ietf:params:oauth:grant-type:device_code"
         }
@@ -40,7 +40,7 @@ module Github
           accept: "application/json"
         },
         body: {
-          client_id: ENV.fetch("GITHUB_CLIENT_ID"),
+          client_id: Chamber.dig!(:github, :client_id),
           scope: "repo"
         }
       }
@@ -51,7 +51,7 @@ module Github
     end
 
     def auth_file_path
-      File.expand_path(File.join(__dir__, "..", "..", ENV.fetch("GITHUB_ACCESS_CODE", "github_access_code.txt")))
+      File.expand_path(File.join(__dir__, "..", "..", Chamber.dig!(:github, :access_code)))
     end
     memo_wise :auth_file_path
 

@@ -6,13 +6,11 @@ Originally created to help me sync my Omnifocus tasks to [reclaim.ai](https://re
 
 Run `bundle install` to install dependencies. You may need an account for some of the services to work. Check below for requirements for each service you want to use.
 
-Run `ruby task_bridge.rb --help` to see available command line options.
+## Configuration
 
-## Configuration via environment variables
+Run `ruby task_bridge.rb --help` to see available command line options. Many command line default settings can be configured in the `settings.yml` file.
 
-Copy the `.env.example` file to `.env` and change any settings if needed.
-
-Most of the command line options can be configured using an environment variable. The command line option will take precence over the environment variable. If neither the environment variable nor the command line option are set, the default value will be used.
+The command line option will take precence over the settings in the configuration file.
 
 ## OmniFocus Setup
 
@@ -39,7 +37,7 @@ TaskBridge will sync issues and PRs that are assigned to you or that have a labe
 
 This script will connect to Github using an OAuth token that is created when running for the first time. You'll be prompted with a URL to go to and a code to enter. Enter the code into the URL and you will be logged in.
 
-TaskBridge will only sync tasks from repositories you configure in the `GITHUB_REPOSITORIES` environment variable. Add a comma-separated list of repositories in your `.env` file and issues from those repositories will be checked.
+TaskBridge will only sync tasks from repositories you configure in the `github.repositories` setting. Add a comma-separated list of repositories in your `.env` file and issues from those repositories will be checked.
 
 # Reclaim.ai Setup
 
