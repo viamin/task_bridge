@@ -16,6 +16,6 @@ RSpec.shared_context "full_options", full_options: true do
   let(:service_names) { %w[Asana Reminders Github GoogleTasks Reclaim Instapaper] }
   let(:primary_service_name) { "Omnifocus" }
   let(:logger) { double(StructuredLogger) }
-  let(:personal_tags) { "Personal" }
-  let(:work_tags) { "" }
+  let(:personal_tags) { ["Personal"] }
+  let(:work_tags) { [] }
 end
