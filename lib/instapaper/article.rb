@@ -10,7 +10,7 @@ module Instapaper
       super(sync_item: instapaper_article, options:)
 
       @folder = read_attribute(instapaper_article, "folder")
-      @project = ENV.fetch("INSTAPAPER_PROJECT", nil)
+      @project = Chamber.dig(:instapaper, :project)
       @updated_at = Time.at(instapaper_article["progress_timestamp"])
       @estimated_minutes = nil
     end

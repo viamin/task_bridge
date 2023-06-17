@@ -9,7 +9,7 @@ module Reclaim
   class Service < Base::Service
     def initialize(options:)
       super
-      @api_key = ENV.fetch("RECLAIM_API_KEY", nil)
+      @api_key = Chamber.dig(:reclaim, :api_key)
     end
 
     def item_class

@@ -15,6 +15,8 @@ require_relative "omnifocus/service"
 require_relative "reclaim/service"
 require_relative "reminders/service"
 
+Chamber.load basepath: File.expand_path("../", __dir__)
+
 class TaskBridge
   def initialize
     supported_services = TaskBridge.supported_services
@@ -22,24 +24,26 @@ class TaskBridge
       banner "Sync Tasks from one service to another"
       banner "Supported services: #{supported_services.join(', ')}"
       banner "By default, tasks found with the tags in --tags will have a work context"
-      opt :primary, "Primary task service", default: ENV.fetch("PRIMARY_TASK_SERVICE", "Omnifocus")
-      opt :tags, "Tags (or labels) to sync", default: ENV.fetch("SYNC_TAGS", "TaskBridge").split(",")
+      opt :primary, "Primary task service", default: Chamber.dig!(:task_bridge, :primary_service)
+      opt :tags, "Tags (or labels) to sync", default: Chamber.dig!(:task_bridge, :sync, :tags)
       opt :personal_tags,
           "Tags (or labels) used for personal context",
-          default: ENV.fetch("PERSONAL_TAGS", "")
+          type: :strings,
+          default: Chamber.dig(:task_bridge, :personal_tags)
       opt :work_tags,
           "Tags (or labels) used for work context (overrides personal tags)",
-          default: ENV.fetch("WORK_TAGS", "")
+          type: :strings,
+          default: Chamber.dig(:task_bridge, :work_tags)
       conflicts :personal_tags, :work_tags
-      opt :services, "Services to sync tasks to", default: ENV.fetch("SYNC_SERVICES", "GoogleTasks,Github").split(",")
-      opt :list, "Task list name to sync to", default: ENV.fetch("GOOGLE_TASKS_LIST", "My Tasks")
-      opt :repositories, "Github repositories to sync from", type: :strings, default: ENV.fetch("GITHUB_REPOSITORIES", "").split(",")
-      opt :reminders_mapping, "Reminder lists to map to primary service lists/projects", default: ENV.fetch("REMINDERS_LIST_MAPPING", "")
-      opt :max_age, "Skip syncing asks that have not been modified within this time (0 to disable)", default: ENV.fetch("SYNC_MAX_AGE", 0).to_i
-      opt :update_ids_for_existing, "Update Sync IDs for already synced items", default: ENV.fetch("UPDATE_IDS_FOR_EXISTING_ITEMS", false)
+      opt :services, "Services to sync tasks to", default: Chamber.dig!(:task_bridge, :sync, :services)
+      opt :list, "Task list name to sync to", default: Chamber.dig(:google, :tasks_list)
+      opt :repositories, "Github repositories to sync from", default: Chamber.dig(:github, :repositories)&.split(",")
+      opt :reminders_mapping, "Reminder lists to map to primary service lists/projects", default: Chamber.dig(:reminders, :list_mapping)
+      opt :max_age, "Skip syncing asks that have not been modified within this time (0 to disable)", default: Chamber.dig!(:task_bridge, :sync, :max_age).to_i
+      opt :update_ids_for_existing, "Update Sync IDs for already synced items", default: Chamber.dig!(:task_bridge, :update_ids_for_existing_items)
       opt :delete,
           "Delete completed tasks on service",
-          default: %w[true t yes 1].include?(ENV.fetch("DELETE_COMPLETED", "false").downcase)
+          default: Chamber.dig!(:task_bridge, :delete_completed)
       opt :only_from_primary, "Only sync FROM the primary service", default: false
       opt :only_to_primary, "Only sync TO the primary service", default: false
       conflicts :only_from_primary, :only_to_primary
@@ -48,8 +52,8 @@ class TaskBridge
       opt :force, "Ignore minimum sync interval", default: false
       opt :verbose, "Verbose output", default: false
       conflicts :quiet, :verbose
-      opt :log_file, "File name for service log", default: ENV.fetch("LOG_FILE", "service_sync.log")
-      opt :debug, "Print debug output", default: ENV.fetch("DEBUG", false)
+      opt :log_file, "File name for service log", default: Chamber.dig!(:task_bridge, :log_file)
+      opt :debug, "Print debug output", default: Chamber.dig!(:task_bridge, :debug)
       opt :console, "Run live console session", default: false
       opt :history, "Print sync service history", default: false
       opt :testing, "For testing purposes only", default: false
@@ -97,9 +101,9 @@ class TaskBridge
       @options[:logger].save_service_log!(@service_logs)
     end
     end_time = Time.now
-    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
     return if @options[:quiet]
 
+    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
     puts "Sync took #{end_time - start_time} seconds"
   end
 

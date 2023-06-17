@@ -36,14 +36,14 @@ module GoogleTasks
     no_commands do
       # Returns the path to the client_secrets.json file.
       def client_secrets_path
-        return ENV["GOOGLE_CLIENT_SECRETS"] if ENV.key?("GOOGLE_CLIENT_SECRETS")
+        return Chamber.dig!(:google, :client_secrets_file) if Chamber.dig(:google, :client_secrets_file)
 
         well_known_path_for("client_secrets.json")
       end
 
       # Returns the path to the token store.
       def token_store_path
-        return ENV["GOOGLE_CREDENTIAL_STORE"] if ENV.key?("GOOGLE_CREDENTIAL_STORE")
+        return Chamber.dig!(:google, :credential_store) if Chamber.dig(:google, :credential_store)
 
         well_known_path_for("credentials.yaml")
       end
@@ -69,8 +69,8 @@ module GoogleTasks
       def user_credentials_for(scope)
         FileUtils.mkdir_p(File.dirname(token_store_path))
 
-        client_id = if ENV["GOOGLE_CLIENT_ID"]
-          Google::Auth::ClientId.new(ENV["GOOGLE_CLIENT_ID"], ENV.fetch("GOOGLE_CLIENT_SECRET", nil))
+        client_id = if Chamber.dig(:google, :client, :id)
+          Google::Auth::ClientId.new(Chamber.dig!(:google, :client, :id), Chamber.dig(:google, :client, :secret))
         else
           Google::Auth::ClientId.from_file(client_secrets_path)
         end

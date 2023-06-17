@@ -37,10 +37,10 @@ module Instapaper
 
     def credentials
       {
-        key: ENV.fetch("INSTAPAPER_OAUTH_CONSUMER_ID"),
-        secret: ENV.fetch("INSTAPAPER_OAUTH_CONSUMER_SECRET"),
-        username: ENV.fetch("INSTAPAPER_USERNAME"),
-        password: ENV.fetch("INSTAPAPER_PASSWORD")
+        key: Chamber.dig!(:instapaper, :oauth, :consumer_id),
+        secret: Chamber.dig!(:instapaper, :oauth, :consumer_secret),
+        username: Chamber.dig!(:instapaper, :username),
+        password: Chamber.dig!(:instapaper, :password)
       }
     end
   end

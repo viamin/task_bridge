@@ -8,7 +8,7 @@ module Asana
   class Service < Base::Service
     def initialize(options:)
       super
-      @personal_access_token = ENV.fetch("ASANA_PERSONAL_ACCESS_TOKEN", nil)
+      @personal_access_token = Chamber.dig!(:asana, :personal_access_token)
     end
 
     def item_class
