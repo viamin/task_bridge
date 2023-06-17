@@ -37,9 +37,9 @@ TaskBridge will sync issues and PRs that are assigned to you or that have a labe
 
 This script will connect to Github using an OAuth token that is created when running for the first time. You'll be prompted with a URL to go to and a code to enter. Enter the code into the URL and you will be logged in.
 
-TaskBridge will only sync tasks from repositories you configure in the `github.repositories` setting. Add a comma-separated list of repositories in your `.env` file and issues from those repositories will be checked.
+TaskBridge will only sync tasks from repositories you configure in the `github.repositories` setting.
 
-# Reclaim.ai Setup
+## Reclaim.ai Setup
 
 [reclaim.ai](https://reclaim.ai) doesn't currently have an official external API, so this is a bit of a hack. You will need to copy the access token out of the cookie in your browser to authenticate this.
 
