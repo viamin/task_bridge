@@ -22,7 +22,7 @@ gem "chamber", "~> 3.0"
 gem "chronic", "~> 0.10"
 
 # https://github.com/fazibear/colorize
-gem "colorize", "~> 0.8"
+gem "colorize", "~> 1.0"
 
 # https://github.com/bkeepers/dotenv
 gem "dotenv", "~> 2.8", require: "dotenv/load"
