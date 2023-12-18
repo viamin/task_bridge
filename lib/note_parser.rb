@@ -15,7 +15,7 @@ module NoteParser
         values[key] = nil
       else
         values[key] = match_data[:value].strip
-        notes.gsub!(match_data[0].strip, "")
+        notes = notes.gsub(match_data[0].strip, "")
       end
     end
     values["notes"] = notes.strip
