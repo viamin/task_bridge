@@ -7,16 +7,6 @@ module NoteParser
   def parsed_notes(notes:, keys: [])
     return {} if notes.nil?
 
-    # TODO: remove these after we've migrated all the notes
-    # Strips out the old sync_id from the notes
-    sync_id_matcher = /(?:\bsync_id:\s.+)(\R|\z)/
-    match_data = sync_id_matcher.match(notes)
-    notes = notes.split(match_data[0]).join unless match_data.nil?
-    # Also remove the url
-    sync_url_matcher = /(?:\burl:\s.+)(\R|\z)/
-    match_data = sync_url_matcher.match(notes)
-    notes = notes.split(match_data[0]).join unless match_data.nil?
-
     values = {}
     keys.each do |key|
       key_value_matcher = /(?:#{key}:\s(?<value>.+))(\R|\z)/
@@ -25,7 +15,7 @@ module NoteParser
         values[key] = nil
       else
         values[key] = match_data[:value].strip
-        notes = notes.split(match_data[0]).join
+        notes = notes.gsub(match_data[0].strip, "")
       end
     end
     values["notes"] = notes.strip

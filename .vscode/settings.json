@@ -1,0 +1,4 @@
+{
+  "ruby.rubocop.suppressRubocopWarnings": true,
+  "ruby.rubocop.onSave": false
+}

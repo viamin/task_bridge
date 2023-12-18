@@ -63,6 +63,15 @@ RSpec.describe "NoteParser" do
       expect(parsed_data["omnifocus_url"]).to be_nil
       expect(parsed_data["notes"]).to eq(notes.strip)
     end
+
+    context "with duplicate keys" do
+      let(:notes) { "#{previous_notes}\nasana_url: https://app.asana.com/0/1205790342215875/1205790342215879\n\nasana_id: 1205790342215879\nasana_url: https://app.asana.com/0/1205790342215875/1205790342215879" }
+
+      it "removes the duplicates" do
+        parsed_data = note_parser_class.parsed_notes(keys: %w[asana_url asana_id], notes:)
+        expect(parsed_data["notes"]).to eq(previous_notes.strip)
+      end
+    end
   end
 
   describe "#notes_with_values" do
