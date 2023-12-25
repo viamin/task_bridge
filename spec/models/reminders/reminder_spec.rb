@@ -12,7 +12,7 @@ RSpec.describe "Reminders::Reminder", :full_options do
   let(:body) { "notes\n\nomnifocus_id: jU466dYHf2o" }
   let(:properties) do
     OpenStruct.new({
-      id:,
+      external_id: id,
       name:,
       completed:,
       containing_list:,

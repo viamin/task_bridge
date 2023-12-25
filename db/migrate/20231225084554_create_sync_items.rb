@@ -21,7 +21,7 @@ class CreateSyncItems < ActiveRecord::Migration[7.1]
       t.datetime :last_modified
 
       t.references :parent_item, null: true, foreign_key: {to_table: :sync_items}
-      t.references :collection, null: false, foreign_key: true
+      t.references :sync_collection, null: false, foreign_key: true
 
       t.timestamps
     end

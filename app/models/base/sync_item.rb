@@ -2,8 +2,6 @@
 
 module Base
   class SyncItem < ApplicationRecord
-    self.abstract_class = true
-
     prepend MemoWise
     include Debug
     include NoteParser
