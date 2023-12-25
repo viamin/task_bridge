@@ -70,7 +70,7 @@ module Omnifocus
     # setting some of these as nil so they will be skipped in the superclass initialization
     def attribute_map
       {
-        id: "id_",
+        external_id: "id_",
         completed_at: "completion_date",
         due_date: nil,
         notes: "note",
@@ -78,7 +78,7 @@ module Omnifocus
         status: nil,
         tags: nil,
         title: "name",
-        updated_at: "modification_date"
+        last_modified: "modification_date"
       }
     end
 

@@ -10,5 +10,39 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 0) do
+ActiveRecord::Schema[7.1].define(version: 2023_12_25_092931) do
+  create_table "sync_collections", force: :cascade do |t|
+    t.string "title"
+    t.datetime "last_synced"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "sync_items", force: :cascade do |t|
+    t.boolean "completed"
+    t.datetime "completed_at"
+    t.datetime "completed_on"
+    t.datetime "due_at"
+    t.datetime "due_date"
+    t.boolean "flagged"
+    t.string "notes"
+    t.datetime "start_at"
+    t.datetime "start_date"
+    t.string "status"
+    t.string "title"
+    t.string "item_type"
+    t.string "type"
+    t.string "url"
+    t.string "external_id"
+    t.datetime "last_modified"
+    t.integer "parent_item_id"
+    t.integer "collection_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["collection_id"], name: "index_sync_items_on_collection_id"
+    t.index ["parent_item_id"], name: "index_sync_items_on_parent_item_id"
+  end
+
+  add_foreign_key "sync_items", "collections"
+  add_foreign_key "sync_items", "sync_items", column: "parent_item_id"
 end

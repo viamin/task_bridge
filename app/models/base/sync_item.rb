@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 module Base
-  class SyncItem
+  class SyncItem < ApplicationRecord
+    self.abstract_class = true
+
     prepend MemoWise
     include Debug
     include NoteParser
@@ -146,8 +148,8 @@ module Base
         start_date: "start_date",
         status: "status",
         title: "title",
-        type: "type",
-        updated_at: "updated_at",
+        item_type: "type",
+        last_modified: "updated_at",
         url: "url"
       }
     end

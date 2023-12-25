@@ -30,12 +30,12 @@ module Reminders
 
     def attribute_map
       {
-        id: "id_",
+        external_id: "id_",
         due_on: "allday_due_date",
         notes: "body",
         start_date: "remind_me_date",
         title: "name",
-        updated_at: "modification_date",
+        last_modified: "modification_date",
         completed_on: "completion_date"
       }
     end

@@ -17,8 +17,8 @@ module Instapaper
 
     def attribute_map
       {
-        id: "bookmark_id",
-        updated_at: nil
+        external_id: "bookmark_id",
+        last_modified: nil
       }
     end
 

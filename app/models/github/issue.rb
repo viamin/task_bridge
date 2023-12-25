@@ -5,6 +5,8 @@ require_relative "../base/sync_item"
 module Github
   # A representation of a Github issue
   class Issue < Base::SyncItem
+    include Collectible
+
     attr_reader :number, :tags, :project, :is_pr, :updated_at
 
     def initialize(github_issue:, options:)
@@ -24,7 +26,7 @@ module Github
         tags: nil,
         url: "html_url",
         notes: "body",
-        updated_at: nil
+        last_modified: nil
       }
     end
 

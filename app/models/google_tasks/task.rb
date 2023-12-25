@@ -13,8 +13,8 @@ module GoogleTasks
       {
         url: "self_link",
         due_date: "due",
-        type: "kind",
-        updated_at: "updated"
+        item_type: "kind",
+        last_modified: "updated"
       }
     end
 

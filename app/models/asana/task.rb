@@ -5,6 +5,8 @@ require_relative "../base/sync_item"
 module Asana
   # A representation of an Asana task
   class Task < Base::SyncItem
+    include Collectible
+
     attr_reader :project, :section, :sub_item_count, :sub_items, :assignee
 
     def initialize(asana_task:, options:)
@@ -18,14 +20,14 @@ module Asana
 
     def attribute_map
       {
-        id: "gid",
+        external_id: "gid",
         title: "name",
         url: "permalink_url",
         due_date: "due_on",
         flagged: "hearted",
-        type: "resource_type",
+        item_type: "resource_type",
         start_date: "start_on",
-        updated_at: "modified_at"
+        last_modified: "modified_at"
       }
     end
 

@@ -30,9 +30,9 @@ module Reclaim
       {
         due_date: "due",
         start_date: "snoozeUntil",
-        updated_at: "updated",
+        last_modified: "updated",
         tags: nil,
-        type: "eventCategory"
+        item_type: "eventCategory"
       }
     end
 
