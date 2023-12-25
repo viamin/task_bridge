@@ -62,5 +62,5 @@ group :test do
   gem "capybara"
   gem "selenium-webdriver"
   gem "faker" # https://github.com/faker-ruby/faker
-  gem "rspec"
+  gem "rspec-rails"
 end

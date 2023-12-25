@@ -270,10 +270,6 @@ GEM
       uber (< 0.2.0)
     retriable (3.1.2)
     rexml (3.2.6)
-    rspec (3.12.0)
-      rspec-core (~> 3.12.0)
-      rspec-expectations (~> 3.12.0)
-      rspec-mocks (~> 3.12.0)
     rspec-core (3.12.2)
       rspec-support (~> 3.12.0)
     rspec-expectations (3.12.3)
@@ -282,6 +278,14 @@ GEM
     rspec-mocks (3.12.6)
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.12.0)
+    rspec-rails (6.1.0)
+      actionpack (>= 6.1)
+      activesupport (>= 6.1)
+      railties (>= 6.1)
+      rspec-core (~> 3.12)
+      rspec-expectations (~> 3.12)
+      rspec-mocks (~> 3.12)
+      rspec-support (~> 3.12)
     rspec-support (3.12.1)
     rubocop (1.57.2)
       json (~> 2.3)
@@ -391,7 +395,7 @@ DEPENDENCIES
   rails
   rb-scpt
   redis
-  rspec
+  rspec-rails
   rubocop
   rubocop-performance
   ruby-progressbar
