@@ -78,14 +78,14 @@ RSpec.describe "NoteParser" do
     let(:notes) { "notes" }
 
     it "adds the values to the notes" do
-      expect(note_parser_class.notes_with_values(notes, { omnifocus_id: id, omnifocus_url: url })).to eq("notes\n\nomnifocus_id: #{id}\nomnifocus_url: #{url}")
+      expect(note_parser_class.notes_with_values(notes, {omnifocus_id: id, omnifocus_url: url})).to eq("notes\n\nomnifocus_id: #{id}\nomnifocus_url: #{url}")
     end
 
     context "when notes are blank" do
       let(:notes) { "" }
 
       it "adds the values to the notes and strips whitespace" do
-        expect(note_parser_class.notes_with_values(notes, { omnifocus_id: id, omnifocus_url: url })).to eq("omnifocus_id: #{id}\nomnifocus_url: #{url}")
+        expect(note_parser_class.notes_with_values(notes, {omnifocus_id: id, omnifocus_url: url})).to eq("omnifocus_id: #{id}\nomnifocus_url: #{url}")
       end
     end
   end

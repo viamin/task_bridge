@@ -3,10 +3,10 @@
 require "spec_helper"
 
 RSpec.describe "GoogleTasks::Service", :full_options do
-  let(:service)   { GoogleTasks::Service.new(options:) }
-  let(:tasklist)  { "Test" }
+  let(:service) { GoogleTasks::Service.new(options:) }
+  let(:tasklist) { "Test" }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
-  let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
+  let(:httparty_success_mock) { OpenStruct.new(success?: true, body: {data: {task: external_task.to_json}}.to_json) }
 
   before do
     allow_any_instance_of(GoogleTasks::BaseCli).to receive(:user_credentials_for).and_return({})

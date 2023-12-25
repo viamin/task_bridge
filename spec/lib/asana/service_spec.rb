@@ -5,7 +5,7 @@ require "spec_helper"
 RSpec.describe "Asana::Service", :full_options do
   let(:service) { Asana::Service.new(options:) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
-  let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
+  let(:httparty_success_mock) { OpenStruct.new(success?: true, body: {data: {task: external_task.to_json}}.to_json) }
 
   before do
     allow(logger).to receive(:sync_data_for).and_return({})
@@ -122,7 +122,7 @@ RSpec.describe "Asana::Service", :full_options do
       context "with an assignee that matches asana_user" do
         before do
           allow(asana_task).to receive(:assignee).and_return("123")
-          allow(service).to receive(:asana_user).and_return({ gid: "123" }.stringify_keys)
+          allow(service).to receive(:asana_user).and_return({gid: "123"}.stringify_keys)
         end
 
         it { is_expected.to be false }
@@ -131,7 +131,7 @@ RSpec.describe "Asana::Service", :full_options do
       context "with an assignee that does not match asana_user" do
         before do
           allow(asana_task).to receive(:assignee).and_return("123")
-          allow(service).to receive(:asana_user).and_return({ gid: "456" }.stringify_keys)
+          allow(service).to receive(:asana_user).and_return({gid: "456"}.stringify_keys)
         end
 
         it { is_expected.to be true }

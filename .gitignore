@@ -1,5 +1,6 @@
 *.gem
 *.rbc
+*.sqlite3
 /.config
 /coverage/
 /InstalledFiles
@@ -11,6 +12,9 @@
 /test/tmp/
 /test/version_tmp/
 /tmp/
+
+# node / yarn
+node_modules
 
 # Used by dotenv library to load environment variables.
 .env
@@ -31,7 +35,6 @@
 
 # for a library or gem, you might want to ignore these files since the code is
 # intended to run in multiple environments; otherwise, check them in:
-Gemfile.lock
 # .ruby-version
 # .ruby-gemset
 
@@ -51,3 +54,4 @@ google_api_client_credentials.json
 .chamber*.pem
 .chamber*.enc.pass
 !.chamber*.pub.pem
+config/*.key

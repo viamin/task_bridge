@@ -18,7 +18,7 @@ RSpec.describe "Omnifocus::Task", :full_options do
       completed:,
       note: notes,
       containing_project:,
-      tags: tags.map { |tag| OpenStruct.new({ name: tag }) },
+      tags: tags.map { |tag| OpenStruct.new({name: tag}) },
       tasks:
     }.compact)
   end
