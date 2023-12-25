@@ -77,7 +77,7 @@ class TaskBridge
     return testing if @options[:testing]
     return console if @options[:console]
 
-    @services.each do |_service_name, service|
+    @services.each_value do |service|
       @service_logs = []
       if service.respond_to?(:authorized) && service.authorized == false
         @service_logs << {service: service.friendly_name, last_attempted: @options[:sync_started_at]}.stringify_keys

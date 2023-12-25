@@ -17,16 +17,16 @@ module Base
       attributes.each do |attribute_key, attribute_value|
         value = read_attribute(sync_item, attribute_value)
         value = Chronic.parse(value) if chronic_attributes.include?(attribute_key)
-        instance_variable_set("@#{attribute_key}", value)
-        define_singleton_method(attribute_key.to_sym) { instance_variable_get("@#{attribute_key}") }
+        instance_variable_set(:"@#{attribute_key}", value)
+        define_singleton_method(attribute_key.to_sym) { instance_variable_get(:"@#{attribute_key}") }
       end
       return if raw_notes.blank?
 
       note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
       note_components.each do |key, value|
-        instance_variable_set("@#{key}", value)
-        define_singleton_method(key.to_sym) { instance_variable_get("@#{key}") }
-        define_singleton_method("#{key}=".to_sym) { |val| instance_variable_set("@#{key}", val) }
+        instance_variable_set(:"@#{key}", value)
+        define_singleton_method(key.to_sym) { instance_variable_get(:"@#{key}") }
+        define_singleton_method(:"#{key}=") { |val| instance_variable_set(:"@#{key}", val) }
       end
     end
 
@@ -65,9 +65,9 @@ module Base
     def find_matching_item_in(collection)
       return if collection.blank?
 
-      external_id = "#{collection.first.provider.underscore}_id".to_sym
-      service_id = "#{provider.underscore}_id".to_sym
-      id_match = collection.find { |item| ((item.id && (item.id == try(external_id))) || (item.try(service_id) && (item.try(service_id) == id))) }
+      external_id = :"#{collection.first.provider.underscore}_id"
+      service_id = :"#{provider.underscore}_id"
+      id_match = collection.find { |item| (item.id && (item.id == try(external_id))) || (item.try(service_id) && (item.try(service_id) == id)) }
       return id_match if id_match
 
       collection.find do |item|
@@ -84,14 +84,14 @@ module Base
     end
 
     def external_sync_notes
-      notes_with_values(sync_notes, "#{provider.underscore}_id".to_sym => id, "#{provider.underscore}_url".to_sym => url)
+      notes_with_values(sync_notes, "#{provider.underscore}_id": id, "#{provider.underscore}_url": url)
     end
 
     def sync_notes
       service_values = {}
       all_services(remove_current: true).map do |service|
-        service_values["#{service.underscore}_id"] = instance_variable_get("@#{service.underscore}_id")
-        service_values["#{service.underscore}_url"] = instance_variable_get("@#{service.underscore}_url")
+        service_values["#{service.underscore}_id"] = instance_variable_get(:"@#{service.underscore}_id")
+        service_values["#{service.underscore}_url"] = instance_variable_get(:"@#{service.underscore}_url")
       end
       notes_with_values(notes, service_values.compact)
     end

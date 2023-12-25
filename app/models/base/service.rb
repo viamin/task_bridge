@@ -146,8 +146,8 @@ module Base
 
     def update_sync_data(existing_item, sync_id, sync_url = nil)
       service_name = friendly_name.underscore
-      existing_item.instance_variable_set("@#{service_name}_id", sync_id) if sync_id
-      existing_item.instance_variable_set("@#{service_name}_url", sync_url) if sync_url
+      existing_item.instance_variable_set(:"@#{service_name}_id", sync_id) if sync_id
+      existing_item.instance_variable_set(:"@#{service_name}_url", sync_url) if sync_url
       existing_item.update_attributes(notes: existing_item.sync_notes)
     end
 
