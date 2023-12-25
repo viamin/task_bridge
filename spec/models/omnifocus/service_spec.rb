@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 
 RSpec.describe "Omnifocus::Service", :full_options do
   let(:service) { Omnifocus::Service.new(options:) }

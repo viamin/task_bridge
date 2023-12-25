@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 require "oauth/request_proxy/mock_request"
 
 RSpec.describe "Instapaper::Service", :full_options do

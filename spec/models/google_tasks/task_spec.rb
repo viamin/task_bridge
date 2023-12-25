@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 
 RSpec.describe GoogleTasks::Task, :full_options do
   let(:google_task) { GoogleTasks::Task.new(google_task: google_task_json, options:) }

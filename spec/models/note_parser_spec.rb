@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 
 RSpec.describe "NoteParser" do
   let(:note_parser_class) { Class.new { include NoteParser }.new }

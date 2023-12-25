@@ -15,8 +15,6 @@ require_relative "omnifocus/service"
 require_relative "reclaim/service"
 require_relative "reminders/service"
 
-Chamber.load basepath: File.expand_path("../", __dir__)
-
 class TaskBridge
   def initialize
     supported_services = TaskBridge.supported_services

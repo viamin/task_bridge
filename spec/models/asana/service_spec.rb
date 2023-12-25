@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 
 RSpec.describe "Asana::Service", :full_options do
   let(:service) { Asana::Service.new(options:) }

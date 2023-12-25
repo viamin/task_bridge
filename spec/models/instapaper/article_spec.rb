@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 
 RSpec.describe Instapaper::Article, :full_options do
   let(:title) { Faker::Lorem.sentence }
