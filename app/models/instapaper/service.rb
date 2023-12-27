@@ -35,7 +35,6 @@ module Instapaper
     def items_to_sync(*)
       (unread_articles + recently_archived_articles).uniq(&:id)
     end
-    memo_wise :items_to_sync
 
     def article_text(article)
       debug("Getting article fulltext for article: #{article.title}", options[:debug])
@@ -49,7 +48,6 @@ module Instapaper
         puts "#{response.code} There was a problem with the Instapaper request for #{article.title}"
       end
     end
-    memo_wise :article_text
 
     private
 
@@ -72,7 +70,6 @@ module Instapaper
         Article.new(instapaper_article: article.merge({"folder" => "archive"}), options:)
       end
     end
-    memo_wise :recently_archived_articles
 
     def unread_articles
       debug("Getting unread Instapaper articles", options[:debug])
@@ -85,6 +82,5 @@ module Instapaper
         Article.new(instapaper_article: article.merge({"folder" => "unread"}), options:)
       end
     end
-    memo_wise :unread_articles
   end
 end

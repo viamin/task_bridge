@@ -28,7 +28,6 @@ module Reclaim
     def items_to_sync(*)
       list_tasks.map { |reclaim_task| Task.new(reclaim_task:, options:) }
     end
-    memo_wise :items_to_sync
 
     def add_item(external_task)
       debug("external_task: #{external_task}", options[:debug])
@@ -109,7 +108,6 @@ module Reclaim
 
       JSON.parse(response.body)
     end
-    memo_wise :list_tasks
 
     def authenticated_options
       {

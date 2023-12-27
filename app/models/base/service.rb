@@ -2,7 +2,6 @@
 
 module Base
   class Service
-    prepend MemoWise
     include Debug
 
     attr_reader :options
@@ -183,7 +182,6 @@ module Base
       end
       paired_items
     end
-    memo_wise :paired_items
 
     # the default minimum time we should wait between syncing items
     def min_sync_interval

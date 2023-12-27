@@ -17,7 +17,6 @@ gem "googleauth" # https://github.com/googleapis/google-auth-library-ruby
 gem "httparty" # https://github.com/jnunemaker/httparty
 gem "jsbundling-rails" # https://github.com/rails/jsbundling-rails
 gem "loofah" # https://github.com/flavorjones/loofah
-gem "memo_wise" # https://github.com/panorama-ed/memo_wise
 gem "nokogiri" # https://github.com/sparklemotion/nokogiri
 gem "oauth" # https://gitlab.com/oauth-xx/oauth
 gem "puma" # https://github.com/puma/puma

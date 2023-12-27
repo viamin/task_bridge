@@ -34,7 +34,6 @@ module Reminders
       merged_reminders = reminders_lists.map { |reminders_list| reminders_in_list(reminders_list) }.flatten
       merged_reminders.map { |reminder| Reminder.new(reminder:, options:) }
     end
-    memo_wise :items_to_sync
 
     def add_item(external_task, parent_object = nil)
       debug("external_task: #{external_task}, parent_object: #{parent_object}", options[:debug])
@@ -77,12 +76,10 @@ module Reminders
     def lists
       reminders_app.lists.get
     end
-    memo_wise :lists
 
     def reminders_in_list(list_name)
       reminder_list = lists.find { |list| list.name.get == list_name }
       reminder_list.reminders.get
     end
-    memo_wise :reminders_in_list
   end
 end

@@ -44,7 +44,6 @@ module Asana
       end
       tasks
     end
-    memo_wise :items_to_sync
 
     def add_item(external_task, parent_task_gid = nil)
       debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}", options[:debug])
@@ -177,7 +176,6 @@ module Asana
 
       JSON.parse(response.body)["data"]
     end
-    memo_wise :list_projects
 
     def project_gids
       @project_gids ||= list_projects.map { |project| project["gid"] }
@@ -213,7 +211,6 @@ module Asana
 
       body_data.map { |section_hash| section_hash.merge("project_gid" => project_gid) }
     end
-    memo_wise :list_project_sections
 
     def list_project_tasks(project_gid)
       query = {
@@ -226,7 +223,6 @@ module Asana
 
       JSON.parse(response.body)["data"]
     end
-    memo_wise :list_project_tasks
 
     def list_task_sub_items(task_gid)
       query = {
@@ -239,7 +235,6 @@ module Asana
 
       JSON.parse(response.body)["data"]
     end
-    memo_wise :list_task_sub_items
 
     # Makes some big assumptions about the layout we use in Asana...
     # Namely that all Asana projects passed into TaskBridge
@@ -264,7 +259,6 @@ module Asana
         }.compact
       end
     end
-    memo_wise :memberships_for_task
 
     def workspace_gids
       workspaces = asana_user["workspaces"]
@@ -277,7 +271,6 @@ module Asana
 
       JSON.parse(response.body)["data"]&.stringify_keys
     end
-    memo_wise :asana_user
 
     def authenticated_options
       {

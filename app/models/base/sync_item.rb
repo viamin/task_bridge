@@ -2,7 +2,6 @@
 
 module Base
   class SyncItem < ApplicationRecord
-    prepend MemoWise
     include Debug
     include NoteParser
 
@@ -59,7 +58,6 @@ module Base
         "#{provider}::Service".safe_constantize.new(options:)
       end
     end
-    memo_wise :service
 
     # First, check for a matching sync_id, if supported. Then, check for matching titles
     def find_matching_item_in(collection)
@@ -95,7 +93,6 @@ module Base
       end
       notes_with_values(notes, service_values.compact)
     end
-    memo_wise :sync_notes
 
     def to_s
       "#{provider}::#{self.class.name}: (#{id})#{friendly_title}"
@@ -121,12 +118,10 @@ module Base
       all_services.delete(provider) if remove_current
       all_services
     end
-    memo_wise :all_services
 
     def all_service_keys
       all_services(remove_current: true).map { |service| ["#{service.underscore}_id", "#{service.underscore}_url"] }.flatten
     end
-    memo_wise :all_service_keys
 
     def set_tags
       @tags = default_tags

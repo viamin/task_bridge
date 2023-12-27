@@ -4,7 +4,6 @@ require "oauth"
 
 module Instapaper
   class Authentication
-    prepend MemoWise
     include Debug
 
     attr_reader :options
@@ -31,7 +30,6 @@ module Instapaper
       }
       consumer.get_access_token(nil, request_options, arguments)
     end
-    memo_wise :authenticate!
 
     private
 

@@ -39,7 +39,6 @@ module Github
         .map { |issue| Issue.new(github_issue: issue, options:) }
       (tagged_issues + assigned_issues).uniq(&:id)
     end
-    memo_wise :items_to_sync
 
     private
 
@@ -81,7 +80,6 @@ module Github
         JSON.parse(response.body) if response.success?
       end
     end
-    memo_wise :list_assigned
 
     # https://docs.github.com/en/rest/issues/issues#list-repository-issues
     def list_issues(repository, tags = nil)
@@ -98,11 +96,9 @@ module Github
 
       JSON.parse(response.body)
     end
-    memo_wise :list_issues
 
     def issue_labels(issue)
       issue["labels"].map { |label| label["name"] }
     end
-    memo_wise :issue_labels
   end
 end

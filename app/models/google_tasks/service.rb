@@ -8,7 +8,6 @@ module GoogleTasks
   # A service class to connect to the Google Tasks API
   class Service < BaseCli
     include Debug
-    prepend MemoWise
 
     attr_reader :tasks_service, :options, :authorized
 
@@ -129,7 +128,6 @@ module GoogleTasks
 
       tasklist
     end
-    no_commands { memo_wise :tasklist }
 
     # In case a reclaim title is present, match the title
     def friendly_titles_match?(google_task, task)

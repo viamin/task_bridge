@@ -57,7 +57,6 @@ module Reminders
     def original_reminder
       Service.new(options:).reminders_app.lists[list].reminders.ID(id)
     end
-    memo_wise :original_reminder
 
     def external_sync_notes
       notes_with_values(notes, reminders_id: id)
@@ -83,7 +82,6 @@ module Reminders
     def project_map
       options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
     end
-    memo_wise :project_map
   end
 end
 

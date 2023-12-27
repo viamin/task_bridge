@@ -55,7 +55,6 @@ module Instapaper
       word_reading_minutes = (word_count.to_f / reading_speed_wpm)
       @estimated_minutes = (word_reading_minutes + image_time(image_count)).ceil
     end
-    memo_wise :read_time
 
     private
 
@@ -69,7 +68,6 @@ module Instapaper
       end
       seconds.to_f / 60
     end
-    memo_wise :image_time
 
     # {
     #   "hash" => "agzVxoVE",

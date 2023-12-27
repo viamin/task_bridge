@@ -2,8 +2,6 @@
 
 module Github
   class Authentication
-    prepend MemoWise
-
     attr_reader :options
 
     def initialize(options)
@@ -19,7 +17,6 @@ module Github
       end
       @authentication
     end
-    memo_wise :authenticate!
 
     private
 
@@ -53,7 +50,6 @@ module Github
     def auth_file_path
       File.expand_path(File.join(__dir__, "..", "..", Chamber.dig!(:github, :access_code)))
     end
-    memo_wise :auth_file_path
 
     def missing_authentication
       return true unless File.exist?(auth_file_path)

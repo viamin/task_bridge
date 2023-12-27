@@ -34,7 +34,6 @@ module Omnifocus
       sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:id)
       tasks.delete_if { |task| sub_item_ids.include?(task.id) }
     end
-    memo_wise :items_to_sync
 
     def add_item(external_task, parent_object = nil)
       debug("external_task: #{external_task}, parent_object: #{parent_object}", options[:debug])
@@ -113,7 +112,6 @@ module Omnifocus
       inbox_tasks = omnifocus_app.inbox_tasks.get.map { |t| all_omnifocus_sub_items(t) }.flatten
       inbox_tasks.compact.uniq(&:id_)
     end
-    memo_wise :inbox_tasks
 
     def tagged_tasks(tags = nil, incomplete_only: false)
       debug("tags: #{tags}", options[:debug])
@@ -123,7 +121,6 @@ module Omnifocus
       all_tasks_in_container(matching_tags, incomplete_only:)
       # matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
     end
-    memo_wise :tagged_tasks
 
     private
 
@@ -232,7 +229,6 @@ module Omnifocus
       puts "The project #{project_structure} does not exist in Omnifocus" if options[:verbose]
       nil
     end
-    memo_wise :project
 
     # Checks that a tag exists in Omnifocus and if it does, returns it
     def tag(name)
@@ -242,13 +238,11 @@ module Omnifocus
       puts "The tag #{name} does not exist in Omnifocus" if options[:verbose]
       nil
     end
-    memo_wise :tag
 
     # Maps a list of tag names on an Omnifocus::Task to Omnifocus tags
     def tags(task)
       task.tags.filter_map { |tag| tag(tag) }
     end
-    memo_wise :tags
 
     def all_tasks_in_container(container, incomplete_only: false)
       tasks = case container
@@ -261,7 +255,6 @@ module Omnifocus
 
       tasks.reject { |task| task.completed.get }
     end
-    memo_wise :all_tasks_in_container
 
     # adapted from https://github.com/fredoliveira/forecast
     def all_omnifocus_sub_items(task)

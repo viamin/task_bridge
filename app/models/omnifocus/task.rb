@@ -94,7 +94,6 @@ module Omnifocus
         !@tags.intersect?(@options[:work_tags])
       end
     end
-    memo_wise :personal?
 
     def flag!
       original_task.flagged.set(to: true)
@@ -113,7 +112,6 @@ module Omnifocus
       end
       search_tasks.find { |task| task.id_.get == id }
     end
-    memo_wise :original_task
 
     def containers
       parents = []
@@ -141,7 +139,6 @@ module Omnifocus
       end
       parents
     end
-    memo_wise :containers
 
     def url
       Task.url(id)
