@@ -6,12 +6,12 @@ module Base
     include Debug
     include NoteParser
 
-    attr_reader :options, :tags, :notes, :debug_data
+    attr_accessor :sync_item, :options
+    attr_reader :tags, :notes, :debug_data
 
-    def initialize(sync_item:, options:)
-      @options = options
-      @debug_data = sync_item if @options[:debug]
-      @tags = default_tags
+    after_initialize :read_original, :set_tags
+
+    def read_original
       attributes = standard_attribute_map.merge(attribute_map).compact
       raw_notes = read_attribute(sync_item, attributes.delete(:notes))
       attributes.each do |attribute_key, attribute_value|
@@ -127,6 +127,10 @@ module Base
       all_services(remove_current: true).map { |service| ["#{service.underscore}_id", "#{service.underscore}_url"] }.flatten
     end
     memo_wise :all_service_keys
+
+    def set_tags
+      @tags = default_tags
+    end
 
     def default_tags
       options[:tags] + [provider]

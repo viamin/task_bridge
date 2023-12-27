@@ -4,14 +4,15 @@ require_relative "../base/sync_item"
 
 module Instapaper
   class Article < Base::SyncItem
-    attr_reader :folder, :project, :estimated_minutes, :updated_at
+    attr_accessor :instapaper_article
+    attr_reader :folder, :project, :estimated_minutes
 
-    def initialize(instapaper_article:, options:)
-      super(sync_item: instapaper_article, options:)
+    after_initialize :read_original
 
+    def read_original
       @folder = read_attribute(instapaper_article, "folder")
       @project = Chamber.dig(:instapaper, :project)
-      @updated_at = Time.at(instapaper_article["progress_timestamp"])
+      self.last_modified = Time.at(instapaper_article["progress_timestamp"])
       @estimated_minutes = nil
     end
 

@@ -5,10 +5,12 @@ require_relative "../base/sync_item"
 module Reminders
   # A representation of an Reminders reminder
   class Reminder < Base::SyncItem
+    attr_accessor :reminder
     attr_reader :list, :priority
 
-    def initialize(reminder:, options:)
-      super(sync_item: reminder, options:)
+    after_initialize :read_original
+
+    def read_original
       containing_list = read_attribute(reminder, :container)
       @list = if containing_list.respond_to?(:get)
         containing_list.name.get

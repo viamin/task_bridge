@@ -41,11 +41,12 @@ module Omnifocus
 
     TIME_TAGS = WEEKDAY_TAGS + MONTH_TAGS + RELATIVE_TIME_TAGS
 
-    attr_reader :estimated_minutes, :tags, :project, :sub_item_count, :sub_items, :due_date # :completion_date
+    attr_accessor :omnifocus_task
+    attr_reader :estimated_minutes, :tags, :project, :sub_item_count, :sub_items
 
-    def initialize(omnifocus_task:, options:)
-      super(sync_item: omnifocus_task, options:)
+    after_initialize :read_original
 
+    def read_original
       containing_project = read_attribute(omnifocus_task, :containing_project)
       @project = if containing_project.respond_to?(:get)
         containing_project.name.get
@@ -56,7 +57,7 @@ module Omnifocus
 
       @tags = read_attribute(omnifocus_task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
-      @due_date = date_from_tags(omnifocus_task, @tags)
+      self.due_date = date_from_tags(omnifocus_task, @tags)
       @sub_items = read_attribute(omnifocus_task, :tasks).map do |sub_item|
         Task.new(omnifocus_task: sub_item, options: @options)
       end

@@ -7,17 +7,18 @@ module Github
   class Issue < Base::SyncItem
     include Collectible
 
-    attr_reader :number, :tags, :project, :is_pr, :updated_at
+    attr_accessor :github_issue
+    attr_reader :number, :tags, :project, :is_pr
 
-    def initialize(github_issue:, options:)
-      super(sync_item: github_issue, options:)
+    after_initialize :read_original
 
+    def read_original
       @number = read_attribute(github_issue, "number")
       # Add "Github" to the labels
       @tags = (default_tags + github_issue["labels"].map { |label| label["name"] }).uniq
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
-      @updated_at = Chronic.parse(github_issue["updated_at"])&.getlocal
+      self.last_modified = Chronic.parse(github_issue["updated_at"])&.getlocal
     end
 
     def attribute_map

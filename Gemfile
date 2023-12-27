@@ -20,7 +20,6 @@ gem "loofah" # https://github.com/flavorjones/loofah
 gem "memo_wise" # https://github.com/panorama-ed/memo_wise
 gem "nokogiri" # https://github.com/sparklemotion/nokogiri
 gem "oauth" # https://gitlab.com/oauth-xx/oauth
-gem "optimist" # https://github.com/ManageIQ/optimist
 gem "puma" # https://github.com/puma/puma
 gem "rb-scpt" # https://github.com/BrendanThompson/rb-scpt
 gem "ruby-progressbar" # https://github.com/jfelchner/ruby-progressbar

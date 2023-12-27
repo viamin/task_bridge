@@ -5,9 +5,7 @@ require_relative "../base/sync_item"
 module GoogleTasks
   # A representation of an Google task
   class Task < Base::SyncItem
-    def initialize(google_task:, options:)
-      super(sync_item: google_task, options:)
-    end
+    attr_accessor :google_task
 
     def attribute_map
       {

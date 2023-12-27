@@ -7,11 +7,12 @@ module Reclaim
     PERSONAL = "PERSONAL"
     WORK = "WORK"
 
+    attr_accessor :reclaim_task
     attr_reader :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :always_private
 
-    def initialize(reclaim_task:, options:)
-      super(sync_item: reclaim_task, options:)
+    after_initialize :read_original
 
+    def read_original
       @time_required = read_attribute(reclaim_task, "timeChunksRequired")
       @time_spent = read_attribute(reclaim_task, "timeChunksSpent")
       @time_remaining = read_attribute(reclaim_task, "timeChunksRemaining")

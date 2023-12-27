@@ -1,13 +1,11 @@
 # frozen_string_literal: true
 
 class StructuredLogger
-  include Debug
-
   attr_reader :options
 
   def initialize(options)
     @options = options
-    @log_file = File.expand_path(File.join(__dir__, "..", "log", options[:log_file]))
+    @log_file = File.expand_path(Rails.root.join(options[:log_file]))
     @space_needed = options[:services].map(&:length).max + 1
     @existing_logs = if File.exist?(@log_file)
       JSON.parse(File.read(@log_file))

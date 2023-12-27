@@ -7,11 +7,12 @@ module Asana
   class Task < Base::SyncItem
     include Collectible
 
+    attr_accessor :asana_task
     attr_reader :project, :section, :sub_item_count, :sub_items, :assignee
 
-    def initialize(asana_task:, options:)
-      super(sync_item: asana_task, options:)
+    after_initialize :read_original
 
+    def read_original
       @project = project_from_memberships(asana_task)
       @sub_item_count = asana_task.fetch("num_subtasks", 0).to_i
       @sub_items = []
