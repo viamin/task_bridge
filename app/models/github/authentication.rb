@@ -2,10 +2,9 @@
 
 module Github
   class Authentication
-    attr_reader :options
+    include GlobalOptions
 
-    def initialize(options)
-      @options = options
+    def initialize
       @authentication = nil
     end
 
@@ -48,7 +47,7 @@ module Github
     end
 
     def auth_file_path
-      File.expand_path(File.join(__dir__, "..", "..", Chamber.dig!(:github, :access_code)))
+      File.expand_path(Rails.root.join(Chamber.dig!(:github, :access_code)))
     end
 
     def missing_authentication

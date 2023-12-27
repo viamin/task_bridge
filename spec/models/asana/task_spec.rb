@@ -2,9 +2,9 @@
 
 require "rails_helper"
 
-RSpec.describe "Asana::Task", :full_options do
-  let(:asana_task) { Asana::Task.new(asana_task: asana_task_json, options:) }
-  let(:asana_task_json) { JSON.parse(File.read(File.expand_path(File.join(__dir__, "..", "..", "fixtures", "asana_task.json")))) }
+RSpec.describe "Asana::Task" do
+  let(:asana_task) { Asana::Task.new(asana_task: asana_task_json) }
+  let(:asana_task_json) { JSON.parse(File.read(File.expand_path(Rails.root.join("spec", "fixtures", "asana_task.json")))) }
 
   it_behaves_like "sync_item" do
     let(:item) { asana_task }

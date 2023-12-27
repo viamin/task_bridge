@@ -2,9 +2,9 @@
 
 require "rails_helper"
 
-RSpec.describe "Github::Issue", :full_options do
+RSpec.describe "Github::Issue" do
   let(:service) { Github::Service.new }
-  let(:issue) { Github::Issue.new(github_issue: properties, options:) }
+  let(:issue) { Github::Issue.new(github_issue: properties) }
   let(:id) { Faker::Number.number(digits: 10) }
   let(:number) { Faker::Number.number(digits: 3) }
   let(:title) { Faker::Lorem.sentence }

@@ -5,9 +5,11 @@ require_relative "../base/service"
 
 module Reminders
   class Service < Base::Service
+    include GlobalOptions
+
     attr_reader :reminders_app
 
-    def initialize(options:)
+    def initialize
       super
       # Assumes you already have Reminders installed
       @reminders_app = Appscript.app.by_name(friendly_name)
@@ -32,7 +34,7 @@ module Reminders
       reminders_lists = sync_maps.keys
       debug("reminders_lists: #{reminders_lists}", options[:debug])
       merged_reminders = reminders_lists.map { |reminders_list| reminders_in_list(reminders_list) }.flatten
-      merged_reminders.map { |reminder| Reminder.new(reminder:, options:) }
+      merged_reminders.map { |reminder| Reminder.new(reminder:) }
     end
 
     def add_item(external_task, parent_object = nil)

@@ -3,18 +3,18 @@
 module Base
   class SyncItem < ApplicationRecord
     include Debug
+    include GlobalOptions
     include NoteParser
 
-    attr_accessor :sync_item, :options
     attr_reader :tags, :notes, :debug_data
 
     after_initialize :read_original, :set_tags
 
     def read_original
       attributes = standard_attribute_map.merge(attribute_map).compact
-      raw_notes = read_attribute(sync_item, attributes.delete(:notes))
+      raw_notes = read_attribute(external_data, attributes.delete(:notes))
       attributes.each do |attribute_key, attribute_value|
-        value = read_attribute(sync_item, attribute_value)
+        value = read_attribute(external_data, attribute_value)
         value = Chronic.parse(value) if chronic_attributes.include?(attribute_key)
         instance_variable_set(:"@#{attribute_key}", value)
         define_singleton_method(attribute_key.to_sym) { instance_variable_get(:"@#{attribute_key}") }
@@ -131,6 +131,10 @@ module Base
       options[:tags] + [provider]
     end
 
+    def external_data
+      raise "Not implemented"
+    end
+
     def standard_attribute_map
       {
         id: "id",
@@ -156,13 +160,13 @@ module Base
     end
 
     # read attributes using applescript
-    def read_attribute(sync_item, attribute)
+    def read_attribute(external_data, attribute)
       return if attribute.nil?
 
-      value = if sync_item.is_a? Hash
-        sync_item.fetch(attribute, nil)
-      elsif sync_item.respond_to?(attribute.to_sym)
-        sync_item.send(attribute.to_sym)
+      value = if external_data.is_a? Hash
+        external_data.fetch(attribute, nil)
+      elsif external_data.respond_to?(attribute.to_sym)
+        external_data.send(attribute.to_sym)
       end
       value = value.get if value.respond_to?(:get)
       (value == :missing_value) ? nil : value

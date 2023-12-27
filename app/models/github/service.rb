@@ -7,9 +7,11 @@ require_relative "../base/service"
 module Github
   # A service class to connect to the Github API
   class Service < Base::Service
+    include GlobalOptions
+
     attr_reader :authentication
 
-    def initialize(options:)
+    def initialize
       super
       @authentication = Authentication.new(options).authenticate!
     rescue

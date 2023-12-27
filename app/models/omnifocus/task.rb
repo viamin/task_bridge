@@ -59,7 +59,7 @@ module Omnifocus
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       self.due_date = date_from_tags(omnifocus_task, @tags)
       @sub_items = read_attribute(omnifocus_task, :tasks).map do |sub_item|
-        Task.new(omnifocus_task: sub_item, options: @options)
+        Task.new(omnifocus_task: sub_item)
       end
       @sub_item_count = @sub_items.count
     end
@@ -83,15 +83,19 @@ module Omnifocus
       }
     end
 
+    def external_data
+      omnifocus_task
+    end
+
     def provider
       "Omnifocus"
     end
 
     def personal?
-      if @options[:uses_personal_tags]
-        @tags.intersect?(@options[:personal_tags])
-      elsif @options[:work_tags]&.any?
-        !@tags.intersect?(@options[:work_tags])
+      if options[:uses_personal_tags]
+        @tags.intersect?(options[:personal_tags])
+      elsif options[:work_tags]&.any?
+        !@tags.intersect?(options[:work_tags])
       end
     end
 

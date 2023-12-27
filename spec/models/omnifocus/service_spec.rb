@@ -2,8 +2,9 @@
 
 require "rails_helper"
 
-RSpec.describe "Omnifocus::Service", :full_options do
-  let(:service) { Omnifocus::Service.new(options:) }
+RSpec.describe "Omnifocus::Service" do
+  let(:service) { Omnifocus::Service.new }
+  let(:logger) { double(StructuredLogger) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
 
   before do

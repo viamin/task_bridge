@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 class StructuredLogger
-  attr_reader :options
+  include Debug
+  include GlobalOptions
 
-  def initialize(options)
-    @options = options
-    @log_file = File.expand_path(Rails.root.join(options[:log_file]))
-    @space_needed = options[:services].map(&:length).max + 1
+  def initialize(log_file:, services:)
+    @log_file = File.expand_path(Rails.root.join(log_file))
+    @space_needed = services.map(&:length).max + 1
     @existing_logs = if File.exist?(@log_file)
       JSON.parse(File.read(@log_file))
     else

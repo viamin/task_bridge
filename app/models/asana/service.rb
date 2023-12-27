@@ -6,7 +6,7 @@ require_relative "../base/service"
 module Asana
   # A service class to talk to the Asana API
   class Service < Base::Service
-    def initialize(options:)
+    def initialize
       super
       @personal_access_token = Chamber.dig!(:asana, :personal_access_token)
     end
@@ -27,13 +27,13 @@ module Asana
     def items_to_sync(*)
       visible_project_gids = list_projects.map { |project| project["gid"] }
       task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid) }.flatten.uniq
-      tasks = task_list.map { |task| Task.new(asana_task: task, options:) }
+      tasks = task_list.map { |task| Task.new(asana_task: task) }
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
       if tasks_with_sub_items.any?
         tasks_with_sub_items.each do |parent_task|
           sub_item_hashes = list_task_sub_items(parent_task.id)
           sub_item_hashes.each do |sub_item_hash|
-            sub_item = Task.new(asana_task: sub_item_hash, options:)
+            sub_item = Task.new(asana_task: sub_item_hash)
             parent_task.sub_items << sub_item
             # Remove the sub_item from the main task list
             # so we don't double sync them
@@ -59,7 +59,7 @@ module Asana
         response = HTTParty.post("#{base_url}/#{endpoint}", authenticated_options.merge(request_body))
         if response.success?
           response_body = JSON.parse(response.body)
-          new_task = Task.new(asana_task: response_body["data"], options:)
+          new_task = Task.new(asana_task: response_body["data"])
           if (section = memberships_for_task(external_task)["section"])
             request_body = {body: {data: {task: new_task.id}}.to_json}
             response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))

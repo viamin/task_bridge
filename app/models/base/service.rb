@@ -3,11 +3,9 @@
 module Base
   class Service
     include Debug
+    include GlobalOptions
 
-    attr_reader :options
-
-    def initialize(options:)
-      @options = options
+    def initialize
       @last_sync_data = options[:logger].sync_data_for(friendly_name)
     end
 

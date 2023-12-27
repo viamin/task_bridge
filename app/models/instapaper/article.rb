@@ -23,6 +23,10 @@ module Instapaper
       }
     end
 
+    def external_data
+      instapaper_article
+    end
+
     def provider
       "Instapaper"
     end

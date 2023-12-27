@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class SyncCollection < ApplicationRecord
   has_one :asana_task
   has_one :google_tasks_task

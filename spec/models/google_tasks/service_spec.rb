@@ -2,8 +2,8 @@
 
 require "rails_helper"
 
-RSpec.describe "GoogleTasks::Service", :full_options do
-  let(:service) { GoogleTasks::Service.new(options:) }
+RSpec.describe "GoogleTasks::Service" do
+  let(:service) { GoogleTasks::Service.new }
   let(:tasklist) { "Test" }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: {data: {task: external_task.to_json}}.to_json) }
@@ -16,7 +16,7 @@ RSpec.describe "GoogleTasks::Service", :full_options do
 
   describe "#sync_from_primary" do
     context "with omnifocus" do
-      let(:primary_service) { Omnifocus::Service.new(options: {}) }
+      let(:primary_service) { Omnifocus::Service.new }
 
       it "syncs from primary" do
         expect(service.sync_strategies).to contain_exactly(:from_primary)
@@ -89,7 +89,7 @@ RSpec.describe "GoogleTasks::Service", :full_options do
   end
 
   describe "#update_item" do
-    subject { service.update_item(tasklist, google_task, external_task, options) }
+    subject { service.update_item(tasklist, google_task, external_task) }
 
     let(:google_task) { nil }
     let(:external_task) { nil }

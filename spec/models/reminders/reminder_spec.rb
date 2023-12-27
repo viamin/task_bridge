@@ -2,9 +2,9 @@
 
 require "rails_helper"
 
-RSpec.describe "Reminders::Reminder", :full_options do
+RSpec.describe "Reminders::Reminder" do
   let(:service) { Reminders::Service.new }
-  let(:reminder) { Reminders::Reminder.new(reminder: properties, options:) }
+  let(:reminder) { Reminders::Reminder.new(reminder: properties) }
   let(:id) { "x-apple-reminder://#{SecureRandom.uuid.upcase}" }
   let(:name) { Faker::Lorem.sentence }
   let(:completed) { [true, false].sample }

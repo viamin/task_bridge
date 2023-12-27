@@ -2,15 +2,16 @@
 
 require "rails_helper"
 
-RSpec.describe "Omnifocus::Task", :full_options do
+RSpec.describe "Omnifocus::Task" do
   let(:service) { Omnifocus::Service.new }
-  let(:task) { Omnifocus::Task.new(omnifocus_task: properties, options:) }
+  let(:task) { Omnifocus::Task.new(omnifocus_task: properties) }
   let(:id) { SecureRandom.alphanumeric(11) }
   let(:name) { Faker::Lorem.sentence }
   let(:notes) { "notes" }
   let(:completed) { [true, false].sample }
   let(:containing_project) { "Folder:Project" }
   let(:tasks) { [] }
+  let(:tags) { [] }
   let(:properties) do
     OpenStruct.new({
       id_: id,

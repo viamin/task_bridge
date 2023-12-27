@@ -31,6 +31,10 @@ module Github
       }
     end
 
+    def external_data
+      github_issue
+    end
+
     def provider
       "Github"
     end

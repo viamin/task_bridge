@@ -16,6 +16,10 @@ module GoogleTasks
       }
     end
 
+    def external_data
+      google_task
+    end
+
     def provider
       "GoogleTasks"
     end

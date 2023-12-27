@@ -21,9 +21,9 @@ module Reclaim
       @always_private = read_attribute(reclaim_task, "alwaysPrivate")
       @tags = default_tags
       @tags = if personal?
-        @tags + @options[:personal_tags]
+        @tags + options[:personal_tags]
       else
-        @tags + @options[:work_tags]
+        @tags + options[:work_tags]
       end
     end
 
@@ -39,6 +39,10 @@ module Reclaim
 
     def chronic_attributes
       %i[due_date start_date updated_at]
+    end
+
+    def external_data
+      reclaim_task
     end
 
     def provider

@@ -3,8 +3,8 @@
 require "rails_helper"
 require "oauth/request_proxy/mock_request"
 
-RSpec.describe "Instapaper::Service", :full_options do
-  let(:service) { Instapaper::Service.new(options:) }
+RSpec.describe "Instapaper::Service" do
+  let(:service) { Instapaper::Service.new }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: {data: {task: external_task.to_json}}.to_json) }
 
@@ -18,7 +18,7 @@ RSpec.describe "Instapaper::Service", :full_options do
 
   describe "#sync_to_primary" do
     context "with omnifocus" do
-      let(:primary_service) { Omnifocus::Service.new(options:) }
+      let(:primary_service) { Omnifocus::Service.new }
 
       it "responds to #sync_to_primary" do
         expect(service).to be_respond_to(:sync_to_primary)

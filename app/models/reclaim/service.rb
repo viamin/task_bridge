@@ -7,7 +7,9 @@ module Reclaim
   # Reclaim sync is currently unsupported since the API is not public and
   # this is not expected to work
   class Service < Base::Service
-    def initialize(options:)
+    include GlobalOptions
+
+    def initialize
       super
       @api_key = Chamber.dig(:reclaim, :api_key)
     end
@@ -26,7 +28,7 @@ module Reclaim
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
     def items_to_sync(*)
-      list_tasks.map { |reclaim_task| Task.new(reclaim_task:, options:) }
+      list_tasks.map { |reclaim_task| Task.new(reclaim_task:) }
     end
 
     def add_item(external_task)

@@ -53,8 +53,8 @@ default: &default
     client:
       id: ~
       secret: ~
-      secrets_file: ./google_api_client_credentials.json
-    credential_store: ./credentials.yaml
+      secrets_file: google_api_client_credentials.json
+    credential_store: credentials.yaml
     tasks_list: My Tasks
 
   instapaper:

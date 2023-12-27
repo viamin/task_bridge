@@ -5,12 +5,7 @@ require "oauth"
 module Instapaper
   class Authentication
     include Debug
-
-    attr_reader :options
-
-    def initialize(options)
-      @options = options
-    end
+    include GlobalOptions
 
     def authenticate!
       debug("Called", options[:debug])

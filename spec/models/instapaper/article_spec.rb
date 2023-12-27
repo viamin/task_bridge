@@ -2,7 +2,7 @@
 
 require "rails_helper"
 
-RSpec.describe Instapaper::Article, :full_options do
+RSpec.describe Instapaper::Article do
   let(:title) { Faker::Lorem.sentence }
   let(:folder) { %w[unread archive].sample }
   let(:article_props) do
@@ -16,7 +16,7 @@ RSpec.describe Instapaper::Article, :full_options do
       "updated_at" => Chronic.parse("1 week ago")
     }
   end
-  let(:article) { Instapaper::Article.new(instapaper_article: article_props, options:) }
+  let(:article) { Instapaper::Article.new(instapaper_article: article_props) }
 
   describe "#completed?" do
     before { allow(article).to receive(:unread?).and_return(true) }

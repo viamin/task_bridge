@@ -36,6 +36,10 @@ module Asana
       %i[completed_at due_date due_at updated_at start_date start_at]
     end
 
+    def external_data
+      asana_task
+    end
+
     def provider
       "Asana"
     end

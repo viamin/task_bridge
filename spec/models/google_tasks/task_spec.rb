@@ -2,8 +2,8 @@
 
 require "rails_helper"
 
-RSpec.describe GoogleTasks::Task, :full_options do
-  let(:google_task) { GoogleTasks::Task.new(google_task: google_task_json, options:) }
+RSpec.describe GoogleTasks::Task do
+  let(:google_task) { GoogleTasks::Task.new(google_task: google_task_json) }
   let(:google_task_json) do
     {
       "id" => id,

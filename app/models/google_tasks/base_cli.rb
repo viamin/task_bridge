@@ -36,14 +36,14 @@ module GoogleTasks
     no_commands do
       # Returns the path to the client_secrets.json file.
       def client_secrets_path
-        return Chamber.dig!(:google, :client_secrets_file) if Chamber.dig(:google, :client_secrets_file)
+        return Rails.root.join(Chamber.dig!(:google, :client_secrets_file)) if Chamber.dig(:google, :client_secrets_file)
 
         well_known_path_for("client_secrets.json")
       end
 
       # Returns the path to the token store.
       def token_store_path
-        return Chamber.dig!(:google, :credential_store) if Chamber.dig(:google, :credential_store)
+        return Rails.root.join(Chamber.dig!(:google, :credential_store)) if Chamber.dig(:google, :credential_store)
 
         well_known_path_for("credentials.yaml")
       end

@@ -7,7 +7,7 @@ module Omnifocus
   class Service < Base::Service
     attr_reader :omnifocus_app
 
-    def initialize(options: {})
+    def initialize
       super
       # Assumes you already have OmniFocus installed
       @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
@@ -28,7 +28,7 @@ module Omnifocus
     def items_to_sync(tags: options[:tags], inbox: true)
       omnifocus_tasks = tagged_tasks(tags)
       omnifocus_tasks += inbox_tasks if inbox
-      tasks = omnifocus_tasks.map { |task| Task.new(omnifocus_task: task, options: @options) }
+      tasks = omnifocus_tasks.map { |task| Task.new(omnifocus_task: task) }
       # remove sub_items from the list
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
       sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:id)
@@ -61,7 +61,7 @@ module Omnifocus
       tags(external_task).each do |tag|
         add_tag(tag:, task: new_task)
       end
-      handle_sub_items(Omnifocus::Task.new(omnifocus_task: new_task, options:), external_task)
+      handle_sub_items(Omnifocus::Task.new(omnifocus_task: new_task), external_task)
       new_task
     end
 

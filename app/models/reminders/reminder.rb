@@ -25,7 +25,7 @@ module Reminders
       # Same with sub_items/subreminders - they are supported in the app
       # but don't seem to be accessible via Applescript
       # @subreminders = read_attribute(reminder, :reminders).map do |subreminder|
-      #   reminder.new(subreminder, @options)
+      #   reminder.new(subreminder)
       # end
       # @subreminder_count = @subreminders.count
     end
@@ -40,6 +40,10 @@ module Reminders
         last_modified: "modification_date",
         completed_on: "completion_date"
       }
+    end
+
+    def external_data
+      reminder
     end
 
     def project

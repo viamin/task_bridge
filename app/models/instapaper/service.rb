@@ -7,12 +7,14 @@ require_relative "../base/service"
 module Instapaper
   # A service class to connect to the Instapaper Full API
   class Service < Base::Service
+    include GlobalOptions
+
     UNREAD_ARTICLE_COUNT = 50
     ARCHIVED_ARTICLE_COUNT = 25
 
     attr_reader :authentication
 
-    def initialize(options:)
+    def initialize
       super
       @authentication = Authentication.new(options).authenticate!
     rescue

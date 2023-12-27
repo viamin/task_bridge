@@ -2,9 +2,9 @@
 
 require "rails_helper"
 
-RSpec.describe "Reclaim::Task", :full_options do
+RSpec.describe "Reclaim::Task" do
   let(:service) { Reclaim::Service.new }
-  let(:task) { Reclaim::Task.new(reclaim_task: properties, options:) }
+  let(:task) { Reclaim::Task.new(reclaim_task: properties) }
   let(:id) { Faker::Number.number(digits: 7) }
   let(:title) { Faker::Lorem.sentence }
   let(:notes) { "notes" }
