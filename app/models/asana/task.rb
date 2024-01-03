@@ -1,6 +1,41 @@
 # frozen_string_literal: true
 
-require_relative "../base/sync_item"
+# == Schema Information
+#
+# Table name: sync_items
+#
+#  id                 :integer          not null, primary key
+#  completed          :boolean
+#  completed_at       :datetime
+#  completed_on       :datetime
+#  due_at             :datetime
+#  due_date           :datetime
+#  flagged            :boolean
+#  item_type          :string
+#  last_modified      :datetime
+#  notes              :string
+#  start_at           :datetime
+#  start_date         :datetime
+#  status             :string
+#  title              :string
+#  type               :string
+#  url                :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  external_id        :string
+#  parent_item_id     :integer
+#  sync_collection_id :integer
+#
+# Indexes
+#
+#  index_sync_items_on_parent_item_id      (parent_item_id)
+#  index_sync_items_on_sync_collection_id  (sync_collection_id)
+#
+# Foreign Keys
+#
+#  parent_item_id      (parent_item_id => sync_items.id)
+#  sync_collection_id  (sync_collection_id => sync_collections.id)
+#
 
 module Asana
   # A representation of an Asana task
@@ -10,26 +45,12 @@ module Asana
     attr_accessor :asana_task
     attr_reader :project, :section, :sub_item_count, :sub_items, :assignee
 
-    after_initialize :read_original
-
     def read_original
+      super
       @project = project_from_memberships(asana_task)
       @sub_item_count = asana_task.fetch("num_subtasks", 0).to_i
       @sub_items = []
       @assignee = asana_task.dig("assignee", "gid")
-    end
-
-    def attribute_map
-      {
-        external_id: "gid",
-        title: "name",
-        url: "permalink_url",
-        due_date: "due_on",
-        flagged: "hearted",
-        item_type: "resource_type",
-        start_date: "start_on",
-        last_modified: "modified_at"
-      }
     end
 
     def chronic_attributes
@@ -45,7 +66,7 @@ module Asana
     end
 
     def completed?
-      completed
+      completed_at.present?
     end
 
     def open?
@@ -87,8 +108,43 @@ module Asana
         }.compact
       end
 
-      def requested_fields
-        %w[name permalink_url completed completed_at projects due_on due_at modified_at hearted notes start_on start_at num_subtasks memberships.section.name memberships.project.name subtasks_name assignee]
+      def requested_fields(only_modified_dates: false)
+        # the following hash contains keys that are task attributes
+        # the value is whether it is needed when only_modified_dates is true
+        fields = {
+          name: false,
+          permalink_url: false,
+          completed: false,
+          completed_at: true,
+          projects: true,
+          due_on: false,
+          due_at: false,
+          modified_at: true,
+          hearted: false,
+          notes: false,
+          start_on: false,
+          start_at: false,
+          num_subtasks: false,
+          "memberships.section.name": true,
+          "memberships.project.name": true,
+          subtasks_name: false,
+          assignee: false
+        }.stringify_keys
+        request_fields = only_modified_dates ? fields.select { |_key, value| value } : fields
+        request_fields.keys
+      end
+
+      def attribute_map
+        {
+          external_id: "gid",
+          title: "name",
+          url: "permalink_url",
+          due_date: "due_on",
+          flagged: "hearted",
+          item_type: "resource_type",
+          start_date: "start_on",
+          last_modified: "modified_at"
+        }
       end
     end
 
@@ -97,7 +153,7 @@ module Asana
     # try to read the project and sections from the memberships array
     # If there isn't anything there, use the projects array
     def project_from_memberships(asana_task)
-      if asana_task["memberships"].any?
+      if asana_task["memberships"]&.any?
         # Asana supports multiple sections, but TaskBridge currently supports only one per task
         project = asana_task["memberships"].first.dig("project", "name")
         section = asana_task["memberships"].first.dig("section", "name")

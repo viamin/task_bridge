@@ -4,9 +4,9 @@ class StructuredLogger
   include Debug
   include GlobalOptions
 
-  def initialize(log_file:, services:)
+  def initialize(log_file:, service_names:)
     @log_file = File.expand_path(Rails.root.join(log_file))
-    @space_needed = services.map(&:length).max + 1
+    @space_needed = service_names.map(&:length).max + 1
     @existing_logs = if File.exist?(@log_file)
       JSON.parse(File.read(@log_file))
     else

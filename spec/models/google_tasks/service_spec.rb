@@ -10,8 +10,8 @@ RSpec.describe "GoogleTasks::Service" do
 
   before do
     allow_any_instance_of(GoogleTasks::BaseCli).to receive(:user_credentials_for).and_return({})
-    allow(logger).to receive(:sync_data_for).and_return({})
-    allow(logger).to receive(:last_synced).and_return(last_sync)
+    allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})
+    allow_any_instance_of(StructuredLogger).to receive(:last_synced).and_return(last_sync)
   end
 
   describe "#sync_from_primary" do

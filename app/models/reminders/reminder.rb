@@ -1,6 +1,41 @@
 # frozen_string_literal: true
 
-require_relative "../base/sync_item"
+# == Schema Information
+#
+# Table name: sync_items
+#
+#  id                 :integer          not null, primary key
+#  completed          :boolean
+#  completed_at       :datetime
+#  completed_on       :datetime
+#  due_at             :datetime
+#  due_date           :datetime
+#  flagged            :boolean
+#  item_type          :string
+#  last_modified      :datetime
+#  notes              :string
+#  start_at           :datetime
+#  start_date         :datetime
+#  status             :string
+#  title              :string
+#  type               :string
+#  url                :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  external_id        :string
+#  parent_item_id     :integer
+#  sync_collection_id :integer
+#
+# Indexes
+#
+#  index_sync_items_on_parent_item_id      (parent_item_id)
+#  index_sync_items_on_sync_collection_id  (sync_collection_id)
+#
+# Foreign Keys
+#
+#  parent_item_id      (parent_item_id => sync_items.id)
+#  sync_collection_id  (sync_collection_id => sync_collections.id)
+#
 
 module Reminders
   # A representation of an Reminders reminder
@@ -8,9 +43,8 @@ module Reminders
     attr_accessor :reminder
     attr_reader :list, :priority
 
-    after_initialize :read_original
-
     def read_original
+      super
       containing_list = read_attribute(reminder, :container)
       @list = if containing_list.respond_to?(:get)
         containing_list.name.get
@@ -30,18 +64,6 @@ module Reminders
       # @subreminder_count = @subreminders.count
     end
 
-    def attribute_map
-      {
-        external_id: "id_",
-        due_on: "allday_due_date",
-        notes: "body",
-        start_date: "remind_me_date",
-        title: "name",
-        last_modified: "modification_date",
-        completed_on: "completion_date"
-      }
-    end
-
     def external_data
       reminder
     end
@@ -59,11 +81,11 @@ module Reminders
     end
 
     def original_reminder
-      Service.new(options:).reminders_app.lists[list].reminders.ID(id)
+      Service.new(options:).reminders_app.lists[list].reminders.ID(external_id)
     end
 
     def external_sync_notes
-      notes_with_values(notes, reminders_id: id)
+      notes_with_values(notes, reminders_id: external_id)
     end
 
     def friendly_title
@@ -71,13 +93,27 @@ module Reminders
     end
 
     def to_s
-      "#{provider}::Reminder:(#{id})#{title}"
+      "#{provider}::Reminder:(#{external_id})#{title}"
     end
 
     def update_attributes(attributes)
       attributes.each do |key, value|
         original_attribute_key = attribute_map[key].to_sym
         original_reminder.send(original_attribute_key).set(value)
+      end
+    end
+
+    class << self
+      def attribute_map
+        {
+          external_id: "id_",
+          due_at: "allday_due_date",
+          notes: "body",
+          start_date: "remind_me_date",
+          title: "name",
+          last_modified: "modification_date",
+          completed_on: "completion_date"
+        }
       end
     end
 

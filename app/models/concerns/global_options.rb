@@ -8,7 +8,7 @@ module GlobalOptions
       max_age_timestamp: default_options[:max_age].zero? ? nil : Chronic.parse("#{default_options[:max_age]} ago"),
       uses_personal_tags: default_options[:work_tags].blank?,
       sync_started_at: Time.now.strftime("%Y-%m-%d %I:%M%p"),
-      logger: StructuredLogger.new(log_file: default_options[:log_file], services: default_options[:services]),
+      logger: StructuredLogger.new(log_file: default_options[:log_file], service_names: default_options[:services]),
       primary_service: "#{default_options[:primary]}::Service".safe_constantize
     })
   end

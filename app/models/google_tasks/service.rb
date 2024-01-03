@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 require "google/apis/tasks_v1"
-require_relative "task"
-require_relative "base_cli"
 
 module GoogleTasks
   # A service class to connect to the Google Tasks API
@@ -10,7 +8,7 @@ module GoogleTasks
     include Debug
     include GlobalOptions
 
-    attr_reader :tasks_service, :options, :authorized
+    attr_reader :tasks_service, :authorized
 
     # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
     def initialize
@@ -72,13 +70,13 @@ module GoogleTasks
     end
 
     desc "update_item", "Update an existing task in a task list"
-    def update_item(tasklist, google_task, external_task, options)
+    def update_item(tasklist, google_task, external_task)
       debug("existing_task: #{google_task.pretty_inspect}", options[:debug])
       updated_task_json = GoogleTasks::Task.from_external(external_task)
       updated_task = Google::Apis::TasksV1::Task.new(**updated_task_json)
       debug("updated_task: #{updated_task.pretty_inspect}", options[:debug])
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L510
-      tasks_service.patch_task(tasklist.id, google_task.id, updated_task)
+      tasks_service.patch_task(tasklist.id, google_task.external_id, updated_task)
       updated_task.to_h
     end
 
@@ -107,7 +105,7 @@ module GoogleTasks
     def delete_all_tasks
       progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: items_to_sync.length)
       items_to_sync.each do |task|
-        tasks_service.delete_task(tasklist.id, task.id)
+        tasks_service.delete_task(tasklist.id, task.external_id)
         sleep 0.5
         progressbar.increment
       end

@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "task"
-require_relative "../base/service"
-
 module Omnifocus
   class Service < Base::Service
     attr_reader :omnifocus_app
@@ -25,14 +22,14 @@ module Omnifocus
       [:from_primary]
     end
 
-    def items_to_sync(tags: options[:tags], inbox: true)
+    def items_to_sync(tags: options[:tags], inbox: true, only_modified_dates: false)
       omnifocus_tasks = tagged_tasks(tags)
       omnifocus_tasks += inbox_tasks if inbox
       tasks = omnifocus_tasks.map { |task| Task.new(omnifocus_task: task) }
       # remove sub_items from the list
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
-      sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:id)
-      tasks.delete_if { |task| sub_item_ids.include?(task.id) }
+      sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:external_id)
+      tasks.delete_if { |task| sub_item_ids.include?(task.external_id) }
     end
 
     def add_item(external_task, parent_object = nil)

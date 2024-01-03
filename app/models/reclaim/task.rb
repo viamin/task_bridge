@@ -1,6 +1,41 @@
 # frozen_string_literal: true
 
-require_relative "../base/sync_item"
+# == Schema Information
+#
+# Table name: sync_items
+#
+#  id                 :integer          not null, primary key
+#  completed          :boolean
+#  completed_at       :datetime
+#  completed_on       :datetime
+#  due_at             :datetime
+#  due_date           :datetime
+#  flagged            :boolean
+#  item_type          :string
+#  last_modified      :datetime
+#  notes              :string
+#  start_at           :datetime
+#  start_date         :datetime
+#  status             :string
+#  title              :string
+#  type               :string
+#  url                :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  external_id        :string
+#  parent_item_id     :integer
+#  sync_collection_id :integer
+#
+# Indexes
+#
+#  index_sync_items_on_parent_item_id      (parent_item_id)
+#  index_sync_items_on_sync_collection_id  (sync_collection_id)
+#
+# Foreign Keys
+#
+#  parent_item_id      (parent_item_id => sync_items.id)
+#  sync_collection_id  (sync_collection_id => sync_collections.id)
+#
 
 module Reclaim
   class Task < Base::SyncItem
@@ -9,8 +44,6 @@ module Reclaim
 
     attr_accessor :reclaim_task
     attr_reader :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :always_private
-
-    after_initialize :read_original
 
     def read_original
       @time_required = read_attribute(reclaim_task, "timeChunksRequired")
@@ -25,16 +58,7 @@ module Reclaim
       else
         @tags + options[:work_tags]
       end
-    end
-
-    def attribute_map
-      {
-        due_date: "due",
-        start_date: "snoozeUntil",
-        last_modified: "updated",
-        tags: nil,
-        item_type: "eventCategory"
-      }
+      super
     end
 
     def chronic_attributes
@@ -58,14 +82,14 @@ module Reclaim
     end
 
     def personal?
-      type == "PERSONAL"
+      item_type == "PERSONAL"
     end
 
     def to_h(*_args)
       {
         title:,
         eventColor: nil,
-        eventCategory: type,
+        eventCategory: item_type,
         timeChunksRequired: time_required,
         snoozeUntil: start_date.rfc3339,
         due: due_date.rfc3339, # "2022-10-08T03:00:00.000Z"
@@ -111,6 +135,16 @@ module Reclaim
         due_date = task.due_date.nil? ? "" : "due #{task.due_date.to_datetime.strftime("%F %l %p")}"
         addon_string = "#{type} #{duration} #{not_before} #{due_date}".squeeze(" ").strip
         addon_string.empty? ? "" : " (#{addon_string})"
+      end
+
+      def attribute_map
+        {
+          due_date: "due",
+          start_date: "snoozeUntil",
+          last_modified: "updated",
+          tags: nil,
+          item_type: "eventCategory"
+        }
       end
     end
   end

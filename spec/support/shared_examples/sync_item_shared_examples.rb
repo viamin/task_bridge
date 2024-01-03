@@ -2,7 +2,7 @@
 
 RSpec.shared_examples "sync_item" do
   context "when creating a new item" do
-    let(:attributes) { item.send(:standard_attribute_map).merge(item.attribute_map).compact }
+    let(:attributes) { item.class.send(:standard_attribute_map).merge(item.attribute_map).compact }
 
     it "creates accessors for item attributes" do
       attributes.each_key do |attribute_key|

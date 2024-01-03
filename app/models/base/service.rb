@@ -43,6 +43,7 @@ module Base
 
       primary_items = primary_service.items_to_sync(tags: [friendly_name])
       service_items = items_to_sync(tags: options[:tags])
+
       item_pairs = paired_items(primary_items, service_items)
       unmatched_primary_items = primary_items - item_pairs.to_a.flatten
       unmatched_service_items = service_items - item_pairs.to_a.flatten
@@ -79,7 +80,7 @@ module Base
     def sync_to_primary(primary_service)
       return @last_sync_data unless should_sync?
 
-      service_items = items_to_sync(tags: options[:tags])
+      service_items = items_to_sync(tags: options[:tags], only_modified_dates: true)
       unless options[:quiet]
         progressbar = ProgressBar.create(
           format: "%t: %c/%C |%w>%i| %e ",

@@ -1,26 +1,53 @@
 # frozen_string_literal: true
 
-require_relative "../base/sync_item"
+# == Schema Information
+#
+# Table name: sync_items
+#
+#  id                 :integer          not null, primary key
+#  completed          :boolean
+#  completed_at       :datetime
+#  completed_on       :datetime
+#  due_at             :datetime
+#  due_date           :datetime
+#  flagged            :boolean
+#  item_type          :string
+#  last_modified      :datetime
+#  notes              :string
+#  start_at           :datetime
+#  start_date         :datetime
+#  status             :string
+#  title              :string
+#  type               :string
+#  url                :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  external_id        :string
+#  parent_item_id     :integer
+#  sync_collection_id :integer
+#
+# Indexes
+#
+#  index_sync_items_on_parent_item_id      (parent_item_id)
+#  index_sync_items_on_sync_collection_id  (sync_collection_id)
+#
+# Foreign Keys
+#
+#  parent_item_id      (parent_item_id => sync_items.id)
+#  sync_collection_id  (sync_collection_id => sync_collections.id)
+#
 
 module Instapaper
   class Article < Base::SyncItem
     attr_accessor :instapaper_article
     attr_reader :folder, :project, :estimated_minutes
 
-    after_initialize :read_original
-
     def read_original
+      super
       @folder = read_attribute(instapaper_article, "folder")
       @project = Chamber.dig(:instapaper, :project)
       self.last_modified = Time.at(instapaper_article["progress_timestamp"])
       @estimated_minutes = nil
-    end
-
-    def attribute_map
-      {
-        external_id: "bookmark_id",
-        last_modified: nil
-      }
     end
 
     def external_data
@@ -58,6 +85,15 @@ module Instapaper
       word_count = doc.to_text.tr("\n", " ").squeeze(" ").strip.split.count
       word_reading_minutes = (word_count.to_f / reading_speed_wpm)
       @estimated_minutes = (word_reading_minutes + image_time(image_count)).ceil
+    end
+
+    class << self
+      def attribute_map
+        {
+          external_id: "bookmark_id",
+          last_modified: nil
+        }
+      end
     end
 
     private

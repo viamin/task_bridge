@@ -8,8 +8,8 @@ RSpec.describe "Omnifocus::Service" do
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
 
   before do
-    allow(logger).to receive(:sync_data_for).and_return({})
-    allow(logger).to receive(:last_synced).and_return(last_sync)
+    allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})
+    allow_any_instance_of(StructuredLogger).to receive(:last_synced).and_return(last_sync)
   end
 
   describe "#items_to_sync" do

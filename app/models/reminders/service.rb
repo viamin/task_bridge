@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "reminder"
-require_relative "../base/service"
-
 module Reminders
   class Service < Base::Service
     include GlobalOptions

@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "article"
-require_relative "authentication"
-require_relative "../base/service"
-
 module Instapaper
   # A service class to connect to the Instapaper Full API
   class Service < Base::Service
@@ -35,13 +31,13 @@ module Instapaper
     end
 
     def items_to_sync(*)
-      (unread_articles + recently_archived_articles).uniq(&:id)
+      (unread_articles + recently_archived_articles).uniq(&:external_id)
     end
 
     def article_text(article)
       debug("Getting article fulltext for article: #{article.title}", options[:debug])
       params = {
-        bookmark_id: article.id
+        bookmark_id: article.external_id
       }
       response = authentication.get("/bookmarks/get_text?#{URI.encode_www_form(params)}")
       if response.code.to_i == 200

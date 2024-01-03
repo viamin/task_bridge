@@ -1,9 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "authentication"
-require_relative "issue"
-require_relative "../base/service"
-
 module Github
   # A service class to connect to the Github API
   class Service < Base::Service
@@ -31,7 +27,7 @@ module Github
       [:to_primary]
     end
 
-    def items_to_sync(tags: nil)
+    def items_to_sync(*, tags: nil, only_modified_dates: false)
       tagged_issues = sync_repositories
         .map { |repo| list_issues(repo, tags) }
         .flatten
@@ -39,7 +35,7 @@ module Github
       assigned_issues = list_assigned
         .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
         .map { |issue| Issue.new(github_issue: issue, options:) }
-      (tagged_issues + assigned_issues).uniq(&:id)
+      (tagged_issues + assigned_issues).uniq(&:external_id)
     end
 
     private

@@ -38,7 +38,7 @@ ActiveRecord::Schema[7.1].define(version: 20_231_225_084_554) do
     t.string "external_id"
     t.datetime "last_modified"
     t.integer "parent_item_id"
-    t.integer "sync_collection_id", null: false
+    t.integer "sync_collection_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["parent_item_id"], name: "index_sync_items_on_parent_item_id"

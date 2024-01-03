@@ -19,7 +19,6 @@ require "googleauth/stores/file_token_store"
 require "fileutils"
 require "thor"
 require "os"
-require "pry"
 
 # Base command line module for samples. Provides authorization support,
 # either using application default credentials or user authorization

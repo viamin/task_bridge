@@ -1,6 +1,41 @@
 # frozen_string_literal: true
 
-require_relative "../base/sync_item"
+# == Schema Information
+#
+# Table name: sync_items
+#
+#  id                 :integer          not null, primary key
+#  completed          :boolean
+#  completed_at       :datetime
+#  completed_on       :datetime
+#  due_at             :datetime
+#  due_date           :datetime
+#  flagged            :boolean
+#  item_type          :string
+#  last_modified      :datetime
+#  notes              :string
+#  start_at           :datetime
+#  start_date         :datetime
+#  status             :string
+#  title              :string
+#  type               :string
+#  url                :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  external_id        :string
+#  parent_item_id     :integer
+#  sync_collection_id :integer
+#
+# Indexes
+#
+#  index_sync_items_on_parent_item_id      (parent_item_id)
+#  index_sync_items_on_sync_collection_id  (sync_collection_id)
+#
+# Foreign Keys
+#
+#  parent_item_id      (parent_item_id => sync_items.id)
+#  sync_collection_id  (sync_collection_id => sync_collections.id)
+#
 
 module Github
   # A representation of a Github issue
@@ -10,25 +45,14 @@ module Github
     attr_accessor :github_issue
     attr_reader :number, :tags, :project, :is_pr
 
-    after_initialize :read_original
-
     def read_original
+      super
       @number = read_attribute(github_issue, "number")
       # Add "Github" to the labels
       @tags = (default_tags + github_issue["labels"].map { |label| label["name"] }).uniq
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
       self.last_modified = Chronic.parse(github_issue["updated_at"])&.getlocal
-    end
-
-    def attribute_map
-      {
-        status: "state",
-        tags: nil,
-        url: "html_url",
-        notes: "body",
-        last_modified: nil
-      }
     end
 
     def external_data
@@ -53,6 +77,18 @@ module Github
 
     def sync_notes
       url
+    end
+
+    class << self
+      def attribute_map
+        {
+          status: "state",
+          tags: nil,
+          url: "html_url",
+          notes: "body",
+          last_modified: nil
+        }
+      end
     end
 
     private

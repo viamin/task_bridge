@@ -9,8 +9,8 @@ RSpec.describe "Instapaper::Service" do
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: {data: {task: external_task.to_json}}.to_json) }
 
   before do
-    allow(logger).to receive(:sync_data_for).and_return({})
-    allow(logger).to receive(:last_synced).and_return(last_sync)
+    allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})
+    allow_any_instance_of(StructuredLogger).to receive(:last_synced).and_return(last_sync)
     allow_any_instance_of(Instapaper::Authentication).to receive(:authenticate!).and_return(
       OAuth::RequestProxy.proxy({"parameters" => {}, "method" => "POST", "uri" => "https://www.instapaper.com/api/1/oauth/access_token"})
     )

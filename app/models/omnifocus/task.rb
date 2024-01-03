@@ -1,6 +1,41 @@
 # frozen_string_literal: true
 
-require_relative "../base/sync_item"
+# == Schema Information
+#
+# Table name: sync_items
+#
+#  id                 :integer          not null, primary key
+#  completed          :boolean
+#  completed_at       :datetime
+#  completed_on       :datetime
+#  due_at             :datetime
+#  due_date           :datetime
+#  flagged            :boolean
+#  item_type          :string
+#  last_modified      :datetime
+#  notes              :string
+#  start_at           :datetime
+#  start_date         :datetime
+#  status             :string
+#  title              :string
+#  type               :string
+#  url                :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  external_id        :string
+#  parent_item_id     :integer
+#  sync_collection_id :integer
+#
+# Indexes
+#
+#  index_sync_items_on_parent_item_id      (parent_item_id)
+#  index_sync_items_on_sync_collection_id  (sync_collection_id)
+#
+# Foreign Keys
+#
+#  parent_item_id      (parent_item_id => sync_items.id)
+#  sync_collection_id  (sync_collection_id => sync_collections.id)
+#
 
 module Omnifocus
   # A representation of an Omnifocus task
@@ -44,9 +79,8 @@ module Omnifocus
     attr_accessor :omnifocus_task
     attr_reader :estimated_minutes, :tags, :project, :sub_item_count, :sub_items
 
-    after_initialize :read_original
-
     def read_original
+      super
       containing_project = read_attribute(omnifocus_task, :containing_project)
       @project = if containing_project.respond_to?(:get)
         containing_project.name.get
@@ -58,29 +92,15 @@ module Omnifocus
       @tags = read_attribute(omnifocus_task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       self.due_date = date_from_tags(omnifocus_task, @tags)
-      @sub_items = read_attribute(omnifocus_task, :tasks).map do |sub_item|
+      @sub_items = read_attribute(omnifocus_task, :tasks)&.map do |sub_item|
         Task.new(omnifocus_task: sub_item)
       end
-      @sub_item_count = @sub_items.count
+      @sub_item_count = @sub_items&.count
     end
 
+    # TODO: remove this?
     def id_
-      OpenStruct.new(get: id)
-    end
-
-    # setting some of these as nil so they will be skipped in the superclass initialization
-    def attribute_map
-      {
-        external_id: "id_",
-        completed_at: "completion_date",
-        due_date: nil,
-        notes: "note",
-        start_date: "defer_date",
-        status: nil,
-        tags: nil,
-        title: "name",
-        last_modified: "modification_date"
-      }
+      OpenStruct.new(get: external_id)
     end
 
     def external_data
@@ -114,7 +134,7 @@ module Omnifocus
       else
         service.omnifocus_app.flattened_tags[*options[:tags]].tasks.get
       end
-      search_tasks.find { |task| task.id_.get == id }
+      search_tasks.find { |task| task.id_.get == external_id }
     end
 
     def containers
@@ -145,7 +165,7 @@ module Omnifocus
     end
 
     def url
-      Task.url(id)
+      Task.url(external_id)
     end
 
     def update_attributes(attributes)
@@ -156,8 +176,8 @@ module Omnifocus
     end
 
     class << self
-      def url(id)
-        "omnifocus:///task/#{id}"
+      def url(external_id)
+        "omnifocus:///task/#{external_id}"
       end
 
       def from_external(external_item, with_sub_items: false)
@@ -177,6 +197,21 @@ module Omnifocus
         end
         omnifocus_properties
       end
+
+      # setting some of these as nil so they will be skipped in the superclass initialization
+      def attribute_map
+        {
+          external_id: "id_",
+          completed_at: "completion_date",
+          due_date: nil,
+          notes: "note",
+          start_date: "defer_date",
+          status: nil,
+          tags: nil,
+          title: "name",
+          last_modified: "modification_date"
+        }
+      end
     end
 
     private
@@ -185,7 +220,7 @@ module Omnifocus
     def date_from_tags(task, tags)
       task_due_date = read_attribute(task, :due_date)
       return task_due_date unless task_due_date.nil?
-      return if tags.empty?
+      return if tags.blank?
 
       tag = (tags & TIME_TAGS).first
       date = Chronic.parse(tag)

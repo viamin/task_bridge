@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "task"
-require_relative "../base/service"
-
 module Reclaim
   # Reclaim sync is currently unsupported since the API is not public and
   # this is not expected to work
@@ -52,11 +49,11 @@ module Reclaim
     def patch_item(reclaim_task, attributes_hash)
       debug("reclaim_task: #{reclaim_task.title}, attributes_hash: #{attributes_hash.pretty_inspect}", options[:debug])
       put_request_body = {body: reclaim_task.to_h.merge(attributes_hash).to_json}
-      put_response = HTTParty.put("#{base_url}/tasks/#{reclaim_task.id}", authenticated_options.merge(put_request_body))
+      put_response = HTTParty.put("#{base_url}/tasks/#{reclaim_task.external_id}", authenticated_options.merge(put_request_body))
       return if put_response.success?
 
       debug(response.body, options[:debug])
-      "Failed to update Reclaim task ##{reclaim_task.id} with code #{response.code} - check api key"
+      "Failed to update Reclaim task ##{reclaim_task.external_id} with code #{response.code} - check api key"
     end
 
     def update_item(reclaim_task, external_task)
@@ -65,13 +62,13 @@ module Reclaim
       if options[:pretend]
         "Would have updated task #{external_task.title} in Reclaim"
       else
-        response = HTTParty.patch("#{base_url}/tasks/#{reclaim_task.id}", authenticated_options.merge(request_body))
+        response = HTTParty.patch("#{base_url}/tasks/#{reclaim_task.external_id}", authenticated_options.merge(request_body))
         if response.success?
-          update_sync_data(external_task, reclaim_task.id) if options[:update_ids_for_existing]
+          update_sync_data(external_task, reclaim_task.external_id) if options[:update_ids_for_existing]
           JSON.parse(response.body)
         else
           debug(response.body, options[:debug])
-          "Failed to update Reclaim task ##{reclaim_task.id} with code #{response.code} - check api key"
+          "Failed to update Reclaim task ##{reclaim_task.external_id} with code #{response.code} - check api key"
         end
       end
     end

@@ -1,8 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "task"
-require_relative "../base/service"
-
 module Asana
   # A service class to talk to the Asana API
   class Service < Base::Service
@@ -24,21 +21,23 @@ module Asana
     end
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
-    def items_to_sync(*)
+    def items_to_sync(*, tags:, only_modified_dates: false)
       visible_project_gids = list_projects.map { |project| project["gid"] }
-      task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid) }.flatten.uniq
-      tasks = task_list.map { |task| Task.new(asana_task: task) }
+      task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid, only_modified_dates:) }.flatten.uniq
+      tasks = task_list.map { |task| Task.where(external_id: task[Task.attributes[:external_id]]).first_or_initialize(asana_task: task) }
+      # tasks = task_list.map { |task| Task.new(asana_task: task) }
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
       if tasks_with_sub_items.any?
         tasks_with_sub_items.each do |parent_task|
-          sub_item_hashes = list_task_sub_items(parent_task.id)
+          sub_item_hashes = list_task_sub_items(parent_task.external_id)
           sub_item_hashes.each do |sub_item_hash|
-            sub_item = Task.new(asana_task: sub_item_hash)
+            sub_item = Task.where(external_id: Task.attributes[:external_id]).first_or_initialize(asana_task: sub_item_hash)
+            # sub_item = Task.new(asana_task: sub_item_hash)
             parent_task.sub_items << sub_item
             # Remove the sub_item from the main task list
             # so we don't double sync them
             # (the Asana API doesn't have a filter for sub_items)
-            tasks.delete_if { |task| task.id == sub_item.id }
+            tasks.delete_if { |task| task.external_id == sub_item.external_id }
           end
         end
       end
@@ -61,7 +60,7 @@ module Asana
           response_body = JSON.parse(response.body)
           new_task = Task.new(asana_task: response_body["data"])
           if (section = memberships_for_task(external_task)["section"])
-            request_body = {body: {data: {task: new_task.id}}.to_json}
+            request_body = {body: {data: {task: new_task.external_id}}.to_json}
             response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))
             unless response.success?
               debug(response.body, options[:debug])
@@ -69,7 +68,7 @@ module Asana
             end
           end
           handle_sub_items(new_task, external_task)
-          update_sync_data(external_task, new_task.id, new_task.url)
+          update_sync_data(external_task, new_task.external_id, new_task.url)
         else
           debug(response.body, options[:debug])
           "Failed to create an Asana task - code #{response.code}"
@@ -86,11 +85,11 @@ module Asana
       }
       return "Would have patched task #{asana.title} with #{updated_attributes.to_json}" if options[:pretend]
 
-      response = HTTParty.put("#{base_url}/tasks/#{asana_task.id}", authenticated_options.merge(request_body))
+      response = HTTParty.put("#{base_url}/tasks/#{asana_task.external_id}", authenticated_options.merge(request_body))
       return if response.success?
 
       debug(response.body, options[:debug])
-      "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
+      "Failed to update Asana task ##{asana_task.external_id} with code #{response.code}"
     end
 
     def update_item(asana_task, external_task)
@@ -101,15 +100,15 @@ module Asana
       }
       return "Would have updated task #{external_task.title} in Asana" if options[:pretend]
 
-      response = HTTParty.put("#{base_url}/tasks/#{asana_task.id}", authenticated_options.merge(request_body))
+      response = HTTParty.put("#{base_url}/tasks/#{asana_task.external_id}", authenticated_options.merge(request_body))
       if response.success?
         # check if the project or section need to change
         if external_task.project && (asana_task.project != external_task.project)
           request_body = {body: JSON.dump({data: memberships_for_task(external_task)})}
-          project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.id}/addProject", authenticated_options.merge(request_body))
+          project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.external_id}/addProject", authenticated_options.merge(request_body))
           if project_response.success?
             if (section = memberships_for_task(external_task)["section"])
-              request_body = {body: {data: {task: asana_task.id}}.to_json}
+              request_body = {body: {data: {task: asana_task.external_id}}.to_json}
               response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))
               unless response.success?
                 debug(response.body, options[:debug])
@@ -118,14 +117,14 @@ module Asana
             end
           else
             debug(project_response.body, options[:debug])
-            "Failed to update Asana task ##{asana_task.id} with code #{project_response.code}"
+            "Failed to update Asana task ##{asana_task.external_id} with code #{project_response.code}"
           end
         end
         handle_sub_items(asana_task, external_task)
-        update_sync_data(external_task, asana_task.id, asana_task.url) if options[:update_ids_for_existing]
+        update_sync_data(external_task, asana_task.external_id, asana_task.url) if options[:update_ids_for_existing]
       else
         debug(response.body, options[:debug])
-        "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
+        "Failed to update Asana task ##{asana_task.external_id} with code #{response.code}"
       end
     end
 
@@ -161,7 +160,7 @@ module Asana
           update_item(existing_task, sub_item)
           "Updated sub_item #{sub_item.title} of task #{external_task.title} in Asana"
         else
-          add_item(sub_item, asana_task.id) unless sub_item.completed?
+          add_item(sub_item, asana_task.external_id) unless sub_item.completed?
           "Created sub_item #{sub_item.title} of task #{external_task.title} in Asana"
         end
       end
@@ -212,10 +211,10 @@ module Asana
       body_data.map { |section_hash| section_hash.merge("project_gid" => project_gid) }
     end
 
-    def list_project_tasks(project_gid)
+    def list_project_tasks(project_gid, only_modified_dates: false)
       query = {
         query: {
-          opt_fields: Task.requested_fields.join(",")
+          opt_fields: Task.requested_fields(only_modified_dates:).join(",")
         }
       }
       response = HTTParty.get("#{base_url}/projects/#{project_gid}/tasks", authenticated_options.merge(query))
