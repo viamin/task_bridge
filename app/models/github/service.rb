@@ -32,17 +32,17 @@ module Github
         .map { |repo| list_issues(repo, tags) }
         .flatten
         .map do |external_issue|
-          issue = Issue.find_or_initialize_by(external_id: external_issue[Issue.attribute_map[:external_id]])
-          issue.github_issue = external_issue
-          issue.read_original(only_modified_dates: true)
-        end
+        issue = Issue.find_or_initialize_by(external_id: external_issue[Issue.attribute_map[:external_id]])
+        issue.github_issue = external_issue
+        issue.read_original(only_modified_dates:)
+      end
       assigned_issues = list_assigned
         .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
         .map do |external_issue|
-          issue = Issue.find_or_initialize_by(external_id: external_issue[Issue.attribute_map[:external_id]])
-          issue.github_issue = external_issue
-          issue.read_original(only_modified_dates: true)
-        end
+        issue = Issue.find_or_initialize_by(external_id: external_issue[Issue.attribute_map[:external_id]])
+        issue.github_issue = external_issue
+        issue.read_original(only_modified_dates:)
+      end
       (tagged_issues + assigned_issues).uniq(&:external_id)
     end
 

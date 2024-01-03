@@ -28,12 +28,13 @@ module Omnifocus
       tasks = omnifocus_tasks.map do |external_task|
         task = Task.find_or_initialize_by(external_id: external_task.id_.get)
         task.omnifocus_task = external_task
-        task.read_original(only_modified_dates: true)
+        task.read_original(only_modified_dates:)
       end
       # remove sub_items from the list
-      tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
-      sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:external_id)
-      tasks.delete_if { |task| sub_item_ids.include?(task.external_id) }
+      # TODO: why tho?
+      # tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
+      # sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:external_id)
+      # tasks.delete_if { |task| sub_item_ids.include?(task.external_id) }
     end
 
     def add_item(external_task, parent_object = nil)
@@ -116,7 +117,7 @@ module Omnifocus
 
     def tagged_tasks(tags = nil, incomplete_only: false)
       debug("tags: #{tags}", options[:debug])
-      return [] if tags.nil?
+      return [] if tags.blank?
 
       matching_tags = omnifocus_app.flattened_tags.get.select { |tag| tags.include?(tag.name.get) }
       all_tasks_in_container(matching_tags, incomplete_only:)

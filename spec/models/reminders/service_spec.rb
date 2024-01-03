@@ -7,7 +7,7 @@ RSpec.describe "Reminders::Service" do
   let(:reminders_mapping) { "" }
   let(:logger) { double(StructuredLogger) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
-  let(:options) { { reminders_mapping:, tags: [] } }
+  let(:options) { {reminders_mapping:, tags: []} }
 
   before do
     allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})

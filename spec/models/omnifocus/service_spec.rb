@@ -13,9 +13,9 @@ RSpec.describe "Omnifocus::Service" do
   end
 
   describe "#items_to_sync" do
-    subject { service.items_to_sync(tags: sync_tags, inbox:) }
+    subject { service.items_to_sync(tags:, inbox:) }
 
-    let(:sync_tags) { nil }
+    let(:tags) { [] }
     let(:inbox) { false }
 
     it "returns an empty array", :no_ci do
@@ -23,7 +23,7 @@ RSpec.describe "Omnifocus::Service" do
     end
 
     context "with tags" do
-      let(:sync_tags) { ["TaskBridge"] }
+      let(:tags) { ["TaskBridge"] }
 
       it "returns tasks with a matching tag", :no_ci do
         expect(subject).not_to be_empty

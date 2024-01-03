@@ -68,11 +68,11 @@ namespace :task_bridge do
     ungrouped_items_by_title = ungrouped_items.group_by(&:title)
     # for each group, create a sync collection if the statuses match
     ungrouped_items_by_title.each do |title, items|
-      if items.any?(&:incomplete?) && (items.count <= items_by_service.keys.length)
-        collection = SyncCollection.create(title:)
-        items.each { |item| collection << item }
-        items_by_collection[collection.id] = collection
-      end
+      next unless items.any?(&:incomplete?) && (items.count <= items_by_service.keys.length)
+
+      collection = SyncCollection.create(title:)
+      items.each { |item| collection << item }
+      items_by_collection[collection.id] = collection
     end
     binding.pry
 

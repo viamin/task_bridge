@@ -46,7 +46,7 @@ module Github
     attr_reader :number, :tags, :project, :is_pr
 
     def read_original(only_modified_dates: false)
-      super(only_modified_dates: only_modified_dates)
+      super(only_modified_dates:)
       @number = read_attribute(github_issue, "number", only_modified_dates:)
       # Add "Github" to the labels
       @tags = (default_tags + github_issue["labels"].map { |label| label["name"] }).uniq
