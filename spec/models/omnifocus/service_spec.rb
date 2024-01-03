@@ -1,0 +1,47 @@
+# frozen_string_literal: true
+
+require "rails_helper"
+
+RSpec.describe "Omnifocus::Service" do
+  let(:service) { Omnifocus::Service.new }
+  let(:logger) { double(StructuredLogger) }
+  let(:last_sync) { Time.now - service.send(:min_sync_interval) }
+
+  before do
+    allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})
+    allow_any_instance_of(StructuredLogger).to receive(:last_synced).and_return(last_sync)
+  end
+
+  describe "#items_to_sync" do
+    subject { service.items_to_sync(tags:, inbox:) }
+
+    let(:tags) { [] }
+    let(:inbox) { false }
+
+    it "returns an empty array", :no_ci do
+      expect(subject).to eq([])
+    end
+
+    context "with tags" do
+      let(:tags) { ["TaskBridge"] }
+
+      it "returns tasks with a matching tag", :no_ci do
+        expect(subject).not_to be_empty
+      end
+    end
+
+    context "with inbox: true" do
+      let(:inbox) { true }
+
+      it "returns inbox tasks", :no_ci do
+        expect(subject.length).to eq(service.send(:inbox_tasks).length)
+      end
+    end
+  end
+
+  describe "#add_item" do
+  end
+
+  describe "#update_item" do
+  end
+end

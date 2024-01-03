@@ -8,7 +8,7 @@ Run `bundle install` to install dependencies. You may need an account for some o
 
 ## Configuration
 
-Run `ruby task_bridge.rb --help` to see available command line options. Many command line default settings can be configured in the `settings.yml` file.
+Run `rails task_bridge:sync -- --help` to see available command line options. Many command line default settings can be configured in the `settings.yml` file.
 
 The command line option will take precence over the settings in the configuration file.
 
