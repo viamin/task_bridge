@@ -9,7 +9,7 @@ module Github
 
     def initialize
       super
-      @authentication = Authentication.new(options).authenticate!
+      @authentication = Authentication.new.authenticate!
     rescue
       # If authentication fails, skip the service
       nil
@@ -31,10 +31,18 @@ module Github
       tagged_issues = sync_repositories
         .map { |repo| list_issues(repo, tags) }
         .flatten
-        .map { |issue| Issue.new(github_issue: issue, options:) }
+        .map do |external_issue|
+          issue = Issue.find_or_initialize_by(external_id: external_issue[Issue.attribute_map[:external_id]])
+          issue.github_issue = external_issue
+          issue.read_original(only_modified_dates: true)
+        end
       assigned_issues = list_assigned
         .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
-        .map { |issue| Issue.new(github_issue: issue, options:) }
+        .map do |external_issue|
+          issue = Issue.find_or_initialize_by(external_id: external_issue[Issue.attribute_map[:external_id]])
+          issue.github_issue = external_issue
+          issue.read_original(only_modified_dates: true)
+        end
       (tagged_issues + assigned_issues).uniq(&:external_id)
     end
 

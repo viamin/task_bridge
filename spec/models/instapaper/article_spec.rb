@@ -54,6 +54,10 @@ RSpec.describe Instapaper::Article do
   end
   let(:article) { Instapaper::Article.new(instapaper_article: article_props) }
 
+  before do
+    article.read_original
+  end
+
   describe "#completed?" do
     before { allow(article).to receive(:unread?).and_return(true) }
 

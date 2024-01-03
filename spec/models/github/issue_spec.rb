@@ -64,6 +64,10 @@ RSpec.describe "Github::Issue" do
     }.compact
   end
 
+  before do
+    issue.read_original
+  end
+
   it_behaves_like "sync_item" do
     let(:item) { issue }
   end

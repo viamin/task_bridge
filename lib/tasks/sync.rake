@@ -6,59 +6,39 @@ namespace :task_bridge do
   desc "sync all services"
   task sync: :environment do
     include Debug
-    options = {
-      primary: Chamber.dig!(:task_bridge, :primary_service),
-      tags: Chamber.dig!(:task_bridge, :sync, :tags),
-      personal_tags: Chamber.dig(:task_bridge, :personal_tags),
-      work_tags: Chamber.dig(:task_bridge, :work_tags),
-      services: Chamber.dig!(:task_bridge, :sync, :services),
-      list: Chamber.dig(:google, :tasks_list),
-      repositories: Chamber.dig(:github, :repositories)&.split(","),
-      reminders_mapping: Chamber.dig(:reminders, :list_mapping),
-      max_age: Chamber.dig!(:task_bridge, :sync, :max_age).to_i,
-      update_ids_for_existing: Chamber.dig!(:task_bridge, :update_ids_for_existing_items),
-      delete: Chamber.dig!(:task_bridge, :delete_completed),
-      only_from_primary: false,
-      only_to_primary: false,
-      pretend: false,
-      quiet: false,
-      force: false,
-      verbose: false,
-      log_file: Chamber.dig!(:task_bridge, :log_file),
-      debug: Chamber.dig!(:task_bridge, :debug),
-      console: false,
-      history: false,
-      testing: false
-    }
+    include GlobalOptions
+
+    overrides = options
     o = OptionParser.new
     supported_services = Chamber.dig!(:task_bridge, :all_supported_services)
     o.banner = "Sync Tasks from one service to another\nSupported services: #{supported_services.join(", ")}\nBy default, tasks found with the tags in --tags will have a work context"
-    o.on("-p", "--primary [PRIMARY]", "Primary task service") { |value| options[:primary] = value }
-    o.on("-t", "--tags [TAGS]", "Tags (or labels) to sync") { |value| options[:tags] = value }
-    o.on("-s", "--services [SERVICES]", String, "Services to sync tasks among") { |services| options[:services] = services.split(",") }
-    o.on("-e", "--personal-tags [TAGS]", "Tags (or labels) used for personal context") { |value| options[:personal_tags] = value }
-    o.on("-w", "--work-tags [TAGS]", "Tags (or labels) used for work context (overrides personal tags)") { |value| options[:work_tags] = value }
-    o.on("-l", "--list [LIST]", "Task list name to sync to") { |value| options[:list] = value }
-    o.on("-r", "--repositories [REPOSITORIES]", "Github repositories to sync from") { |value| options[:repositories] = value }
-    o.on("-m", "--reminders-mapping [MAPPING]", "Reminder lists to map to primary service lists/projects") { |value| options[:reminders_mapping] = value }
-    o.on("-a", "--max-age [MAX_AGE]", Integer, "Skip syncing asks that have not been modified within this time (0 to disable)") { |value| options[:max_age] = value }
-    o.on("-u", "--update-ids-for-existing", "Update Sync IDs for already synced items") { options[:update_ids_for_existing] = true }
-    o.on("-d", "--delete", "Delete completed tasks on service") { options[:delete] = true }
-    o.on("-o", "--only-from-primary", "Only sync FROM the primary service") { options[:only_from_primary] = true }
-    o.on("-n", "--only-to-primary", "Only sync TO the primary service") { options[:only_to_primary] = true }
-    o.on("-x", "--pretend", "List the found tasks, don't sync") { options[:pretend] = true }
-    o.on("-q", "--quiet", "No output - except a 'finished sync' with timestamp") { |value| options[:quiet] = value }
-    o.on("-f", "--force", "Ignore minimum sync interval") { options[:force] = true }
-    o.on("-v", "--verbose", "Verbose output") { options[:verbose] = true }
-    o.on("-g", "--log-file [FILE]", "File name for service log") { |value| options[:log_file] = value }
-    o.on("-b", "--debug", "Print debug output") { options[:debug] = true }
+    o.on("-p", "--primary [PRIMARY]", "Primary task service") { |value| overrides[:primary] = value }
+    o.on("-t", "--tags [TAGS]", "Tags (or labels) to sync") { |value| overrides[:tags] = value }
+    o.on("-s", "--services [SERVICES]", String, "Services to sync tasks among") { |services| overrides[:services] = services.split(",") }
+    o.on("-e", "--personal-tags [TAGS]", "Tags (or labels) used for personal context") { |value| overrides[:personal_tags] = value }
+    o.on("-w", "--work-tags [TAGS]", "Tags (or labels) used for work context (overrides personal tags)") { |value| overrides[:work_tags] = value }
+    o.on("-l", "--list [LIST]", "Task list name to sync to") { |value| overrides[:list] = value }
+    o.on("-r", "--repositories [REPOSITORIES]", "Github repositories to sync from") { |value| overrides[:repositories] = value }
+    o.on("-m", "--reminders-mapping [MAPPING]", "Reminder lists to map to primary service lists/projects") { |value| overrides[:reminders_mapping] = value }
+    o.on("-a", "--max-age [MAX_AGE]", Integer, "Skip syncing asks that have not been modified within this time (0 to disable)") { |value| overrides[:max_age] = value }
+    o.on("-u", "--update-ids-for-existing", "Update Sync IDs for already synced items") { overrides[:update_ids_for_existing] = true }
+    o.on("-d", "--delete", "Delete completed tasks on service") { overrides[:delete] = true }
+    o.on("-o", "--only-from-primary", "Only sync FROM the primary service") { overrides[:only_from_primary] = true }
+    o.on("-n", "--only-to-primary", "Only sync TO the primary service") { overrides[:only_to_primary] = true }
+    o.on("-x", "--pretend", "List the found tasks, don't sync") { overrides[:pretend] = true }
+    o.on("-q", "--quiet", "No output - except a 'finished sync' with timestamp") { |value| overrides[:quiet] = value }
+    o.on("-f", "--force", "Ignore minimum sync interval") { overrides[:force] = true }
+    o.on("-v", "--verbose", "Verbose output") { overrides[:verbose] = true }
+    o.on("-g", "--log-file [FILE]", "File name for service log") { |value| overrides[:log_file] = value }
+    o.on("-b", "--debug", "Print debug output") { overrides[:debug] = true }
     o.on("-h", "--history", "Print sync service history") do
-      StructuredLogger.new(log_file: options[:log_file], service_names: options[:services]).print_logs
+      StructuredLogger.new(log_file: overrides[:log_file], service_names: overrides[:services]).print_logs
       exit
     end
     # o.require_exact = true
-    args = o.order!(ARGV) {}
+    args = o.order!(ARGV)
     o.parse!(args)
+    options = overrides
 
     raise "Supported services: #{supported_services.join(", ")}" unless supported_services.intersect?(options[:services])
 

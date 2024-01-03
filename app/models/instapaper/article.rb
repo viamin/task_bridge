@@ -42,12 +42,13 @@ module Instapaper
     attr_accessor :instapaper_article
     attr_reader :folder, :project, :estimated_minutes
 
-    def read_original
-      super
-      @folder = read_attribute(instapaper_article, "folder")
+    def read_original(only_modified_dates: false)
+      super(only_modified_dates:)
+      @folder = read_attribute(instapaper_article, "folder", only_modified_dates:)
       @project = Chamber.dig(:instapaper, :project)
       self.last_modified = Time.at(instapaper_article["progress_timestamp"])
       @estimated_minutes = nil
+      self
     end
 
     def external_data

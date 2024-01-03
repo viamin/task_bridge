@@ -25,7 +25,11 @@ module Reclaim
 
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
     def items_to_sync(*)
-      list_tasks.map { |reclaim_task| Task.new(reclaim_task:) }
+      list_tasks.map do |reclaim_task|
+        task = Task.find_or_initialize_by(external_id: reclaim_task[Task.attributes[:external_id]])
+        task.reclaim_task = reclaim_task
+        task.read_original(only_modified_dates: true)
+      end
     end
 
     def add_item(external_task)

@@ -4,6 +4,6 @@ module Collectible
   extend ActiveSupport::Concern
 
   included do
-    belongs_to :sync_collection
+    belongs_to :sync_collection, optional: true
   end
 end

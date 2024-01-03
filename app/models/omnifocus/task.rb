@@ -79,23 +79,26 @@ module Omnifocus
     attr_accessor :omnifocus_task
     attr_reader :estimated_minutes, :tags, :project, :sub_item_count, :sub_items
 
-    def read_original
-      super
-      containing_project = read_attribute(omnifocus_task, :containing_project)
+    def read_original(only_modified_dates: false)
+      super(only_modified_dates:)
+      containing_project = read_attribute(omnifocus_task, :containing_project, only_modified_dates:)
       @project = if containing_project.respond_to?(:get)
         containing_project.name.get
       else
         ""
       end
-      @estimated_minutes = read_attribute(omnifocus_task, :estimated_minutes)
+      @estimated_minutes = read_attribute(omnifocus_task, :estimated_minutes, only_modified_dates:)
 
       @tags = read_attribute(omnifocus_task, :tags)
       @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
       self.due_date = date_from_tags(omnifocus_task, @tags)
       @sub_items = read_attribute(omnifocus_task, :tasks)&.map do |sub_item|
-        Task.new(omnifocus_task: sub_item)
+        task = Task.find_or_initialize_by(external_id: sub_item.id_.get)
+        task.omnifocus_task = sub_item
+        task.read_original(only_modified_dates:)
       end
       @sub_item_count = @sub_items&.count
+      self
     end
 
     # TODO: remove this?

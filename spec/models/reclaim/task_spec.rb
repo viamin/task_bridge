@@ -58,6 +58,10 @@ RSpec.describe "Reclaim::Task" do
     }.compact
   end
 
+  before do
+    task.read_original
+  end
+
   it_behaves_like "sync_item" do
     let(:item) { task }
   end

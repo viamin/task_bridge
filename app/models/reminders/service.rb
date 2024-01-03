@@ -31,7 +31,11 @@ module Reminders
       reminders_lists = sync_maps.keys
       debug("reminders_lists: #{reminders_lists}", options[:debug])
       merged_reminders = reminders_lists.map { |reminders_list| reminders_in_list(reminders_list) }.flatten
-      merged_reminders.map { |reminder| Reminder.new(reminder:) }
+      merged_reminders.map do |external_reminder|
+        reminder = Reminder.find_or_initialize_by(external_id: external_reminder.id_.get)
+        reminder.reminder = external_reminder
+        reminder.read_original(only_modified_dates: true)
+      end
     end
 
     def add_item(external_task, parent_object = nil)

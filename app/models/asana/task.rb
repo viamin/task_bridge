@@ -45,12 +45,15 @@ module Asana
     attr_accessor :asana_task
     attr_reader :project, :section, :sub_item_count, :sub_items, :assignee
 
-    def read_original
-      super
-      @project = project_from_memberships(asana_task)
-      @sub_item_count = asana_task.fetch("num_subtasks", 0).to_i
-      @sub_items = []
-      @assignee = asana_task.dig("assignee", "gid")
+    def read_original(only_modified_dates: false)
+      super(only_modified_dates:)
+      unless only_modified_dates
+        @project = project_from_memberships(asana_task)
+        @sub_item_count = asana_task.fetch("num_subtasks", 0).to_i
+        @sub_items = []
+        @assignee = asana_task.dig("assignee", "gid")
+      end
+      self
     end
 
     def chronic_attributes

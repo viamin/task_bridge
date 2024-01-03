@@ -25,7 +25,11 @@ module Omnifocus
     def items_to_sync(tags: options[:tags], inbox: true, only_modified_dates: false)
       omnifocus_tasks = tagged_tasks(tags)
       omnifocus_tasks += inbox_tasks if inbox
-      tasks = omnifocus_tasks.map { |task| Task.new(omnifocus_task: task) }
+      tasks = omnifocus_tasks.map do |external_task|
+        task = Task.find_or_initialize_by(external_id: external_task.id_.get)
+        task.omnifocus_task = external_task
+        task.read_original(only_modified_dates: true)
+      end
       # remove sub_items from the list
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
       sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:external_id)

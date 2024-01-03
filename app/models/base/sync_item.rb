@@ -44,20 +44,24 @@ module Base
 
     attr_reader :tags, :notes, :debug_data
 
-    delegate :attributes, :attribute_map, :read_attribute, to: :class
+    delegate :attributes, :attribute_map, :modified_date_attributes, :read_attribute, to: :class
 
-    after_initialize :read_original, :set_tags
+    after_initialize :read_notes, :set_tags # , :read_original
 
     validates :external_id, uniqueness: true
 
-    def read_original
-      raw_notes = read_attribute(external_data, attributes.delete(:notes))
+    def read_original(only_modified_dates: false)
       values_hash = attributes.to_h do |attribute_key, attribute_value|
-        value = read_attribute(external_data, attribute_value)
-        value = Chronic.parse(value) if chronic_attributes.include?(attribute_key)
+        value = read_attribute(external_data, attribute_value, only_modified_dates:)
+        value = Chronic.parse(value) if value && chronic_attributes.include?(attribute_key)
         [attribute_key, value]
-      end
+      end.compact
       assign_attributes(values_hash)
+      self
+    end
+
+    def read_notes
+      raw_notes = read_attribute(external_data, attributes[:notes])
       return if raw_notes.blank?
 
       note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
@@ -152,8 +156,8 @@ module Base
       end
 
       # read attributes using applescript or hash keys
-      def read_attribute(external_data, attribute)
-        return if attribute.nil?
+      def read_attribute(external_data, attribute, only_modified_dates: false)
+        return if attribute.nil? || (only_modified_dates && !modified_date_attributes.include?(attribute))
 
         value = if external_data.is_a? Hash
           external_data.fetch(attribute, nil)
@@ -188,6 +192,10 @@ module Base
           last_modified: "updated_at",
           url: "url"
         }
+      end
+
+      def modified_date_attributes
+        %i[completed_at last_modified]
       end
     end
 

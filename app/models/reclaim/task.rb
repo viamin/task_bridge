@@ -45,20 +45,20 @@ module Reclaim
     attr_accessor :reclaim_task
     attr_reader :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :always_private
 
-    def read_original
-      @time_required = read_attribute(reclaim_task, "timeChunksRequired")
-      @time_spent = read_attribute(reclaim_task, "timeChunksSpent")
-      @time_remaining = read_attribute(reclaim_task, "timeChunksRemaining")
-      @minimum_chunk_size = read_attribute(reclaim_task, "minChunkSize")
-      @maximum_chunk_size = read_attribute(reclaim_task, "maxChunkSize")
-      @always_private = read_attribute(reclaim_task, "alwaysPrivate")
+    def read_original(only_modified_dates: false)
+      super(only_modified_dates:)
+      @time_required = read_attribute(reclaim_task, "timeChunksRequired", only_modified_dates:)
+      @time_spent = read_attribute(reclaim_task, "timeChunksSpent", only_modified_dates:)
+      @time_remaining = read_attribute(reclaim_task, "timeChunksRemaining", only_modified_dates:)
+      @minimum_chunk_size = read_attribute(reclaim_task, "minChunkSize", only_modified_dates:)
+      @maximum_chunk_size = read_attribute(reclaim_task, "maxChunkSize", only_modified_dates:)
+      @always_private = read_attribute(reclaim_task, "alwaysPrivate", only_modified_dates:)
       @tags = default_tags
       @tags = if personal?
         @tags + options[:personal_tags]
       else
         @tags + options[:work_tags]
       end
-      super
     end
 
     def chronic_attributes
@@ -82,7 +82,7 @@ module Reclaim
     end
 
     def personal?
-      item_type == "PERSONAL"
+      item_type == PERSONAL
     end
 
     def to_h(*_args)
