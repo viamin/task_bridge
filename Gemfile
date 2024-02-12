@@ -25,7 +25,7 @@ gem "chronic", "~> 0.10"
 gem "colorize", "~> 1.0"
 
 # https://github.com/bkeepers/dotenv
-gem "dotenv", "~> 2.8", require: "dotenv/load"
+gem "dotenv", "~> 3.0", require: "dotenv/load"
 
 # https://github.com/googleapis/google-auth-library-ruby
 gem "googleauth", "~> 1.5"
