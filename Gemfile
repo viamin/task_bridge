@@ -15,6 +15,18 @@ gem "activesupport", "~> 7.0",
       "active_support/core_ext/string" # for squish
     ]
 
+# https://github.com/ruby/bigdecimal
+gem "bigdecimal", "~> 3.1"
+
+# https://github.com/ruby/base64
+gem "base64", "~> 0.2"
+
+# https://github.com/ruby/mutex_m
+gem "mutex_m", "~> 0.2"
+
+# https://github.com/ruby/csv
+gem "csv", "~> 3.3"
+
 # https://github.com/thekompanee/chamber
 gem "chamber", "~> 3.0"
 

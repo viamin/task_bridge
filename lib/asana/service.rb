@@ -149,7 +149,7 @@ module Asana
 
     # the minimum time we should wait between syncing tasks
     def min_sync_interval
-      5.minutes.to_i
+      30.minutes.to_i
     end
 
     # create or update sub_items on a task
