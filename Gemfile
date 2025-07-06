@@ -76,7 +76,7 @@ group :development do
   gem "pry" # https://github.com/pry/pry
   gem "rubocop"
   gem "rubocop-performance"
-  gem "standard"
+  gem "standard", ">= 1.35.1"
 end
 
 group :test do

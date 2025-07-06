@@ -51,3 +51,4 @@ google_api_client_credentials.json
 .chamber*.pem
 .chamber*.enc.pass
 !.chamber*.pub.pem
+.aider*
