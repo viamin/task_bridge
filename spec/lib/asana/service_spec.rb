@@ -59,9 +59,9 @@ RSpec.describe "Asana::Service", :full_options do
     end
 
     context "when task_updated_at is more than min_sync_interval" do
-      let(:task_updated_at) { Chronic.parse("#{min_sync_interval + 1.minute} seconds ago") }
+      let(:task_updated_at) { Time.now - (min_sync_interval + 1.minute) }
 
-      it { is_expected.to(be false) }
+      it { is_expected.to be false }
     end
   end
 
