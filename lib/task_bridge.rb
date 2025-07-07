@@ -14,6 +14,7 @@ require_relative "instapaper/service"
 require_relative "omnifocus/service"
 require_relative "reclaim/service"
 require_relative "reminders/service"
+require_relative "task_bridge_web/service"
 
 Chamber.load basepath: File.expand_path("../", __dir__)
 
@@ -160,7 +161,7 @@ class TaskBridge
     # These are services that have tasks or task-like objects
     # that should be kept in sync with the primary service
     def task_services
-      %w[Asana GoogleTasks Omnifocus Reclaim Reminders]
+      %w[Asana GoogleTasks Omnifocus Reclaim Reminders TaskBridgeWeb]
     end
   end
 

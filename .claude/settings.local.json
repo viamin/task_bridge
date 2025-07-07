@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ruby:*)",
+      "Bash(bundle install:*)",
+      "Bash(rg:*)"
+    ],
+    "deny": []
+  }
+}

@@ -148,9 +148,15 @@ module Omnifocus
     end
 
     def update_attributes(attributes)
+      task = original_task
+      return unless task
+
       attributes.each do |key, value|
         original_attribute_key = attribute_map[key].to_sym
-        original_task.send(original_attribute_key).set(value)
+        attribute_accessor = task.send(original_attribute_key)
+        next unless attribute_accessor
+
+        attribute_accessor.set(value)
       end
     end
 

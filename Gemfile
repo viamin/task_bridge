@@ -27,6 +27,12 @@ gem "mutex_m", "~> 0.2"
 # https://github.com/ruby/csv
 gem "csv", "~> 3.3"
 
+# https://github.com/ruby/ostruct
+gem "ostruct", "~> 0.6"
+
+# https://github.com/ruby/pstore
+gem "pstore", "~> 0.1"
+
 # https://github.com/thekompanee/chamber
 gem "chamber", "~> 3.0"
 
