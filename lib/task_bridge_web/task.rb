@@ -48,7 +48,8 @@ module TaskBridgeWeb
           description: external_task.sync_notes,
           completed: external_task.completed?,
           due_date: external_task.due_date&.iso8601,
-          status: external_task.completed? ? "completed" : "active"
+          status: external_task.completed? ? "completed" : "active",
+          project: external_task.try(:project)
         }.compact
       end
     end

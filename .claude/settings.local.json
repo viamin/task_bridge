@@ -3,7 +3,14 @@
     "allow": [
       "Bash(ruby:*)",
       "Bash(bundle install:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(grep:*)",
+      "Bash(git checkout:*)",
+      "Bash(find:*)",
+      "Bash(sqlite3:*)",
+      "Bash(bundle exec rspec:*)",
+      "Bash(bundle exec rubocop:*)",
+      "Bash(bundle exec standard:*)"
     ],
     "deny": []
   }

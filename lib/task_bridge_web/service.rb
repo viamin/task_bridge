@@ -30,8 +30,17 @@ module TaskBridgeWeb
 
     def add_item(external_task)
       debug("external_task: #{external_task}", options[:debug])
+      task_data = Task.from_external(external_task)
+
+      # Handle project creation if task has a project
+      if task_data[:project] && !task_data[:project].empty?
+        project_id = ensure_project_exists(task_data[:project], external_task.provider)
+        task_data[:project_id] = project_id
+        task_data.delete(:project)
+      end
+
       request_body = {
-        body: { task: Task.from_external(external_task) }.to_json
+        body: { task: task_data }.to_json
       }
 
       if options[:pretend]
@@ -68,8 +77,17 @@ module TaskBridgeWeb
 
     def update_item(task_bridge_web_task, external_task)
       debug("task_bridge_web_task: #{task_bridge_web_task.title}", options[:debug])
+      task_data = Task.from_external(external_task)
+
+      # Handle project creation if task has a project
+      if task_data[:project] && !task_data[:project].empty?
+        project_id = ensure_project_exists(task_data[:project], external_task.provider)
+        task_data[:project_id] = project_id
+        task_data.delete(:project)
+      end
+
       request_body = {
-        body: { task: Task.from_external(external_task) }.to_json
+        body: { task: task_data }.to_json
       }
 
       return "Would have updated task #{external_task.title} in TaskBridge Web" if options[:pretend]
@@ -105,6 +123,47 @@ module TaskBridgeWeb
       JSON.parse(response.body)
     end
     memo_wise :fetch_tasks
+
+    def fetch_projects
+      response = HTTParty.get("#{base_url}/api/projects", authenticated_options)
+      return [] unless response.success?
+
+      JSON.parse(response.body)
+    end
+    memo_wise :fetch_projects
+
+    def ensure_project_exists(project_name, service_type = nil)
+      # Look for existing project by name
+      existing_project = fetch_projects.find { |project| project["name"] == project_name }
+      return existing_project["id"] if existing_project
+
+      # Create new project if it doesn't exist
+      create_project(project_name, service_type)
+    end
+
+    def create_project(project_name, service_type = nil)
+      debug("Creating project: #{project_name}", options[:debug])
+
+      return nil if options[:pretend]
+
+      project_data = { name: project_name }
+      project_data[:service_type] = service_type if service_type
+
+      request_body = {
+        body: { project: project_data }.to_json
+      }
+
+      response = HTTParty.post("#{base_url}/api/projects", authenticated_options.merge(request_body))
+      if response.success?
+        response_body = JSON.parse(response.body)
+        puts "Created project: #{project_name}" if options[:verbose]
+        response_body["id"]
+      else
+        debug("Failed to create project #{project_name}: #{response.body}", options[:debug])
+        puts "Failed to create project #{project_name}" if options[:verbose]
+        nil
+      end
+    end
 
     def authenticated_options
       {

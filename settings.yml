@@ -16,7 +16,8 @@ task_bridge:
       - Reclaim
       - Github
       - Instapaper
-      - Asana 
+      - Asana
+      - TaskBridgeWeb 
     tags: 
       - TaskBridge 
 
@@ -51,3 +52,6 @@ reclaim:
 
 reminders:
   list_mapping: ___nil___
+
+task_bridge_web:
+  api_key: f043b911b119c7da6d9383565faff07a233d75350b77d9b7502086c1dda2d910
