@@ -59,30 +59,19 @@ module Asana
         query: { opt_fields: Task.requested_fields.join(",") },
         body: { data: Task.from_external(external_task).merge(memberships_for_task(external_task, for_create: true)) }.to_json
       }
-      if options[:pretend]
-        "Would have added #{external_task.title} to Asana"
-      else
-        endpoint = parent_task_gid.nil? ? "tasks" : "tasks/#{parent_task_gid}/subtasks"
-        debug("request_body: #{request_body.pretty_inspect} sending to #{endpoint}", options[:debug])
-        response = HTTParty.post("#{base_url}/#{endpoint}", authenticated_options.merge(request_body))
-        if response.success?
-          response_body = JSON.parse(response.body)
-          new_task = Task.new(asana_task: response_body["data"], options:)
-          if (section = memberships_for_task(external_task)["section"])
-            request_body = { body: { data: { task: new_task.id } }.to_json }
-            response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))
-            unless response.success?
-              debug(response.body, options[:debug])
-              "Failed to move an Asana task to a section - code #{response.code}"
-            end
-          end
-          handle_sub_items(new_task, external_task)
-          update_sync_data(external_task, new_task.id, new_task.url)
-        else
-          debug(response.body, options[:debug])
-          "Failed to create an Asana task - code #{response.code}"
-        end
-      end
+      return "Would have added #{external_task.title} to Asana" if options[:pretend]
+
+      endpoint = parent_task_gid.nil? ? "tasks" : "tasks/#{parent_task_gid}/subtasks"
+      debug("request_body: #{request_body.pretty_inspect} sending to #{endpoint}", options[:debug])
+      response = HTTParty.post("#{base_url}/#{endpoint}", authenticated_options.merge(request_body))
+      return failure_message("create an Asana task", response) unless response.success?
+
+      response_body = JSON.parse(response.body)
+      new_task = Task.new(asana_task: response_body["data"], options:)
+      section_move_error = move_task_to_section(section_identifier_for(external_task), new_task.id)
+      handle_sub_items(new_task, external_task)
+      update_sync_data(external_task, new_task.id, new_task.url)
+      section_move_error
     end
 
     # Asana's update task API supports a PATCH-like syntax using PUT
@@ -110,31 +99,19 @@ module Asana
       return "Would have updated task #{external_task.title} in Asana" if options[:pretend]
 
       response = HTTParty.put("#{base_url}/tasks/#{asana_task.id}", authenticated_options.merge(request_body))
-      if response.success?
-        # check if the project or section need to change
-        if external_task.project && (asana_task.project != external_task.project)
-          request_body = { body: JSON.dump({ data: memberships_for_task(external_task) }) }
-          project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.id}/addProject", authenticated_options.merge(request_body))
-          if project_response.success?
-            if (section = memberships_for_task(external_task)["section"])
-              request_body = { body: { data: { task: asana_task.id } }.to_json }
-              response = HTTParty.post("#{base_url}/sections/#{section}/addTask", authenticated_options.merge(request_body))
-              unless response.success?
-                debug(response.body, options[:debug])
-                "Failed to move an Asana task to a section - code #{response.code}"
-              end
-            end
-          else
-            debug(project_response.body, options[:debug])
-            "Failed to update Asana task ##{asana_task.id} with code #{project_response.code}"
-          end
-        end
-        handle_sub_items(asana_task, external_task)
-        update_sync_data(external_task, asana_task.id, asana_task.url) if options[:update_ids_for_existing]
-      else
-        debug(response.body, options[:debug])
-        "Failed to update Asana task ##{asana_task.id} with code #{response.code}"
+      return failure_message("update Asana task ##{asana_task.id}", response) unless response.success?
+
+      section_move_error = nil
+      if external_task.project && (asana_task.project != external_task.project)
+        request_body = { body: JSON.dump({ data: memberships_for_task(external_task) }) }
+        project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.id}/addProject", authenticated_options.merge(request_body))
+        return failure_message("update Asana task ##{asana_task.id}", project_response) unless project_response.success?
+
+        section_move_error = move_task_to_section(section_identifier_for(external_task), asana_task.id)
       end
+      handle_sub_items(asana_task, external_task)
+      update_sync_data(external_task, asana_task.id, asana_task.url) if options[:update_ids_for_existing]
+      section_move_error
     end
 
     # Defines the conditions under which a task should be not be created,
@@ -248,6 +225,20 @@ module Asana
     end
     memo_wise :list_task_sub_items
 
+    def move_task_to_section(section_gid, task_gid)
+      return if section_gid.blank?
+
+      request_body = { body: { data: { task: task_gid } }.to_json }
+      response = HTTParty.post("#{base_url}/sections/#{section_gid}/addTask", authenticated_options.merge(request_body))
+      return if response.success?
+
+      failure_message("move an Asana task to a section", response)
+    end
+
+    def section_identifier_for(external_task)
+      memberships_for_task(external_task)["section"]
+    end
+
     # Makes some big assumptions about the layout we use in Asana...
     # Namely that all Asana projects passed into TaskBridge
     # will only have sections or top level tasks and sub_items,
@@ -294,6 +285,11 @@ module Asana
           Authorization: "Bearer #{@personal_access_token}"
         }
       }
+    end
+
+    def failure_message(action, response)
+      debug(response.body, options[:debug])
+      "Failed to #{action} - code #{response.code}"
     end
 
     def base_url

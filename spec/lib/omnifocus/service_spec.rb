@@ -37,10 +37,4 @@ RSpec.describe "Omnifocus::Service", :full_options do
       end
     end
   end
-
-  describe "#add_item" do
-  end
-
-  describe "#update_item" do
-  end
 end
