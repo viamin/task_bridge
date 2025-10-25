@@ -10,14 +10,17 @@ module Instapaper
     UNREAD_ARTICLE_COUNT = 50
     ARCHIVED_ARTICLE_COUNT = 25
 
-    attr_reader :authentication
+    attr_reader :authentication, :authorized
 
     def initialize(options:)
       super
       @authentication = Authentication.new(options).authenticate!
-    rescue StandardError
+      @authorized = true
+    rescue StandardError => e
       # If authentication fails, skip the service
-      nil
+      puts "Instapaper authentication failed: #{e.message}" unless options[:quiet]
+      @authentication = nil
+      @authorized = false
     end
 
     def item_class

@@ -5,12 +5,18 @@ require_relative "../base/service"
 
 module Omnifocus
   class Service < Base::Service
-    attr_reader :omnifocus_app
+    attr_reader :omnifocus_app, :authorized
 
     def initialize(options: {})
       super
       # Assumes you already have OmniFocus installed
       @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
+      @authorized = true
+    rescue StandardError => e
+      # If OmniFocus app is not available, skip the service
+      puts "OmniFocus initialization failed: #{e.message}" unless options[:quiet]
+      @omnifocus_app = nil
+      @authorized = false
     end
 
     def item_class

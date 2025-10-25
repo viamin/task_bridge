@@ -6,9 +6,16 @@ require_relative "../base/service"
 module Asana
   # A service class to talk to the Asana API
   class Service < Base::Service
+    attr_reader :authorized
+
     def initialize(options:)
       super
       @personal_access_token = Chamber.dig!(:asana, :personal_access_token)
+      @authorized = true
+    rescue StandardError => e
+      # If configuration is missing, skip the service
+      puts "Asana initialization failed: #{e.message}" unless options[:quiet]
+      @authorized = false
     end
 
     def item_class
