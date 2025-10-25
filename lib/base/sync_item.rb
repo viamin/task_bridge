@@ -26,7 +26,7 @@ module Base
       note_components.each do |key, value|
         instance_variable_set("@#{key}", value)
         define_singleton_method(key.to_sym) { instance_variable_get("@#{key}") }
-        define_singleton_method("#{key}=".to_sym) { |val| instance_variable_set("@#{key}", val) }
+        define_singleton_method(:"#{key}=") { |val| instance_variable_set("@#{key}", val) }
       end
     end
 
@@ -65,9 +65,9 @@ module Base
     def find_matching_item_in(collection)
       return if collection.blank?
 
-      external_id = "#{collection.first.provider.underscore}_id".to_sym
-      service_id = "#{provider.underscore}_id".to_sym
-      id_match = collection.find { |item| ((item.id && (item.id == try(external_id))) || (item.try(service_id) && (item.try(service_id) == id))) }
+      external_id = :"#{collection.first.provider.underscore}_id"
+      service_id = :"#{provider.underscore}_id"
+      id_match = collection.find { |item| (item.id && (item.id == try(external_id))) || (item.try(service_id) && (item.try(service_id) == id)) }
       return id_match if id_match
 
       collection.find do |item|
@@ -84,7 +84,7 @@ module Base
     end
 
     def external_sync_notes
-      notes_with_values(sync_notes, "#{provider.underscore}_id".to_sym => id, "#{provider.underscore}_url".to_sym => url)
+      notes_with_values(sync_notes, "#{provider.underscore}_id": id, "#{provider.underscore}_url": url)
     end
 
     def sync_notes

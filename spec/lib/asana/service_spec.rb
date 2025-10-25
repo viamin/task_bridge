@@ -79,19 +79,6 @@ RSpec.describe "Asana::Service", :full_options do
     it "raises an error" do
       expect { subject }.to raise_error NoMethodError
     end
-
-    context "with Omnifocus task" do
-      let(:external_task) { Omnifocus::Service.new.items_to_sync(projects: "TaskBridge:Test").first }
-
-      context "with a regular task" do
-      end
-
-      context "with a task with a sub_item" do
-      end
-
-      context "with a task in a section" do
-      end
-    end
   end
 
   describe "#update_item" do

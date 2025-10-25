@@ -60,11 +60,9 @@ module Reminders
         "Last modified more than #{options[:max_age]} ago - skipping #{external_task.title}"
       elsif external_task.completed? && reminder.incomplete?
         debug("Complete state doesn't match", options[:debug])
-        if options[:pretend]
-          "Would have marked #{reminder.title} complete in Reminders"
-        else
-          reminder.mark_complete unless options[:pretend]
-        end
+        return "Would have marked #{reminder.title} complete in Reminders" if options[:pretend]
+
+        reminder.mark_complete
         reminder_id = reminder.id_.get
         update_sync_data(external_task, reminder_id) if options[:update_ids_for_existing]
         external_task

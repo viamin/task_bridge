@@ -62,7 +62,7 @@ class TaskBridge
       Optimist.die :services,
                    "Supported services: #{supported_services.join(', ')}"
     end
-    @options[:max_age_timestamp] = (@options[:max_age]).zero? ? nil : Chronic.parse("#{@options[:max_age]} ago")
+    @options[:max_age_timestamp] = @options[:max_age].zero? ? nil : Chronic.parse("#{@options[:max_age]} ago")
     @options[:uses_personal_tags] = @options[:work_tags].blank?
     @options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
     @options[:logger] = StructuredLogger.new(@options)
@@ -79,27 +79,67 @@ class TaskBridge
     return testing if @options[:testing]
     return console if @options[:console]
 
-    @services.each do |_service_name, service|
-      @service_logs = []
-      if service.respond_to?(:authorized) && service.authorized == false
-        @service_logs << { service: service.friendly_name, last_attempted: @options[:sync_started_at] }.stringify_keys
-      elsif @options[:delete]
-        service.prune if service.respond_to?(:prune)
-      elsif @options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
-        @service_logs << service.sync_to_primary(@primary_service)
-      elsif @options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
-        @service_logs << service.sync_from_primary(@primary_service)
-      elsif service.sync_strategies.include?(:two_way)
-        # if the #sync_with_primary method exists, we should use it unless options force us not to
-        @service_logs << service.sync_with_primary(@primary_service)
-      else
-        # Generally we should sync FROM the primary service first, since it should be the source of truth
-        # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-        @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
-        @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
+    service_summaries = []
+    @services.each_value do |service|
+      service_logs = []
+      service_detail = nil
+      service_error = nil
+      begin
+        if service.respond_to?(:authorized) && service.authorized == false
+          service_detail = "Skipped: authorization required"
+          service_logs << skipped_service_log(service, detail: service_detail)
+          next
+        end
+
+        if @options[:delete]
+          if service.respond_to?(:prune)
+            service.prune
+            service_detail = "Pruned completed items"
+            service_logs << prune_service_log(service, detail: service_detail)
+          end
+          next
+        end
+
+        if @options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
+          log_entry = service.sync_to_primary(@primary_service)
+          service_logs << log_entry if log_entry
+        elsif @options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
+          log_entry = service.sync_from_primary(@primary_service)
+          service_logs << log_entry if log_entry
+        elsif service.sync_strategies.include?(:two_way)
+          # if the #sync_with_primary method exists, we should use it unless options force us not to
+          log_entry = service.sync_with_primary(@primary_service)
+          service_logs << log_entry if log_entry
+        else
+          # Generally we should sync FROM the primary service first, since it should be the source of truth
+          # and we want to avoid overwriting anything in the primary service if a duplicate task exists
+          if service.sync_strategies.include?(:from_primary)
+            log_entry = service.sync_from_primary(@primary_service)
+            service_logs << log_entry if log_entry
+          end
+          if service.sync_strategies.include?(:to_primary)
+            log_entry = service.sync_to_primary(@primary_service)
+            service_logs << log_entry if log_entry
+          end
+        end
+      rescue StandardError => e
+        service_error = e
+        service_detail ||= "#{e.class}: #{e.message}"
+        warn "[TaskBridge] #{service.friendly_name} sync failed: #{e.class}: #{e.message}"
+        warn("  #{e.backtrace.first(5).join("\n  ")}") if e.backtrace
+        service_logs << failure_service_log(service, error: e)
+      ensure
+        service_logs.compact!
+        @options[:logger].save_service_log!(service_logs)
+        service_summaries << @options[:logger].summarize_service_run(
+          service_name: service.friendly_name,
+          logs: service_logs,
+          default_detail: service_detail,
+          error: service_error
+        )
       end
-      @options[:logger].save_service_log!(@service_logs)
     end
+    @options[:logger].print_run_summary(service_summaries)
     end_time = Time.now
     return if @options[:quiet]
 
@@ -132,5 +172,39 @@ class TaskBridge
 
   def testing
     # add code to test here
+  end
+
+  def skipped_service_log(service, detail:)
+    {
+      service: service.friendly_name,
+      last_attempted: @options[:sync_started_at],
+      detail:,
+      items_synced: 0,
+      status: "skipped"
+    }.stringify_keys
+  end
+
+  def prune_service_log(service, detail:)
+    {
+      service: service.friendly_name,
+      last_attempted: @options[:sync_started_at],
+      last_successful: @options[:sync_started_at],
+      detail:,
+      items_synced: 0,
+      status: "success"
+    }.stringify_keys
+  end
+
+  def failure_service_log(service, error:)
+    failure_time = Time.now.strftime("%Y-%m-%d %I:%M%p")
+    {
+      service: service.friendly_name,
+      last_attempted: @options[:sync_started_at],
+      last_failed: failure_time,
+      error_class: error.class.name,
+      error_message: error.message,
+      items_synced: 0,
+      status: "failed"
+    }.stringify_keys
   end
 end

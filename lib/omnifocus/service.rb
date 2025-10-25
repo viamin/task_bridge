@@ -193,7 +193,8 @@ module Omnifocus
         debug("called with a native Omnifocus task", options[:debug])
         task
       end
-      if target_task.tags.get.map(&:name).map(&:get).include?(tag.name.get)
+      existing_tag_names = target_task.tags.get.map { |existing_tag| existing_tag.name.get }
+      if existing_tag_names.include?(tag.name.get)
         debug("Task (#{target_task.name.get}) already has tag #{tag.name.get}", options[:debug])
       else
         debug("Adding tag #{tag.name.get} to task \"#{target_task.name.get}\"", options[:debug])

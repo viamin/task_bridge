@@ -134,7 +134,10 @@ module GoogleTasks
     # In case a reclaim title is present, match the title
     def friendly_titles_match?(google_task, task)
       matcher = /\A(?<title>#{task.title.strip})\s*(?<addon>.*)\Z/i
-      google_title = matcher.match(google_task.title)&.named_captures&.fetch("title", nil)&.downcase&.strip
+      match_data = matcher.match(google_task.title)
+      named_captures = match_data&.named_captures
+      extracted_title = named_captures&.fetch("title", nil)
+      google_title = extracted_title&.downcase&.strip
       google_title == task.title&.downcase&.strip
     end
   end
