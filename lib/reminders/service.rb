@@ -5,12 +5,18 @@ require_relative "../base/service"
 
 module Reminders
   class Service < Base::Service
-    attr_reader :reminders_app
+    attr_reader :reminders_app, :authorized
 
     def initialize(options:)
       super
       # Assumes you already have Reminders installed
       @reminders_app = Appscript.app.by_name(friendly_name)
+      @authorized = true
+    rescue StandardError => e
+      # If Reminders app is not available, skip the service
+      puts "Reminders initialization failed: #{e.message}" unless options[:quiet]
+      @reminders_app = nil
+      @authorized = false
     end
 
     def item_class

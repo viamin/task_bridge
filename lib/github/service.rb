@@ -7,14 +7,17 @@ require_relative "../base/service"
 module Github
   # A service class to connect to the Github API
   class Service < Base::Service
-    attr_reader :authentication
+    attr_reader :authentication, :authorized
 
     def initialize(options:)
       super
       @authentication = Authentication.new(options).authenticate!
-    rescue StandardError
+      @authorized = true
+    rescue StandardError => e
       # If authentication fails, skip the service
-      nil
+      puts "Github authentication failed: #{e.message}" unless options[:quiet]
+      @authentication = nil
+      @authorized = false
     end
 
     def item_class
