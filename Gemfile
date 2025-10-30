@@ -82,4 +82,5 @@ end
 group :test do
   gem "faker", "~> 3.2" # https://github.com/faker-ruby/faker
   gem "rspec", "~> 3.10"
+  gem "simplecov"
 end
