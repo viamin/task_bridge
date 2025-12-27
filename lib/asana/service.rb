@@ -202,9 +202,15 @@ module Asana
     def list_project_tasks(project_gid)
       query = {
         query: {
-          opt_fields: Task.requested_fields.join(",")
+          opt_fields: Task.requested_fields.join(","),
+          # Return incomplete tasks + tasks completed within the last week
+          # This gives leeway for sync delays while reducing API response size
+          completed_since: completed_since_timestamp
         }
       }
+      # Only fetch tasks modified since last sync (if we have a previous sync time)
+      query[:query][:modified_since] = last_sync_time.iso8601 if last_sync_time.present?
+
       response = HTTParty.get("#{base_url}/projects/#{project_gid}/tasks", authenticated_options.merge(query))
       raise "Error loading Asana tasks - check personal access token" unless response.success?
 
@@ -215,9 +221,14 @@ module Asana
     def list_task_sub_items(task_gid)
       query = {
         query: {
-          opt_fields: Task.requested_fields.join(",")
+          opt_fields: Task.requested_fields.join(","),
+          # Return incomplete subtasks + subtasks completed within the last week
+          completed_since: completed_since_timestamp
         }
       }
+      # Only fetch subtasks modified since last sync (if we have a previous sync time)
+      query[:query][:modified_since] = last_sync_time.iso8601 if last_sync_time.present?
+
       response = HTTParty.get("#{base_url}/tasks/#{task_gid}/subtasks", authenticated_options.merge(query))
       raise "Error loading Asana task subtasks - check personal access token" unless response.success?
 
@@ -295,5 +306,18 @@ module Asana
     def base_url
       "https://app.asana.com/api/1.0"
     end
+
+    # Returns timestamp for 1 week ago, used to filter completed tasks
+    # This allows syncing recently completed tasks while reducing API response size
+    def completed_since_timestamp
+      Chronic.parse("1 week ago").iso8601
+    end
+    memo_wise :completed_since_timestamp
+
+    # Returns the last successful sync time from the logger, or nil if never synced
+    def last_sync_time
+      options[:logger]&.last_synced(friendly_name)
+    end
+    memo_wise :last_sync_time
   end
 end

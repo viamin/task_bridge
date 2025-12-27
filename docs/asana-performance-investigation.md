@@ -171,16 +171,18 @@ This pattern could be applied to Asana.
 
 ## Recommended Optimization Strategy
 
-### Phase 1: Quick Wins (Low effort, high impact)
+### Phase 1: Quick Wins (Low effort, high impact) ✅ IMPLEMENTED
 
-1. **Add `completed_since: "now"` filter**
+1. **Add `completed_since` filter** ✅
    - File: `lib/asana/service.rb`
-   - Method: `list_project_tasks`
+   - Methods: `list_project_tasks`, `list_task_sub_items`
+   - Uses `Chronic.parse("1 week ago")` to include recently completed tasks
    - Impact: Immediate reduction in data fetched
 
-2. **Add `modified_since` filter**
-   - Leverage existing `StructuredLogger` for last sync time
-   - Only fetch tasks modified since last successful sync
+2. **Add `modified_since` filter** ✅
+   - Leverages existing `StructuredLogger` for last sync time
+   - Only fetches tasks modified since last successful sync
+   - First sync (no previous time) fetches all eligible tasks
 
 ### Phase 2: Medium Effort
 
