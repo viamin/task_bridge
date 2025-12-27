@@ -191,8 +191,8 @@ module Omnifocus
       return if date.nil?
 
       if date < Time.now
-        date += 1.week if tags & WEEKDAY_TAGS
-        date += 1.year if tags & MONTH_TAGS
+        date += 1.week if (tags & WEEKDAY_TAGS).any?
+        date += 1.year if (tags & MONTH_TAGS).any?
       end
       date
     end
