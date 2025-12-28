@@ -81,6 +81,53 @@ This means recently completed tasks are included in the matching pool, creating 
 4. It matches "Milk" #1 by title (wrong item)
 5. **Result**: Updates wrong task instead of creating new one
 
+### Sync IDs Not Added During Updates (Compounding Problem)
+
+A critical compounding issue: **sync IDs are not added when updating existing items** by default.
+
+Looking at `settings.yml:11`:
+```yaml
+update_ids_for_existing_items: false
+```
+
+When a NEW item is created via `add_item`, sync IDs are always added:
+```ruby
+# lib/asana/service.rb:73
+update_sync_data(external_task, new_task.id, new_task.url)  # Always called
+```
+
+But when an EXISTING item is updated via `update_item`, sync IDs are conditional:
+```ruby
+# lib/asana/service.rb:113
+update_sync_data(...) if options[:update_ids_for_existing]  # Only if option enabled!
+```
+
+This creates a compounding problem:
+
+1. New OmniFocus "Milk" has no sync ID (it's brand new)
+2. Title matches completed Asana "Milk"
+3. `update_item` is called, reactivating the Asana task
+4. **No sync ID is added** because `update_ids_for_existing: false`
+5. Next sync: OmniFocus "Milk" still has no sync ID
+6. Title matching happens again → same problem repeats indefinitely
+
+Items that match by title **never graduate to sync ID matching** unless `update_ids_for_existing` is enabled. They're stuck relying on fragile title matching forever.
+
+### Completed Tasks Get Reactivated
+
+When a new OmniFocus task title-matches a completed Asana task, the update payload includes completion status (`lib/asana/task.rb:71-81`):
+
+```ruby
+def from_external(external_item)
+  {
+    completed: external_item.completed?,  # <-- Sends false for active tasks
+    # ...
+  }.compact
+end
+```
+
+This means the completed Asana task gets **reactivated** - it's not just a metadata update, the task literally comes back from the dead. This is the "zombie task" behavior described in the issue.
+
 ### The Pairing Flow
 
 The sync process in `lib/base/service.rb:44-79` follows this pattern:
@@ -117,6 +164,9 @@ The problem emerges in the pairing step: incorrect pairing leaves legitimate ite
 | Skip create logic | `lib/base/service.rb` | 164-169 |
 | Completed task filter | `lib/asana/service.rb` | 312-314 |
 | Asana items_to_sync | `lib/asana/service.rb` | 34-54 |
+| Sync ID update (conditional) | `lib/asana/service.rb` | 113 |
+| Update IDs setting | `settings.yml` | 11 |
+| Asana from_external | `lib/asana/task.rb` | 71-81 |
 
 ## Proposed Solutions
 
@@ -205,13 +255,32 @@ end
 
 This reduces the window but doesn't eliminate the core issue.
 
+### Option 6: Always Add Sync IDs on Title Match
+
+When items are paired by title (not by sync ID), always add sync IDs so future syncs use ID matching. This "graduates" title-matched pairs to ID-matched pairs:
+
+```ruby
+def update_item(asana_task, external_task, matched_by_title: false)
+  # ... existing update logic ...
+
+  # Always record sync ID if this was a title match
+  # This ensures future syncs use ID matching instead of title matching
+  if matched_by_title || options[:update_ids_for_existing]
+    update_sync_data(external_task, asana_task.id, asana_task.url)
+  end
+end
+```
+
+This requires passing context about how the match was made from `paired_items` through to `update_item`.
+
 ## Recommended Implementation
 
 A phased approach:
 
-### Phase 1: Quick Win
+### Phase 1: Quick Wins (Minimal Code Change)
 - Exclude completed items from title matching (Option 2)
-- Reduces most duplicate scenarios with minimal code change
+- Always add sync IDs when title matching succeeds (Option 6)
+- Together, these prevent zombie tasks and ensure items graduate to ID matching
 
 ### Phase 2: Robust Solution
 - Implement strict sync ID matching (Option 1)
@@ -232,4 +301,12 @@ Add specs for `find_matching_item_in` covering:
 
 ## Conclusion
 
-The duplicate task issue stems from the title-matching fallback in `find_matching_item_in` when sync IDs are missing or don't match. For lists with repeated item titles, this leads to incorrect pairing and subsequent duplicate creation. The recommended fix is to exclude completed items from title matching and strengthen the preference for sync ID matching.
+The duplicate task issue stems from two interrelated problems:
+
+1. **Title matching includes completed tasks**: The fallback title matching in `find_matching_item_in` can match active tasks with completed tasks of the same name, causing "zombie" reactivation of old tasks.
+
+2. **Sync IDs not added during updates**: With `update_ids_for_existing: false` (the default), items matched by title never get sync IDs added. They remain stuck on fragile title matching forever, causing the same wrong matches on every sync.
+
+For lists with repeated item titles (like shopping lists), these issues combine to create duplicates and reactivate completed tasks. The recommended fix is to:
+- Exclude completed items from title matching (prevents zombie tasks)
+- Always add sync IDs when title matching succeeds (graduates pairs to ID matching)
