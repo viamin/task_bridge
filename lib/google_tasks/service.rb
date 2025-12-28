@@ -48,7 +48,14 @@ module GoogleTasks
     desc "items_to_sync", "Get all of the tasks to sync in options[:list]"
     def items_to_sync(*)
       debug("called", options[:debug])
-      @items_to_sync ||= tasks_service.list_tasks(tasklist.id, max_results: 100).items
+      @items_to_sync ||= tasks_service.list_tasks(
+        tasklist.id,
+        max_results: 100,
+        # Only include tasks completed within the last week (reduces response size)
+        completed_min: completed_min_timestamp,
+        # Only fetch tasks modified since last sync (if we have a previous sync time)
+        updated_min: last_sync_time&.iso8601
+      ).items
     end
 
     desc "add_item", "Add a new task to a given task list"
@@ -140,5 +147,18 @@ module GoogleTasks
       google_title = extracted_title&.downcase&.strip
       google_title == task.title&.downcase&.strip
     end
+
+    # Returns RFC 3339 timestamp for 1 week ago, used to filter completed tasks
+    # This allows syncing recently completed tasks while reducing API response size
+    def completed_min_timestamp
+      Chronic.parse("1 week ago").iso8601
+    end
+    no_commands { memo_wise :completed_min_timestamp }
+
+    # Returns the last successful sync time from the logger, or nil if never synced
+    def last_sync_time
+      options[:logger]&.last_synced(friendly_name)
+    end
+    no_commands { memo_wise :last_sync_time }
   end
 end

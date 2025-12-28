@@ -173,8 +173,8 @@ This pattern could be applied to Asana.
 
 ### Phase 1: Quick Wins (Low effort, high impact) ✅ IMPLEMENTED
 
+**Asana** (`lib/asana/service.rb`):
 1. **Add `completed_since` filter** ✅
-   - File: `lib/asana/service.rb`
    - Methods: `list_project_tasks`, `list_task_sub_items`
    - Uses `Chronic.parse("1 week ago")` to include recently completed tasks
    - Impact: Immediate reduction in data fetched
@@ -184,24 +184,29 @@ This pattern could be applied to Asana.
    - Only fetches tasks modified since last successful sync
    - First sync (no previous time) fetches all eligible tasks
 
+**Google Tasks** (`lib/google_tasks/service.rb`):
+3. **Add `completed_min` filter** ✅
+   - Method: `items_to_sync`
+   - Uses `Chronic.parse("1 week ago")` to include recently completed tasks
+
+4. **Add `updated_min` filter** ✅
+   - Leverages existing `StructuredLogger` for last sync time
+   - Only fetches tasks modified since last successful sync
+
 ### Phase 2: Medium Effort
 
-3. **Implement batch API for mutations**
+5. **Implement batch API for mutations** (Asana only)
    - Batch task creation when syncing multiple items
    - Batch updates for multiple task changes
    - Limit: 10 operations per batch
 
-4. **Optimize subtask fetching**
+6. **Optimize subtask fetching** (Asana only)
    - Consider if subtasks can be included via `opt_fields` expansion
    - Or batch subtask requests
 
 ### Phase 3: Architecture Improvements
 
-5. **Apply patterns to Google Tasks**
-   - Add `updatedMin` parameter for incremental sync
-   - Add `showCompleted=false` if not syncing completed
-
-6. **Standardize incremental sync across services**
+7. **Standardize incremental sync across services**
    - Create base class method for tracking last sync
    - Implement in all API-based services
 
