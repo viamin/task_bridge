@@ -110,7 +110,12 @@ module Asana
         section_move_error = move_task_to_section(section_identifier_for(external_task), asana_task.id)
       end
       handle_sub_items(asana_task, external_task)
-      update_sync_data(external_task, asana_task.id, asana_task.url) if options[:update_ids_for_existing]
+      # If external_task doesn't have our sync ID, this was a title match
+      # Add sync ID so future syncs use ID matching instead of title matching
+      matched_by_title = external_task.try(:asana_id).blank?
+      if matched_by_title || options[:update_ids_for_existing]
+        update_sync_data(external_task, asana_task.id, asana_task.url)
+      end
       section_move_error
     end
 

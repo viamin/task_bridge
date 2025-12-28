@@ -64,7 +64,12 @@ module Reminders
 
         reminder.mark_complete
         reminder_id = reminder.id_.get
-        update_sync_data(external_task, reminder_id) if options[:update_ids_for_existing]
+        # If external_task doesn't have our sync ID, this was a title match
+        # Add sync ID so future syncs use ID matching instead of title matching
+        matched_by_title = external_task.try(:reminders_id).blank?
+        if matched_by_title || options[:update_ids_for_existing]
+          update_sync_data(external_task, reminder_id)
+        end
         external_task
       elsif options[:pretend]
         "Would have updated #{external_task.title} in Reminders"
