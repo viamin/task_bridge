@@ -255,41 +255,87 @@ end
 
 This reduces the window but doesn't eliminate the core issue.
 
-### Option 6: Always Add Sync IDs on Title Match
+### Option 6: Always Add Sync IDs on Title Match (Implemented)
 
-When items are paired by title (not by sync ID), always add sync IDs so future syncs use ID matching. This "graduates" title-matched pairs to ID-matched pairs:
+When items are paired by title (not by sync ID), always add sync IDs so future syncs use ID matching. This "graduates" title-matched pairs to ID-matched pairs.
+
+**Implementation:** In each service's `update_item`, detect title matches by checking if the external task lacks our sync ID:
 
 ```ruby
-def update_item(asana_task, external_task, matched_by_title: false)
-  # ... existing update logic ...
+# If external_task doesn't have our sync ID, this was a title match
+# Add sync ID so future syncs use ID matching instead of title matching
+matched_by_title = external_task.try(:asana_id).blank?
+if matched_by_title || options[:update_ids_for_existing]
+  update_sync_data(external_task, asana_task.id, asana_task.url)
+end
+```
 
-  # Always record sync ID if this was a title match
-  # This ensures future syncs use ID matching instead of title matching
-  if matched_by_title || options[:update_ids_for_existing]
-    update_sync_data(external_task, asana_task.id, asana_task.url)
+Applied to: Asana, OmniFocus, Reclaim, Reminders services.
+
+### Option 7: Exclude Items with Sync IDs from Title Matching (Implemented)
+
+Only allow title matching if **NEITHER** item has a sync_id for the other service. Items that are already linked to something (have a sync_id) should only match by ID, never by title.
+
+**Rationale:** If an item has a sync_id, it's already linked to another item. It shouldn't be "stolen" by a new item via title matching.
+
+```ruby
+def find_matching_item_in(collection)
+  return if collection.blank?
+
+  external_id = :"#{collection.first.provider.underscore}_id"
+  service_id = :"#{provider.underscore}_id"
+  id_match = collection.find { |item| ... }
+  return id_match if id_match
+
+  # Only allow title matching if we don't have their sync ID
+  return if try(external_id).present?
+
+  collection.find do |item|
+    # Only match items that don't have our sync ID
+    friendly_title_matches(item) && item.try(service_id).blank?
   end
 end
 ```
 
-This requires passing context about how the match was made from `paired_items` through to `update_item`.
+**Scenarios:**
 
-## Recommended Implementation
+| Source Item | Target Item | Title Match? | Outcome |
+|-------------|-------------|--------------|---------|
+| no sync_id | no sync_id | ✓ Yes | Link them (first sync) |
+| has sync_id | has sync_id (matching) | N/A | ID match succeeds |
+| no sync_id | has sync_id (to other) | ✗ No | Create new target |
+| has sync_id (stale) | no sync_id | ✗ No | Create new target |
+| has sync_id | has sync_id (non-matching) | ✗ No | Both linked elsewhere |
 
-A phased approach:
+## Implemented Solution
 
-### Phase 1: Quick Wins (Minimal Code Change)
-- Exclude completed items from title matching (Option 2)
-- Always add sync IDs when title matching succeeds (Option 6)
-- Together, these prevent zombie tasks and ensure items graduate to ID matching
+### Option 6: Always Add Sync IDs on Title Match ✓
 
-### Phase 2: Robust Solution
-- Implement strict sync ID matching (Option 1)
-- Ensures items with sync IDs only match by ID
-- New items still benefit from title matching for initial pairing
+**Status:** Implemented in commit `325a88e`
 
-### Phase 3: Configuration
-- Add per-project matching strategy settings (Option 3)
-- Allows users to opt into stricter matching for problematic lists
+Changes made to `update_item` in:
+- `lib/asana/service.rb`
+- `lib/omnifocus/service.rb`
+- `lib/reclaim/service.rb`
+- `lib/reminders/service.rb`
+
+### Option 7: Exclude Items with Sync IDs from Title Matching ✓
+
+**Status:** Implemented
+
+Changes made to `find_matching_item_in` in:
+- `lib/base/sync_item.rb`
+
+### How They Work Together
+
+1. **First sync of new items:** Both lack sync IDs → title match allowed → they get linked and sync IDs added
+2. **Future syncs of linked items:** Both have sync IDs → ID match succeeds → no title matching needed
+3. **New item with same title:** New item has no sync ID, but old item has sync ID → title match blocked → new item created separately
+4. **Each new "Buy milk" creates a fresh task** instead of reactivating old completed ones
+
+### Future Enhancements
+
+- **Option 3:** Add per-project matching strategy settings for users who want stricter control
 
 ## Testing Recommendations
 
@@ -301,12 +347,21 @@ Add specs for `find_matching_item_in` covering:
 
 ## Conclusion
 
-The duplicate task issue stems from two interrelated problems:
+The duplicate task issue stemmed from two interrelated problems:
 
-1. **Title matching includes completed tasks**: The fallback title matching in `find_matching_item_in` can match active tasks with completed tasks of the same name, causing "zombie" reactivation of old tasks.
+1. **Title matching was too permissive**: Items with sync IDs (already linked to other items) could still be matched by title, causing new items to "steal" existing links.
 
-2. **Sync IDs not added during updates**: With `update_ids_for_existing: false` (the default), items matched by title never get sync IDs added. They remain stuck on fragile title matching forever, causing the same wrong matches on every sync.
+2. **Sync IDs not added during updates**: With `update_ids_for_existing: false` (the default), items matched by title never got sync IDs added. They remained stuck on fragile title matching forever.
 
-For lists with repeated item titles (like shopping lists), these issues combine to create duplicates and reactivate completed tasks. The recommended fix is to:
-- Exclude completed items from title matching (prevents zombie tasks)
-- Always add sync IDs when title matching succeeds (graduates pairs to ID matching)
+### Implemented Fix
+
+Two complementary changes were made:
+
+1. **Option 6 - Always add sync IDs on title match**: When `update_item` detects a title match (external task lacks our sync ID), it now adds the sync ID. This ensures title-matched pairs "graduate" to ID matching.
+
+2. **Option 7 - Exclude items with sync IDs from title matching**: Title matching now only occurs if NEITHER item has a sync_id for the other service. Items already linked to something can only be matched by ID.
+
+Together, these ensure:
+- First-time syncs work via title matching
+- Subsequent syncs use reliable ID matching
+- New items with duplicate titles create new tasks instead of hijacking existing linked pairs
