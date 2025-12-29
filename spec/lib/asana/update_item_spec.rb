@@ -123,4 +123,140 @@ RSpec.describe Asana::Service, :full_options do
       end
     end
   end
+
+  describe "#update_item project change handling" do
+    let(:asana_task_json) { JSON.parse(File.read(File.expand_path(File.join(__dir__, "..", "..", "fixtures", "asana_task.json")))) }
+    let(:asana_task) { Asana::Task.new(asana_task: asana_task_json, options: options) }
+    let(:httparty_success_mock) do
+      instance_double(HTTParty::Response, success?: true, body: '{"data": {}}')
+    end
+    let(:new_section_gid) { "section-gid-456" }
+    let(:new_project_gid) { "project-gid-789" }
+
+    before do
+      allow(HTTParty).to receive(:put).and_return(httparty_success_mock)
+      allow(external_task).to receive(:respond_to?).with(:sub_item_count).and_return(true)
+      allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.id)
+    end
+
+    context "when external task has a different project than asana task" do
+      let(:external_task) do
+        double(
+          "ExternalTask",
+          completed?: false,
+          title: "Test Task",
+          project: "Different Project",
+          sync_notes: "notes",
+          sub_item_count: 0,
+          due_date: nil,
+          flagged: false
+        )
+      end
+
+      before do
+        # Stub memberships_for_task to return project/section data
+        allow(service).to receive(:memberships_for_task).with(external_task).and_return({
+          project: new_project_gid,
+          section: new_section_gid
+        })
+        allow(service).to receive(:section_identifier_for).with(external_task).and_return(new_section_gid)
+      end
+
+      it "adds the task to the new project via API" do
+        allow(HTTParty).to receive(:post).and_return(httparty_success_mock)
+        allow(service).to receive(:move_task_to_section).and_return(nil)
+
+        expect(HTTParty).to receive(:post).with(
+          "https://app.asana.com/api/1.0/tasks/#{asana_task.id}/addProject",
+          hash_including(:body)
+        )
+
+        service.update_item(asana_task, external_task)
+      end
+
+      it "moves the task to the correct section after changing project" do
+        allow(HTTParty).to receive(:post).and_return(httparty_success_mock)
+
+        expect(service).to receive(:move_task_to_section).with(new_section_gid, asana_task.id)
+
+        service.update_item(asana_task, external_task)
+      end
+
+      context "when addProject API call fails" do
+        let(:httparty_project_failure_mock) do
+          instance_double(HTTParty::Response, success?: false, code: 400, body: '{"error": "Project not found"}')
+        end
+
+        before do
+          allow(HTTParty).to receive(:post).and_return(httparty_project_failure_mock)
+        end
+
+        it "returns a failure message and does not move to section" do
+          expect(service).not_to receive(:move_task_to_section)
+
+          result = service.update_item(asana_task, external_task)
+
+          expect(result).to include("Failed to update Asana task")
+        end
+      end
+
+      context "when move_task_to_section returns an error" do
+        before do
+          allow(HTTParty).to receive(:post).and_return(httparty_success_mock)
+          allow(service).to receive(:move_task_to_section).and_return("Failed to move task to section")
+        end
+
+        it "returns the section move error" do
+          result = service.update_item(asana_task, external_task)
+
+          expect(result).to eq("Failed to move task to section")
+        end
+      end
+    end
+
+    context "when external task has no project" do
+      let(:external_task) do
+        double(
+          "ExternalTask",
+          completed?: false,
+          title: "Test Task",
+          project: nil,
+          sync_notes: "notes",
+          sub_item_count: 0,
+          due_date: nil,
+          flagged: false
+        )
+      end
+
+      it "does not attempt to change the project" do
+        expect(HTTParty).not_to receive(:post)
+        expect(service).not_to receive(:move_task_to_section)
+
+        service.update_item(asana_task, external_task)
+      end
+    end
+
+    context "when external task has the same project as asana task" do
+      # asana_task.project is "Pets:Bucky" from the fixture
+      let(:external_task) do
+        double(
+          "ExternalTask",
+          completed?: false,
+          title: "Test Task",
+          project: "Pets:Bucky",
+          sync_notes: "notes",
+          sub_item_count: 0,
+          due_date: nil,
+          flagged: false
+        )
+      end
+
+      it "does not attempt to change the project" do
+        expect(HTTParty).not_to receive(:post)
+        expect(service).not_to receive(:move_task_to_section)
+
+        service.update_item(asana_task, external_task)
+      end
+    end
+  end
 end
