@@ -62,6 +62,8 @@ module Base
     memo_wise :service
 
     # First, check for a matching sync_id, if supported. Then, check for matching titles
+    # Title matching is only allowed if NEITHER item has a sync_id for the other service.
+    # This prevents items already linked to other items from being matched by title.
     def find_matching_item_in(collection)
       return if collection.blank?
 
@@ -70,8 +72,13 @@ module Base
       id_match = collection.find { |item| (item.id && (item.id == try(external_id))) || (item.try(service_id) && (item.try(service_id) == id)) }
       return id_match if id_match
 
+      # Only allow title matching if we don't have their sync ID
+      # Items with a sync_id are already linked to something and shouldn't title-match
+      return if try(external_id).present?
+
       collection.find do |item|
-        friendly_title_matches(item)
+        # Only match items that don't have our sync ID
+        friendly_title_matches(item) && item.try(service_id).blank?
       end
     end
 

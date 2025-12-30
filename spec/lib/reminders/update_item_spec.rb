@@ -74,6 +74,38 @@ RSpec.describe Reminders::Service do
       end
     end
 
+    context "when the item was matched by title (external task has no sync ID)" do
+      let(:options) { base_options.merge(update_ids_for_existing: false) }
+
+      before do
+        # Simulate a title match - external_task has no reminders_id
+        allow(external_task).to receive(:try).with(:reminders_id).and_return(nil)
+        allow(reminder).to receive(:mark_complete)
+      end
+
+      it "adds sync ID even when update_ids_for_existing is false" do
+        expect(service).to receive(:update_sync_data).with(external_task, "abc123")
+
+        service.update_item(reminder, external_task)
+      end
+    end
+
+    context "when the item was matched by ID (has sync ID)" do
+      let(:options) { base_options.merge(update_ids_for_existing: false) }
+
+      before do
+        # Simulate an ID match - external_task already has reminders_id
+        allow(external_task).to receive(:try).with(:reminders_id).and_return("abc123")
+        allow(reminder).to receive(:mark_complete)
+      end
+
+      it "does not update sync data when update_ids_for_existing is false" do
+        expect(service).not_to receive(:update_sync_data)
+
+        service.update_item(reminder, external_task)
+      end
+    end
+
     context "when the external task is already completed" do
       let(:task_completed) { false }
 

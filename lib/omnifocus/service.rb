@@ -103,7 +103,12 @@ module Omnifocus
         end
         handle_sub_items(omnifocus_task, external_task)
         omnifocus_task_id = omnifocus_task.id_.get
-        update_sync_data(external_task, omnifocus_task_id, Task.url(omnifocus_task_id)) if options[:update_ids_for_existing]
+        # If external_task doesn't have our sync ID, this was a title match
+        # Add sync ID so future syncs use ID matching instead of title matching
+        matched_by_title = external_task.try(:omnifocus_id).blank?
+        if matched_by_title || options[:update_ids_for_existing]
+          update_sync_data(external_task, omnifocus_task_id, Task.url(omnifocus_task_id))
+        end
         external_task
       elsif options[:pretend]
         "Would have updated #{external_task.title} in Omnifocus"
