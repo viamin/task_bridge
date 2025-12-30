@@ -261,20 +261,38 @@ module Asana
     # but only one level deep (meaning sub_items will not have
     # sub_items of their own and sections will not have subsections)
     # Also projects will not have sub-projects
-    # And finally, section names are unique across projects (otherwise
-    # tasks might get saved into the wrong projects in Asana)
     def memberships_for_task(external_task, for_create: false)
-      matching_section = project_gids
-                         .map { |project_gid| list_project_sections(project_gid, merge_project_gids: true) }
-                         .flatten
-                         .find { |section| section["name"] == external_task.project }
-      project_gid = matching_section.present? ? matching_section["project_gid"] : project_gid_from_name(external_task.project)
+      project_string = external_task.project
+      return {} if project_string.blank?
+
+      # Parse "Project:Section" format or just "Project"
+      # The format comes from project_from_memberships which builds "ProjectName:SectionName"
+      if project_string.include?(":")
+        parts = project_string.split(":", 2)
+        target_project_name = parts.first
+        target_section_name = parts.last
+      else
+        target_project_name = project_string
+        target_section_name = nil
+      end
+
+      # Find the project GID by name
+      project_gid = project_gid_from_name(target_project_name)
+      return {} if project_gid.blank?
+
+      # Find the section within that specific project
+      matching_section = nil
+      if target_section_name.present?
+        sections = list_project_sections(project_gid, merge_project_gids: true)
+        matching_section = sections.find { |section| section["name"] == target_section_name }
+      end
+
       if for_create
         { projects: [project_gid] }
       else
         {
           project: project_gid,
-          section: matching_section&.send(:[], "gid")
+          section: matching_section&.dig("gid")
         }.compact
       end
     end
