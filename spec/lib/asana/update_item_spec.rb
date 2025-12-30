@@ -135,8 +135,6 @@ RSpec.describe Asana::Service, :full_options do
 
     before do
       allow(HTTParty).to receive(:put).and_return(httparty_success_mock)
-      allow(external_task).to receive(:respond_to?).with(:sub_item_count).and_return(true)
-      allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.id)
     end
 
     context "when external task has a different project than asana task" do
@@ -154,6 +152,9 @@ RSpec.describe Asana::Service, :full_options do
       end
 
       before do
+        # Allow respond_to? for any argument (RSpec checks for argument matchers)
+        allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
+        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.id)
         # Stub memberships_for_task to return project/section data
         allow(service).to receive(:memberships_for_task).with(external_task).and_return({
           project: new_project_gid,
@@ -228,6 +229,11 @@ RSpec.describe Asana::Service, :full_options do
         )
       end
 
+      before do
+        allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
+        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.id)
+      end
+
       it "does not attempt to change the project" do
         expect(HTTParty).not_to receive(:post)
         expect(service).not_to receive(:move_task_to_section)
@@ -249,6 +255,11 @@ RSpec.describe Asana::Service, :full_options do
           due_date: nil,
           flagged: false
         )
+      end
+
+      before do
+        allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
+        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.id)
       end
 
       it "does not attempt to change the project" do
