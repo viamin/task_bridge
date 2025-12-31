@@ -15,6 +15,28 @@
 # it.
 #
 # See https://rubydoc.info/gems/rspec-core/RSpec/Core/Configuration
+#
+# == Test Tags ==
+#
+# The test suite uses tags to categorize tests by execution requirements:
+#
+#   :no_ci   - Tests that require macOS apps (OmniFocus, Reminders) and cannot run in CI
+#   :slow    - Integration tests that take a long time (real API calls, AppleScript)
+#   :focus   - Temporarily focus on specific tests during development
+#
+# == Running Tests ==
+#
+#   Fast tests only (CI-compatible, ~1 second):
+#     bundle exec rspec --tag '~slow' --tag '~no_ci'
+#
+#   All tests including slow integration tests:
+#     bundle exec rspec
+#
+#   Only slow integration tests:
+#     bundle exec rspec --tag slow
+#
+#   Only tests requiring macOS apps (local only):
+#     bundle exec rspec --tag no_ci
 
 require "faker"
 require_relative "../lib/task_bridge"

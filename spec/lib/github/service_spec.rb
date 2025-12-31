@@ -5,7 +5,7 @@ require "spec_helper"
 RSpec.describe "Github::Service", :full_options do
   let(:service) { Github::Service.new(options:) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
-  let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
+  let(:httparty_success_mock) { OpenStruct.new(success?: true, body: {data: {task: external_task.to_json}}.to_json) }
 
   before do
     allow(logger).to receive(:sync_data_for).and_return({})

@@ -22,18 +22,18 @@ class TaskBridge
     supported_services = TaskBridge.supported_services
     @options = Optimist.options do
       banner "Sync Tasks from one service to another"
-      banner "Supported services: #{supported_services.join(', ')}"
+      banner "Supported services: #{supported_services.join(", ")}"
       banner "By default, tasks found with the tags in --tags will have a work context"
       opt :primary, "Primary task service", default: Chamber.dig!(:task_bridge, :primary_service)
       opt :tags, "Tags (or labels) to sync", default: Chamber.dig!(:task_bridge, :sync, :tags)
       opt :personal_tags,
-          "Tags (or labels) used for personal context",
-          type: :strings,
-          default: Chamber.dig(:task_bridge, :personal_tags)
+        "Tags (or labels) used for personal context",
+        type: :strings,
+        default: Chamber.dig(:task_bridge, :personal_tags)
       opt :work_tags,
-          "Tags (or labels) used for work context (overrides personal tags)",
-          type: :strings,
-          default: Chamber.dig(:task_bridge, :work_tags)
+        "Tags (or labels) used for work context (overrides personal tags)",
+        type: :strings,
+        default: Chamber.dig(:task_bridge, :work_tags)
       conflicts :personal_tags, :work_tags
       opt :services, "Services to sync tasks to", default: Chamber.dig!(:task_bridge, :sync, :services)
       opt :list, "Task list name to sync to", default: Chamber.dig(:google, :tasks_list)
@@ -42,8 +42,8 @@ class TaskBridge
       opt :max_age, "Skip syncing asks that have not been modified within this time (0 to disable)", default: Chamber.dig!(:task_bridge, :sync, :max_age).to_i
       opt :update_ids_for_existing, "Update Sync IDs for already synced items", default: Chamber.dig!(:task_bridge, :update_ids_for_existing_items)
       opt :delete,
-          "Delete completed tasks on service",
-          default: Chamber.dig!(:task_bridge, :delete_completed)
+        "Delete completed tasks on service",
+        default: Chamber.dig!(:task_bridge, :delete_completed)
       opt :only_from_primary, "Only sync FROM the primary service", default: false
       opt :only_to_primary, "Only sync TO the primary service", default: false
       conflicts :only_from_primary, :only_to_primary
@@ -60,7 +60,7 @@ class TaskBridge
     end
     unless supported_services.intersect?(@options[:services])
       Optimist.die :services,
-                   "Supported services: #{supported_services.join(', ')}"
+        "Supported services: #{supported_services.join(", ")}"
     end
     @options[:max_age_timestamp] = @options[:max_age].zero? ? nil : Chronic.parse("#{@options[:max_age]} ago")
     @options[:uses_personal_tags] = @options[:work_tags].blank?
@@ -122,7 +122,7 @@ class TaskBridge
             service_logs << log_entry if log_entry
           end
         end
-      rescue StandardError => e
+      rescue => e
         service_error = e
         service_detail ||= "#{e.class}: #{e.message}"
         warn "[TaskBridge] #{service.friendly_name} sync failed: #{e.class}: #{e.message}"
@@ -143,7 +143,7 @@ class TaskBridge
     end_time = Time.now
     return if @options[:quiet]
 
-    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
+    puts "Finished sync at #{end_time.strftime("%Y-%m-%d %I:%M%p")}"
     puts "Sync took #{end_time - start_time} seconds"
   end
 

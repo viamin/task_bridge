@@ -62,22 +62,23 @@ module Base
     memo_wise :service
 
     # First, check for a matching sync_id, if supported. Then, check for matching titles
-    # Title matching is only allowed if NEITHER item has a sync_id for the other service.
-    # This prevents items already linked to other items from being matched by title.
+    # Title matching is only allowed if the source item doesn't have a valid sync ID pointing
+    # to an existing item in the collection, AND the target item isn't already linked elsewhere.
     def find_matching_item_in(collection)
       return if collection.blank?
 
       external_id = :"#{collection.first.provider.underscore}_id"
       service_id = :"#{provider.underscore}_id"
-      id_match = collection.find { |item| (item.id && (item.id == try(external_id))) || (item.try(service_id) && (item.try(service_id) == id)) }
+      my_external_id = try(external_id)
+
+      # First, try to match by sync ID
+      id_match = collection.find { |item| (item.id && (item.id == my_external_id)) || (item.try(service_id) && (item.try(service_id) == id)) }
       return id_match if id_match
 
-      # Only allow title matching if we don't have their sync ID
-      # Items with a sync_id are already linked to something and shouldn't title-match
-      return if try(external_id).present?
-
+      # If we have a sync ID that didn't match anything in the collection,
+      # it's stale (the linked item was deleted). Allow title matching as fallback.
+      # But only match items that don't already have our sync ID (aren't linked to other items).
       collection.find do |item|
-        # Only match items that don't have our sync ID
         friendly_title_matches(item) && item.try(service_id).blank?
       end
     end
@@ -173,7 +174,13 @@ module Base
         sync_item.send(attribute.to_sym)
       end
       value = value.get if value.respond_to?(:get)
-      value == :missing_value ? nil : value
+      (value == :missing_value) ? nil : value
+    rescue Appscript::CommandError => e
+      # Handle stale references (OSERROR -1728: Can't get reference)
+      # This happens when a task was deleted/completed while we're iterating
+      raise unless e.to_i == -1728
+
+      nil
     end
   end
 end

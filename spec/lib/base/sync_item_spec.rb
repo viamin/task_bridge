@@ -144,21 +144,23 @@ RSpec.describe "Base::SyncItem", :full_options do
         end
       end
 
-      context "when source already has a sync ID (is linked to another item)" do
+      context "when source has a stale sync ID (linked item was deleted)" do
         let(:source_item) do
           create_mock_item(omnifocus_item_class,
             id: "of-123",
             title: "Buy milk",
-            notes: "asana_id: asana-old-999")  # Has a stale/different Asana ID
+            notes: "asana_id: asana-old-999") # Has a stale Asana ID (that task no longer exists)
         end
         let(:target_item) do
           create_mock_item(asana_item_class,
-            id: "asana-456",  # Different ID than what source has
+            id: "asana-456", # Different ID than what source has - the old task was deleted
             title: "Buy milk")
         end
 
-        it "does NOT match by title to prevent stealing links" do
-          expect(source_item.find_matching_item_in([target_item])).to be_nil
+        it "DOES match by title as fallback when sync ID is stale" do
+          # The sync ID didn't match anything in the collection, so it's stale.
+          # Allow title matching as a fallback to prevent orphaned items.
+          expect(source_item.find_matching_item_in([target_item])).to eq(target_item)
         end
       end
 
@@ -172,7 +174,7 @@ RSpec.describe "Base::SyncItem", :full_options do
           create_mock_item(asana_item_class,
             id: "asana-456",
             title: "Buy milk",
-            notes: "omnifocus_id: of-old-999")  # Has a stale/different OmniFocus ID
+            notes: "omnifocus_id: of-old-999") # Has a stale/different OmniFocus ID
         end
 
         it "does NOT match by title to prevent stealing links" do
@@ -213,7 +215,7 @@ RSpec.describe "Base::SyncItem", :full_options do
           id: "asana-old-milk",
           title: "Buy milk",
           completed: true,
-          notes: "omnifocus_id: of-old-milk")  # Linked to a previous OmniFocus task
+          notes: "omnifocus_id: of-old-milk") # Linked to a previous OmniFocus task
       end
 
       let(:asana_milk_active) do
@@ -255,7 +257,7 @@ RSpec.describe "Base::SyncItem", :full_options do
       it "matches by ID even if title changes" do
         renamed_asana = create_mock_item(asana_item_class,
           id: "asana-456",
-          title: "Review Pull Request",  # Different title
+          title: "Review Pull Request", # Different title
           notes: "omnifocus_id: of-123")
 
         expect(omnifocus_task.find_matching_item_in([renamed_asana])).to eq(renamed_asana)
