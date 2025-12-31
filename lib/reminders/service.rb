@@ -12,7 +12,7 @@ module Reminders
       # Assumes you already have Reminders installed
       @reminders_app = Appscript.app.by_name(friendly_name)
       @authorized = true
-    rescue StandardError => e
+    rescue => e
       # If Reminders app is not available, skip the service
       puts "Reminders initialization failed: #{e.message}" unless options[:quiet]
       @reminders_app = nil

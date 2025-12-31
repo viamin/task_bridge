@@ -4,7 +4,7 @@ require "spec_helper"
 
 RSpec.describe "Reminders::Service", :full_options do
   let(:service) { Reminders::Service.new(options:) }
-  let(:options) { full_options.merge({ reminders_mapping: }) }
+  let(:options) { full_options.merge({reminders_mapping:}) }
   let(:reminders_mapping) { "" }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
 

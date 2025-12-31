@@ -18,7 +18,7 @@ RSpec.describe "Omnifocus::Task", :full_options do
       completed:,
       note: notes,
       containing_project:,
-      tags: tags.map { |tag| OpenStruct.new({ name: tag }) },
+      tags: tags.map { |tag| OpenStruct.new({name: tag}) },
       tasks:
     }.compact)
   end
@@ -42,7 +42,7 @@ RSpec.describe "Omnifocus::Task", :full_options do
       it "sets a due date in December" do
         parsed_date = Chronic.parse("12 - December")
         # If the date is in the past, the code adds 1 year
-        expected_date = parsed_date < Time.now ? parsed_date + 1.year : parsed_date
+        expected_date = (parsed_date < Time.now) ? parsed_date + 1.year : parsed_date
         expect(task.due_date).to eq(expected_date)
       end
 

@@ -12,7 +12,7 @@ module Omnifocus
       # Assumes you already have OmniFocus installed
       @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
       @authorized = true
-    rescue StandardError => e
+    rescue => e
       # If OmniFocus app is not available, skip the service
       puts "OmniFocus initialization failed: #{e.message}" unless options[:quiet]
       @omnifocus_app = nil
@@ -35,6 +35,8 @@ module Omnifocus
       omnifocus_tasks = tagged_tasks(tags)
       omnifocus_tasks += inbox_tasks if inbox
       tasks = omnifocus_tasks.map { |task| Task.new(omnifocus_task: task, options: @options) }
+      # Filter out stale references (tasks deleted while iterating)
+      tasks = tasks.reject { |task| task.id.nil? }
       # remove sub_items from the list
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
       sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:id)
@@ -89,7 +91,12 @@ module Omnifocus
         tags(external_task).each do |tag|
           add_tag(tag:, task: omnifocus_task)
         end
-        if external_task.try(:project) && !task_projects_match(external_task, omnifocus_task)
+        # Detect if this was a title match vs ID match
+        # Title match: external_task doesn't have our sync ID
+        matched_by_title = external_task.try(:omnifocus_id).blank?
+        # Only move projects for ID-matched items (reliable link)
+        # Title matches are not reliable enough to warrant moving tasks between projects
+        if !matched_by_title && external_task.try(:project) && !task_projects_match(external_task, omnifocus_task)
           debug("Projects don't match: (#{external_task.provider})#{external_task} <=> (Omnifocus)#{omnifocus_task}", options[:debug])
           # update the project via assigned_container property
           updated_project = project(nil, external_task.project)
@@ -103,9 +110,7 @@ module Omnifocus
         end
         handle_sub_items(omnifocus_task, external_task)
         omnifocus_task_id = omnifocus_task.id_.get
-        # If external_task doesn't have our sync ID, this was a title match
         # Add sync ID so future syncs use ID matching instead of title matching
-        matched_by_title = external_task.try(:omnifocus_id).blank?
         if matched_by_title || options[:update_ids_for_existing]
           update_sync_data(external_task, omnifocus_task_id, Task.url(omnifocus_task_id))
         end
@@ -130,9 +135,18 @@ module Omnifocus
       debug("tags: #{tags}", options[:debug])
       return [] if tags.nil?
 
-      matching_tags = omnifocus_app.flattened_tags.get.select { |tag| tags.include?(tag.name.get) }
+      # Use direct AppleScript reference lookup instead of fetching all tags and filtering in Ruby
+      # This is much faster as it avoids fetching every tag from OmniFocus
+      matching_tags = tags.filter_map do |tag_name|
+        tag_ref = omnifocus_app.flattened_tags[tag_name]
+        begin
+          tag_ref.get # Verify tag exists
+          tag_ref
+        rescue
+          nil # Tag doesn't exist
+        end
+      end
       all_tasks_in_container(matching_tags, incomplete_only:)
-      # matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
     end
     memo_wise :tagged_tasks
 
@@ -211,7 +225,7 @@ module Omnifocus
     def folder(folder_name)
       debug("folder_name: #{folder_name}", options[:debug])
       omnifocus_app.flattened_folders[folder_name].get
-    rescue StandardError
+    rescue
       puts "The folder #{folder_name} could not be found in Omnifocus" if options[:verbose]
       nil
     end
@@ -240,7 +254,7 @@ module Omnifocus
       debug("project: #{project.name.get}", options[:debug])
       project.get
       project
-    rescue StandardError
+    rescue
       puts "The project #{project_structure} does not exist in Omnifocus" if options[:verbose]
       nil
     end
@@ -250,7 +264,7 @@ module Omnifocus
     def tag(name)
       tag = omnifocus_app.flattened_tags[name]
       tag.get
-    rescue StandardError
+    rescue
       puts "The tag #{name} does not exist in Omnifocus" if options[:verbose]
       nil
     end
@@ -264,10 +278,10 @@ module Omnifocus
 
     def all_tasks_in_container(container, incomplete_only: false)
       tasks = case container
-              when Array
-                container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_) }.flatten
-              when Appscript::Reference
-                container.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
+      when Array
+        container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_) }.flatten
+      when Appscript::Reference
+        container.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
       end
       return tasks unless incomplete_only
 

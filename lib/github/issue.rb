@@ -41,7 +41,7 @@ module Github
     end
 
     def friendly_title
-      "#{project}-##{number}: #{is_pr ? '[PR] ' : ''}#{title.strip}"
+      "#{project}-##{number}: #{is_pr ? "[PR] " : ""}#{title.strip}"
     end
 
     def sync_notes

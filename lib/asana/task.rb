@@ -94,7 +94,7 @@ module Asana
         # Asana supports multiple sections, but TaskBridge currently supports only one per task
         project = asana_task["memberships"].first.dig("project", "name")
         section = asana_task["memberships"].first.dig("section", "name")
-        section == "Untitled section" ? project : "#{project}:#{section}"
+        (section == "Untitled section") ? project : "#{project}:#{section}"
       else
         # we'll only sync a task with one project at a time
         asana_task["projects"].first

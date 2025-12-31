@@ -269,5 +269,46 @@ RSpec.describe Asana::Service, :full_options do
         service.update_item(asana_task, external_task)
       end
     end
+
+    context "when items were matched by title (external task has no sync ID)" do
+      let(:external_task) do
+        double(
+          "ExternalTask",
+          completed?: false,
+          title: "Test Task",
+          project: "Different Project",
+          sync_notes: "notes",
+          sub_item_count: 0,
+          due_date: nil,
+          flagged: false
+        )
+      end
+
+      before do
+        allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
+        # No asana_id means this was a title match
+        allow(external_task).to receive(:try).with(:asana_id).and_return(nil)
+        # Allow update_attributes for sync data updates
+        allow(external_task).to receive(:instance_variable_set)
+        allow(external_task).to receive(:update_attributes)
+      end
+
+      it "does NOT attempt to change the project for title-matched items" do
+        # Title matches are not reliable enough to warrant moving tasks between projects
+        expect(HTTParty).not_to receive(:post).with(
+          a_string_matching(/addProject/),
+          anything
+        )
+        expect(service).not_to receive(:move_task_to_section)
+
+        service.update_item(asana_task, external_task)
+      end
+
+      it "still adds sync ID so future syncs use ID matching" do
+        expect(service).to receive(:update_sync_data).with(external_task, asana_task.id, asana_task.url)
+
+        service.update_item(asana_task, external_task)
+      end
+    end
   end
 end

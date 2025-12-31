@@ -12,7 +12,7 @@ module Asana
       super
       @personal_access_token = Chamber.dig!(:asana, :personal_access_token)
       @authorized = true
-    rescue StandardError => e
+    rescue => e
       # If configuration is missing, skip the service
       puts "Asana initialization failed: #{e.message}" unless options[:quiet]
       @authorized = false
@@ -56,8 +56,8 @@ module Asana
     def add_item(external_task, parent_task_gid = nil)
       debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}", options[:debug])
       request_body = {
-        query: { opt_fields: Task.requested_fields.join(",") },
-        body: { data: Task.from_external(external_task).merge(memberships_for_task(external_task, for_create: true)) }.to_json
+        query: {opt_fields: Task.requested_fields.join(",")},
+        body: {data: Task.from_external(external_task).merge(memberships_for_task(external_task, for_create: true))}.to_json
       }
       return "Would have added #{external_task.title} to Asana" if options[:pretend]
 
@@ -78,7 +78,7 @@ module Asana
     def patch_item(asana_task, updated_attributes)
       debug("asana_task: #{asana_task.title}", options[:debug])
       request_body = {
-        query: { opt_fields: Task.requested_fields.join(",") },
+        query: {opt_fields: Task.requested_fields.join(",")},
         body: updated_attributes.to_json
       }
       return "Would have patched task #{asana.title} with #{updated_attributes.to_json}" if options[:pretend]
@@ -93,29 +93,31 @@ module Asana
     def update_item(asana_task, external_task)
       debug("asana_task: #{asana_task.title}", options[:debug])
       request_body = {
-        query: { opt_fields: Task.requested_fields.join(",") },
-        body: { data: Task.from_external(external_task) }.to_json
+        query: {opt_fields: Task.requested_fields.join(",")},
+        body: {data: Task.from_external(external_task)}.to_json
       }
       return "Would have updated task #{external_task.title} in Asana" if options[:pretend]
 
       response = HTTParty.put("#{base_url}/tasks/#{asana_task.id}", authenticated_options.merge(request_body))
       return failure_message("update Asana task ##{asana_task.id}", response) unless response.success?
 
+      # Detect if this was a title match vs ID match
+      # Title match: external_task doesn't have our sync ID
+      matched_by_title = external_task.try(:asana_id).blank?
+
+      # Only move projects/sections for ID-matched items (reliable link)
+      # Title matches are not reliable enough to warrant moving tasks between projects
       section_move_error = nil
-      if external_task.project && (asana_task.project != external_task.project)
-        request_body = { body: JSON.dump({ data: memberships_for_task(external_task) }) }
+      if !matched_by_title && external_task.project && (asana_task.project != external_task.project)
+        request_body = {body: JSON.dump({data: memberships_for_task(external_task)})}
         project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.id}/addProject", authenticated_options.merge(request_body))
         return failure_message("update Asana task ##{asana_task.id}", project_response) unless project_response.success?
 
         section_move_error = move_task_to_section(section_identifier_for(external_task), asana_task.id)
       end
       handle_sub_items(asana_task, external_task)
-      # If external_task doesn't have our sync ID, this was a title match
       # Add sync ID so future syncs use ID matching instead of title matching
-      matched_by_title = external_task.try(:asana_id).blank?
-      if matched_by_title || options[:update_ids_for_existing]
-        update_sync_data(external_task, asana_task.id, asana_task.url)
-      end
+      update_sync_data(external_task, asana_task.id, asana_task.url) if matched_by_title || options[:update_ids_for_existing]
       section_move_error
     end
 
@@ -160,7 +162,7 @@ module Asana
     # By default, this will list only active (unarchived) projects. Passing archived: true
     # will return only archived projects.
     def list_projects(archived: false)
-      query = { query: { archived: } }
+      query = {query: {archived:}}
       response = HTTParty.get("#{base_url}/projects", authenticated_options.merge(query))
       raise "Error loading Asana projects - check personal access token" unless response.success?
 
@@ -244,7 +246,7 @@ module Asana
     def move_task_to_section(section_gid, task_gid)
       return if section_gid.blank?
 
-      request_body = { body: { data: { task: task_gid } }.to_json }
+      request_body = {body: {data: {task: task_gid}}.to_json}
       response = HTTParty.post("#{base_url}/sections/#{section_gid}/addTask", authenticated_options.merge(request_body))
       return if response.success?
 
@@ -265,12 +267,12 @@ module Asana
     # tasks might get saved into the wrong projects in Asana)
     def memberships_for_task(external_task, for_create: false)
       matching_section = project_gids
-                         .map { |project_gid| list_project_sections(project_gid, merge_project_gids: true) }
-                         .flatten
-                         .find { |section| section["name"] == external_task.project }
+        .map { |project_gid| list_project_sections(project_gid, merge_project_gids: true) }
+        .flatten
+        .find { |section| section["name"] == external_task.project }
       project_gid = matching_section.present? ? matching_section["project_gid"] : project_gid_from_name(external_task.project)
       if for_create
-        { projects: [project_gid] }
+        {projects: [project_gid]}
       else
         {
           project: project_gid,

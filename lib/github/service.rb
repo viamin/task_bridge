@@ -13,7 +13,7 @@ module Github
       super
       @authentication = Authentication.new(options).authenticate!
       @authorized = true
-    rescue StandardError => e
+    rescue => e
       # If authentication fails, skip the service
       puts "Github authentication failed: #{e.message}" unless options[:quiet]
       @authentication = nil
@@ -34,12 +34,12 @@ module Github
 
     def items_to_sync(tags: nil)
       tagged_issues = sync_repositories
-                      .map { |repo| list_issues(repo, tags) }
-                      .flatten
-                      .map { |issue| Issue.new(github_issue: issue, options:) }
+        .map { |repo| list_issues(repo, tags) }
+        .flatten
+        .map { |issue| Issue.new(github_issue: issue, options:) }
       assigned_issues = list_assigned
-                        .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
-                        .map { |issue| Issue.new(github_issue: issue, options:) }
+        .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
+        .map { |issue| Issue.new(github_issue: issue, options:) }
       (tagged_issues + assigned_issues).uniq(&:id)
     end
     memo_wise :items_to_sync
@@ -55,7 +55,7 @@ module Github
       {
         headers: {
           accept: "application/vnd.github+json",
-          authorization: "Bearer #{authentication['access_token']}"
+          authorization: "Bearer #{authentication["access_token"]}"
         }
       }
     end

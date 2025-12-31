@@ -14,7 +14,7 @@ module Github
     def authenticate!
       if missing_authentication
         auth_params = post_device_code
-        puts "Go to #{auth_params['verification_uri']}\nand enter the code\n#{auth_params['user_code']}"
+        puts "Go to #{auth_params["verification_uri"]}\nand enter the code\n#{auth_params["user_code"]}"
         @authentication = wait_for_user(auth_params)
       end
       @authentication

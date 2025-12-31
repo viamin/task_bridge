@@ -75,7 +75,7 @@ module Base
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{item_count} #{options[:primary]} and #{friendly_name} items" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: item_count }.stringify_keys
+      {service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: item_count}.stringify_keys
     end
 
     # implements the :to_primary sync strategy
@@ -104,7 +104,7 @@ module Base
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{service_items.length} #{friendly_name} items to #{options[:primary]}" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: service_items.length }.stringify_keys
+      {service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: service_items.length}.stringify_keys
     end
 
     # implements the :from_primary sync strategy
@@ -130,7 +130,7 @@ module Base
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{primary_items.length} #{options[:primary]} items to #{friendly_name}" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: primary_items.length }.stringify_keys
+      {service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: primary_items.length}.stringify_keys
     end
 
     def should_sync?(item_updated_at = nil)
