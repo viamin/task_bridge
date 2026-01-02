@@ -29,15 +29,15 @@ RSpec.describe Asana::Service, :full_options do
 
     let(:projects_list) do
       [
-        { "gid" => pets_project_gid, "name" => "Pets" },
-        { "gid" => "9999", "name" => "Other Project" }
+        {"gid" => pets_project_gid, "name" => "Pets"},
+        {"gid" => "9999", "name" => "Other Project"}
       ]
     end
 
     let(:pets_sections_list) do
       [
-        { "gid" => untitled_section_gid, "name" => "Untitled section", "project_gid" => pets_project_gid },
-        { "gid" => bucky_section_gid, "name" => "Bucky", "project_gid" => pets_project_gid }
+        {"gid" => untitled_section_gid, "name" => "Untitled section", "project_gid" => pets_project_gid},
+        {"gid" => bucky_section_gid, "name" => "Bucky", "project_gid" => pets_project_gid}
       ]
     end
 
@@ -56,14 +56,14 @@ RSpec.describe Asana::Service, :full_options do
       context "for creating a task (for_create: true)" do
         it "returns the project GID" do
           result = service.send(:memberships_for_task, external_task, for_create: true)
-          expect(result).to eq({ projects: [pets_project_gid] })
+          expect(result).to eq({projects: [pets_project_gid]})
         end
       end
 
       context "for updating a task (for_create: false)" do
         it "returns both project and section GIDs" do
           result = service.send(:memberships_for_task, external_task, for_create: false)
-          expect(result).to eq({ project: pets_project_gid, section: bucky_section_gid })
+          expect(result).to eq({project: pets_project_gid, section: bucky_section_gid})
         end
       end
     end
@@ -76,14 +76,14 @@ RSpec.describe Asana::Service, :full_options do
       context "for creating a task (for_create: true)" do
         it "returns the project GID" do
           result = service.send(:memberships_for_task, external_task, for_create: true)
-          expect(result).to eq({ projects: [pets_project_gid] })
+          expect(result).to eq({projects: [pets_project_gid]})
         end
       end
 
       context "for updating a task (for_create: false)" do
         it "returns only the project GID with no section" do
           result = service.send(:memberships_for_task, external_task, for_create: false)
-          expect(result).to eq({ project: pets_project_gid })
+          expect(result).to eq({project: pets_project_gid})
         end
       end
     end
@@ -95,7 +95,7 @@ RSpec.describe Asana::Service, :full_options do
 
       it "returns the project GID with no section" do
         result = service.send(:memberships_for_task, external_task, for_create: false)
-        expect(result).to eq({ project: pets_project_gid })
+        expect(result).to eq({project: pets_project_gid})
       end
     end
 
@@ -136,12 +136,12 @@ RSpec.describe Asana::Service, :full_options do
       let(:colon_project_gid) { "colon-project-123" }
       let(:projects_list_with_colon) do
         [
-          { "gid" => colon_project_gid, "name" => "Project" }
+          {"gid" => colon_project_gid, "name" => "Project"}
         ]
       end
       let(:colon_sections_list) do
         [
-          { "gid" => "section-with-colon", "name" => "With:Colon:Section", "project_gid" => colon_project_gid }
+          {"gid" => "section-with-colon", "name" => "With:Colon:Section", "project_gid" => colon_project_gid}
         ]
       end
 
@@ -159,7 +159,7 @@ RSpec.describe Asana::Service, :full_options do
 
       it "correctly parses the project and section parts" do
         result = service.send(:memberships_for_task, external_task, for_create: false)
-        expect(result).to eq({ project: colon_project_gid, section: "section-with-colon" })
+        expect(result).to eq({project: colon_project_gid, section: "section-with-colon"})
       end
     end
   end
