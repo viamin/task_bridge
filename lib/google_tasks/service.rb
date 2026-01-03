@@ -15,8 +15,9 @@ module GoogleTasks
     # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
     def initialize(options:)
       @options = options
-      @tasks_service = Google::Apis::TasksV1::TasksService.new
-      @tasks_service.authorization = user_credentials_for(Google::Apis::TasksV1::AUTH_TASKS)
+      @tasks_service = options[:tasks_service] || Google::Apis::TasksV1::TasksService.new
+      authorization = options[:authorization] || user_credentials_for(Google::Apis::TasksV1::AUTH_TASKS)
+      @tasks_service.authorization = authorization
       @authorized = true
     rescue Signet::AuthorizationError => e
       puts "Google Tasks credentials have expired. Delete credentials.yml and re-authorize"

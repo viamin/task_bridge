@@ -3,13 +3,27 @@
 require "spec_helper"
 
 RSpec.describe "GoogleTasks::Service", :full_options do
+  let(:logger) { instance_double(StructuredLogger) }
+  let(:authorization) { double("GoogleTasksAuthorization") }
+  let(:tasks_service) do
+    double("GoogleTasksService").tap do |service|
+      allow(service).to receive(:authorization=)
+    end
+  end
+  let(:options) do
+    full_options.merge(
+      logger: logger,
+      authorization: authorization,
+      tasks_service: tasks_service,
+      list: tasklist
+    )
+  end
   let(:service) { GoogleTasks::Service.new(options:) }
   let(:tasklist) { "Test" }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
 
   before do
-    allow_any_instance_of(GoogleTasks::BaseCli).to receive(:user_credentials_for).and_return({})
     allow(logger).to receive(:sync_data_for).and_return({})
     allow(logger).to receive(:last_synced).and_return(last_sync)
   end

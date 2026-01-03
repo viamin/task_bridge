@@ -132,4 +132,16 @@ RSpec.describe "Asana::Service", :full_options do
       end
     end
   end
+
+  describe "#friendly_name" do
+    it "returns the expected identifier" do
+      expect(service.friendly_name).to eq("Asana")
+    end
+  end
+
+  describe "#sync_strategies" do
+    it "supports two way syncing" do
+      expect(service.sync_strategies).to eq([:two_way])
+    end
+  end
 end

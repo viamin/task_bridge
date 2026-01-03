@@ -16,6 +16,15 @@
 #
 # See https://rubydoc.info/gems/rspec-core/RSpec/Core/Configuration
 
+# Coverage must start before any application files are loaded.
+if ENV["COVERAGE"] == "1" || ENV["SIMPLECOV"] == "1"
+
+  require "simplecov"
+  SimpleCov.command_name "RSpec"
+  puts "[SimpleCov] Coverage enabled" if ENV["DEBUG"]
+
+end
+
 require "faker"
 require_relative "../lib/task_bridge"
 Dir["./spec/support/**/*.rb"].each { |f| require f }

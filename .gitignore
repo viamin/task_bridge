@@ -14,6 +14,8 @@
 /node_modules/
 # Used by dotenv library to load environment variables.
 .env
+.simplecov
+simplecov_mcp.log
 
 # Ignore Byebug command history file.
 .byebug_history
@@ -52,3 +54,5 @@ google_api_client_credentials.json
 .chamber*.enc.pass
 !.chamber*.pub.pem
 .aider*
+config/master.key
+db/*.sqlite3*
