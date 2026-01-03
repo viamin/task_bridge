@@ -37,6 +37,8 @@
 #  sync_collection_id  (sync_collection_id => sync_collections.id)
 #
 
+require "ostruct"
+
 module Omnifocus
   # A representation of an Omnifocus task
   class Task < Base::SyncItem
@@ -230,8 +232,8 @@ module Omnifocus
       return if date.nil?
 
       if date < Time.now
-        date += 1.week if tags & WEEKDAY_TAGS
-        date += 1.year if tags & MONTH_TAGS
+        date += 1.week if (tags & WEEKDAY_TAGS).any?
+        date += 1.year if (tags & MONTH_TAGS).any?
       end
       date
     end

@@ -32,10 +32,4 @@ RSpec.describe "Reminders::Service" do
       end
     end
   end
-
-  describe "#add_item" do
-  end
-
-  describe "#update_item" do
-  end
 end

@@ -81,8 +81,10 @@ RSpec.describe "Omnifocus::Task" do
       let(:tags) { ["12 - December"] }
 
       it "sets a due date in December" do
-        # This spec will fail during December
-        expect(task.due_date).to eq(Chronic.parse("12 - December"))
+        parsed_date = Chronic.parse("12 - December")
+        # If the date is in the past, the code adds 1 year
+        expected_date = (parsed_date < Time.now) ? parsed_date + 1.year : parsed_date
+        expect(task.due_date).to eq(expected_date)
       end
 
       context "when the date is in the past" do

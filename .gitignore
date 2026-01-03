@@ -12,10 +12,8 @@
 /test/tmp/
 /test/version_tmp/
 /tmp/
-
 # node / yarn
 node_modules
-
 # Used by dotenv library to load environment variables.
 .env
 
@@ -55,3 +53,4 @@ google_api_client_credentials.json
 .chamber*.enc.pass
 !.chamber*.pub.pem
 config/*.key
+.aider*

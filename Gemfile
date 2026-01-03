@@ -3,7 +3,7 @@
 source "https://rubygems.org"
 git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 
-ruby "~> 3.2"
+ruby "~> 3.4"
 gem "rails"
 
 gem "bootsnap", require: false
@@ -47,7 +47,7 @@ group :development do
   gem "annotate"
   gem "rubocop"
   gem "rubocop-performance"
-  gem "standard"
+  gem "standard", ">= 1.35.1"
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
 
@@ -61,7 +61,8 @@ end
 group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
-  gem "faker" # https://github.com/faker-ruby/faker
+  gem "faker", "~> 3.2" # https://github.com/faker-ruby/faker
   gem "rspec-rails"
   gem "selenium-webdriver"
+  gem "simplecov"
 end

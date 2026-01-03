@@ -68,7 +68,12 @@ module Reclaim
       else
         response = HTTParty.patch("#{base_url}/tasks/#{reclaim_task.external_id}", authenticated_options.merge(request_body))
         if response.success?
-          update_sync_data(external_task, reclaim_task.external_id) if options[:update_ids_for_existing]
+          # If external_task doesn't have our sync ID, this was a title match
+          # Add sync ID so future syncs use ID matching instead of title matching
+          matched_by_title = external_task.try(:reclaim_id).blank?
+          if matched_by_title || options[:update_ids_for_existing]
+            update_sync_data(external_task, reclaim_task.external_id)
+          end
           JSON.parse(response.body)
         else
           debug(response.body, options[:debug])

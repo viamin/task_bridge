@@ -5,14 +5,17 @@ module Github
   class Service < Base::Service
     include GlobalOptions
 
-    attr_reader :authentication
+    attr_reader :authentication, :authorized
 
     def initialize
       super
       @authentication = Authentication.new.authenticate!
-    rescue
+      @authorized = true
+    rescue => e
       # If authentication fails, skip the service
-      nil
+      puts "Github authentication failed: #{e.message}" unless options[:quiet]
+      @authentication = nil
+      @authorized = false
     end
 
     def item_class

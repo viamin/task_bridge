@@ -2,12 +2,18 @@
 
 module Omnifocus
   class Service < Base::Service
-    attr_reader :omnifocus_app
+    attr_reader :omnifocus_app, :authorized
 
     def initialize
       super
       # Assumes you already have OmniFocus installed
       @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
+      @authorized = true
+    rescue => e
+      # If OmniFocus app is not available, skip the service
+      puts "OmniFocus initialization failed: #{e.message}" unless options[:quiet]
+      @omnifocus_app = nil
+      @authorized = false
     end
 
     def item_class
@@ -30,6 +36,8 @@ module Omnifocus
         task.omnifocus_task = external_task
         task.read_original(only_modified_dates:)
       end
+      # Filter out stale references (tasks deleted while iterating)
+      tasks = tasks.reject { |task| task.external_id.nil? }
       # remove sub_items from the list
       # TODO: why tho?
       # tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
@@ -84,7 +92,12 @@ module Omnifocus
         tags(external_task).each do |tag|
           add_tag(tag:, task: omnifocus_task)
         end
-        if external_task.try(:project) && !task_projects_match(external_task, omnifocus_task)
+        # Detect if this was a title match vs ID match
+        # Title match: external_task doesn't have our sync ID
+        matched_by_title = external_task.try(:omnifocus_id).blank?
+        # Only move projects for ID-matched items (reliable link)
+        # Title matches are not reliable enough to warrant moving tasks between projects
+        if !matched_by_title && external_task.try(:project) && !task_projects_match(external_task, omnifocus_task)
           debug("Projects don't match: (#{external_task.provider})#{external_task} <=> (Omnifocus)#{omnifocus_task}", options[:debug])
           # update the project via assigned_container property
           updated_project = project(nil, external_task.project)
@@ -98,7 +111,10 @@ module Omnifocus
         end
         handle_sub_items(omnifocus_task, external_task)
         omnifocus_task_id = omnifocus_task.id_.get
-        update_sync_data(external_task, omnifocus_task_id, Task.url(omnifocus_task_id)) if options[:update_ids_for_existing]
+        # Add sync ID so future syncs use ID matching instead of title matching
+        if matched_by_title || options[:update_ids_for_existing]
+          update_sync_data(external_task, omnifocus_task_id, Task.url(omnifocus_task_id))
+        end
         external_task
       elsif options[:pretend]
         "Would have updated #{external_task.title} in Omnifocus"
@@ -119,9 +135,18 @@ module Omnifocus
       debug("tags: #{tags}", options[:debug])
       return [] if tags.blank?
 
-      matching_tags = omnifocus_app.flattened_tags.get.select { |tag| tags.include?(tag.name.get) }
+      # Use direct AppleScript reference lookup instead of fetching all tags and filtering in Ruby
+      # This is much faster as it avoids fetching every tag from OmniFocus
+      matching_tags = tags.filter_map do |tag_name|
+        tag_ref = omnifocus_app.flattened_tags[tag_name]
+        begin
+          tag_ref.get # Verify tag exists
+          tag_ref
+        rescue
+          nil # Tag doesn't exist
+        end
+      end
       all_tasks_in_container(matching_tags, incomplete_only:)
-      # matching_tags.map(&:tasks).map(&:get).flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
     end
 
     private
@@ -186,7 +211,8 @@ module Omnifocus
         debug("called with a native Omnifocus task", options[:debug])
         task
       end
-      if target_task.tags.get.map(&:name).map(&:get).include?(tag.name.get)
+      existing_tag_names = target_task.tags.get.map { |existing_tag| existing_tag.name.get }
+      if existing_tag_names.include?(tag.name.get)
         debug("Task (#{target_task.name.get}) already has tag #{tag.name.get}", options[:debug])
       else
         debug("Adding tag #{tag.name.get} to task \"#{target_task.name.get}\"", options[:debug])

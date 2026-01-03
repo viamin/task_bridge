@@ -4,12 +4,18 @@ module Reminders
   class Service < Base::Service
     include GlobalOptions
 
-    attr_reader :reminders_app
+    attr_reader :reminders_app, :authorized
 
     def initialize
       super
       # Assumes you already have Reminders installed
       @reminders_app = Appscript.app.by_name(friendly_name)
+      @authorized = true
+    rescue => e
+      # If Reminders app is not available, skip the service
+      puts "Reminders initialization failed: #{e.message}" unless options[:quiet]
+      @reminders_app = nil
+      @authorized = false
     end
 
     def item_class
@@ -56,13 +62,16 @@ module Reminders
         "Last modified more than #{options[:max_age]} ago - skipping #{external_task.title}"
       elsif external_task.completed? && reminder.incomplete?
         debug("Complete state doesn't match", options[:debug])
-        if options[:pretend]
-          "Would have marked #{reminder.title} complete in Reminders"
-        else
-          reminder.mark_complete unless options[:pretend]
-        end
+        return "Would have marked #{reminder.title} complete in Reminders" if options[:pretend]
+
+        reminder.mark_complete
         reminder_id = reminder.id_.get
-        update_sync_data(external_task, reminder_id) if options[:update_ids_for_existing]
+        # If external_task doesn't have our sync ID, this was a title match
+        # Add sync ID so future syncs use ID matching instead of title matching
+        matched_by_title = external_task.try(:reminders_id).blank?
+        if matched_by_title || options[:update_ids_for_existing]
+          update_sync_data(external_task, reminder_id)
+        end
         external_task
       elsif options[:pretend]
         "Would have updated #{external_task.title} in Reminders"
