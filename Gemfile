@@ -5,7 +5,7 @@ ruby "~> 3.1"
 source "https://rubygems.org"
 
 # https://github.com/rails/rails/tree/main/activesupport
-gem "activesupport", "~> 7.0",
+gem "activesupport", "~> 8.0",
   require: [
     "active_support",
     "active_support/core_ext/hash", # for reverse_merge and stringify_keys
