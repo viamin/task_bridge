@@ -3,23 +3,23 @@
 task_bridge:
   debug: false
   delete_completed: false
-  personal_tags: 
+  personal_tags:
     - Personal
   work_tags: []
   log_file: service_sync.log
-  primary_service: Omnifocus 
+  primary_service: Omnifocus
   update_ids_for_existing_items: false
   sync:
     # use "0" to disable
     max_age: "0"
-    services: 
+    services:
       - Reclaim
       - Github
       - Instapaper
       - Asana
-      - TaskBridgeWeb 
-    tags: 
-      - TaskBridge 
+      - TaskBridgeWeb
+    tags:
+      - TaskBridge
 
 asana:
   personal_access_token: ~
@@ -32,7 +32,7 @@ github:
   repositories: viamin/task_bridge
 
 google:
-  client: 
+  client:
     id: ~
     secret: ~
     secrets_file: ./google_api_client_credentials.json
@@ -44,14 +44,15 @@ instapaper:
     consumer_id: ___nil___
     consumer_secret: ___nil___
   project: ___nil___
-  username: ___nil___ 
-  password: ___nil___ 
+  username: ___nil___
+  password: ___nil___
 
 reclaim:
-  api_key: ___nil___ 
+  api_key: ___nil___
 
 reminders:
   list_mapping: ___nil___
 
 task_bridge_web:
   api_key: ___nil___
+  base_url: ___nil___

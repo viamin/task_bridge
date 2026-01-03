@@ -12,6 +12,7 @@ RSpec.describe TaskBridgeWeb::Service, :full_options do
 
   before do
     allow(Chamber).to receive(:dig!).with(:task_bridge_web, :api_key).and_return(api_key)
+    allow(Chamber).to receive(:dig!).with(:task_bridge_web, :base_url).and_return("http://localhost:3000")
     allow(logger).to receive(:sync_data_for).with("TaskBridgeWeb").and_return({})
   end
 

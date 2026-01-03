@@ -176,7 +176,7 @@ module TaskBridgeWeb
     end
 
     def base_url
-      "http://localhost:3000"
+      Chamber.dig!(:task_bridge_web, :base_url)
     end
   end
 end
