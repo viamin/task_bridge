@@ -6,6 +6,11 @@ git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 ruby "~> 3.4"
 gem "rails"
 
+# Ruby 3.4+ removed these from stdlib
+gem "csv"
+gem "bigdecimal"
+gem "mutex_m"
+
 gem "bootsnap", require: false
 gem "chamber" # https://github.com/thekompanee/chamber
 gem "chronic" # https://github.com/mojombo/chronic
