@@ -1,0 +1,343 @@
+# frozen_string_literal: true
+
+module Asana
+  # A service class to talk to the Asana API
+  class Service < Base::Service
+    attr_reader :authorized
+
+    def initialize
+      super
+      @personal_access_token = Chamber.dig!(:asana, :personal_access_token)
+      @authorized = true
+    rescue => e
+      # If configuration is missing, skip the service
+      puts "Asana initialization failed: #{e.message}" unless options[:quiet]
+      @authorized = false
+    end
+
+    def item_class
+      Task
+    end
+
+    def friendly_name
+      "Asana"
+    end
+
+    def sync_strategies
+      [:two_way]
+    end
+
+    # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
+    def items_to_sync(*, only_modified_dates: false)
+      visible_project_gids = list_projects.map { |project| project["gid"] }
+      task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid, only_modified_dates:) }.flatten.uniq
+      tasks = task_list.map do |external_task|
+        asana_task = Task.find_or_initialize_by(external_id: external_task[Task.attributes[:external_id]])
+        asana_task.asana_task = external_task
+        asana_task.read_original(only_modified_dates: true)
+      end
+      tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
+      if tasks_with_sub_items.any?
+        tasks_with_sub_items.each do |parent_task|
+          sub_item_hashes = list_task_sub_items(parent_task.external_id)
+          sub_item_hashes.each do |sub_item_hash|
+            sub_item = Task.where(external_id: Task.attributes[:external_id]).first_or_initialize(asana_task: sub_item_hash)
+            # sub_item = Task.new(asana_task: sub_item_hash)
+            parent_task.sub_items << sub_item
+            # Remove the sub_item from the main task list
+            # so we don't double sync them
+            # (the Asana API doesn't have a filter for sub_items)
+            tasks.delete_if { |task| task.external_id == sub_item.external_id }
+          end
+        end
+      end
+      tasks
+    end
+
+    def add_item(external_task, parent_task_gid = nil)
+      debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}", options[:debug])
+      request_body = {
+        query: {opt_fields: Task.requested_fields.join(",")},
+        body: {data: Task.from_external(external_task).merge(memberships_for_task(external_task, for_create: true))}.to_json
+      }
+      return "Would have added #{external_task.title} to Asana" if options[:pretend]
+
+      endpoint = parent_task_gid.nil? ? "tasks" : "tasks/#{parent_task_gid}/subtasks"
+      debug("request_body: #{request_body.pretty_inspect} sending to #{endpoint}", options[:debug])
+      response = HTTParty.post("#{base_url}/#{endpoint}", authenticated_options.merge(request_body))
+      return failure_message("create an Asana task", response) unless response.success?
+
+      response_body = JSON.parse(response.body)
+      new_task = Task.new(asana_task: response_body["data"])
+      section_move_error = move_task_to_section(section_identifier_for(external_task), new_task.external_id)
+      handle_sub_items(new_task, external_task)
+      update_sync_data(external_task, new_task.external_id, new_task.url)
+      section_move_error
+    end
+
+    # Asana's update task API supports a PATCH-like syntax using PUT
+    def patch_item(asana_task, updated_attributes)
+      debug("asana_task: #{asana_task.title}", options[:debug])
+      request_body = {
+        query: {opt_fields: Task.requested_fields.join(",")},
+        body: updated_attributes.to_json
+      }
+      return "Would have patched task #{asana.title} with #{updated_attributes.to_json}" if options[:pretend]
+
+      response = HTTParty.put("#{base_url}/tasks/#{asana_task.external_id}", authenticated_options.merge(request_body))
+      return if response.success?
+
+      debug(response.body, options[:debug])
+      "Failed to update Asana task ##{asana_task.external_id} with code #{response.code}"
+    end
+
+    def update_item(asana_task, external_task)
+      debug("asana_task: #{asana_task.title}", options[:debug])
+      request_body = {
+        query: {opt_fields: Task.requested_fields.join(",")},
+        body: {data: Task.from_external(external_task)}.to_json
+      }
+      return "Would have updated task #{external_task.title} in Asana" if options[:pretend]
+
+      response = HTTParty.put("#{base_url}/tasks/#{asana_task.external_id}", authenticated_options.merge(request_body))
+      return failure_message("update Asana task ##{asana_task.external_id}", response) unless response.success?
+
+      # Detect if this was a title match vs ID match
+      # Title match: external_task doesn't have our sync ID
+      matched_by_title = external_task.try(:asana_id).blank?
+
+      # Only move projects/sections for ID-matched items (reliable link)
+      # Title matches are not reliable enough to warrant moving tasks between projects
+      section_move_error = nil
+      if !matched_by_title && external_task.project && (asana_task.project != external_task.project)
+        request_body = {body: JSON.dump({data: memberships_for_task(external_task)})}
+        project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.external_id}/addProject", authenticated_options.merge(request_body))
+        return failure_message("update Asana task ##{asana_task.external_id}", project_response) unless project_response.success?
+
+        section_move_error = move_task_to_section(section_identifier_for(external_task), asana_task.external_id)
+      end
+      handle_sub_items(asana_task, external_task)
+      # Add sync ID so future syncs use ID matching instead of title matching
+      update_sync_data(external_task, asana_task.external_id, asana_task.url) if matched_by_title || options[:update_ids_for_existing]
+      section_move_error
+    end
+
+    # Defines the conditions under which a task should be not be created,
+    # either in the primary_service or in Asana
+    def skip_create?(task)
+      return true if task.completed?
+
+      raise "task #{task.friendly_title} doesn't respond to :assignee" unless task.respond_to?(:assignee)
+
+      # create the task (don't skip) if it's unassigned
+      return false if task.assignee.nil?
+
+      # Skip creation if the Asana task is assigned to someone
+      # other than the API user
+      task.assignee != asana_user["gid"]
+    end
+
+    private
+
+    # the minimum time we should wait between syncing tasks
+    def min_sync_interval
+      30.minutes.to_i
+    end
+
+    # create or update sub_items on a task
+    def handle_sub_items(asana_task, external_task)
+      debug("", options[:debug])
+      return unless external_task.respond_to?(:sub_item_count) && external_task.sub_item_count.positive?
+
+      external_task.sub_items.each do |sub_item|
+        if (existing_task = sub_item.find_matching_item_in(asana_task.sub_items))
+          update_item(existing_task, sub_item)
+          "Updated sub_item #{sub_item.title} of task #{external_task.title} in Asana"
+        else
+          add_item(sub_item, asana_task.external_id) unless sub_item.completed?
+          "Created sub_item #{sub_item.title} of task #{external_task.title} in Asana"
+        end
+      end
+    end
+
+    # By default, this will list only active (unarchived) projects. Passing archived: true
+    # will return only archived projects.
+    def list_projects(archived: false)
+      query = {query: {archived:}}
+      response = HTTParty.get("#{base_url}/projects", authenticated_options.merge(query))
+      raise "Error loading Asana projects - check personal access token" unless response.success?
+
+      JSON.parse(response.body)["data"]
+    end
+
+    def project_gids
+      @project_gids ||= list_projects.map { |project| project["gid"] }
+    end
+
+    def project_gid_from_name(project_name)
+      found_project = list_projects.find { |project| project["name"] == project_name }
+      return unless found_project
+
+      found_project["gid"]
+    end
+
+    # For a given project_gid, list all of the sections in that project
+    # It *looks* like Asana will always return an untitled section,
+    # even if there are no other sections e.g.:
+    # {
+    #   "gid": "1203188830269577",
+    #   "name": "Untitled section",
+    #   "resource_type": "section"
+    # },
+    def list_project_sections(project_gid, merge_project_gids: false)
+      query = {
+        query: {
+          project: project_gid
+        }
+      }
+      response = HTTParty.get("#{base_url}/projects/#{project_gid}/sections", authenticated_options.merge(query))
+      raise "Error loading Asana project sections - check personal access token" unless response.success?
+
+      body_data = JSON.parse(response.body)["data"]
+
+      return body_data unless merge_project_gids
+
+      body_data.map { |section_hash| section_hash.merge("project_gid" => project_gid) }
+    end
+
+    def list_project_tasks(project_gid, only_modified_dates: false)
+      query = {
+        query: {
+          opt_fields: Task.requested_fields(only_modified_dates:).join(","),
+          # Return incomplete tasks + tasks completed within the last week
+          # This gives leeway for sync delays while reducing API response size
+          completed_since: completed_since_timestamp
+        }
+      }
+      # Only fetch tasks modified since last sync (if we have a previous sync time)
+      query[:query][:modified_since] = last_sync_time.iso8601 if last_sync_time.present?
+
+      response = HTTParty.get("#{base_url}/projects/#{project_gid}/tasks", authenticated_options.merge(query))
+      raise "Error loading Asana tasks - check personal access token" unless response.success?
+
+      JSON.parse(response.body)["data"]
+    end
+
+    def list_task_sub_items(task_gid)
+      query = {
+        query: {
+          opt_fields: Task.requested_fields.join(","),
+          # Return incomplete subtasks + subtasks completed within the last week
+          completed_since: completed_since_timestamp
+        }
+      }
+      # Only fetch subtasks modified since last sync (if we have a previous sync time)
+      query[:query][:modified_since] = last_sync_time.iso8601 if last_sync_time.present?
+
+      response = HTTParty.get("#{base_url}/tasks/#{task_gid}/subtasks", authenticated_options.merge(query))
+      raise "Error loading Asana task subtasks - check personal access token" unless response.success?
+
+      JSON.parse(response.body)["data"]
+    end
+
+    def move_task_to_section(section_gid, task_gid)
+      return if section_gid.blank?
+
+      request_body = {body: {data: {task: task_gid}}.to_json}
+      response = HTTParty.post("#{base_url}/sections/#{section_gid}/addTask", authenticated_options.merge(request_body))
+      return if response.success?
+
+      failure_message("move an Asana task to a section", response)
+    end
+
+    def section_identifier_for(external_task)
+      memberships_for_task(external_task)["section"]
+    end
+
+    # Makes some big assumptions about the layout we use in Asana...
+    # Namely that all Asana projects passed into TaskBridge
+    # will only have sections or top level tasks and sub_items,
+    # but only one level deep (meaning sub_items will not have
+    # sub_items of their own and sections will not have subsections)
+    # Also projects will not have sub-projects
+    def memberships_for_task(external_task, for_create: false)
+      project_string = external_task.project
+      return {} if project_string.blank?
+
+      # Parse "Project:Section" format or just "Project"
+      # The format comes from project_from_memberships which builds "ProjectName:SectionName"
+      if project_string.include?(":")
+        parts = project_string.split(":", 2)
+        target_project_name = parts.first
+        target_section_name = parts.last
+      else
+        target_project_name = project_string
+        target_section_name = nil
+      end
+
+      # Find the project GID by name
+      project_gid = project_gid_from_name(target_project_name)
+      return {} if project_gid.blank?
+
+      # Find the section within that specific project
+      matching_section = nil
+      if target_section_name.present?
+        sections = list_project_sections(project_gid, merge_project_gids: true)
+        matching_section = sections.find { |section| section["name"] == target_section_name }
+      end
+
+      if for_create
+        {projects: [project_gid]}
+      else
+        {
+          project: project_gid,
+          section: matching_section&.dig("gid")
+        }.compact
+      end
+    end
+
+    def workspace_gids
+      workspaces = asana_user["workspaces"]
+      workspaces.map { |workspace| workspace["gid"] }
+    end
+
+    def asana_user
+      response = HTTParty.get("#{base_url}/users/me", authenticated_options)
+      raise "Error loading Asana user - check personal access token" unless response.success?
+
+      JSON.parse(response.body)["data"]&.stringify_keys
+    end
+
+    def authenticated_options
+      {
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+          Authorization: "Bearer #{@personal_access_token}"
+        }
+      }
+    end
+
+    def failure_message(action, response)
+      debug(response.body, options[:debug])
+      "Failed to #{action} - code #{response.code}"
+    end
+
+    def base_url
+      "https://app.asana.com/api/1.0"
+    end
+
+    # Returns timestamp for 1 week ago, used to filter completed tasks
+    # This allows syncing recently completed tasks while reducing API response size
+    def completed_since_timestamp
+      Chronic.parse("1 week ago").iso8601
+    end
+    memo_wise :completed_since_timestamp
+
+    # Returns the last successful sync time from the logger, or nil if never synced
+    def last_sync_time
+      options[:logger]&.last_synced(friendly_name)
+    end
+    memo_wise :last_sync_time
+  end
+end
