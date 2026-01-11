@@ -16,7 +16,7 @@ gem "activesupport", "~> 8.0",
   ]
 
 # https://github.com/ruby/bigdecimal
-gem "bigdecimal", "~> 3.1"
+gem "bigdecimal", "~> 4.0"
 
 # https://github.com/ruby/base64
 gem "base64", "~> 0.2"
