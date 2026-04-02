@@ -48,7 +48,7 @@ module Base
 
     delegate :attributes, :attribute_map, :modified_date_attributes, :read_attribute, to: :class
 
-    after_initialize :read_notes, :set_tags # , :read_original
+    after_initialize :read_notes, :set_tags
 
     def initialize(attributes = nil)
       attributes ||= {}
@@ -70,20 +70,27 @@ module Base
       super(ar_attrs)
     end
 
-    validates :external_id, uniqueness: true
+    validates :external_id, uniqueness: { scope: :type }
 
     def read_original(only_modified_dates: false)
       values_hash = attributes.to_h do |attribute_key, attribute_value|
-        value = read_attribute(external_data, attribute_value, only_modified_dates:)
+        value = read_attribute(external_data, attribute_value, only_modified_dates:, attribute_key:)
         value = Chronic.parse(value) if value && chronic_attributes.include?(attribute_key)
         [attribute_key, value]
       end.compact
       assign_attributes(values_hash)
+      read_notes
       self
     end
 
     def read_notes
-      raw_notes = read_attribute(external_data, attributes[:notes])
+      # Try to get notes from external_data (during read_original), or fall back to the
+      # persisted notes column (when loading from DB)
+      raw_notes = begin
+        read_attribute(external_data, attributes[:notes])
+      rescue StandardError
+        self[:notes]
+      end
       return if raw_notes.blank?
 
       note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
@@ -167,7 +174,8 @@ module Base
 
     # Converts the task to a format required by the primary service
     def to_primary
-      raise "Unsupported service" unless TaskBridge.task_services.include?(options[:primary])
+      task_services = Chamber.dig!(:task_bridge, :task_services)
+      raise "Unsupported service" unless task_services.include?(options[:primary])
 
       send("to_#{options[:primary]}".downcase.to_sym)
     end
@@ -184,8 +192,12 @@ module Base
       end
 
       # read attributes using applescript or hash keys
-      def read_attribute(external_data, attribute, only_modified_dates: false)
-        return if attribute.nil? || (only_modified_dates && !modified_date_attributes.include?(attribute))
+      # Read a single attribute value from external_data.
+      # When only_modified_dates is true, attribute_key must be provided to filter
+      # by modified_date_attributes (which are symbols like :completed_at, :last_modified).
+      def read_attribute(external_data, attribute, only_modified_dates: false, attribute_key: nil)
+        return if attribute.nil?
+        return if only_modified_dates && attribute_key && !modified_date_attributes.include?(attribute_key)
 
         value = if external_data.is_a? Hash
           external_data.fetch(attribute, nil)

@@ -8,9 +8,9 @@ Run `bundle install` to install dependencies. You may need an account for some o
 
 ## Configuration
 
-Run `rails task_bridge:sync -- --help` to see available command line options. Many command line default settings can be configured in the `settings.yml` file.
+Run `rails task_bridge:sync -- --help` to see available command line options. Many command line default settings can be configured in the `config/settings.yml` file.
 
-The command line option will take precence over the settings in the configuration file.
+The command line option will take precedence over the settings in the configuration file.
 
 ## OmniFocus Setup
 

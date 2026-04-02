@@ -13,12 +13,12 @@ namespace :task_bridge do
     supported_services = Chamber.dig!(:task_bridge, :all_supported_services)
     o.banner = "Sync Tasks from one service to another\nSupported services: #{supported_services.join(', ')}\nBy default, tasks found with the tags in --tags will have a work context"
     o.on("-p", "--primary [PRIMARY]", "Primary task service") { |value| overrides[:primary] = value }
-    o.on("-t", "--tags [TAGS]", "Tags (or labels) to sync") { |value| overrides[:tags] = value }
+    o.on("-t", "--tags [TAGS]", "Tags (or labels) to sync") { |value| overrides[:tags] = value.split(",") }
     o.on("-s", "--services [SERVICES]", String, "Services to sync tasks among") { |services| overrides[:services] = services.split(",") }
-    o.on("-e", "--personal-tags [TAGS]", "Tags (or labels) used for personal context") { |value| overrides[:personal_tags] = value }
-    o.on("-w", "--work-tags [TAGS]", "Tags (or labels) used for work context (overrides personal tags)") { |value| overrides[:work_tags] = value }
+    o.on("-e", "--personal-tags [TAGS]", "Tags (or labels) used for personal context") { |value| overrides[:personal_tags] = value.split(",") }
+    o.on("-w", "--work-tags [TAGS]", "Tags (or labels) used for work context (overrides personal tags)") { |value| overrides[:work_tags] = value.split(",") }
     o.on("-l", "--list [LIST]", "Task list name to sync to") { |value| overrides[:list] = value }
-    o.on("-r", "--repositories [REPOSITORIES]", "Github repositories to sync from") { |value| overrides[:repositories] = value }
+    o.on("-r", "--repositories [REPOSITORIES]", "Github repositories to sync from") { |value| overrides[:repositories] = value.split(",") }
     o.on("-m", "--reminders-mapping [MAPPING]", "Reminder lists to map to primary service lists/projects") { |value| overrides[:reminders_mapping] = value }
     o.on("-a", "--max-age [MAX_AGE]", Integer, "Skip syncing asks that have not been modified within this time (0 to disable)") { |value| overrides[:max_age] = value }
     o.on("-u", "--update-ids-for-existing", "Update Sync IDs for already synced items") { overrides[:update_ids_for_existing] = true }
@@ -32,20 +32,20 @@ namespace :task_bridge do
     o.on("-g", "--log-file [FILE]", "File name for service log") { |value| overrides[:log_file] = value }
     o.on("-b", "--debug", "Print debug output") { overrides[:debug] = true }
     o.on("-h", "--history", "Print sync service history") do
-      StructuredLogger.new(log_file: overrides[:log_file], service_names: overrides[:services]).print_logs
+      StructuredLogger.new(log_file: overrides[:log_file], services: overrides[:services]).print_logs
       exit
     end
     # o.require_exact = true
     args = o.order!(ARGV)
     o.parse!(args)
-    options = overrides
+    self.options = overrides
 
     raise "Supported services: #{supported_services.join(', ')}" unless supported_services.intersect?(options[:services])
 
     options[:max_age_timestamp] = options[:max_age].zero? ? nil : Chronic.parse("#{options[:max_age]} ago")
     options[:uses_personal_tags] = options[:work_tags].blank?
     options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
-    options[:logger] = StructuredLogger.new(log_file: options[:log_file], service_names: options[:services])
+    options[:logger] = StructuredLogger.new(options)
     @primary_service = "#{options[:primary]}::Service".safe_constantize.new
     options[:primary_service] = @primary_service
     @services = options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new] }
