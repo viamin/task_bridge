@@ -85,12 +85,19 @@ module Base
 
     def read_notes
       # Try to get notes from external_data (during read_original), or fall back to the
-      # persisted notes column (when loading from DB)
+      # persisted notes column (when loading from DB). When external_data is nil
+      # (typical for DB-loaded records), read_attribute returns nil without raising,
+      # so we explicitly fall back to the persisted column.
       raw_notes = begin
-        read_attribute(external_data, external_attribute_map[:notes])
+        self.class.read_attribute(external_data, external_attribute_map[:notes])
       rescue StandardError
-        self[:notes]
+        nil
       end
+      # Fall back to the persisted notes column when external_data is unavailable
+      # (e.g., when loading an existing record from the DB where external_data is nil).
+      # Use AR's underlying attribute store since the delegate and attr_reader shadow
+      # the default ActiveRecord read_attribute method.
+      raw_notes = ActiveRecord::Base.instance_method(:read_attribute).bind_call(self, :notes) if raw_notes.blank? && has_attribute?(:notes)
       return if raw_notes.blank?
 
       note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
