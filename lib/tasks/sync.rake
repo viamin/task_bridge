@@ -61,7 +61,9 @@ namespace :task_bridge do
       progressbar.increment
     end
 
-    # group items into sync collections
+    # Group items into sync collections. All services return Base::SyncItem
+    # subclasses (e.g., Asana::Task, GoogleTasks::Task), so they all respond to
+    # sync_collection_id, title, and incomplete?.
     items_by_collection = items_by_service.values.flatten.group_by(&:sync_collection_id)
     ungrouped_items = items_by_collection.delete(nil) || []
     # group the remaining items by title

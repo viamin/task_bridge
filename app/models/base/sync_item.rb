@@ -79,7 +79,9 @@ module Base
         hash[attribute_key] = value
       end.compact
       assign_attributes(values_hash)
-      read_notes
+      # Skip expensive notes parsing (which may trigger API/AppleScript reads)
+      # when we only need date and identity attributes for grouping.
+      read_notes unless only_modified_dates
       self
     end
 
@@ -218,6 +220,11 @@ module Base
         end
         value = value.get if value.respond_to?(:get)
         value == :missing_value ? nil : value
+      rescue Appscript::CommandError
+        # Stale AppleScript references (e.g., OSERROR -1728 "Can't get reference")
+        # occur when a task is deleted mid-iteration. Return nil to keep the sync
+        # run from crashing.
+        nil
       end
 
       def attribute_map
