@@ -208,10 +208,16 @@ module Base
       # read attributes using applescript or hash keys
       # Read a single attribute value from external_data.
       # When only_modified_dates is true, attribute_key must be provided to filter
-      # by modified_date_attributes and identity_attributes (title, external_id).
+      # by modified_date_attributes, identity_attributes (title, external_id),
+      # and completion_indicator_attributes (completed, status) — the latter are
+      # needed because sync.rake grouping calls incomplete? on items read with
+      # only_modified_dates: true.
       def read_attribute(external_data, attribute, only_modified_dates: false, attribute_key: nil)
         return if attribute.nil?
-        return if only_modified_dates && attribute_key && !modified_date_attributes.include?(attribute_key) && !identity_attributes.include?(attribute_key)
+        return if only_modified_dates && attribute_key &&
+                  !modified_date_attributes.include?(attribute_key) &&
+                  !identity_attributes.include?(attribute_key) &&
+                  !completion_indicator_attributes.include?(attribute_key)
 
         value = if external_data.is_a? Hash
           external_data.fetch(attribute, nil)
@@ -264,6 +270,14 @@ module Base
       # because they are required for item matching and grouping.
       def identity_attributes
         %i[title external_id]
+      end
+
+      # Attributes needed to determine completion status. These must be read
+      # even with only_modified_dates because sync.rake grouping checks
+      # incomplete? on the resulting items. Subclasses whose completed? relies
+      # on different fields (e.g., a custom status value) can override this.
+      def completion_indicator_attributes
+        %i[completed completed_at status]
       end
     end
 
