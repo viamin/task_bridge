@@ -46,7 +46,7 @@ RSpec.describe Reminders::Service do
 
     before do
       allow(reminder).to receive(:id_).and_return(reminder_id_accessor)
-      allow(external_task).to receive(:update_attributes)
+      allow(external_task).to receive(:patch_external_attributes)
     end
 
     context "when running in pretend mode" do

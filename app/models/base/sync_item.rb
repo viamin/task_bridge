@@ -44,7 +44,7 @@ module Base
 
     self.table_name = "sync_items"
 
-    attr_reader :tags, :notes, :debug_data
+    attr_reader :tags, :debug_data
 
     delegate :external_attribute_map, :attribute_map, :modified_date_attributes, :read_attribute, to: :class
 
@@ -128,7 +128,10 @@ module Base
 
     def service
       if options[:primary] == provider
-        options[:primary_service].new
+        # options[:primary_service] may be either a class or an already-instantiated
+        # service object (the rake task stores an instance). Handle both cases.
+        primary = options[:primary_service]
+        primary.is_a?(Class) ? primary.new : primary
       else
         "#{provider}::Service".safe_constantize.new(options:)
       end
@@ -187,9 +190,11 @@ module Base
       send("to_#{options[:primary]}".downcase.to_sym)
     end
 
-    # Sync items that use an API to update attributes need to call the service's patch_item method
-    # Items that use applescript to update attributes can override this method
-    def update_attributes(attributes)
+    # Sync items that use an API to update attributes need to call the service's patch_item method.
+    # Items that use applescript to update attributes can override this method.
+    # Named patch_external_attributes (not update_attributes) to avoid overriding
+    # ActiveRecord's own update_attributes/update semantics.
+    def patch_external_attributes(attributes)
       service.patch_item(self, attributes) if service.respond_to?(:patch_item) && attributes_have_changed?(attributes)
     end
 

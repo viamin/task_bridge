@@ -74,7 +74,10 @@ namespace :task_bridge do
       items.each { |item| collection << item }
       items_by_collection[collection.id] = collection
     end
-    # TODO: implement sync logic
+    # TODO: Re-enable cross-service sync logic once ActiveRecord-backed sync
+    # collections are fully wired up. Currently the task only collects items and
+    # groups them into SyncCollection records; actual add/update/prune operations
+    # are not yet performed. See PR #138 for tracking.
 
     # @services.each_value do |service|
     #   @service_logs = []

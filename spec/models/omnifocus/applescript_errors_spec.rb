@@ -325,7 +325,7 @@ RSpec.describe "Omnifocus::Task AppleScript Error Handling", :full_options do
     end
   end
 
-  describe "#update_attributes error handling", :no_ci do
+  describe "#patch_external_attributes error handling", :no_ci do
     let(:task_properties) do
       OpenStruct.new({
                        id_: "test-task-id",
@@ -349,7 +349,7 @@ RSpec.describe "Omnifocus::Task AppleScript Error Handling", :full_options do
       end
 
       it "raises an Appscript::CommandError" do
-        expect { task.update_attributes({ title: "New Title" }) }.to raise_error(Appscript::CommandError)
+        expect { task.patch_external_attributes({ title: "New Title" }) }.to raise_error(Appscript::CommandError)
       end
     end
   end

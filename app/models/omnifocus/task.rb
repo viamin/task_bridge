@@ -173,7 +173,7 @@ module Omnifocus
       Task.url(external_id)
     end
 
-    def update_attributes(attributes)
+    def patch_external_attributes(attributes)
       attributes.each do |key, value|
         original_attribute_key = attribute_map[key].to_sym
         original_task.send(original_attribute_key).set(value)

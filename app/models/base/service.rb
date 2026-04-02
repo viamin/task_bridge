@@ -148,7 +148,7 @@ module Base
       service_name = friendly_name.underscore
       existing_item.instance_variable_set(:"@#{service_name}_id", sync_id) if sync_id
       existing_item.instance_variable_set(:"@#{service_name}_url", sync_url) if sync_url
-      existing_item.update_attributes(notes: existing_item.sync_notes)
+      existing_item.patch_external_attributes(notes: existing_item.sync_notes)
     end
 
     def existing_items(service)

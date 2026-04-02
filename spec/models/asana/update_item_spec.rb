@@ -288,9 +288,9 @@ RSpec.describe Asana::Service, :full_options do
         allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
         # No asana_id means this was a title match
         allow(external_task).to receive(:try).with(:asana_id).and_return(nil)
-        # Allow update_attributes for sync data updates
+        # Allow patch_external_attributes for sync data updates
         allow(external_task).to receive(:instance_variable_set)
-        allow(external_task).to receive(:update_attributes)
+        allow(external_task).to receive(:patch_external_attributes)
       end
 
       it "does NOT attempt to change the project for title-matched items" do
