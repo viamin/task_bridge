@@ -234,11 +234,14 @@ module Base
       private
 
       def standard_attribute_map
+        # NOTE: Do not map `created_at` here. AR manages `created_at`/`updated_at`
+        # as record timestamps. Populating `created_at` from external data would
+        # break ordering, auditing, and Rails conventions. If we need to persist
+        # the remote creation time, add a dedicated `external_created_at` column.
         {
           external_id: "id",
           completed_at: "completed_at",
           completed: "completed",
-          created_at: "created_at",
           due_at: "due_at",
           due_date: "due_date",
           flagged: "flagged",
