@@ -46,7 +46,7 @@ module Base
 
     attr_reader :tags, :notes, :debug_data
 
-    delegate :attributes, :attribute_map, :modified_date_attributes, :read_attribute, to: :class
+    delegate :external_attribute_map, :attribute_map, :modified_date_attributes, :read_attribute, to: :class
 
     after_initialize :read_notes, :set_tags
 
@@ -73,10 +73,10 @@ module Base
     validates :external_id, uniqueness: { scope: :type }
 
     def read_original(only_modified_dates: false)
-      values_hash = attributes.to_h do |attribute_key, attribute_value|
+      values_hash = external_attribute_map.each_with_object({}) do |(attribute_key, attribute_value), hash|
         value = read_attribute(external_data, attribute_value, only_modified_dates:, attribute_key:)
         value = Chronic.parse(value) if value && chronic_attributes.include?(attribute_key)
-        [attribute_key, value]
+        hash[attribute_key] = value
       end.compact
       assign_attributes(values_hash)
       read_notes
@@ -87,7 +87,7 @@ module Base
       # Try to get notes from external_data (during read_original), or fall back to the
       # persisted notes column (when loading from DB)
       raw_notes = begin
-        read_attribute(external_data, attributes[:notes])
+        read_attribute(external_data, external_attribute_map[:notes])
       rescue StandardError
         self[:notes]
       end
@@ -187,7 +187,7 @@ module Base
     end
 
     class << self
-      def attributes
+      def external_attribute_map
         standard_attribute_map.merge(attribute_map).compact
       end
 

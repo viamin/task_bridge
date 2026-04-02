@@ -32,7 +32,7 @@ module Asana
       visible_project_gids = list_projects.map { |project| project["gid"] }
       task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid, only_modified_dates:) }.flatten.uniq
       tasks = task_list.map do |external_task|
-        asana_task = Task.find_or_initialize_by(external_id: external_task[Task.attributes[:external_id]])
+        asana_task = Task.find_or_initialize_by(external_id: external_task[Task.external_attribute_map[:external_id]])
         asana_task.asana_task = external_task
         asana_task.read_original(only_modified_dates: true)
       end
@@ -41,7 +41,7 @@ module Asana
         tasks_with_sub_items.each do |parent_task|
           sub_item_hashes = list_task_sub_items(parent_task.external_id)
           sub_item_hashes.each do |sub_item_hash|
-            sub_item = Task.where(external_id: Task.attributes[:external_id]).first_or_initialize(asana_task: sub_item_hash)
+            sub_item = Task.where(external_id: Task.external_attribute_map[:external_id]).first_or_initialize(asana_task: sub_item_hash)
             # sub_item = Task.new(asana_task: sub_item_hash)
             parent_task.sub_items << sub_item
             # Remove the sub_item from the main task list

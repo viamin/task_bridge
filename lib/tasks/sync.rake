@@ -20,7 +20,7 @@ namespace :task_bridge do
     o.on("-l", "--list [LIST]", "Task list name to sync to") { |value| overrides[:list] = value }
     o.on("-r", "--repositories [REPOSITORIES]", "Github repositories to sync from") { |value| overrides[:repositories] = value.split(",") }
     o.on("-m", "--reminders-mapping [MAPPING]", "Reminder lists to map to primary service lists/projects") { |value| overrides[:reminders_mapping] = value }
-    o.on("-a", "--max-age [MAX_AGE]", Integer, "Skip syncing asks that have not been modified within this time (0 to disable)") { |value| overrides[:max_age] = value }
+    o.on("-a", "--max-age [MAX_AGE]", Integer, "Skip syncing tasks that have not been modified within this time (0 to disable)") { |value| overrides[:max_age] = value }
     o.on("-u", "--update-ids-for-existing", "Update Sync IDs for already synced items") { overrides[:update_ids_for_existing] = true }
     o.on("-d", "--delete", "Delete completed tasks on service") { overrides[:delete] = true }
     o.on("-o", "--only-from-primary", "Only sync FROM the primary service") { overrides[:only_from_primary] = true }
