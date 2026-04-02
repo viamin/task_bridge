@@ -6,7 +6,7 @@ module Reclaim
   class Service < Base::Service
     include GlobalOptions
 
-    def initialize
+    def initialize(options: nil)
       super
       @api_key = Chamber.dig(:reclaim, :api_key)
     end
@@ -34,7 +34,7 @@ module Reclaim
 
     def add_item(external_task)
       debug("external_task: #{external_task}", options[:debug])
-      request_body = {body: Task.from_external(external_task)}
+      request_body = { body: Task.from_external(external_task) }
       if options[:pretend]
         "Would have added #{external_task.title} to Reclaim"
       else
@@ -52,7 +52,7 @@ module Reclaim
     # Reclaim doesn't support PATCH semantics, so we need to do a PUT
     def patch_item(reclaim_task, attributes_hash)
       debug("reclaim_task: #{reclaim_task.title}, attributes_hash: #{attributes_hash.pretty_inspect}", options[:debug])
-      put_request_body = {body: reclaim_task.to_h.merge(attributes_hash).to_json}
+      put_request_body = { body: reclaim_task.to_h.merge(attributes_hash).to_json }
       put_response = HTTParty.put("#{base_url}/tasks/#{reclaim_task.external_id}", authenticated_options.merge(put_request_body))
       return if put_response.success?
 
@@ -62,7 +62,7 @@ module Reclaim
 
     def update_item(reclaim_task, external_task)
       debug("reclaim_task: #{reclaim_task.title}", options[:debug])
-      request_body = {body: Task.from_external(external_task).to_json}
+      request_body = { body: Task.from_external(external_task).to_json }
       if options[:pretend]
         "Would have updated task #{external_task.title} in Reclaim"
       else
@@ -71,9 +71,7 @@ module Reclaim
           # If external_task doesn't have our sync ID, this was a title match
           # Add sync ID so future syncs use ID matching instead of title matching
           matched_by_title = external_task.try(:reclaim_id).blank?
-          if matched_by_title || options[:update_ids_for_existing]
-            update_sync_data(external_task, reclaim_task.external_id)
-          end
+          update_sync_data(external_task, reclaim_task.external_id) if matched_by_title || options[:update_ids_for_existing]
           JSON.parse(response.body)
         else
           debug(response.body, options[:debug])

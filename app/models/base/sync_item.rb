@@ -42,11 +42,33 @@ module Base
     include GlobalOptions
     include NoteParser
 
+    self.table_name = "sync_items"
+
     attr_reader :tags, :notes, :debug_data
 
     delegate :attributes, :attribute_map, :modified_date_attributes, :read_attribute, to: :class
 
     after_initialize :read_notes, :set_tags # , :read_original
+
+    def initialize(attributes = nil)
+      attributes ||= {}
+      # Extract non-column attributes before passing to ActiveRecord
+      column_names = self.class.column_names.map(&:to_sym)
+      ar_attrs = {}
+      extra_attrs = {}
+      attributes.each do |key, value|
+        if column_names.include?(key.to_sym)
+          ar_attrs[key] = value
+        else
+          extra_attrs[key] = value
+        end
+      end
+      # Set extra attributes first so after_initialize callbacks can access them
+      extra_attrs.each do |key, value|
+        instance_variable_set(:"@#{key}", value)
+      end
+      super(ar_attrs)
+    end
 
     validates :external_id, uniqueness: true
 
@@ -102,13 +124,19 @@ module Base
     def find_matching_item_in(collection)
       return if collection.blank?
 
-      external_id = :"#{collection.first.provider.underscore}_id"
-      service_id = :"#{provider.underscore}_id"
-      id_match = collection.find { |item| (item.external_id && (item.external_id == try(external_id))) || (item.try(service_id) && (item.try(service_id) == external_id)) }
+      target_id_field = :"#{collection.first.provider.underscore}_id"
+      source_id_field = :"#{provider.underscore}_id"
+      my_target_id = try(target_id_field)
+
+      # First, try to match by sync ID
+      id_match = collection.find { |item| (item.external_id && (item.external_id == my_target_id)) || (item.try(source_id_field) && (item.try(source_id_field) == external_id)) }
       return id_match if id_match
 
+      # If we have a sync ID that didn't match anything in the collection,
+      # it's stale (the linked item was deleted). Allow title matching as fallback.
+      # But only match items that don't already have our sync ID (aren't linked to other items).
       collection.find do |item|
-        friendly_title_matches(item)
+        friendly_title_matches(item) && item.try(source_id_field).blank?
       end
     end
 
@@ -165,7 +193,7 @@ module Base
           external_data.send(attribute.to_sym)
         end
         value = value.get if value.respond_to?(:get)
-        (value == :missing_value) ? nil : value
+        value == :missing_value ? nil : value
       end
 
       def attribute_map

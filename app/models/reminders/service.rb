@@ -6,14 +6,14 @@ module Reminders
 
     attr_reader :reminders_app, :authorized
 
-    def initialize
+    def initialize(options: nil)
       super
       # Assumes you already have Reminders installed
       @reminders_app = Appscript.app.by_name(friendly_name)
       @authorized = true
-    rescue => e
+    rescue StandardError => e
       # If Reminders app is not available, skip the service
-      puts "Reminders initialization failed: #{e.message}" unless options[:quiet]
+      puts "Reminders initialization failed: #{e.message}" unless self.options[:quiet]
       @reminders_app = nil
       @authorized = false
     end
@@ -69,9 +69,7 @@ module Reminders
         # If external_task doesn't have our sync ID, this was a title match
         # Add sync ID so future syncs use ID matching instead of title matching
         matched_by_title = external_task.try(:reminders_id).blank?
-        if matched_by_title || options[:update_ids_for_existing]
-          update_sync_data(external_task, reminder_id)
-        end
+        update_sync_data(external_task, reminder_id) if matched_by_title || options[:update_ids_for_existing]
         external_task
       elsif options[:pretend]
         "Would have updated #{external_task.title} in Reminders"

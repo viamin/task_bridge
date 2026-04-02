@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 require_relative "../../support/omnifocus_error_helpers"
 
 # Integration tests for OmniFocus AppleScript error handling.
@@ -109,14 +109,14 @@ RSpec.describe "Omnifocus::Service AppleScript Error Handling", :full_options do
     let(:mock_omnifocus_app) { double("OmnifocusDocument") }
     let(:external_task) do
       double("ExternalTask",
-        title: "Test Task",
-        friendly_title: "Test Task",
-        notes: "Test notes",
-        tags: [],
-        project: nil,
-        sub_items: [],
-        sub_item_count: 0,
-        try: nil)
+             title: "Test Task",
+             friendly_title: "Test Task",
+             notes: "Test notes",
+             tags: [],
+             project: nil,
+             sub_items: [],
+             sub_item_count: 0,
+             try: nil)
     end
 
     before do
@@ -165,20 +165,20 @@ RSpec.describe "Omnifocus::Service AppleScript Error Handling", :full_options do
   describe "#update_item error handling", :no_ci do
     let(:mock_omnifocus_task) do
       double("OmnifocusTask",
-        title: "Test Task",
-        incomplete?: true,
-        tags: [],
-        id_: double("id_", get: "test-id-123"))
+             title: "Test Task",
+             incomplete?: true,
+             tags: [],
+             id_: double("id_", get: "test-id-123"))
     end
     let(:external_task) do
       double("ExternalTask",
-        title: "Test Task",
-        completed?: true,
-        updated_at: Time.now,
-        tags: [],
-        project: nil,
-        sub_items: [],
-        sub_item_count: 0)
+             title: "Test Task",
+             completed?: true,
+             updated_at: Time.now,
+             tags: [],
+             project: nil,
+             sub_items: [],
+             sub_item_count: 0)
     end
 
     before do
@@ -237,14 +237,14 @@ RSpec.describe "Omnifocus::Task AppleScript Error Handling", :full_options do
     let(:task_id) { "test-task-id" }
     let(:task_properties) do
       OpenStruct.new({
-        id_: task_id,
-        name: "Test Task",
-        completed: false,
-        note: "",
-        containing_project: nil,
-        tags: [],
-        tasks: []
-      })
+                       id_: task_id,
+                       name: "Test Task",
+                       completed: false,
+                       note: "",
+                       containing_project: nil,
+                       tags: [],
+                       tasks: []
+                     })
     end
     let(:task) { Omnifocus::Task.new(omnifocus_task: task_properties, options:) }
 
@@ -272,14 +272,14 @@ RSpec.describe "Omnifocus::Task AppleScript Error Handling", :full_options do
   describe "#mark_complete error handling", :no_ci do
     let(:task_properties) do
       OpenStruct.new({
-        id_: "test-task-id",
-        name: "Test Task",
-        completed: false,
-        note: "",
-        containing_project: nil,
-        tags: [],
-        tasks: []
-      })
+                       id_: "test-task-id",
+                       name: "Test Task",
+                       completed: false,
+                       note: "",
+                       containing_project: nil,
+                       tags: [],
+                       tasks: []
+                     })
     end
     let(:task) { Omnifocus::Task.new(omnifocus_task: task_properties, options:) }
     let(:mock_original_task) { double("OriginalTask") }
@@ -299,14 +299,14 @@ RSpec.describe "Omnifocus::Task AppleScript Error Handling", :full_options do
   describe "#containers error handling", :no_ci do
     let(:task_properties) do
       OpenStruct.new({
-        id_: "test-task-id",
-        name: "Test Task",
-        completed: false,
-        note: "",
-        containing_project: nil,
-        tags: [],
-        tasks: []
-      })
+                       id_: "test-task-id",
+                       name: "Test Task",
+                       completed: false,
+                       note: "",
+                       containing_project: nil,
+                       tags: [],
+                       tasks: []
+                     })
     end
     let(:task) { Omnifocus::Task.new(omnifocus_task: task_properties, options:) }
     let(:mock_original_task) { double("OriginalTask") }
@@ -328,14 +328,14 @@ RSpec.describe "Omnifocus::Task AppleScript Error Handling", :full_options do
   describe "#update_attributes error handling", :no_ci do
     let(:task_properties) do
       OpenStruct.new({
-        id_: "test-task-id",
-        name: "Test Task",
-        completed: false,
-        note: "",
-        containing_project: nil,
-        tags: [],
-        tasks: []
-      })
+                       id_: "test-task-id",
+                       name: "Test Task",
+                       completed: false,
+                       note: "",
+                       containing_project: nil,
+                       tags: [],
+                       tasks: []
+                     })
     end
     let(:task) { Omnifocus::Task.new(omnifocus_task: task_properties, options:) }
     let(:mock_original_task) { double("OriginalTask") }
@@ -349,7 +349,7 @@ RSpec.describe "Omnifocus::Task AppleScript Error Handling", :full_options do
       end
 
       it "raises an Appscript::CommandError" do
-        expect { task.update_attributes({title: "New Title"}) }.to raise_error(Appscript::CommandError)
+        expect { task.update_attributes({ title: "New Title" }) }.to raise_error(Appscript::CommandError)
       end
     end
   end

@@ -44,7 +44,7 @@ module Reminders
     attr_reader :list, :priority
 
     def read_original(only_modified_dates: false)
-      super(only_modified_dates:)
+      super
       containing_list = read_attribute(reminder, :container, only_modified_dates:)
       @list = if containing_list.respond_to?(:get)
         containing_list.name.get

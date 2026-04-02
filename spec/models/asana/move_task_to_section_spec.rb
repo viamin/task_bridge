@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 
 RSpec.describe Asana::Service do
   let(:logger) { instance_double(StructuredLogger, sync_data_for: {}) }

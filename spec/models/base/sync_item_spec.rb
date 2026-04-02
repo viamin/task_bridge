@@ -1,41 +1,53 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 
 RSpec.describe "Base::SyncItem", :full_options do
   # Create a concrete test class since Base::SyncItem is abstract
   let(:test_item_class) do
     Class.new(Base::SyncItem) do
-      def attribute_map
+      def self.attribute_map
         {}
       end
 
       def provider
         "TestService"
       end
+
+      def external_data
+        @sync_item
+      end
     end
   end
 
   let(:asana_item_class) do
     Class.new(Base::SyncItem) do
-      def attribute_map
+      def self.attribute_map
         {}
       end
 
       def provider
         "Asana"
       end
+
+      def external_data
+        @sync_item
+      end
     end
   end
 
   let(:omnifocus_item_class) do
     Class.new(Base::SyncItem) do
-      def attribute_map
+      def self.attribute_map
         {}
       end
 
       def provider
         "Omnifocus"
+      end
+
+      def external_data
+        @sync_item
       end
     end
   end
@@ -48,7 +60,14 @@ RSpec.describe "Base::SyncItem", :full_options do
       "completed" => attrs[:completed] || false,
       "notes" => attrs[:notes] || ""
     }
-    item_class.new(sync_item: sync_item, options: options)
+    item_class.new(
+      sync_item: sync_item,
+      options: options,
+      title: attrs[:title] || "Test Task",
+      external_id: attrs[:id] || sync_item["id"],
+      completed: attrs[:completed] || false,
+      notes: attrs[:notes] || ""
+    )
   end
 
   describe "#find_matching_item_in" do
@@ -71,14 +90,14 @@ RSpec.describe "Base::SyncItem", :full_options do
       context "when source has target's sync ID" do
         let(:source_item) do
           create_mock_item(omnifocus_item_class,
-            id: omnifocus_id,
-            title: "Buy milk",
-            notes: "asana_id: #{asana_id}")
+                           id: omnifocus_id,
+                           title: "Buy milk",
+                           notes: "asana_id: #{asana_id}")
         end
         let(:target_item) do
           create_mock_item(asana_item_class,
-            id: asana_id,
-            title: "Buy milk")
+                           id: asana_id,
+                           title: "Buy milk")
         end
 
         it "matches by ID" do
@@ -87,8 +106,8 @@ RSpec.describe "Base::SyncItem", :full_options do
 
         it "matches by ID even with different titles" do
           different_title_target = create_mock_item(asana_item_class,
-            id: asana_id,
-            title: "Get milk")
+                                                    id: asana_id,
+                                                    title: "Get milk")
           expect(source_item.find_matching_item_in([different_title_target])).to eq(different_title_target)
         end
       end
@@ -96,14 +115,14 @@ RSpec.describe "Base::SyncItem", :full_options do
       context "when target has source's sync ID" do
         let(:source_item) do
           create_mock_item(omnifocus_item_class,
-            id: omnifocus_id,
-            title: "Buy milk")
+                           id: omnifocus_id,
+                           title: "Buy milk")
         end
         let(:target_item) do
           create_mock_item(asana_item_class,
-            id: asana_id,
-            title: "Buy milk",
-            notes: "omnifocus_id: #{omnifocus_id}")
+                           id: asana_id,
+                           title: "Buy milk",
+                           notes: "omnifocus_id: #{omnifocus_id}")
         end
 
         it "matches by ID" do
@@ -116,13 +135,13 @@ RSpec.describe "Base::SyncItem", :full_options do
       context "when neither item has a sync ID (first-time sync)" do
         let(:source_item) do
           create_mock_item(omnifocus_item_class,
-            id: "of-123",
-            title: "Buy milk")
+                           id: "of-123",
+                           title: "Buy milk")
         end
         let(:target_item) do
           create_mock_item(asana_item_class,
-            id: "asana-456",
-            title: "Buy milk")
+                           id: "asana-456",
+                           title: "Buy milk")
         end
 
         it "matches by title" do
@@ -131,15 +150,15 @@ RSpec.describe "Base::SyncItem", :full_options do
 
         it "matches case-insensitively" do
           uppercase_target = create_mock_item(asana_item_class,
-            id: "asana-456",
-            title: "BUY MILK")
+                                              id: "asana-456",
+                                              title: "BUY MILK")
           expect(source_item.find_matching_item_in([uppercase_target])).to eq(uppercase_target)
         end
 
         it "does not match different titles" do
           different_target = create_mock_item(asana_item_class,
-            id: "asana-456",
-            title: "Get bread")
+                                              id: "asana-456",
+                                              title: "Get bread")
           expect(source_item.find_matching_item_in([different_target])).to be_nil
         end
       end
@@ -147,14 +166,14 @@ RSpec.describe "Base::SyncItem", :full_options do
       context "when source has a stale sync ID (linked item was deleted)" do
         let(:source_item) do
           create_mock_item(omnifocus_item_class,
-            id: "of-123",
-            title: "Buy milk",
-            notes: "asana_id: asana-old-999") # Has a stale Asana ID (that task no longer exists)
+                           id: "of-123",
+                           title: "Buy milk",
+                           notes: "asana_id: asana-old-999") # Has a stale Asana ID (that task no longer exists)
         end
         let(:target_item) do
           create_mock_item(asana_item_class,
-            id: "asana-456", # Different ID than what source has - the old task was deleted
-            title: "Buy milk")
+                           id: "asana-456", # Different ID than what source has - the old task was deleted
+                           title: "Buy milk")
         end
 
         it "DOES match by title as fallback when sync ID is stale" do
@@ -167,14 +186,14 @@ RSpec.describe "Base::SyncItem", :full_options do
       context "when target already has a sync ID (is linked to another item)" do
         let(:source_item) do
           create_mock_item(omnifocus_item_class,
-            id: "of-123",
-            title: "Buy milk")
+                           id: "of-123",
+                           title: "Buy milk")
         end
         let(:target_item) do
           create_mock_item(asana_item_class,
-            id: "asana-456",
-            title: "Buy milk",
-            notes: "omnifocus_id: of-old-999") # Has a stale/different OmniFocus ID
+                           id: "asana-456",
+                           title: "Buy milk",
+                           notes: "omnifocus_id: of-old-999") # Has a stale/different OmniFocus ID
         end
 
         it "does NOT match by title to prevent stealing links" do
@@ -185,15 +204,15 @@ RSpec.describe "Base::SyncItem", :full_options do
       context "when both items have sync IDs pointing to different items" do
         let(:source_item) do
           create_mock_item(omnifocus_item_class,
-            id: "of-123",
-            title: "Buy milk",
-            notes: "asana_id: asana-different")
+                           id: "of-123",
+                           title: "Buy milk",
+                           notes: "asana_id: asana-different")
         end
         let(:target_item) do
           create_mock_item(asana_item_class,
-            id: "asana-456",
-            title: "Buy milk",
-            notes: "omnifocus_id: of-different")
+                           id: "asana-456",
+                           title: "Buy milk",
+                           notes: "omnifocus_id: of-different")
         end
 
         it "does NOT match since both are linked elsewhere" do
@@ -205,23 +224,23 @@ RSpec.describe "Base::SyncItem", :full_options do
     context "shopping list scenario with repeated item titles" do
       let(:omnifocus_milk_new) do
         create_mock_item(omnifocus_item_class,
-          id: "of-new-milk",
-          title: "Buy milk")
+                         id: "of-new-milk",
+                         title: "Buy milk")
         # No asana_id - this is a brand new task
       end
 
       let(:asana_milk_old_completed) do
         create_mock_item(asana_item_class,
-          id: "asana-old-milk",
-          title: "Buy milk",
-          completed: true,
-          notes: "omnifocus_id: of-old-milk") # Linked to a previous OmniFocus task
+                         id: "asana-old-milk",
+                         title: "Buy milk",
+                         completed: true,
+                         notes: "omnifocus_id: of-old-milk") # Linked to a previous OmniFocus task
       end
 
       let(:asana_milk_active) do
         create_mock_item(asana_item_class,
-          id: "asana-active-milk",
-          title: "Buy milk")
+                         id: "asana-active-milk",
+                         title: "Buy milk")
         # No omnifocus_id - never synced
       end
 
@@ -242,23 +261,23 @@ RSpec.describe "Base::SyncItem", :full_options do
     context "after items are synced and both have sync IDs" do
       let(:omnifocus_task) do
         create_mock_item(omnifocus_item_class,
-          id: "of-123",
-          title: "Review PR",
-          notes: "asana_id: asana-456")
+                         id: "of-123",
+                         title: "Review PR",
+                         notes: "asana_id: asana-456")
       end
 
       let(:asana_task) do
         create_mock_item(asana_item_class,
-          id: "asana-456",
-          title: "Review PR",
-          notes: "omnifocus_id: of-123")
+                         id: "asana-456",
+                         title: "Review PR",
+                         notes: "omnifocus_id: of-123")
       end
 
       it "matches by ID even if title changes" do
         renamed_asana = create_mock_item(asana_item_class,
-          id: "asana-456",
-          title: "Review Pull Request", # Different title
-          notes: "omnifocus_id: of-123")
+                                         id: "asana-456",
+                                         title: "Review Pull Request", # Different title
+                                         notes: "omnifocus_id: of-123")
 
         expect(omnifocus_task.find_matching_item_in([renamed_asana])).to eq(renamed_asana)
       end
@@ -267,21 +286,21 @@ RSpec.describe "Base::SyncItem", :full_options do
     context "with multiple items having the same title" do
       let(:source_item) do
         create_mock_item(omnifocus_item_class,
-          id: "of-new",
-          title: "Buy milk")
+                         id: "of-new",
+                         title: "Buy milk")
       end
 
       let(:target_linked_to_other) do
         create_mock_item(asana_item_class,
-          id: "asana-1",
-          title: "Buy milk",
-          notes: "omnifocus_id: of-other")
+                         id: "asana-1",
+                         title: "Buy milk",
+                         notes: "omnifocus_id: of-other")
       end
 
       let(:target_unlinked) do
         create_mock_item(asana_item_class,
-          id: "asana-2",
-          title: "Buy milk")
+                         id: "asana-2",
+                         title: "Buy milk")
       end
 
       it "only matches the unlinked item" do
@@ -291,9 +310,9 @@ RSpec.describe "Base::SyncItem", :full_options do
 
       it "returns nil if all matching titles are already linked" do
         another_linked = create_mock_item(asana_item_class,
-          id: "asana-3",
-          title: "Buy milk",
-          notes: "omnifocus_id: of-another")
+                                          id: "asana-3",
+                                          title: "Buy milk",
+                                          notes: "omnifocus_id: of-another")
 
         collection = [target_linked_to_other, another_linked]
         expect(source_item.find_matching_item_in(collection)).to be_nil

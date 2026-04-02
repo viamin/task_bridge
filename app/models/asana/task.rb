@@ -46,7 +46,7 @@ module Asana
     attr_reader :project, :section, :sub_item_count, :sub_items, :assignee
 
     def read_original(only_modified_dates: false)
-      super(only_modified_dates:)
+      super
       unless only_modified_dates
         @project = project_from_memberships(asana_task)
         @sub_item_count = asana_task.fetch("num_subtasks", 0).to_i
@@ -160,7 +160,7 @@ module Asana
         # Asana supports multiple sections, but TaskBridge currently supports only one per task
         project = asana_task["memberships"].first.dig("project", "name")
         section = asana_task["memberships"].first.dig("section", "name")
-        (section == "Untitled section") ? project : "#{project}:#{section}"
+        section == "Untitled section" ? project : "#{project}:#{section}"
       else
         # we'll only sync a task with one project at a time
         asana_task["projects"].first

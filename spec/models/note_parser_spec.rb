@@ -78,14 +78,14 @@ RSpec.describe "NoteParser" do
     let(:notes) { "notes" }
 
     it "adds the values to the notes" do
-      expect(note_parser_class.notes_with_values(notes, {omnifocus_id: id, omnifocus_url: url})).to eq("notes\n\nomnifocus_id: #{id}\nomnifocus_url: #{url}")
+      expect(note_parser_class.notes_with_values(notes, { omnifocus_id: id, omnifocus_url: url })).to eq("notes\n\nomnifocus_id: #{id}\nomnifocus_url: #{url}")
     end
 
     context "when notes are blank" do
       let(:notes) { "" }
 
       it "adds the values to the notes and strips whitespace" do
-        expect(note_parser_class.notes_with_values(notes, {omnifocus_id: id, omnifocus_url: url})).to eq("omnifocus_id: #{id}\nomnifocus_url: #{url}")
+        expect(note_parser_class.notes_with_values(notes, { omnifocus_id: id, omnifocus_url: url })).to eq("omnifocus_id: #{id}\nomnifocus_url: #{url}")
       end
     end
 
@@ -93,7 +93,7 @@ RSpec.describe "NoteParser" do
       let(:notes) { nil }
 
       it "handles nil notes gracefully" do
-        expect(note_parser_class.notes_with_values(notes, {omnifocus_id: id})).to eq("omnifocus_id: #{id}")
+        expect(note_parser_class.notes_with_values(notes, { omnifocus_id: id })).to eq("omnifocus_id: #{id}")
       end
     end
 
@@ -102,7 +102,7 @@ RSpec.describe "NoteParser" do
       let(:notes) { "Some task notes\n\nasana_id: #{old_id}" }
 
       it "replaces the existing key value instead of duplicating it" do
-        result = note_parser_class.notes_with_values(notes, {asana_id: id})
+        result = note_parser_class.notes_with_values(notes, { asana_id: id })
         expect(result).to eq("Some task notes\n\nasana_id: #{id}")
         expect(result.scan("asana_id:").count).to eq(1)
       end
@@ -112,7 +112,7 @@ RSpec.describe "NoteParser" do
       let(:notes) { "Task notes\n\nasana_id: 111\nasana_url: https://old.url\n\nasana_id: 222\nasana_url: https://another.url" }
 
       it "removes all existing occurrences and adds the new value once" do
-        result = note_parser_class.notes_with_values(notes, {asana_id: id, asana_url: url})
+        result = note_parser_class.notes_with_values(notes, { asana_id: id, asana_url: url })
         expect(result.scan("asana_id:").count).to eq(1)
         expect(result.scan("asana_url:").count).to eq(1)
         expect(result).to include("asana_id: #{id}")

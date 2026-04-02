@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 
 RSpec.describe Asana::Service, :full_options do
   let(:logger) { instance_double(StructuredLogger, sync_data_for: {}) }
@@ -24,7 +24,7 @@ RSpec.describe Asana::Service, :full_options do
 
   describe "#update_item adding sync IDs on title match" do
     let(:asana_task_json) { JSON.parse(File.read(File.expand_path(File.join(__dir__, "..", "..", "fixtures", "asana_task.json")))) }
-    let(:asana_task) { Asana::Task.new(asana_task: asana_task_json, options: options) }
+    let(:asana_task) { Asana::Task.new(asana_task: asana_task_json, options: options).tap(&:read_original) }
     # Use the same project as the fixture to avoid triggering memberships_for_task API calls
     let(:external_task_project) { "Pets:Bucky" }
     let(:external_task) do
@@ -45,7 +45,7 @@ RSpec.describe Asana::Service, :full_options do
 
     before do
       allow(HTTParty).to receive(:put).and_return(httparty_success_mock)
-      allow(external_task).to receive(:respond_to?).with(:sub_item_count).and_return(true)
+      allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
     end
 
     context "when the item was matched by title (external task has no sync ID)" do
@@ -56,7 +56,7 @@ RSpec.describe Asana::Service, :full_options do
       end
 
       it "adds sync ID to graduate from title matching to ID matching" do
-        expect(service).to receive(:update_sync_data).with(external_task, asana_task.id, asana_task.url)
+        expect(service).to receive(:update_sync_data).with(external_task, asana_task.external_id, asana_task.url)
 
         service.update_item(asana_task, external_task)
       end
@@ -66,7 +66,7 @@ RSpec.describe Asana::Service, :full_options do
       let(:options) { base_options.merge(update_ids_for_existing: false) }
 
       before do
-        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.id)
+        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.external_id)
       end
 
       it "does not update sync data since items are already linked" do
@@ -80,11 +80,11 @@ RSpec.describe Asana::Service, :full_options do
       let(:options) { base_options.merge(update_ids_for_existing: true) }
 
       before do
-        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.id)
+        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.external_id)
       end
 
       it "always updates sync data regardless of existing sync ID" do
-        expect(service).to receive(:update_sync_data).with(external_task, asana_task.id, asana_task.url)
+        expect(service).to receive(:update_sync_data).with(external_task, asana_task.external_id, asana_task.url)
 
         service.update_item(asana_task, external_task)
       end
@@ -126,7 +126,7 @@ RSpec.describe Asana::Service, :full_options do
 
   describe "#update_item project change handling" do
     let(:asana_task_json) { JSON.parse(File.read(File.expand_path(File.join(__dir__, "..", "..", "fixtures", "asana_task.json")))) }
-    let(:asana_task) { Asana::Task.new(asana_task: asana_task_json, options: options) }
+    let(:asana_task) { Asana::Task.new(asana_task: asana_task_json, options: options).tap(&:read_original) }
     let(:httparty_success_mock) do
       instance_double(HTTParty::Response, success?: true, body: '{"data": {}}')
     end
@@ -154,12 +154,12 @@ RSpec.describe Asana::Service, :full_options do
       before do
         # Allow respond_to? for any argument (RSpec checks for argument matchers)
         allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
-        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.id)
+        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.external_id)
         # Stub memberships_for_task to return project/section data
         allow(service).to receive(:memberships_for_task).with(external_task).and_return({
-          project: new_project_gid,
-          section: new_section_gid
-        })
+                                                                                          project: new_project_gid,
+                                                                                          section: new_section_gid
+                                                                                        })
         allow(service).to receive(:section_identifier_for).with(external_task).and_return(new_section_gid)
       end
 
@@ -168,7 +168,7 @@ RSpec.describe Asana::Service, :full_options do
         allow(service).to receive(:move_task_to_section).and_return(nil)
 
         expect(HTTParty).to receive(:post).with(
-          "https://app.asana.com/api/1.0/tasks/#{asana_task.id}/addProject",
+          "https://app.asana.com/api/1.0/tasks/#{asana_task.external_id}/addProject",
           hash_including(:body)
         )
 
@@ -178,7 +178,7 @@ RSpec.describe Asana::Service, :full_options do
       it "moves the task to the correct section after changing project" do
         allow(HTTParty).to receive(:post).and_return(httparty_success_mock)
 
-        expect(service).to receive(:move_task_to_section).with(new_section_gid, asana_task.id)
+        expect(service).to receive(:move_task_to_section).with(new_section_gid, asana_task.external_id)
 
         service.update_item(asana_task, external_task)
       end
@@ -231,7 +231,7 @@ RSpec.describe Asana::Service, :full_options do
 
       before do
         allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
-        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.id)
+        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.external_id)
       end
 
       it "does not attempt to change the project" do
@@ -259,7 +259,7 @@ RSpec.describe Asana::Service, :full_options do
 
       before do
         allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
-        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.id)
+        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.external_id)
       end
 
       it "does not attempt to change the project" do
@@ -305,7 +305,7 @@ RSpec.describe Asana::Service, :full_options do
       end
 
       it "still adds sync ID so future syncs use ID matching" do
-        expect(service).to receive(:update_sync_data).with(external_task, asana_task.id, asana_task.url)
+        expect(service).to receive(:update_sync_data).with(external_task, asana_task.external_id, asana_task.url)
 
         service.update_item(asana_task, external_task)
       end

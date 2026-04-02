@@ -46,7 +46,7 @@ module Reclaim
     attr_reader :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :always_private
 
     def read_original(only_modified_dates: false)
-      super(only_modified_dates:)
+      super
       @time_required = read_attribute(reclaim_task, "timeChunksRequired", only_modified_dates:)
       @time_spent = read_attribute(reclaim_task, "timeChunksSpent", only_modified_dates:)
       @time_remaining = read_attribute(reclaim_task, "timeChunksRemaining", only_modified_dates:)
@@ -130,9 +130,9 @@ module Reclaim
         return if skip
 
         duration = task.estimated_minutes.nil? ? "" : "for #{task.estimated_minutes} minutes"
-        not_before = task.start_date.nil? ? "" : "not before #{task.start_date.to_datetime.strftime("%F")}"
+        not_before = task.start_date.nil? ? "" : "not before #{task.start_date.to_datetime.strftime('%F')}"
         type = task.personal? ? "type personal" : ""
-        due_date = task.due_date.nil? ? "" : "due #{task.due_date.to_datetime.strftime("%F %l %p")}"
+        due_date = task.due_date.nil? ? "" : "due #{task.due_date.to_datetime.strftime('%F %l %p')}"
         addon_string = "#{type} #{duration} #{not_before} #{due_date}".squeeze(" ").strip
         addon_string.empty? ? "" : " (#{addon_string})"
       end

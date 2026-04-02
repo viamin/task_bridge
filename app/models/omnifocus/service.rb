@@ -4,14 +4,14 @@ module Omnifocus
   class Service < Base::Service
     attr_reader :omnifocus_app, :authorized
 
-    def initialize
+    def initialize(options: nil)
       super
       # Assumes you already have OmniFocus installed
       @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
       @authorized = true
-    rescue => e
+    rescue StandardError => e
       # If OmniFocus app is not available, skip the service
-      puts "OmniFocus initialization failed: #{e.message}" unless options[:quiet]
+      puts "OmniFocus initialization failed: #{e.message}" unless self.options[:quiet]
       @omnifocus_app = nil
       @authorized = false
     end
@@ -38,11 +38,10 @@ module Omnifocus
       end
       # Filter out stale references (tasks deleted while iterating)
       tasks = tasks.reject { |task| task.external_id.nil? }
-      # remove sub_items from the list
-      # TODO: why tho?
-      # tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
-      # sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:external_id)
-      # tasks.delete_if { |task| sub_item_ids.include?(task.external_id) }
+      # remove sub_items from the list to avoid duplicates
+      tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
+      sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:external_id)
+      tasks.delete_if { |task| sub_item_ids.include?(task.external_id) }
     end
 
     def add_item(external_task, parent_object = nil)
@@ -112,9 +111,7 @@ module Omnifocus
         handle_sub_items(omnifocus_task, external_task)
         omnifocus_task_id = omnifocus_task.id_.get
         # Add sync ID so future syncs use ID matching instead of title matching
-        if matched_by_title || options[:update_ids_for_existing]
-          update_sync_data(external_task, omnifocus_task_id, Task.url(omnifocus_task_id))
-        end
+        update_sync_data(external_task, omnifocus_task_id, Task.url(omnifocus_task_id)) if matched_by_title || options[:update_ids_for_existing]
         external_task
       elsif options[:pretend]
         "Would have updated #{external_task.title} in Omnifocus"
@@ -142,7 +139,7 @@ module Omnifocus
         begin
           tag_ref.get # Verify tag exists
           tag_ref
-        rescue
+        rescue StandardError
           nil # Tag doesn't exist
         end
       end
@@ -224,7 +221,7 @@ module Omnifocus
     def folder(folder_name)
       debug("folder_name: #{folder_name}", options[:debug])
       omnifocus_app.flattened_folders[folder_name].get
-    rescue
+    rescue StandardError
       puts "The folder #{folder_name} could not be found in Omnifocus" if options[:verbose]
       nil
     end
@@ -253,7 +250,7 @@ module Omnifocus
       debug("project: #{project.name.get}", options[:debug])
       project.get
       project
-    rescue
+    rescue StandardError
       puts "The project #{project_structure} does not exist in Omnifocus" if options[:verbose]
       nil
     end
@@ -262,7 +259,7 @@ module Omnifocus
     def tag(name)
       tag = omnifocus_app.flattened_tags[name]
       tag.get
-    rescue
+    rescue StandardError
       puts "The tag #{name} does not exist in Omnifocus" if options[:verbose]
       nil
     end
@@ -274,10 +271,10 @@ module Omnifocus
 
     def all_tasks_in_container(container, incomplete_only: false)
       tasks = case container
-      when Array
-        container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_) }.flatten
-      when Appscript::Reference
-        container.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
+              when Array
+                container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_) }.flatten
+              when Appscript::Reference
+                container.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
       end
       return tasks unless incomplete_only
 

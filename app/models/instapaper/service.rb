@@ -10,13 +10,13 @@ module Instapaper
 
     attr_reader :authentication, :authorized
 
-    def initialize
+    def initialize(options: nil)
       super
       @authentication = Authentication.new(options).authenticate!
       @authorized = true
-    rescue => e
+    rescue StandardError => e
       # If authentication fails, skip the service
-      puts "Instapaper authentication failed: #{e.message}" unless options[:quiet]
+      puts "Instapaper authentication failed: #{e.message}" unless self.options[:quiet]
       @authentication = nil
       @authorized = false
     end
@@ -76,7 +76,7 @@ module Instapaper
 
     def unread_articles
       debug("Getting unread Instapaper articles", options[:debug])
-      params = {limit: UNREAD_ARTICLE_COUNT}
+      params = { limit: UNREAD_ARTICLE_COUNT }
       response = authentication.get("/bookmarks/list?#{URI.encode_www_form(params)}")
       raise "#{response.code} There was a problem with the Instapaper request" unless response.code.to_i == 200
 

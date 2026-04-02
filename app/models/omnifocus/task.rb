@@ -82,7 +82,7 @@ module Omnifocus
     attr_reader :estimated_minutes, :tags, :project, :sub_item_count, :sub_items
 
     def read_original(only_modified_dates: false)
-      super(only_modified_dates:)
+      super
       containing_project = read_attribute(omnifocus_task, :containing_project, only_modified_dates:)
       @project = if containing_project.respond_to?(:get)
         containing_project.name.get
@@ -232,8 +232,8 @@ module Omnifocus
       return if date.nil?
 
       if date < Time.now
-        date += 1.week if (tags & WEEKDAY_TAGS).any?
-        date += 1.year if (tags & MONTH_TAGS).any?
+        date += 1.week if tags.intersect?(WEEKDAY_TAGS)
+        date += 1.year if tags.intersect?(MONTH_TAGS)
       end
       date
     end

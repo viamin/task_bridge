@@ -7,13 +7,13 @@ module Github
 
     attr_reader :authentication, :authorized
 
-    def initialize
+    def initialize(options: nil)
       super
       @authentication = Authentication.new.authenticate!
       @authorized = true
-    rescue => e
+    rescue StandardError => e
       # If authentication fails, skip the service
-      puts "Github authentication failed: #{e.message}" unless options[:quiet]
+      puts "Github authentication failed: #{e.message}" unless self.options[:quiet]
       @authentication = nil
       @authorized = false
     end
@@ -32,16 +32,16 @@ module Github
 
     def items_to_sync(*, tags: nil, only_modified_dates: false)
       tagged_issues = sync_repositories
-        .map { |repo| list_issues(repo, tags) }
-        .flatten
-        .map do |external_issue|
+                      .map { |repo| list_issues(repo, tags) }
+                      .flatten
+                      .map do |external_issue|
         issue = Issue.find_or_initialize_by(external_id: external_issue[Issue.attribute_map[:external_id]])
         issue.github_issue = external_issue
         issue.read_original(only_modified_dates:)
       end
       assigned_issues = list_assigned
-        .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
-        .map do |external_issue|
+                        .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
+                        .map do |external_issue|
         issue = Issue.find_or_initialize_by(external_id: external_issue[Issue.attribute_map[:external_id]])
         issue.github_issue = external_issue
         issue.read_original(only_modified_dates:)
@@ -60,7 +60,7 @@ module Github
       {
         headers: {
           accept: "application/vnd.github+json",
-          authorization: "Bearer #{authentication["access_token"]}"
+          authorization: "Bearer #{authentication['access_token']}"
         }
       }
     end

@@ -11,7 +11,7 @@ namespace :task_bridge do
     overrides = options
     o = OptionParser.new
     supported_services = Chamber.dig!(:task_bridge, :all_supported_services)
-    o.banner = "Sync Tasks from one service to another\nSupported services: #{supported_services.join(", ")}\nBy default, tasks found with the tags in --tags will have a work context"
+    o.banner = "Sync Tasks from one service to another\nSupported services: #{supported_services.join(', ')}\nBy default, tasks found with the tags in --tags will have a work context"
     o.on("-p", "--primary [PRIMARY]", "Primary task service") { |value| overrides[:primary] = value }
     o.on("-t", "--tags [TAGS]", "Tags (or labels) to sync") { |value| overrides[:tags] = value }
     o.on("-s", "--services [SERVICES]", String, "Services to sync tasks among") { |services| overrides[:services] = services.split(",") }
@@ -40,9 +40,9 @@ namespace :task_bridge do
     o.parse!(args)
     options = overrides
 
-    raise "Supported services: #{supported_services.join(", ")}" unless supported_services.intersect?(options[:services])
+    raise "Supported services: #{supported_services.join(', ')}" unless supported_services.intersect?(options[:services])
 
-    options[:max_age_timestamp] = (options[:max_age]).zero? ? nil : Chronic.parse("#{options[:max_age]} ago")
+    options[:max_age_timestamp] = options[:max_age].zero? ? nil : Chronic.parse("#{options[:max_age]} ago")
     options[:uses_personal_tags] = options[:work_tags].blank?
     options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
     options[:logger] = StructuredLogger.new(log_file: options[:log_file], service_names: options[:services])
@@ -74,7 +74,7 @@ namespace :task_bridge do
       items.each { |item| collection << item }
       items_by_collection[collection.id] = collection
     end
-    binding.pry
+    # TODO: implement sync logic
 
     # @services.each_value do |service|
     #   @service_logs = []
@@ -100,7 +100,7 @@ namespace :task_bridge do
     end_time = Time.now
     return if options[:quiet]
 
-    puts "Finished sync at #{end_time.strftime("%Y-%m-%d %I:%M%p")}"
+    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
     puts "Sync took #{end_time - start_time} seconds"
   end
 end

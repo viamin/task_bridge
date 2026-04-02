@@ -50,7 +50,7 @@ class StructuredLogger
       "%-#{@space_needed}s |   Last Attempted   |   Last Successful  |   Last Failed     | Items Synced | Status",
       "Service"
     )
-    puts "#{"-" * @space_needed}-|#{"-" * 20}|#{"-" * 20}|#{"-" * 20}|#{"-" * 13}|#{"-" * 8}"
+    puts "#{'-' * @space_needed}-|#{'-' * 20}|#{'-' * 20}|#{'-' * 20}|#{'-' * 13}|#{'-' * 8}"
     @existing_logs.each do |log_hash|
       next unless options[:services].include?(log_hash["service"].delete(" "))
 
@@ -93,7 +93,7 @@ class StructuredLogger
       failure_detail = failure_detail_from(failed_entry) || (error ? "#{error.class}: #{error.message}" : nil)
       failure_detail = "#{failure_detail} (#{last_failed})" if failure_detail && last_failed
       detail = [detail, failure_detail].reject(&:blank?).join(" — ")
-      detail = "Failure recorded#{last_failed ? " (#{last_failed})" : ""}" if detail.blank?
+      detail = "Failure recorded#{" (#{last_failed})" if last_failed}" if detail.blank?
     when "success"
       detail = items_synced.positive? ? "#{items_synced} items processed" : "No changes detected" if detail.blank?
     when "skipped"

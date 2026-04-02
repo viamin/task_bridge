@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "spec_helper"
+require "rails_helper"
 
 # Fast unit tests for Omnifocus::Service with mocked AppleScript calls.
 # These tests don't require OmniFocus to be running.
@@ -75,25 +75,25 @@ RSpec.describe Omnifocus::Service, :full_options do
     let(:service) { described_class.new(options:) }
     let(:mock_task1) do
       double("OmnifocusTask1",
-        id_: "task-1",
-        name: double(get: "Task 1"),
-        completed: double(get: false),
-        note: double(get: ""),
-        containing_project: double(get: :missing_value),
-        tags: double(get: []),
-        tasks: double(get: []),
-        modification_date: double(get: Time.now))
+             id_: double(get: "task-1"),
+             name: double(get: "Task 1"),
+             completed: double(get: false),
+             note: double(get: ""),
+             containing_project: double(get: :missing_value),
+             tags: double(get: []),
+             tasks: double(get: []),
+             modification_date: double(get: Time.now))
     end
     let(:mock_task2) do
       double("OmnifocusTask2",
-        id_: "task-2",
-        name: double(get: "Task 2"),
-        completed: double(get: false),
-        note: double(get: ""),
-        containing_project: double(get: :missing_value),
-        tags: double(get: []),
-        tasks: double(get: []),
-        modification_date: double(get: Time.now))
+             id_: double(get: "task-2"),
+             name: double(get: "Task 2"),
+             completed: double(get: false),
+             note: double(get: ""),
+             containing_project: double(get: :missing_value),
+             tags: double(get: []),
+             tasks: double(get: []),
+             modification_date: double(get: Time.now))
     end
 
     before do
@@ -127,25 +127,25 @@ RSpec.describe Omnifocus::Service, :full_options do
     context "with sub-items" do
       let(:mock_parent_task) do
         double("ParentTask",
-          id_: "parent-1",
-          name: double(get: "Parent Task"),
-          completed: double(get: false),
-          note: double(get: ""),
-          containing_project: double(get: :missing_value),
-          tags: double(get: []),
-          tasks: double(get: [mock_subtask]),
-          modification_date: double(get: Time.now))
+               id_: double(get: "parent-1"),
+               name: double(get: "Parent Task"),
+               completed: double(get: false),
+               note: double(get: ""),
+               containing_project: double(get: :missing_value),
+               tags: double(get: []),
+               tasks: double(get: [mock_subtask]),
+               modification_date: double(get: Time.now))
       end
       let(:mock_subtask) do
         double("Subtask",
-          id_: "subtask-1",
-          name: double(get: "Subtask"),
-          completed: double(get: false),
-          note: double(get: ""),
-          containing_project: double(get: :missing_value),
-          tags: double(get: []),
-          tasks: double(get: []),
-          modification_date: double(get: Time.now))
+               id_: double(get: "subtask-1"),
+               name: double(get: "Subtask"),
+               completed: double(get: false),
+               note: double(get: ""),
+               containing_project: double(get: :missing_value),
+               tags: double(get: []),
+               tasks: double(get: []),
+               modification_date: double(get: Time.now))
       end
 
       before do

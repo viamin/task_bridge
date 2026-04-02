@@ -7,11 +7,17 @@ RSpec.describe "Asana::Service" do
   let(:min_sync_interval) { service.send(:min_sync_interval) }
   let(:last_sync_time) { Time.now - min_sync_interval }
   let(:interval_since_last_sync) { Time.now - last_sync_time }
-  let(:httparty_success_mock) { OpenStruct.new(success?: true, body: {data: {task: external_task.to_json}}.to_json) }
+  let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
 
   before do
     allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})
-    allow_any_instance_of(StructuredLogger).to receive(:last_synced).and_return(last_sync_time)
+    allow_any_instance_of(StructuredLogger).to receive(:last_synced) do |_instance, _service_name, interval: false|
+      if interval
+        Time.now - last_sync_time
+      else
+        last_sync_time
+      end
+    end
   end
 
   describe "#sync_with_primary" do
@@ -113,7 +119,7 @@ RSpec.describe "Asana::Service" do
       context "with an assignee that matches asana_user" do
         before do
           allow(asana_task).to receive(:assignee).and_return("123")
-          allow(service).to receive(:asana_user).and_return({gid: "123"}.stringify_keys)
+          allow(service).to receive(:asana_user).and_return({ gid: "123" }.stringify_keys)
         end
 
         it { is_expected.to be false }
@@ -122,7 +128,7 @@ RSpec.describe "Asana::Service" do
       context "with an assignee that does not match asana_user" do
         before do
           allow(asana_task).to receive(:assignee).and_return("123")
-          allow(service).to receive(:asana_user).and_return({gid: "456"}.stringify_keys)
+          allow(service).to receive(:asana_user).and_return({ gid: "456" }.stringify_keys)
         end
 
         it { is_expected.to be true }
