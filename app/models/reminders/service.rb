@@ -32,7 +32,7 @@ module Reminders
 
     # Since Reminders via Applescript doesn't currently support tags, we use the mapping
     # REMINDERS_LIST_MAPPING=Reminder list 1~Primary list,Reminder list 2~Primary list 2
-    def items_to_sync(*)
+    def items_to_sync(*, **)
       sync_maps = options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
       reminders_lists = sync_maps.keys
       debug("reminders_lists: #{reminders_lists}", options[:debug])

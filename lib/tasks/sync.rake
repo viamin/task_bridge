@@ -63,7 +63,7 @@ namespace :task_bridge do
 
     # group items into sync collections
     items_by_collection = items_by_service.values.flatten.group_by(&:sync_collection_id)
-    ungrouped_items = items_by_collection.delete(nil)
+    ungrouped_items = items_by_collection.delete(nil) || []
     # group the remaining items by title
     ungrouped_items_by_title = ungrouped_items.group_by(&:title)
     # for each group, create a sync collection if the statuses match

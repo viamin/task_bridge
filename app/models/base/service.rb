@@ -155,7 +155,7 @@ module Base
       service.items_to_sync(tags: [friendly_name], inbox: true)
     end
 
-    def items_to_sync(*)
+    def items_to_sync(*, **)
       raise "not implemented in #{self.class.name}"
     end
 

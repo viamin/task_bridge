@@ -45,7 +45,7 @@ module GoogleTasks
     end
 
     desc "items_to_sync", "Get all of the tasks to sync in options[:list]"
-    def items_to_sync(*)
+    def items_to_sync(*, **)
       debug("called", options[:debug])
       @items_to_sync ||= tasks_service.list_tasks(
         tasklist.id,

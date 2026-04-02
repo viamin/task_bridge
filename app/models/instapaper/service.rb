@@ -33,7 +33,7 @@ module Instapaper
       [:to_primary]
     end
 
-    def items_to_sync(*)
+    def items_to_sync(*, **)
       (unread_articles + recently_archived_articles).uniq(&:external_id)
     end
 

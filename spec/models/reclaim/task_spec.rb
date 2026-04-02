@@ -74,7 +74,7 @@ RSpec.describe "Reclaim::Task" do
     expect(task.start_date).to be_instance_of(ActiveSupport::TimeWithZone)
   end
 
-  context "when eventCatgory is personal" do
+  context "when eventCategory is personal" do
     let(:event_category) { Reclaim::Task::PERSONAL }
 
     it "is personal" do
