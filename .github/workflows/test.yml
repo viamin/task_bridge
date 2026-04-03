@@ -21,5 +21,8 @@ jobs:
         with:
           bundler-cache: true
 
+      - name: Setup database
+        run: bundle exec rails db:test:prepare
+
       - name: Test with RSpec
         run: bundle exec rspec --tag ~no_ci
