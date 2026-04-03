@@ -47,14 +47,21 @@ module GoogleTasks
     desc "items_to_sync", "Get all of the tasks to sync in options[:list]"
     def items_to_sync(*, **)
       debug("called", options[:debug])
-      @items_to_sync ||= tasks_service.list_tasks(
-        tasklist.id,
-        max_results: 100,
-        # Only include tasks completed within the last week (reduces response size)
-        completed_min: completed_min_timestamp,
-        # Only fetch tasks modified since last sync (if we have a previous sync time)
-        updated_min: last_sync_time&.iso8601
-      ).items
+      @items_to_sync ||= begin
+        raw_tasks = tasks_service.list_tasks(
+          tasklist.id,
+          max_results: 100,
+          # Only include tasks completed within the last week (reduces response size)
+          completed_min: completed_min_timestamp,
+          # Only fetch tasks modified since last sync (if we have a previous sync time)
+          updated_min: last_sync_time&.iso8601
+        ).items || []
+        raw_tasks.map do |external_task|
+          task = Task.find_or_initialize_by(external_id: external_task.id)
+          task.google_task = external_task
+          task.read_original(only_modified_dates: true)
+        end
+      end
     end
 
     desc "add_item", "Add a new task to a given task list"

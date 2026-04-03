@@ -83,18 +83,18 @@ module Omnifocus
 
     def read_original(only_modified_dates: false)
       super
-      containing_project = read_attribute(omnifocus_task, :containing_project, only_modified_dates:)
+      containing_project = read_external_attribute(omnifocus_task, :containing_project, only_modified_dates:)
       @project = if containing_project.respond_to?(:get)
         containing_project.name.get
       else
         ""
       end
-      @estimated_minutes = read_attribute(omnifocus_task, :estimated_minutes, only_modified_dates:)
+      @estimated_minutes = read_external_attribute(omnifocus_task, :estimated_minutes, only_modified_dates:)
 
-      @tags = read_attribute(omnifocus_task, :tags)
-      @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
+      @tags = read_external_attribute(omnifocus_task, :tags)
+      @tags = @tags.map { |tag| read_external_attribute(tag, :name) } unless @tags.nil?
       self.due_date = date_from_tags(omnifocus_task, @tags)
-      @sub_items = read_attribute(omnifocus_task, :tasks)&.map do |sub_item|
+      @sub_items = read_external_attribute(omnifocus_task, :tasks)&.map do |sub_item|
         task = Task.find_or_initialize_by(external_id: sub_item.id_.get)
         task.omnifocus_task = sub_item
         task.read_original(only_modified_dates:)
@@ -223,7 +223,7 @@ module Omnifocus
 
     # Creates a due date from a tag if there isn't a due date
     def date_from_tags(task, tags)
-      task_due_date = read_attribute(task, :due_date)
+      task_due_date = read_external_attribute(task, :due_date)
       return task_due_date unless task_due_date.nil?
       return if tags.blank?
 

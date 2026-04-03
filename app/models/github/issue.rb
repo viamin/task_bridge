@@ -47,7 +47,7 @@ module Github
 
     def read_original(only_modified_dates: false)
       super
-      @number = read_attribute(github_issue, "number", only_modified_dates:)
+      @number = read_external_attribute(github_issue, "number", only_modified_dates:)
       # Add "Github" to the labels
       @tags = (default_tags + github_issue["labels"].map { |label| label["name"] }).uniq
       @project = github_issue["project"] || short_repo_name(github_issue)

@@ -46,7 +46,7 @@ module Base
 
     attr_reader :tags, :debug_data
 
-    delegate :external_attribute_map, :attribute_map, :modified_date_attributes, :read_attribute, to: :class
+    delegate :external_attribute_map, :attribute_map, :modified_date_attributes, :read_external_attribute, to: :class
 
     after_initialize :read_notes, :set_tags
 
@@ -74,7 +74,7 @@ module Base
 
     def read_original(only_modified_dates: false)
       values_hash = external_attribute_map.each_with_object({}) do |(attribute_key, attribute_value), hash|
-        value = read_attribute(external_data, attribute_value, only_modified_dates:, attribute_key:)
+        value = read_external_attribute(external_data, attribute_value, only_modified_dates:, attribute_key:)
         value = Chronic.parse(value) if value && chronic_attributes.include?(attribute_key)
         hash[attribute_key] = value
       end.compact
@@ -88,18 +88,16 @@ module Base
     def read_notes
       # Try to get notes from external_data (during read_original), or fall back to the
       # persisted notes column (when loading from DB). When external_data is nil
-      # (typical for DB-loaded records), read_attribute returns nil without raising,
-      # so we explicitly fall back to the persisted column.
+      # (typical for DB-loaded records), read_external_attribute returns nil without
+      # raising, so we explicitly fall back to the persisted column.
       raw_notes = begin
-        self.class.read_attribute(external_data, external_attribute_map[:notes])
+        self.class.read_external_attribute(external_data, external_attribute_map[:notes])
       rescue StandardError
         nil
       end
       # Fall back to the persisted notes column when external_data is unavailable
       # (e.g., when loading an existing record from the DB where external_data is nil).
-      # Use AR's underlying attribute store since the delegate and attr_reader shadow
-      # the default ActiveRecord read_attribute method.
-      raw_notes = ActiveRecord::Base.instance_method(:read_attribute).bind_call(self, :notes) if raw_notes.blank? && has_attribute?(:notes)
+      raw_notes = read_attribute(:notes) if raw_notes.blank? && has_attribute?(:notes)
       return if raw_notes.blank?
 
       note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
@@ -205,14 +203,15 @@ module Base
         standard_attribute_map.merge(attribute_map).compact
       end
 
-      # read attributes using applescript or hash keys
-      # Read a single attribute value from external_data.
+      # Read a single attribute value from external_data (AppleScript refs or hash keys).
+      # Named read_external_attribute (not read_attribute) to avoid shadowing
+      # ActiveRecord::Base#read_attribute which is used for DB column access.
       # When only_modified_dates is true, attribute_key must be provided to filter
       # by modified_date_attributes, identity_attributes (title, external_id),
       # and completion_indicator_attributes (completed, status) — the latter are
       # needed because sync.rake grouping calls incomplete? on items read with
       # only_modified_dates: true.
-      def read_attribute(external_data, attribute, only_modified_dates: false, attribute_key: nil)
+      def read_external_attribute(external_data, attribute, only_modified_dates: false, attribute_key: nil)
         return if attribute.nil?
         return if only_modified_dates && attribute_key &&
                   !modified_date_attributes.include?(attribute_key) &&

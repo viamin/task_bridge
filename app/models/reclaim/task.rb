@@ -47,12 +47,12 @@ module Reclaim
 
     def read_original(only_modified_dates: false)
       super
-      @time_required = read_attribute(reclaim_task, "timeChunksRequired", only_modified_dates:)
-      @time_spent = read_attribute(reclaim_task, "timeChunksSpent", only_modified_dates:)
-      @time_remaining = read_attribute(reclaim_task, "timeChunksRemaining", only_modified_dates:)
-      @minimum_chunk_size = read_attribute(reclaim_task, "minChunkSize", only_modified_dates:)
-      @maximum_chunk_size = read_attribute(reclaim_task, "maxChunkSize", only_modified_dates:)
-      @always_private = read_attribute(reclaim_task, "alwaysPrivate", only_modified_dates:)
+      @time_required = read_external_attribute(reclaim_task, "timeChunksRequired", only_modified_dates:)
+      @time_spent = read_external_attribute(reclaim_task, "timeChunksSpent", only_modified_dates:)
+      @time_remaining = read_external_attribute(reclaim_task, "timeChunksRemaining", only_modified_dates:)
+      @minimum_chunk_size = read_external_attribute(reclaim_task, "minChunkSize", only_modified_dates:)
+      @maximum_chunk_size = read_external_attribute(reclaim_task, "maxChunkSize", only_modified_dates:)
+      @always_private = read_external_attribute(reclaim_task, "alwaysPrivate", only_modified_dates:)
       @tags = default_tags
       @tags = if personal?
         @tags + options[:personal_tags]

@@ -46,6 +46,10 @@ module GoogleTasks
       google_task
     end
 
+    def chronic_attributes
+      %i[last_modified due_date]
+    end
+
     def provider
       "GoogleTasks"
     end

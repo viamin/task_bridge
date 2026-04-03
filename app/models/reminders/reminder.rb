@@ -45,7 +45,7 @@ module Reminders
 
     def read_original(only_modified_dates: false)
       super
-      containing_list = read_attribute(reminder, :container, only_modified_dates:)
+      containing_list = read_external_attribute(reminder, :container, only_modified_dates:)
       @list = if containing_list.respond_to?(:get)
         containing_list.name.get
       else
@@ -53,12 +53,12 @@ module Reminders
       end
       # TODO: Tags seem to be an OS-wide feature? It's not in the
       # AppleScript dictionary in macOS 13.1
-      # @tags = read_attribute(reminder, :tags)
-      # @tags = @tags.map { |tag| read_attribute(tag, :name) } unless @tags.nil?
-      @priority = read_attribute(reminder, :priority, only_modified_dates:)
+      # @tags = read_external_attribute(reminder, :tags)
+      # @tags = @tags.map { |tag| read_external_attribute(tag, :name) } unless @tags.nil?
+      @priority = read_external_attribute(reminder, :priority, only_modified_dates:)
       # Same with sub_items/subreminders - they are supported in the app
       # but don't seem to be accessible via Applescript
-      # @subreminders = read_attribute(reminder, :reminders).map do |subreminder|
+      # @subreminders = read_external_attribute(reminder, :reminders).map do |subreminder|
       #   reminder.new(subreminder)
       # end
       # @subreminder_count = @subreminders.count
