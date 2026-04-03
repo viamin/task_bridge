@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2023_12_25_084554) do
+ActiveRecord::Schema[7.2].define(version: 2024_04_03_000000) do
   create_table "sync_collections", force: :cascade do |t|
     t.string "title"
     t.datetime "last_synced"
@@ -41,6 +41,7 @@ ActiveRecord::Schema[7.2].define(version: 2023_12_25_084554) do
     t.datetime "updated_at", null: false
     t.index ["parent_item_id"], name: "index_sync_items_on_parent_item_id"
     t.index ["sync_collection_id"], name: "index_sync_items_on_sync_collection_id"
+    t.index ["type", "external_id"], name: "index_sync_items_on_type_and_external_id", unique: true
   end
 
   add_foreign_key "sync_items", "sync_collections"

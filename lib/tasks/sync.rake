@@ -5,8 +5,8 @@ require "optparse"
 namespace :task_bridge do
   desc "sync all services"
   task sync: :environment do
-    include Debug
-    include GlobalOptions
+    extend Debug
+    extend GlobalOptions
 
     overrides = options
     o = OptionParser.new
