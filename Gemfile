@@ -79,7 +79,9 @@ gem "oauth", "~> 1.1"
 gem "optimist", "~> 3.0"
 
 # https://github.com/BrendanThompson/rb-scpt
-gem "rb-scpt", "~> 1.0", platforms: [:ruby], install_if: -> { RUBY_PLATFORM.include?("darwin") }
+install_if(-> { RUBY_PLATFORM.include?("darwin") }) do
+  gem "rb-scpt", "~> 1.0", platforms: [:ruby]
+end
 
 # https://github.com/jfelchner/ruby-progressbar
 gem "ruby-progressbar", "~> 1.13"
