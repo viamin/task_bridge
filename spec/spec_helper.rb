@@ -29,7 +29,7 @@
 #   Fast tests only (CI-compatible, ~1 second):
 #     bundle exec rspec --tag '~slow' --tag '~no_ci'
 #
-#   All tests including slow integration tests:
+#   All tests including slow integration tests (macOS only for :no_ci specs):
 #     bundle exec rspec
 #
 #   Only slow integration tests:
@@ -78,6 +78,7 @@ RSpec.configure do |config|
   # aliases for `it`, `describe`, and `context` that include `:focus`
   # metadata: `fit`, `fdescribe` and `fcontext`, respectively.
   config.filter_run_when_matching :focus
+  config.filter_run_excluding no_ci: true unless RUBY_PLATFORM.include?("darwin")
 
   # Allows RSpec to persist some state between runs in order to support
   # the `--only-failures` and `--next-failure` CLI options. We recommend
