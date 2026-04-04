@@ -346,6 +346,19 @@ RSpec.describe "Base::SyncItem", :full_options do
   end
 
   describe "#read_notes" do
+    it "parses from the assigned notes attribute without re-reading external data" do
+      expect(omnifocus_item_class).not_to receive(:read_external_attribute)
+
+      item = omnifocus_item_class.new(
+        sync_item: instance_double(Hash),
+        options: options,
+        notes: "asana_id: asana-123\nasana_url: https://app.asana.com/0/123"
+      )
+
+      expect(item.asana_id).to eq("asana-123")
+      expect(item.asana_url).to eq("https://app.asana.com/0/123")
+    end
+
     it "does not redefine note accessors when called more than once" do
       item = create_mock_item(omnifocus_item_class,
                               notes: "asana_id: asana-123\nasana_url: https://app.asana.com/0/123")
