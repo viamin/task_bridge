@@ -12,7 +12,7 @@ module Instapaper
 
     def initialize(options: nil)
       super
-      @authentication = Authentication.new(options).authenticate!
+      @authentication = Authentication.new.authenticate!
       @authorized = true
     rescue StandardError => e
       # If authentication fails, skip the service

@@ -57,7 +57,7 @@ module Asana
     end
 
     def chronic_attributes
-      %i[completed_at due_date due_at updated_at start_date start_at]
+      %i[completed_at due_date due_at last_modified start_date start_at]
     end
 
     def external_data

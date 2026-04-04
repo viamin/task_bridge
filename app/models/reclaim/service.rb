@@ -56,8 +56,8 @@ module Reclaim
       put_response = HTTParty.put("#{base_url}/tasks/#{reclaim_task.external_id}", authenticated_options.merge(put_request_body))
       return if put_response.success?
 
-      debug(response.body, options[:debug])
-      "Failed to update Reclaim task ##{reclaim_task.external_id} with code #{response.code} - check api key"
+      debug(put_response.body, options[:debug])
+      "Failed to update Reclaim task ##{reclaim_task.external_id} with code #{put_response.code} - check api key"
     end
 
     def update_item(reclaim_task, external_task)

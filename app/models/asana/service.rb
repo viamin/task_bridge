@@ -34,15 +34,15 @@ module Asana
       tasks = task_list.map do |external_task|
         asana_task = Task.find_or_initialize_by(external_id: external_task[Task.external_attribute_map[:external_id]])
         asana_task.asana_task = external_task
-        asana_task.read_original(only_modified_dates: true)
+        asana_task.read_original(only_modified_dates:)
       end
-      tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
+      tasks_with_sub_items = tasks.select { |task| task.sub_item_count&.positive? }
       if tasks_with_sub_items.any?
         tasks_with_sub_items.each do |parent_task|
           sub_item_hashes = list_task_sub_items(parent_task.external_id)
           sub_item_hashes.each do |sub_item_hash|
-            sub_item = Task.where(external_id: Task.external_attribute_map[:external_id]).first_or_initialize(asana_task: sub_item_hash)
-            # sub_item = Task.new(asana_task: sub_item_hash)
+            sub_item = Task.find_or_initialize_by(external_id: sub_item_hash[Task.external_attribute_map[:external_id]])
+            sub_item.asana_task = sub_item_hash
             parent_task.sub_items << sub_item
             # Remove the sub_item from the main task list
             # so we don't double sync them
@@ -82,7 +82,7 @@ module Asana
         query: { opt_fields: Task.requested_fields.join(",") },
         body: updated_attributes.to_json
       }
-      return "Would have patched task #{asana.title} with #{updated_attributes.to_json}" if options[:pretend]
+      return "Would have patched task #{asana_task.title} with #{updated_attributes.to_json}" if options[:pretend]
 
       response = HTTParty.put("#{base_url}/tasks/#{asana_task.external_id}", authenticated_options.merge(request_body))
       return if response.success?

@@ -62,7 +62,7 @@ module Reclaim
     end
 
     def chronic_attributes
-      %i[due_date start_date updated_at]
+      %i[due_date start_date last_modified]
     end
 
     def external_data
