@@ -5,7 +5,14 @@ require "ostruct"
 # Stub Appscript module when rb-scpt gem is not available (non-macOS platforms)
 unless defined?(Appscript)
   module Appscript
-    Reference = Class.new
+    class Reference # :nodoc:
+      # Minimal stub for Appscript::Reference on non-macOS platforms.
+      # The real class wraps AppleScript object specifiers; tests only
+      # need the type to exist so rescue clauses and type checks work.
+      def get
+        :missing_value
+      end
+    end
     CommandError = Class.new(StandardError) do
       attr_reader :reference, :command_name, :parameters, :real_error, :error_info
 

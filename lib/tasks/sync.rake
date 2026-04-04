@@ -76,32 +76,27 @@ namespace :task_bridge do
       items.each { |item| collection << item }
       items_by_collection[collection.id] = collection
     end
-    # TODO: Re-enable cross-service sync logic once ActiveRecord-backed sync
-    # collections are fully wired up. Currently the task only collects items and
-    # groups them into SyncCollection records; actual add/update/prune operations
-    # are not yet performed. See PR #138 for tracking.
-
-    # @services.each_value do |service|
-    #   @service_logs = []
-    #   if service.respond_to?(:authorized) && service.authorized == false
-    #     @service_logs << {service: service.friendly_name, last_attempted: options[:sync_started_at]}.stringify_keys
-    #   elsif options[:delete]
-    #     service.prune if service.respond_to?(:prune)
-    #   elsif options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
-    #     @service_logs << service.sync_to_primary(@primary_service)
-    #   elsif options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
-    #     @service_logs << service.sync_from_primary(@primary_service)
-    #   elsif service.sync_strategies.include?(:two_way)
-    #     # if the #sync_with_primary method exists, we should use it unless options force us not to
-    #     @service_logs << service.sync_with_primary(@primary_service)
-    #   else
-    #     # Generally we should sync FROM the primary service first, since it should be the source of truth
-    #     # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-    #     @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
-    #     @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
-    #   end
-    #   options[:logger].save_service_log!(@service_logs)
-    # end
+    @services.each_value do |service|
+      @service_logs = []
+      if service.respond_to?(:authorized) && service.authorized == false
+        @service_logs << { service: service.friendly_name, last_attempted: options[:sync_started_at] }.stringify_keys
+      elsif options[:delete]
+        service.prune if service.respond_to?(:prune)
+      elsif options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
+        @service_logs << service.sync_to_primary(@primary_service)
+      elsif options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
+        @service_logs << service.sync_from_primary(@primary_service)
+      elsif service.sync_strategies.include?(:two_way)
+        # if the #sync_with_primary method exists, we should use it unless options force us not to
+        @service_logs << service.sync_with_primary(@primary_service)
+      else
+        # Generally we should sync FROM the primary service first, since it should be the source of truth
+        # and we want to avoid overwriting anything in the primary service if a duplicate task exists
+        @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
+        @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
+      end
+      options[:logger].save_service_log!(@service_logs)
+    end
     end_time = Time.now
     return if options[:quiet]
 
