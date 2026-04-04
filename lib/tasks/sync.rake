@@ -79,7 +79,7 @@ namespace :task_bridge do
 
       collection = SyncCollection.create(title:)
       items.each { |item| collection << item }
-      items_by_collection[collection.id] = collection
+      items_by_collection[collection.id] = items
     end
     @services.each_value do |service|
       @service_logs = []

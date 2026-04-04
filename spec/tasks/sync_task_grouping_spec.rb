@@ -54,6 +54,7 @@ RSpec.describe "task_bridge:sync collection grouping", :full_options do
 
       collection = SyncCollection.create(title: title)
       items.each { |item| collection << item }
+      items_by_collection[collection.id] = items
       collections << collection
     end
 
@@ -94,6 +95,16 @@ RSpec.describe "task_bridge:sync collection grouping", :full_options do
       expect(collection.title).to eq("Shared Task")
       expect(item1.sync_collection_id).to eq(collection.id)
       expect(item2.sync_collection_id).to eq(collection.id)
+    end
+
+    it "stores newly grouped collections as item arrays in items_by_collection" do
+      item1 = build_item(title: "Shared Task", id: "s1")
+      item2 = build_item(title: "Shared Task", id: "s2")
+
+      result = group_items_into_collections(ServiceA: [item1], ServiceB: [item2])
+
+      collection = result[:collections].first
+      expect(result[:items_by_collection][collection.id]).to contain_exactly(item1, item2)
     end
 
     it "does not create a collection for completed items" do
