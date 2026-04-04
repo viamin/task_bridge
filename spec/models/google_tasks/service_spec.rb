@@ -3,13 +3,13 @@
 require "rails_helper"
 
 RSpec.describe "GoogleTasks::Service" do
-  let(:service) { GoogleTasks::Service.new }
+  let(:tasks_service) { instance_double(Google::Apis::TasksV1::TasksService, "authorization=": true) }
+  let(:service) { GoogleTasks::Service.new(tasks_service:, authorization: {}) }
   let(:tasklist) { "Test" }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
 
   before do
-    allow_any_instance_of(GoogleTasks::BaseCli).to receive(:user_credentials_for).and_return({})
     allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})
     allow_any_instance_of(StructuredLogger).to receive(:last_synced).and_return(last_sync)
   end
