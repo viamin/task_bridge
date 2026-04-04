@@ -103,8 +103,7 @@ module Base
       note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
       note_components.each do |key, value|
         instance_variable_set(:"@#{key}", value)
-        define_singleton_method(key.to_sym) { instance_variable_get(:"@#{key}") }
-        define_singleton_method(:"#{key}=") { |val| instance_variable_set(:"@#{key}", val) }
+        define_note_component_accessors(key)
       end
     end
 
@@ -196,6 +195,13 @@ module Base
     # ActiveRecord's own update_attributes/update semantics.
     def patch_external_attributes(attributes)
       service.patch_item(self, attributes) if service.respond_to?(:patch_item) && attributes_have_changed?(attributes)
+    end
+
+    def define_note_component_accessors(key)
+      return if singleton_class.method_defined?(key.to_sym) && singleton_class.method_defined?(:"#{key}=")
+
+      define_singleton_method(key.to_sym) { instance_variable_get(:"@#{key}") }
+      define_singleton_method(:"#{key}=") { |val| instance_variable_set(:"@#{key}", val) }
     end
 
     class << self

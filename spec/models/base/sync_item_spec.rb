@@ -344,4 +344,15 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(source_item.friendly_title_matches(target)).to be false
     end
   end
+
+  describe "#read_notes" do
+    it "does not redefine note accessors when called more than once" do
+      item = create_mock_item(omnifocus_item_class,
+                              notes: "asana_id: asana-123\nasana_url: https://app.asana.com/0/123")
+
+      expect { 2.times { item.read_notes } }.not_to output(/method redefined/).to_stderr
+      expect(item.asana_id).to eq("asana-123")
+      expect(item.asana_url).to eq("https://app.asana.com/0/123")
+    end
+  end
 end
