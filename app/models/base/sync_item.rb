@@ -86,10 +86,12 @@ module Base
     end
 
     def read_notes
+      reset_note_component_values
+
       # Prefer the already-assigned attribute value so note parsing does not
       # trigger a second external read after read_original has populated notes.
       raw_notes = notes if has_attribute?(:notes)
-      if raw_notes.blank?
+      if raw_notes.nil?
         raw_notes = begin
           self.class.read_external_attribute(external_data, external_attribute_map[:notes])
         rescue StandardError
@@ -302,6 +304,12 @@ module Base
 
     def default_tags
       options[:tags] + [provider]
+    end
+
+    def reset_note_component_values
+      all_service_keys.each do |key|
+        instance_variable_set(:"@#{key}", nil)
+      end
     end
 
     def external_data

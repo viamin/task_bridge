@@ -367,5 +367,19 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.asana_id).to eq("asana-123")
       expect(item.asana_url).to eq("https://app.asana.com/0/123")
     end
+
+    it "clears previously parsed sync note values when notes are removed" do
+      item = create_mock_item(omnifocus_item_class,
+                              notes: "asana_id: asana-123\nasana_url: https://app.asana.com/0/123")
+
+      expect(item.asana_id).to eq("asana-123")
+      expect(item.asana_url).to eq("https://app.asana.com/0/123")
+
+      item.notes = ""
+      item.read_notes
+
+      expect(item.asana_id).to be_nil
+      expect(item.asana_url).to be_nil
+    end
   end
 end
