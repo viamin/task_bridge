@@ -3,13 +3,16 @@
 require "rails_helper"
 
 RSpec.describe "Github::Service" do
+  let(:min_sync_interval) { 60.minutes.to_i }
   let(:service) { Github::Service.new }
-  let(:last_sync) { Time.now - service.send(:min_sync_interval) }
+  let(:last_sync) { Time.now - min_sync_interval }
   let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
+  let(:access_token) { { "access_token" => "token" } }
 
   before do
     allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})
     allow_any_instance_of(StructuredLogger).to receive(:last_synced).and_return(last_sync)
+    allow_any_instance_of(Github::Authentication).to receive(:authenticate!).and_return(access_token)
   end
 
   describe "#sync_to_primary" do
@@ -24,6 +27,31 @@ RSpec.describe "Github::Service" do
 
   describe "#items_to_sync" do
     subject { service.items_to_sync }
+
+    let(:external_issue) do
+      {
+        "id" => 123,
+        "number" => 5,
+        "title" => "Ship Rails migration",
+        "state" => "open",
+        "body" => "notes",
+        "html_url" => "https://github.com/org/repo/issues/5",
+        "updated_at" => "2024-04-01T12:00:00Z",
+        "repository_url" => "https://api.github.com/repos/org/repo",
+        "labels" => []
+      }
+    end
+
+    before do
+      allow(service).to receive(:sync_repositories).with(no_args).and_return(["org/repo"])
+      allow(service).to receive(:sync_repositories).with(with_url: true).and_return(["https://api.github.com/repos/org/repo"])
+      allow(service).to receive(:list_issues).and_return([external_issue])
+      allow(service).to receive(:list_assigned).and_return([external_issue])
+    end
+
+    it "loads external_id from the shared external attribute map" do
+      expect(subject.map(&:external_id)).to eq([external_issue["id"].to_s])
+    end
   end
 
   describe "#should_sync?" do
