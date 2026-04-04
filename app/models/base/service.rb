@@ -92,7 +92,7 @@ module Base
       end
       service_items.each do |service_item|
         output = if (existing_item = service_item.find_matching_item_in(existing_items(primary_service)))
-          if should_sync?(service_item.updated_at)
+          if should_sync?(sync_timestamp_for(service_item))
             primary_service.update_item(existing_item, service_item)
           else
             debug("Skipping sync of #{service_item.title} (should_sync? == false)", options[:debug])
@@ -175,13 +175,17 @@ module Base
       paired_items = Set.new
       primary_items.each do |primary_item|
         matching_item = primary_item.find_matching_item_in(service_items)
-        paired_items.add([primary_item, matching_item].sort_by(&:updated_at)) if matching_item
+        paired_items.add([primary_item, matching_item].sort_by { |item| sync_timestamp_for(item) }) if matching_item
       end
       service_items.each do |service_item|
         matching_item = service_item.find_matching_item_in(primary_items)
-        paired_items.add([service_item, matching_item].sort_by(&:updated_at)) if matching_item
+        paired_items.add([service_item, matching_item].sort_by { |item| sync_timestamp_for(item) }) if matching_item
       end
       paired_items
+    end
+
+    def sync_timestamp_for(item)
+      item.last_modified || item.updated_at
     end
 
     # the default minimum time we should wait between syncing items
