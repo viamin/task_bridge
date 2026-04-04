@@ -50,7 +50,7 @@ RSpec.describe "task_bridge:sync collection grouping", :full_options do
     collections = []
 
     ungrouped_items_by_title.each do |title, items|
-      next unless items.any?(&:incomplete?) && (items.count <= items_by_service.keys.length)
+      next unless items.count > 1 && items.any?(&:incomplete?) && (items.count <= items_by_service.keys.length)
 
       collection = SyncCollection.create(title: title)
       items.each { |item| collection << item }
@@ -127,15 +127,29 @@ RSpec.describe "task_bridge:sync collection grouping", :full_options do
       expect(result[:collections]).to be_empty
     end
 
-    it "handles items with different titles separately" do
+    it "does not create collections for singleton titles" do
       item_a = build_item(title: "Task Alpha", id: "a1")
       item_b = build_item(title: "Task Beta", id: "b1")
 
       result = group_items_into_collections(ServiceA: [item_a], ServiceB: [item_b])
 
-      expect(result[:collections].length).to eq(2)
-      titles = result[:collections].map(&:title)
-      expect(titles).to contain_exactly("Task Alpha", "Task Beta")
+      expect(result[:collections]).to be_empty
+      expect(item_a.sync_collection_id).to be_nil
+      expect(item_b.sync_collection_id).to be_nil
+    end
+
+    it "creates a collection when matching titles appear across services" do
+      item_a = build_item(title: "Shared Task", id: "a1")
+      item_b = build_item(title: "Shared Task", id: "b1")
+      item_c = build_item(title: "Different Task", id: "c1")
+
+      result = group_items_into_collections(ServiceA: [item_a], ServiceB: [item_b, item_c])
+
+      expect(result[:collections].length).to eq(1)
+      expect(result[:collections].first.title).to eq("Shared Task")
+      expect(item_a.sync_collection_id).to eq(result[:collections].first.id)
+      expect(item_b.sync_collection_id).to eq(result[:collections].first.id)
+      expect(item_c.sync_collection_id).to be_nil
     end
 
     it "returns empty collections when no items are provided" do
