@@ -56,6 +56,11 @@ namespace :task_bridge do
     items_by_service = {}
     progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: @services.length)
     @services.each do |service_name, service|
+      if service.respond_to?(:authorized) && service.authorized == false
+        progressbar.log "Skipping unauthorized service #{service.friendly_name}"
+        progressbar.increment
+        next
+      end
       progressbar.log "Gathering items from #{service.friendly_name}"
       items_by_service[service_name.to_sym] = service.items_to_sync(tags: options[:tags], only_modified_dates: true)
       progressbar.increment
