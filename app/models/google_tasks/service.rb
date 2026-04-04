@@ -92,7 +92,7 @@ module GoogleTasks
       updated_task = Google::Apis::TasksV1::Task.new(**updated_task_json)
       debug("updated_task: #{updated_task.pretty_inspect}", options[:debug])
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L510
-      tasks_service.patch_task(tasklist.id, google_task.external_id, updated_task)
+      tasks_service.patch_task(tasklist.id, external_task_id_for(google_task), updated_task)
       updated_task.to_h
     end
 
@@ -151,6 +151,10 @@ module GoogleTasks
       extracted_title = named_captures&.fetch("title", nil)
       google_title = extracted_title&.downcase&.strip
       google_title == task.title&.downcase&.strip
+    end
+
+    def external_task_id_for(google_task)
+      google_task.try(:external_id) || google_task.id
     end
 
     # Returns RFC 3339 timestamp for 1 week ago, used to filter completed tasks

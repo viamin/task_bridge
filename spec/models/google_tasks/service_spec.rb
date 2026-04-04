@@ -78,11 +78,20 @@ RSpec.describe "GoogleTasks::Service" do
   describe "#update_item" do
     subject { service.update_item(tasklist, google_task, external_task) }
 
-    let(:google_task) { nil }
-    let(:external_task) { nil }
+    let(:tasklist) { instance_double(Google::Apis::TasksV1::TaskList, id: "task-list-id") }
+    let(:google_task) { instance_double(Google::Apis::TasksV1::Task, id: "google-task-id", pretty_inspect: "existing task") }
+    let(:external_task) { instance_double(Asana::Task) }
+    let(:updated_task_payload) { { title: "Updated title" } }
+    let(:updated_google_task) { instance_double(Google::Apis::TasksV1::Task, to_h: updated_task_payload) }
 
-    it "raises an error" do
-      expect { subject }.to raise_error NoMethodError
+    before do
+      allow(GoogleTasks::Task).to receive(:from_external).with(external_task).and_return(updated_task_payload)
+      allow(Google::Apis::TasksV1::Task).to receive(:new).with(**updated_task_payload).and_return(updated_google_task)
+      allow(tasks_service).to receive(:patch_task).with("task-list-id", "google-task-id", updated_google_task)
+    end
+
+    it "updates the task using the remote task id" do
+      expect(subject).to eq(updated_task_payload)
     end
   end
 end
