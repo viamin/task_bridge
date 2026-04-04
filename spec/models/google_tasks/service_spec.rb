@@ -94,4 +94,26 @@ RSpec.describe "GoogleTasks::Service" do
       expect(subject).to eq(updated_task_payload)
     end
   end
+
+  describe "#patch_item" do
+    subject { service.patch_item(google_task, attributes_hash) }
+
+    let(:tasklist) { instance_double(Google::Apis::TasksV1::TaskList, id: "task-list-id") }
+    let(:attributes_hash) { { notes: "patched notes" } }
+    let(:updated_google_task) { instance_double(Google::Apis::TasksV1::Task, pretty_inspect: "patched task", to_h: attributes_hash) }
+
+    before do
+      allow(service).to receive(:tasklist).and_return(tasklist)
+      allow(Google::Apis::TasksV1::Task).to receive(:new).with(**attributes_hash).and_return(updated_google_task)
+      allow(tasks_service).to receive(:patch_task).with("task-list-id", "external-task-id", updated_google_task)
+    end
+
+    context "when given a wrapped sync item" do
+      let(:google_task) { GoogleTasks::Task.new(title: "Wrapped task", external_id: "external-task-id") }
+
+      it "patches using the sync item's external_id" do
+        expect(subject).to eq(attributes_hash)
+      end
+    end
+  end
 end

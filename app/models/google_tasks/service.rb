@@ -81,7 +81,7 @@ module GoogleTasks
       debug("task: #{google_task.title}, attributes_hash: #{attributes_hash.pretty_inspect}", options[:debug])
       updated_task = Google::Apis::TasksV1::Task.new(**attributes_hash)
       debug("updated_task: #{updated_task.pretty_inspect}", options[:debug])
-      tasks_service.patch(tasklist.id, google_task.id, updated_task)
+      tasks_service.patch_task(tasklist.id, external_task_id_for(google_task), updated_task)
       updated_task.to_h
     end
 
