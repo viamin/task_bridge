@@ -110,5 +110,5 @@ group :test do
   gem "faker", "~> 3.2" # https://github.com/faker-ruby/faker
   gem "rspec-rails"
   gem "selenium-webdriver"
-  gem "simplecov"
+  gem "simplecov", require: false
 end

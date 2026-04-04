@@ -38,6 +38,7 @@
 #   Only tests requiring macOS apps (local only):
 #     bundle exec rspec --tag no_ci
 
+require "simplecov" if ENV["COVERAGE"] == "1"
 require "faker"
 Dir["./spec/support/**/*.rb"].each { |f| require f }
 
