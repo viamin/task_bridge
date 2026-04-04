@@ -31,7 +31,7 @@ module GoogleTasks
 
     desc "item_class", "The class of the item to sync"
     def item_class
-      Google::Apis::TasksV1::Task
+      GoogleTasks::Task
     end
 
     desc "friendly_name", "The friendly name of the service for use in tagging (and elsewhere)"
@@ -65,7 +65,7 @@ module GoogleTasks
     end
 
     desc "add_item", "Add a new task to a given task list"
-    def add_item(tasklist, external_task)
+    def add_item(external_task)
       return external_task.flag! if external_task.respond_to?(:estimated_minutes) && external_task.estimated_minutes.nil?
 
       google_task_json = GoogleTasks::Task.from_external(external_task)
@@ -86,7 +86,7 @@ module GoogleTasks
     end
 
     desc "update_item", "Update an existing task in a task list"
-    def update_item(tasklist, google_task, external_task)
+    def update_item(google_task, external_task)
       debug("existing_task: #{google_task.pretty_inspect}", options[:debug])
       updated_task_json = GoogleTasks::Task.from_external(external_task)
       updated_task = Google::Apis::TasksV1::Task.new(**updated_task_json)

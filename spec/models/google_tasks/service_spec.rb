@@ -5,9 +5,7 @@ require "rails_helper"
 RSpec.describe "GoogleTasks::Service" do
   let(:tasks_service) { instance_double(Google::Apis::TasksV1::TasksService, "authorization=": true) }
   let(:service) { GoogleTasks::Service.new(tasks_service:, authorization: {}) }
-  let(:tasklist) { "Test" }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
-  let(:httparty_success_mock) { OpenStruct.new(success?: true, body: { data: { task: external_task.to_json } }.to_json) }
 
   before do
     allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})
@@ -26,6 +24,12 @@ RSpec.describe "GoogleTasks::Service" do
 
   describe "#items_to_sync" do
     subject { service.items_to_sync }
+  end
+
+  describe "#item_class" do
+    it "returns the wrapped sync item class" do
+      expect(service.item_class).to eq(GoogleTasks::Task)
+    end
   end
 
   describe "#should_sync?" do
@@ -61,22 +65,27 @@ RSpec.describe "GoogleTasks::Service" do
   end
 
   describe "#add_item" do
-    subject { service.add_item(tasklist, external_task) }
+    subject { service.add_item(external_task) }
 
-    let(:external_task) { nil }
-    let(:title) { "Test" }
+    let(:tasklist) { instance_double(Google::Apis::TasksV1::TaskList, id: "task-list-id") }
+    let(:external_task) { instance_double(Asana::Task) }
+    let(:google_task_payload) { { title: "Test" } }
+    let(:inserted_google_task) { instance_double(Google::Apis::TasksV1::Task, pretty_inspect: "inserted task", to_h: google_task_payload) }
 
     before do
-      allow(HTTParty).to receive(:post).and_return(httparty_success_mock)
+      allow(service).to receive(:tasklist).and_return(tasklist)
+      allow(GoogleTasks::Task).to receive(:from_external).with(external_task).and_return(google_task_payload)
+      allow(Google::Apis::TasksV1::Task).to receive(:new).with(**google_task_payload).and_return(inserted_google_task)
+      allow(tasks_service).to receive(:insert_task).with("task-list-id", inserted_google_task)
     end
 
-    it "raises an error", :no_ci do
-      expect { subject }.to raise_error NoMethodError
+    it "inserts the task into the configured task list" do
+      expect(subject).to eq(google_task_payload)
     end
   end
 
   describe "#update_item" do
-    subject { service.update_item(tasklist, google_task, external_task) }
+    subject { service.update_item(google_task, external_task) }
 
     let(:tasklist) { instance_double(Google::Apis::TasksV1::TaskList, id: "task-list-id") }
     let(:google_task) { instance_double(Google::Apis::TasksV1::Task, id: "google-task-id", pretty_inspect: "existing task") }
@@ -85,6 +94,7 @@ RSpec.describe "GoogleTasks::Service" do
     let(:updated_google_task) { instance_double(Google::Apis::TasksV1::Task, to_h: updated_task_payload) }
 
     before do
+      allow(service).to receive(:tasklist).and_return(tasklist)
       allow(GoogleTasks::Task).to receive(:from_external).with(external_task).and_return(updated_task_payload)
       allow(Google::Apis::TasksV1::Task).to receive(:new).with(**updated_task_payload).and_return(updated_google_task)
       allow(tasks_service).to receive(:patch_task).with("task-list-id", "google-task-id", updated_google_task)
