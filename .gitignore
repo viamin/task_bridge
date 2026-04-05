@@ -14,6 +14,8 @@
 /tmp/
 # node / yarn
 node_modules
+app/assets/builds/*
+!app/assets/builds/.keep
 # Used by dotenv library to load environment variables.
 .env
 

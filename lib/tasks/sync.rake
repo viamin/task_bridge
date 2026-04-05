@@ -31,6 +31,10 @@ namespace :task_bridge do
     o.on("-v", "--verbose", "Verbose output") { overrides[:verbose] = true }
     o.on("-g", "--log-file [FILE]", "File name for service log") { |value| overrides[:log_file] = value }
     o.on("-b", "--debug", "Print debug output") { overrides[:debug] = true }
+    o.on("--help", "Print available command line options") do
+      puts o
+      exit
+    end
     o.on("-h", "--history", "Print sync service history") do
       StructuredLogger.new(log_file: overrides[:log_file], services: overrides[:services]).print_logs
       exit
@@ -83,22 +87,36 @@ namespace :task_bridge do
     end
     @services.each_value do |service|
       @service_logs = []
-      if service.respond_to?(:authorized) && service.authorized == false
-        @service_logs << { service: service.friendly_name, last_attempted: options[:sync_started_at] }.stringify_keys
-      elsif options[:delete]
-        service.prune if service.respond_to?(:prune)
-      elsif options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
-        @service_logs << service.sync_to_primary(@primary_service)
-      elsif options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
-        @service_logs << service.sync_from_primary(@primary_service)
-      elsif service.sync_strategies.include?(:two_way)
-        # if the #sync_with_primary method exists, we should use it unless options force us not to
-        @service_logs << service.sync_with_primary(@primary_service)
-      else
-        # Generally we should sync FROM the primary service first, since it should be the source of truth
-        # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-        @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
-        @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
+      begin
+        if service.respond_to?(:authorized) && service.authorized == false
+          @service_logs << { service: service.friendly_name, last_attempted: options[:sync_started_at] }.stringify_keys
+        elsif options[:delete]
+          service.prune if service.respond_to?(:prune)
+        elsif options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
+          @service_logs << service.sync_to_primary(@primary_service)
+        elsif options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
+          @service_logs << service.sync_from_primary(@primary_service)
+        elsif service.sync_strategies.include?(:two_way)
+          # if the #sync_with_primary method exists, we should use it unless options force us not to
+          @service_logs << service.sync_with_primary(@primary_service)
+        else
+          # Keep each service isolated so one transient failure does not abort the full sync run.
+          # Generally we should sync FROM the primary service first, since it should be the source of truth
+          # and we want to avoid overwriting anything in the primary service if a duplicate task exists
+          @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
+          @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
+        end
+      rescue StandardError => e
+        @service_logs << {
+          service: service.friendly_name,
+          status: "failed",
+          last_attempted: options[:sync_started_at],
+          last_failed: Time.now.strftime("%Y-%m-%d %I:%M%p"),
+          items_synced: 0,
+          error_class: e.class.name,
+          error_message: e.message
+        }.stringify_keys
+        warn "Sync failed for #{service.friendly_name}: #{e.class} #{e.message}" unless options[:quiet]
       end
       options[:logger].save_service_log!(@service_logs)
     end
