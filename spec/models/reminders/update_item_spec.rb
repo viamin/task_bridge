@@ -36,6 +36,7 @@ RSpec.describe Reminders::Service do
       instance_double(
         "ExternalTask",
         completed?: task_completed,
+        last_modified: nil,
         updated_at: Time.now,
         title: "Test Reminder",
         sync_notes: "notes"
@@ -111,6 +112,25 @@ RSpec.describe Reminders::Service do
 
       it "returns nil" do
         expect(service.update_item(reminder, external_task)).to be_nil
+      end
+    end
+
+    context "when max age filtering is enabled" do
+      let(:options) do
+        base_options.merge(
+          max_age: "1 day",
+          max_age_timestamp: 1.day.ago
+        )
+      end
+
+      before do
+        allow(external_task).to receive(:last_modified).and_return(2.days.ago)
+      end
+
+      it "skips based on the external last_modified timestamp instead of updated_at" do
+        expect(service.update_item(reminder, external_task)).to eq(
+          "Last modified more than 1 day ago - skipping Test Reminder"
+        )
       end
     end
   end

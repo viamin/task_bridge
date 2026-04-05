@@ -104,7 +104,7 @@ RSpec.describe "task_bridge:sync task" do
       sync_strategies: [:to_primary]
     )
 
-    allow(passing_service).to receive(:items_to_sync).with(tags: []).and_return([service_item])
+    allow(passing_service).to receive(:items_to_sync).with(tags: [], only_modified_dates: true).and_return([service_item])
     allow(passing_service).to receive(:sync_to_primary).with(primary_service, service_items: [service_item]).and_return(
       {
         service: "Passing",
@@ -124,7 +124,7 @@ RSpec.describe "task_bridge:sync task" do
       expect { invoke_task("--only-to-primary") }.not_to raise_error
     end
 
-    expect(passing_service).to have_received(:items_to_sync).with(tags: []).once
+    expect(passing_service).to have_received(:items_to_sync).with(tags: [], only_modified_dates: true).once
     expect(passing_service).to have_received(:sync_to_primary).with(primary_service, service_items: [service_item])
   end
 

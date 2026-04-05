@@ -71,7 +71,8 @@ namespace :task_bridge do
       progressbar.log "Gathering items from #{service.friendly_name}"
       # Reuse these loaded items during the later service syncs so title grouping
       # does not trigger a second full remote scan for the same collection.
-      items_by_service[service_name] = service.items_to_sync(tags: options[:tags])
+      only_modified_dates = service.sync_strategies == [:to_primary]
+      items_by_service[service_name] = service.items_to_sync(tags: options[:tags], only_modified_dates:)
       progressbar.increment
     end
 

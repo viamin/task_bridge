@@ -64,6 +64,7 @@ module Base
         else
           primary_service.update_item(older_item, newer_item)
         end
+        persist_sync_collection_for(*pair) unless options[:pretend]
         progressbar.increment unless options[:quiet]
       end
       unmatched_primary_items.each do |primary_item|
@@ -94,7 +95,9 @@ module Base
       service_items.each do |service_item|
         output = if (existing_item = service_item.find_matching_item_in(existing_primary_items))
           if should_sync?(sync_timestamp_for(service_item))
-            primary_service.update_item(existing_item, service_item)
+            primary_service.update_item(existing_item, service_item).tap do
+              persist_sync_collection_for(existing_item, service_item) unless options[:pretend]
+            end
           else
             debug("Skipping sync of #{service_item.title} (should_sync? == false)", options[:debug])
           end
@@ -123,7 +126,9 @@ module Base
       end
       primary_items.each do |primary_item|
         output = if (existing_item = primary_item.find_matching_item_in(service_items))
-          update_item(existing_item, primary_item)
+          update_item(existing_item, primary_item).tap do
+            persist_sync_collection_for(existing_item, primary_item) unless options[:pretend]
+          end
         else
           add_item(primary_item) unless primary_item.completed?
         end
@@ -187,6 +192,30 @@ module Base
 
     def sync_timestamp_for(item)
       item.last_modified || item.updated_at
+    end
+
+    def persist_sync_collection_for(*items)
+      collection_items = items.compact.select do |item|
+        item.respond_to?(:sync_collection_id) && item.respond_to?(:sync_collection_id=)
+      end
+      return if collection_items.length < 2
+
+      existing_collection_id = collection_items.filter_map(&:sync_collection_id).first
+      collection = if existing_collection_id
+        SyncCollection.find_by(id: existing_collection_id)
+      else
+        SyncCollection.create!(title: collection_items.filter_map(&:title).first)
+      end
+      return unless collection
+
+      collection_items.each do |item|
+        next if item.sync_collection_id == collection.id
+
+        item.sync_collection_id = collection.id
+        item.save! if item.respond_to?(:save!)
+      end
+
+      collection
     end
 
     # the default minimum time we should wait between syncing items

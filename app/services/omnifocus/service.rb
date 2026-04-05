@@ -76,7 +76,8 @@ module Omnifocus
 
     def update_item(omnifocus_task, external_task)
       debug("omnifocus_task: #{omnifocus_task}, external_task: #{external_task}", options[:debug])
-      if options[:max_age_timestamp] && external_task.updated_at && (external_task.updated_at < options[:max_age_timestamp])
+      item_last_modified = sync_timestamp_for(external_task)
+      if options[:max_age_timestamp] && item_last_modified && (item_last_modified < options[:max_age_timestamp])
         "Last modified more than #{options[:max_age]} ago - skipping #{external_task.title}"
       elsif external_task.completed? && omnifocus_task.incomplete?
         debug("Complete state doesn't match", options[:debug])

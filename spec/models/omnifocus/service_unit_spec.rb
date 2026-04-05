@@ -218,4 +218,24 @@ RSpec.describe Omnifocus::Service, :full_options do
       expect(service.skip_create?(incomplete_item)).to be false
     end
   end
+
+  describe "#update_item" do
+    let(:service) { described_class.new(options: options.merge(max_age: "1 day", max_age_timestamp: 1.day.ago)) }
+    let(:omnifocus_task) { instance_double("Omnifocus::Task", incomplete?: true) }
+    let(:external_task) do
+      instance_double(
+        Base::SyncItem,
+        title: "Stale task",
+        completed?: false,
+        last_modified: 2.days.ago,
+        updated_at: Time.current
+      )
+    end
+
+    it "uses last_modified for max-age filtering" do
+      expect(service.update_item(omnifocus_task, external_task)).to eq(
+        "Last modified more than 1 day ago - skipping Stale task"
+      )
+    end
+  end
 end

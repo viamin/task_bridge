@@ -5,6 +5,21 @@ require "rails_helper"
 RSpec.describe Base::Service do
   let(:logger) { instance_double(StructuredLogger, sync_data_for: {}, last_synced: last_sync) }
   let(:last_sync) { Time.current - 5.minutes }
+  let(:sync_item_class) do
+    stub_const("BaseServiceSpecItem", Class.new(Base::SyncItem) do
+      def self.attribute_map
+        {}
+      end
+
+      def provider
+        "TestService"
+      end
+
+      def external_data
+        {}
+      end
+    end)
+  end
   let(:service_class) do
     Class.new(described_class) do
       def friendly_name
@@ -37,6 +52,7 @@ RSpec.describe Base::Service do
       verbose: false,
       debug: false,
       primary: "Asana",
+      services: [],
       tags: ["work"]
     }
   end
@@ -76,6 +92,33 @@ RSpec.describe Base::Service do
 
       expect(service).to have_received(:existing_items).with(primary_service).once
       expect(service_item).to have_received(:find_matching_item_in).with([existing_item]).once
+    end
+
+    it "persists a sync collection for matched items that sync successfully" do
+      persisted_service_item = sync_item_class.create!(
+        title: "Persisted service task",
+        external_id: "service-123",
+        completed: false,
+        last_modified: Time.current - 1.minute
+      )
+      persisted_primary_item = sync_item_class.create!(
+        title: "Persisted primary task",
+        external_id: "primary-123",
+        completed: false,
+        last_modified: Time.current - 2.minutes
+      )
+
+      allow(service).to receive(:items_to_sync).and_return([persisted_service_item])
+      allow(service).to receive(:should_sync?).with(persisted_service_item.last_modified).and_return(true)
+      allow(service).to receive(:existing_items).with(primary_service).and_return([persisted_primary_item])
+      allow(persisted_service_item).to receive(:find_matching_item_in).with([persisted_primary_item]).and_return(persisted_primary_item)
+
+      expect do
+        service.sync_to_primary(primary_service)
+      end.to change(SyncCollection, :count).by(1)
+
+      expect(persisted_service_item.reload.sync_collection_id).to eq(persisted_primary_item.reload.sync_collection_id)
+      expect(persisted_service_item.sync_collection_id).to be_present
     end
   end
 
