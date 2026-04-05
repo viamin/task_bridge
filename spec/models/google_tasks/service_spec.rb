@@ -80,16 +80,30 @@ RSpec.describe "GoogleTasks::Service" do
     let(:tasklist) { instance_double(Google::Apis::TasksV1::TaskList, id: "task-list-id") }
     let(:external_task) { instance_double(Asana::Task) }
     let(:google_task_payload) { { title: "Test" } }
-    let(:inserted_google_task) { instance_double(Google::Apis::TasksV1::Task, pretty_inspect: "inserted task", to_h: google_task_payload) }
+    let(:google_task) { instance_double(Google::Apis::TasksV1::Task, pretty_inspect: "new task") }
+    let(:created_google_task) do
+      instance_double(
+        Google::Apis::TasksV1::Task,
+        id: "google-task-id",
+        self_link: "https://tasks.example/google-task-id",
+        to_h: google_task_payload
+      )
+    end
 
     before do
       allow(service).to receive(:tasklist).and_return(tasklist)
       allow(GoogleTasks::Task).to receive(:from_external).with(external_task).and_return(google_task_payload)
-      allow(Google::Apis::TasksV1::Task).to receive(:new).with(**google_task_payload).and_return(inserted_google_task)
-      allow(tasks_service).to receive(:insert_task).with("task-list-id", inserted_google_task)
+      allow(Google::Apis::TasksV1::Task).to receive(:new).with(**google_task_payload).and_return(google_task)
+      allow(tasks_service).to receive(:insert_task).with("task-list-id", google_task).and_return(created_google_task)
     end
 
-    it "inserts the task into the configured task list" do
+    it "inserts the task and records the created task metadata" do
+      expect(service).to receive(:update_sync_data).with(
+        external_task,
+        "google-task-id",
+        "https://tasks.example/google-task-id"
+      )
+
       expect(subject).to eq(google_task_payload)
     end
   end

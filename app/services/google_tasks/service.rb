@@ -72,8 +72,9 @@ module GoogleTasks
       google_task = Google::Apis::TasksV1::Task.new(**google_task_json)
       debug("google_task: #{google_task.pretty_inspect}", options[:debug])
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L360
-      tasks_service.insert_task(tasklist.id, google_task)
-      google_task.to_h
+      created_task = tasks_service.insert_task(tasklist.id, google_task)
+      update_sync_data(external_task, created_task.id, created_task.self_link)
+      created_task.to_h
     end
 
     desc "patch_item", "Patch an existing task in a task list"
@@ -158,6 +159,12 @@ module GoogleTasks
       raise ArgumentError, "Google task is missing an external ID" if task_id.blank?
 
       task_id
+    end
+
+    def update_sync_data(existing_item, sync_id, sync_url = nil)
+      existing_item.instance_variable_set(:@google_tasks_id, sync_id) if sync_id
+      existing_item.instance_variable_set(:@google_tasks_url, sync_url) if sync_url
+      existing_item.patch_external_attributes(notes: existing_item.sync_notes)
     end
 
     # Returns RFC 3339 timestamp for 1 week ago, used to filter completed tasks
