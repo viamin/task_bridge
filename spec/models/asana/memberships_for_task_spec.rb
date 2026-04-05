@@ -163,4 +163,33 @@ RSpec.describe Asana::Service, :full_options do
       end
     end
   end
+
+  describe "#project_gid_from_name" do
+    let(:pets_project_gid) { "1203152506994879" }
+    let(:project_name) { "Pets" }
+    let(:projects_list) do
+      [
+        { "gid" => pets_project_gid, "name" => "Pets" },
+        { "gid" => "9999", "name" => "Other Project" }
+      ]
+    end
+    let(:projects_response) do
+      instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: { data: projects_list }.to_json
+      )
+    end
+
+    it "memoizes the project list lookup" do
+      allow(HTTParty).to receive(:get).with(
+        "https://app.asana.com/api/1.0/projects",
+        hash_including(query: { archived: false })
+      ).and_return(projects_response)
+
+      expect(service.send(:project_gid_from_name, project_name)).to eq(pets_project_gid)
+      expect(service.send(:project_gid_from_name, project_name)).to eq(pets_project_gid)
+      expect(HTTParty).to have_received(:get).once
+    end
+  end
 end

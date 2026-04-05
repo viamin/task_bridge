@@ -67,4 +67,19 @@ RSpec.describe "Asana::Task" do
       expect(task.project).to eq("Project Name")
     end
   end
+
+  describe "#read_original" do
+    it "keeps subtask metadata in only_modified_dates mode" do
+      task = Asana::Task.new(
+        asana_task: asana_task_json.merge(
+          "num_subtasks" => 2
+        )
+      )
+
+      task.read_original(only_modified_dates: true)
+
+      expect(task.sub_item_count).to eq(2)
+      expect(task.sub_items).to eq([])
+    end
+  end
 end

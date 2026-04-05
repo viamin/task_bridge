@@ -170,6 +170,7 @@ module Asana
 
       JSON.parse(response.body)["data"]
     end
+    memo_wise :list_projects
 
     def project_gids
       @project_gids ||= list_projects.map { |project| project["gid"] }

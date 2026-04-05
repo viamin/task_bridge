@@ -47,10 +47,10 @@ module Asana
 
     def read_original(only_modified_dates: false)
       super
+      @sub_item_count = asana_task.fetch("num_subtasks", 0).to_i
+      @sub_items = []
       unless only_modified_dates
         @project = project_from_memberships(asana_task)
-        @sub_item_count = asana_task.fetch("num_subtasks", 0).to_i
-        @sub_items = []
         @assignee = asana_task.dig("assignee", "gid")
       end
       self
