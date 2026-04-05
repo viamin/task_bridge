@@ -27,7 +27,7 @@ RSpec.describe Base::Service do
       end
 
       def item_class
-        Base::SyncItem
+        BaseServiceSpecItem
       end
 
       def sync_strategies
@@ -36,6 +36,10 @@ RSpec.describe Base::Service do
 
       def items_to_sync(*, **)
         @items_to_sync || []
+      end
+
+      def add_item(*)
+        nil
       end
 
       def min_sync_interval
@@ -119,6 +123,60 @@ RSpec.describe Base::Service do
 
       expect(persisted_service_item.reload.sync_collection_id).to eq(persisted_primary_item.reload.sync_collection_id)
       expect(persisted_service_item.sync_collection_id).to be_present
+    end
+
+    it "persists a sync collection for newly created primary items" do
+      persisted_service_item = sync_item_class.create!(
+        title: "Newly created primary task",
+        external_id: "service-create-123",
+        completed: false,
+        last_modified: Time.current - 1.minute
+      )
+
+      allow(service).to receive(:items_to_sync).and_return([persisted_service_item])
+      allow(service).to receive(:should_sync?).with(persisted_service_item.last_modified).and_return(true)
+      allow(service).to receive(:existing_items).with(primary_service).and_return([])
+      allow(persisted_service_item).to receive(:find_matching_item_in).with([]).and_return(nil)
+      allow(primary_service).to receive(:item_class).and_return(sync_item_class)
+      allow(primary_service).to receive(:add_item) do
+        persisted_service_item.define_singleton_method(:primary_service_id) { "primary-create-123" }
+        persisted_service_item.define_singleton_method(:primary_service_url) { "https://example.test/tasks/primary-create-123" }
+      end
+
+      expect do
+        service.sync_to_primary(primary_service)
+      end.to change(SyncCollection, :count).by(1)
+
+      created_primary_item = sync_item_class.find_by!(external_id: "primary-create-123")
+      expect(persisted_service_item.reload.sync_collection_id).to eq(created_primary_item.sync_collection_id)
+      expect(created_primary_item.title).to eq(persisted_service_item.title)
+    end
+  end
+
+  describe "#sync_from_primary" do
+    it "persists a sync collection for newly created service items" do
+      primary_item = sync_item_class.create!(
+        title: "Newly created service task",
+        external_id: "primary-create-456",
+        completed: false,
+        last_modified: Time.current - 1.minute
+      )
+
+      allow(primary_service).to receive(:items_to_sync).with(tags: ["Test Service"]).and_return([primary_item])
+      allow(service).to receive(:items_to_sync).and_return([])
+      allow(service).to receive(:add_item) do
+        primary_item.define_singleton_method(:test_service_id) { "service-create-456" }
+        primary_item.define_singleton_method(:test_service_url) { "https://example.test/tasks/service-create-456" }
+      end
+      allow(primary_item).to receive(:find_matching_item_in).with([]).and_return(nil)
+
+      expect do
+        service.sync_from_primary(primary_service)
+      end.to change(SyncCollection, :count).by(1)
+
+      created_service_item = sync_item_class.find_by!(external_id: "service-create-456")
+      expect(primary_item.reload.sync_collection_id).to eq(created_service_item.sync_collection_id)
+      expect(created_service_item.title).to eq(primary_item.title)
     end
   end
 

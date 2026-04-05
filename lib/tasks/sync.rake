@@ -116,7 +116,10 @@ namespace :task_bridge do
       options[:logger].save_service_log!(@service_logs)
       next if @service_logs.any? { |log| log["status"] == "failed" }
 
-      service_items.filter_map(&:sync_collection_id).uniq.each do |collection_id|
+      touched_collection_ids = @service_logs.flat_map do |log|
+        Array(log["touched_collection_ids"] || log[:touched_collection_ids])
+      end
+      touched_collection_ids.uniq.each do |collection_id|
         SyncCollection.find_by(id: collection_id)&.update(last_synced: Time.current)
       end
     end

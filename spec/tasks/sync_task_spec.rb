@@ -165,14 +165,14 @@ RSpec.describe "task_bridge:sync task" do
     synced_collection = instance_double(SyncCollection, update: true)
     passing_item = instance_double(
       Base::SyncItem,
-      sync_collection_id: 101,
+      sync_collection_id: nil,
       title: "Passing task",
       incomplete?: true,
       provider: "Passing"
     )
     failing_item = instance_double(
       Base::SyncItem,
-      sync_collection_id: 202,
+      sync_collection_id: nil,
       title: "Failing task",
       incomplete?: true,
       provider: "Failing"
@@ -195,7 +195,8 @@ RSpec.describe "task_bridge:sync task" do
         service: "Passing",
         last_attempted: "2024-01-01 09:00AM",
         last_successful: "2024-01-01 09:00AM",
-        items_synced: 1
+        items_synced: 1,
+        touched_collection_ids: [101]
       }.stringify_keys
     )
     allow(failing_service).to receive(:sync_from_primary).with(primary_service, service_items: [failing_item]).and_raise(

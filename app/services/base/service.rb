@@ -43,6 +43,7 @@ module Base
     def sync_with_primary(primary_service, service_items: nil)
       return @last_sync_data unless should_sync?
 
+      touched_collection_ids = []
       primary_items = primary_service.items_to_sync(tags: [friendly_name])
       service_items ||= items_to_sync(tags: options[:tags])
 
@@ -64,25 +65,32 @@ module Base
         else
           primary_service.update_item(older_item, newer_item)
         end
-        persist_sync_collection_for(*pair) unless options[:pretend]
+        touched_collection_ids << persist_sync_collection_for(*pair)&.id unless options[:pretend]
         progressbar.increment unless options[:quiet]
       end
       unmatched_primary_items.each do |primary_item|
-        add_item(primary_item) unless primary_service.skip_create?(primary_item)
+        unless primary_service.skip_create?(primary_item)
+          added_item = add_item(primary_item)
+          touched_collection_ids << persist_created_sync_collection_for(primary_item, self, added_item)&.id unless options[:pretend]
+        end
         progressbar.increment unless options[:quiet]
       end
       unmatched_service_items.each do |service_item|
-        primary_service.add_item(service_item) unless skip_create?(service_item)
+        unless skip_create?(service_item)
+          added_item = primary_service.add_item(service_item)
+          touched_collection_ids << persist_created_sync_collection_for(service_item, primary_service, added_item)&.id unless options[:pretend]
+        end
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{item_count} #{options[:primary]} and #{friendly_name} items" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: item_count }.stringify_keys
+      sync_result(item_count, touched_collection_ids:)
     end
 
     # implements the :to_primary sync strategy
     def sync_to_primary(primary_service, service_items: nil)
       return @last_sync_data unless should_sync?
 
+      touched_collection_ids = []
       service_items ||= items_to_sync(tags: options[:tags], only_modified_dates: true)
       existing_primary_items = existing_items(primary_service)
       unless options[:quiet]
@@ -96,25 +104,28 @@ module Base
         output = if (existing_item = service_item.find_matching_item_in(existing_primary_items))
           if should_sync?(sync_timestamp_for(service_item))
             primary_service.update_item(existing_item, service_item).tap do
-              persist_sync_collection_for(existing_item, service_item) unless options[:pretend]
+              touched_collection_ids << persist_sync_collection_for(existing_item, service_item)&.id unless options[:pretend]
             end
           else
             debug("Skipping sync of #{service_item.title} (should_sync? == false)", options[:debug])
           end
         elsif !service_item.completed?
-          primary_service.add_item(service_item)
+          primary_service.add_item(service_item).tap do |added_item|
+            touched_collection_ids << persist_created_sync_collection_for(service_item, primary_service, added_item)&.id unless options[:pretend]
+          end
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{service_items.length} #{friendly_name} items to #{options[:primary]}" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: service_items.length }.stringify_keys
+      sync_result(service_items.length, touched_collection_ids:)
     end
 
     # implements the :from_primary sync strategy
     def sync_from_primary(primary_service, service_items: nil)
       return @last_sync_data unless should_sync?
 
+      touched_collection_ids = []
       primary_items = primary_service.items_to_sync(tags: [friendly_name])
       service_items ||= items_to_sync(tags: options[:tags])
       unless options[:quiet]
@@ -127,16 +138,18 @@ module Base
       primary_items.each do |primary_item|
         output = if (existing_item = primary_item.find_matching_item_in(service_items))
           update_item(existing_item, primary_item).tap do
-            persist_sync_collection_for(existing_item, primary_item) unless options[:pretend]
+            touched_collection_ids << persist_sync_collection_for(existing_item, primary_item)&.id unless options[:pretend]
           end
-        else
-          add_item(primary_item) unless primary_item.completed?
+        elsif !primary_item.completed?
+          add_item(primary_item).tap do |added_item|
+            touched_collection_ids << persist_created_sync_collection_for(primary_item, self, added_item)&.id unless options[:pretend]
+          end
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
       puts "Synced #{primary_items.length} #{options[:primary]} items to #{friendly_name}" unless options[:quiet]
-      { service: friendly_name, last_attempted: options[:sync_started_at], last_successful: options[:sync_started_at], items_synced: primary_items.length }.stringify_keys
+      sync_result(primary_items.length, touched_collection_ids:)
     end
 
     def should_sync?(item_updated_at = nil)
@@ -151,7 +164,7 @@ module Base
     end
 
     def update_sync_data(existing_item, sync_id, sync_url = nil)
-      service_name = friendly_name.underscore
+      service_name = service_identifier_for(friendly_name)
       existing_item.instance_variable_set(:"@#{service_name}_id", sync_id) if sync_id
       existing_item.instance_variable_set(:"@#{service_name}_url", sync_url) if sync_url
       existing_item.patch_external_attributes(notes: existing_item.sync_notes)
@@ -216,6 +229,44 @@ module Base
       end
 
       collection
+    end
+
+    def persist_created_sync_collection_for(source_item, target_service, created_item)
+      target_item = persisted_sync_target_for(target_service, source_item, created_item)
+      persist_sync_collection_for(source_item, target_item)
+    end
+
+    def persisted_sync_target_for(target_service, source_item, created_item)
+      return created_item if created_item.is_a?(Base::SyncItem)
+
+      item_class = target_service.item_class
+      return unless item_class.is_a?(Class) && item_class <= Base::SyncItem
+
+      target_service_key = service_identifier_for(target_service.friendly_name)
+      external_id = source_item.try(:"#{target_service_key}_id")
+      return if external_id.blank?
+
+      item_class.find_or_initialize_by(external_id:).tap do |target_item|
+        target_item.title ||= source_item.title if source_item.respond_to?(:title)
+        target_item.completed = source_item.completed? if source_item.respond_to?(:completed?)
+        target_item.last_modified ||= sync_timestamp_for(source_item)
+        target_item.url ||= source_item.try(:"#{target_service_key}_url")
+        target_item.save! if target_item.new_record? || target_item.changed?
+      end
+    end
+
+    def sync_result(items_synced, touched_collection_ids:)
+      {
+        service: friendly_name,
+        last_attempted: options[:sync_started_at],
+        last_successful: options[:sync_started_at],
+        items_synced:,
+        touched_collection_ids: touched_collection_ids.compact.uniq
+      }.stringify_keys
+    end
+
+    def service_identifier_for(service_name)
+      service_name.to_s.underscore.tr(" ", "_")
     end
 
     # the default minimum time we should wait between syncing items
