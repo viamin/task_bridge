@@ -392,6 +392,17 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.asana_id).to be_nil
       expect(item.asana_url).to be_nil
     end
+
+    it "preserves ActiveRecord dirty tracking for notes after parsing" do
+      item = create_mock_item(omnifocus_item_class,
+                              notes: "body\n\nasana_id: asana-123")
+
+      item.clear_changes_information
+      item.assign_attributes(notes: "updated body\n\nasana_id: asana-456")
+
+      expect(item.notes).to eq("updated body\n\nasana_id: asana-456")
+      expect(item.changes["notes"]).to eq(["body\n\nasana_id: asana-123", "updated body\n\nasana_id: asana-456"])
+    end
   end
 
   describe "#service" do

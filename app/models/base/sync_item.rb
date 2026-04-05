@@ -107,6 +107,8 @@ module Base
 
       note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
       note_components.each do |key, value|
+        next if has_attribute?(key)
+
         instance_variable_set(:"@#{key}", value)
         define_note_component_accessors(key)
       end
