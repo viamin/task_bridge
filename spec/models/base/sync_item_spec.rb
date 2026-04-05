@@ -346,6 +346,17 @@ RSpec.describe "Base::SyncItem", :full_options do
   end
 
   describe "#read_notes" do
+    it "re-raises non-stale note read errors instead of silently returning nil" do
+      external_data = Object.new
+      external_data.define_singleton_method(:notes) do
+        raise NoMethodError, "unexpected note reader failure"
+      end
+
+      expect do
+        omnifocus_item_class.new(sync_item: external_data, options: options)
+      end.to raise_error(NoMethodError, /unexpected note reader failure/)
+    end
+
     it "parses from the assigned notes attribute without re-reading external data" do
       expect(omnifocus_item_class).not_to receive(:read_external_attribute)
 
@@ -380,6 +391,35 @@ RSpec.describe "Base::SyncItem", :full_options do
 
       expect(item.asana_id).to be_nil
       expect(item.asana_url).to be_nil
+    end
+  end
+
+  describe "#refresh_from_external!" do
+    let(:asana_task_data) do
+      {
+        "gid" => "asana-123",
+        "name" => "Persisted Task",
+        "completed" => false,
+        "completed_at" => nil,
+        "modified_at" => "2024-04-03T12:00:00Z",
+        "notes" => "omnifocus_id: of-123\nomnifocus_url: omnifocus:///task/of-123",
+        "projects" => [],
+        "memberships" => [],
+        "num_subtasks" => 0
+      }
+    end
+
+    it "persists hydrated attributes so sync history survives future runs" do
+      item = Asana::Task.find_or_initialize_by(external_id: "asana-123")
+      item.asana_task = asana_task_data
+
+      item.refresh_from_external!
+      item.reload
+
+      expect(item.title).to eq("Persisted Task")
+      expect(item.last_modified).to eq(Time.zone.parse("2024-04-03T12:00:00Z"))
+      expect(item.notes).to eq(asana_task_data["notes"])
+      expect(item.omnifocus_id).to eq("of-123")
     end
   end
 

@@ -28,13 +28,13 @@ module Asana
     end
 
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
-    def items_to_sync(*, only_modified_dates: false)
+    def items_to_sync(*, only_modified_dates: false, **)
       visible_project_gids = list_projects.map { |project| project["gid"] }
       task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid, only_modified_dates:) }.flatten.uniq
       tasks = task_list.map do |external_task|
         asana_task = Task.find_or_initialize_by(external_id: external_task[Task.external_attribute_map[:external_id]])
         asana_task.asana_task = external_task
-        asana_task.read_original(only_modified_dates:)
+        asana_task.refresh_from_external!(only_modified_dates:)
       end
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count&.positive? }
       if tasks_with_sub_items.any?
@@ -43,7 +43,7 @@ module Asana
           sub_item_hashes.each do |sub_item_hash|
             sub_item = Task.find_or_initialize_by(external_id: sub_item_hash[Task.external_attribute_map[:external_id]])
             sub_item.asana_task = sub_item_hash
-            sub_item.read_original(only_modified_dates:)
+            sub_item.refresh_from_external!(only_modified_dates:)
             parent_task.sub_items << sub_item
             # Remove the sub_item from the main task list
             # so we don't double sync them
@@ -69,7 +69,7 @@ module Asana
       return failure_message("create an Asana task", response) unless response.success?
 
       response_body = JSON.parse(response.body)
-      new_task = Task.new(asana_task: response_body["data"]).tap(&:read_original)
+      new_task = Task.new(asana_task: response_body["data"]).tap(&:refresh_from_external!)
       section_move_error = move_task_to_section(section_identifier_for(external_task), new_task.external_id)
       handle_sub_items(new_task, external_task)
       update_sync_data(external_task, new_task.external_id, new_task.url)

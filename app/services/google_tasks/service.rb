@@ -59,7 +59,7 @@ module GoogleTasks
         raw_tasks.map do |external_task|
           task = Task.find_or_initialize_by(external_id: external_task.id)
           task.google_task = external_task
-          task.read_original(only_modified_dates: true)
+          task.refresh_from_external!(only_modified_dates: true)
         end
       end
     end

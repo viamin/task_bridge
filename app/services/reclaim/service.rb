@@ -28,7 +28,7 @@ module Reclaim
       list_tasks.map do |reclaim_task|
         task = Task.find_or_initialize_by(external_id: reclaim_task[Task.external_attribute_map[:external_id]])
         task.reclaim_task = reclaim_task
-        task.read_original(only_modified_dates: true)
+        task.refresh_from_external!(only_modified_dates: true)
       end
     end
 

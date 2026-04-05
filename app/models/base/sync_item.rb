@@ -85,19 +85,19 @@ module Base
       self
     end
 
+    def refresh_from_external!(only_modified_dates: false)
+      read_original(only_modified_dates:)
+      save! if changed?
+      self
+    end
+
     def read_notes
       reset_note_component_values
 
       # Prefer the already-assigned attribute value so note parsing does not
       # trigger a second external read after read_original has populated notes.
       raw_notes = notes if has_attribute?(:notes)
-      if raw_notes.nil?
-        raw_notes = begin
-          self.class.read_external_attribute(external_data, external_attribute_map[:notes])
-        rescue StandardError
-          nil
-        end
-      end
+      raw_notes = self.class.read_external_attribute(external_data, external_attribute_map[:notes]) if raw_notes.nil?
       return if raw_notes.blank?
 
       note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)

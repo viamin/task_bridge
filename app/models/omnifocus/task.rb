@@ -97,7 +97,7 @@ module Omnifocus
       @sub_items = read_external_attribute(omnifocus_task, :tasks)&.map do |sub_item|
         task = Task.find_or_initialize_by(external_id: sub_item.id_.get)
         task.omnifocus_task = sub_item
-        task.read_original(only_modified_dates:)
+        task.refresh_from_external!(only_modified_dates:)
       end
       @sub_item_count = @sub_items&.count
       self

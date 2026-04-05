@@ -40,7 +40,7 @@ module Reminders
       merged_reminders.map do |external_reminder|
         reminder = Reminder.find_or_initialize_by(external_id: external_reminder.id_.get)
         reminder.reminder = external_reminder
-        reminder.read_original(only_modified_dates: true)
+        reminder.refresh_from_external!(only_modified_dates: true)
       end
     end
 

@@ -56,5 +56,40 @@ RSpec.describe Asana::Service, :full_options do
       expect(tasks.first.sub_items.map(&:external_id)).to eq(["subtask-gid"])
       expect(tasks.first.sub_items.map(&:title)).to eq(["Sub Task"])
     end
+
+    it "accepts unused base-service keywords when Asana is the primary service" do
+      expect do
+        service.items_to_sync(tags: ["TaskBridge"], inbox: true)
+      end.not_to raise_error
+    end
+  end
+
+  describe "persisted hydration" do
+    let(:persisted_task_data) do
+      JSON.parse(File.read(File.expand_path(File.join(__dir__, "..", "..", "fixtures", "asana_task.json")))).merge(
+        "gid" => "persisted-gid",
+        "name" => "Persisted Parent Task",
+        "modified_at" => "2024-04-03T12:00:00Z",
+        "notes" => "omnifocus_id: of-123\nomnifocus_url: omnifocus:///task/of-123",
+        "num_subtasks" => 0
+      )
+    end
+
+    before do
+      allow(service).to receive(:list_projects).and_return([{ "gid" => "project-gid" }])
+      allow(service).to receive(:list_project_tasks).with("project-gid", only_modified_dates: false).and_return([persisted_task_data])
+      allow(service).to receive(:list_task_sub_items)
+    end
+
+    it "persists hydrated sync state for future runs" do
+      service.items_to_sync
+
+      item = Asana::Task.find_by!(external_id: "persisted-gid")
+
+      expect(item.title).to eq("Persisted Parent Task")
+      expect(item.last_modified).to eq(Time.zone.parse("2024-04-03T12:00:00Z"))
+      expect(item.notes).to eq(persisted_task_data["notes"])
+      expect(item.omnifocus_id).to eq("of-123")
+    end
   end
 end

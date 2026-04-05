@@ -70,7 +70,7 @@ module Instapaper
       articles.select { |article| article["type"] == "bookmark" }.map do |external_article|
         article = Article.find_or_initialize_by(external_id: external_article[Article.external_attribute_map[:external_id]])
         article.instapaper_article = external_article.merge("folder" => "archive")
-        article.read_original(only_modified_dates: true)
+        article.refresh_from_external!(only_modified_dates: true)
       end
     end
 
@@ -84,7 +84,7 @@ module Instapaper
       articles.select { |article| article["type"] == "bookmark" }.map do |external_article|
         article = Article.find_or_initialize_by(external_id: external_article[Article.external_attribute_map[:external_id]])
         article.instapaper_article = external_article.merge("folder" => "unread")
-        article.read_original(only_modified_dates: true)
+        article.refresh_from_external!(only_modified_dates: true)
       end
     end
   end
