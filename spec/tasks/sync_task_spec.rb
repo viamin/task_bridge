@@ -49,8 +49,8 @@ RSpec.describe "task_bridge:sync task" do
       sync_strategies: [:from_primary]
     )
 
-    allow(failing_service).to receive(:sync_from_primary).with(primary_service).and_raise(RuntimeError, "boom")
-    allow(passing_service).to receive(:sync_from_primary).with(primary_service).and_return(
+    allow(failing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_raise(RuntimeError, "boom")
+    allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
       {
         service: "Passing",
         last_attempted: "2024-01-01 09:00AM",
@@ -70,8 +70,8 @@ RSpec.describe "task_bridge:sync task" do
       expect { invoke_task }.not_to raise_error
     end
 
-    expect(failing_service).to have_received(:sync_from_primary).with(primary_service)
-    expect(passing_service).to have_received(:sync_from_primary).with(primary_service)
+    expect(failing_service).to have_received(:sync_from_primary).with(primary_service, service_items: [])
+    expect(passing_service).to have_received(:sync_from_primary).with(primary_service, service_items: [])
     expect(logger).to have_received(:save_service_log!).with(
       array_including(
         hash_including(
@@ -92,6 +92,40 @@ RSpec.describe "task_bridge:sync task" do
         )
       )
     )
+  end
+
+  it "reuses preloaded service items during sync_to_primary" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    primary_service = instance_double("Primary::Service")
+    service_item = instance_double(Base::SyncItem, sync_collection_id: nil, title: "Task", incomplete?: true, provider: "Passing")
+    passing_service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      sync_strategies: [:to_primary]
+    )
+
+    allow(passing_service).to receive(:items_to_sync).with(tags: []).and_return([service_item])
+    allow(passing_service).to receive(:sync_to_primary).with(primary_service, service_items: [service_item]).and_return(
+      {
+        service: "Passing",
+        last_attempted: "2024-01-01 09:00AM",
+        last_successful: "2024-01-01 09:00AM",
+        items_synced: 1
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    stub_service("Primary", primary_service)
+    stub_service("Passing", passing_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task("--only-to-primary") }.not_to raise_error
+    end
+
+    expect(passing_service).to have_received(:items_to_sync).with(tags: []).once
+    expect(passing_service).to have_received(:sync_to_primary).with(primary_service, service_items: [service_item])
   end
 
   def stub_sync_defaults(services:, quiet: false)

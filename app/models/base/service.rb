@@ -40,11 +40,11 @@ module Base
     # 5b. If there are 2 items, sync the newer item to the other service - also update the sync_ids
     # 5c. If there are more than 2 items, match as many attributes as possible between items and treat them as a pair adding sync_ids. (TODO: It might be better to just treat each side as a new item and create duplicates? Maybe there should be a setting for this)
     # 6. Update the sync_log and return results
-    def sync_with_primary(primary_service)
+    def sync_with_primary(primary_service, service_items: nil)
       return @last_sync_data unless should_sync?
 
       primary_items = primary_service.items_to_sync(tags: [friendly_name])
-      service_items = items_to_sync(tags: options[:tags])
+      service_items ||= items_to_sync(tags: options[:tags])
 
       item_pairs = paired_items(primary_items, service_items)
       unmatched_primary_items = primary_items - item_pairs.to_a.flatten
@@ -79,10 +79,11 @@ module Base
     end
 
     # implements the :to_primary sync strategy
-    def sync_to_primary(primary_service)
+    def sync_to_primary(primary_service, service_items: nil)
       return @last_sync_data unless should_sync?
 
-      service_items = items_to_sync(tags: options[:tags], only_modified_dates: true)
+      service_items ||= items_to_sync(tags: options[:tags], only_modified_dates: true)
+      existing_primary_items = existing_items(primary_service)
       unless options[:quiet]
         progressbar = ProgressBar.create(
           format: "%t: %c/%C |%w>%i| %e ",
@@ -91,7 +92,7 @@ module Base
         )
       end
       service_items.each do |service_item|
-        output = if (existing_item = service_item.find_matching_item_in(existing_items(primary_service)))
+        output = if (existing_item = service_item.find_matching_item_in(existing_primary_items))
           if should_sync?(sync_timestamp_for(service_item))
             primary_service.update_item(existing_item, service_item)
           else
@@ -108,11 +109,11 @@ module Base
     end
 
     # implements the :from_primary sync strategy
-    def sync_from_primary(primary_service)
+    def sync_from_primary(primary_service, service_items: nil)
       return @last_sync_data unless should_sync?
 
       primary_items = primary_service.items_to_sync(tags: [friendly_name])
-      service_items = items_to_sync(tags: options[:tags])
+      service_items ||= items_to_sync(tags: options[:tags])
       unless options[:quiet]
         progressbar = ProgressBar.create(
           format: "%t: %c/%C |%w>%i| %e ",

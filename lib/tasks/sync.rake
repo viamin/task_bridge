@@ -66,7 +66,9 @@ namespace :task_bridge do
         next
       end
       progressbar.log "Gathering items from #{service.friendly_name}"
-      items_by_service[service_name.to_sym] = service.items_to_sync(tags: options[:tags], only_modified_dates: true)
+      # Reuse these loaded items during the later service syncs so title grouping
+      # does not trigger a second full remote scan for the same collection.
+      items_by_service[service_name.to_sym] = service.items_to_sync(tags: options[:tags])
       progressbar.increment
     end
 
@@ -89,26 +91,27 @@ namespace :task_bridge do
       items.each { |item| collection << item }
       items_by_collection[collection.id] = items
     end
-    @services.each_value do |service|
+    @services.each do |service_name, service|
       @service_logs = []
+      service_items = items_by_service[service_name.to_sym] || []
       begin
         if service.respond_to?(:authorized) && service.authorized == false
           @service_logs << { service: service.friendly_name, last_attempted: options[:sync_started_at] }.stringify_keys
         elsif options[:delete]
           service.prune if service.respond_to?(:prune)
         elsif options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
-          @service_logs << service.sync_to_primary(@primary_service)
+          @service_logs << service.sync_to_primary(@primary_service, service_items:)
         elsif options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
-          @service_logs << service.sync_from_primary(@primary_service)
+          @service_logs << service.sync_from_primary(@primary_service, service_items:)
         elsif service.sync_strategies.include?(:two_way)
           # if the #sync_with_primary method exists, we should use it unless options force us not to
-          @service_logs << service.sync_with_primary(@primary_service)
+          @service_logs << service.sync_with_primary(@primary_service, service_items:)
         else
           # Keep each service isolated so one transient failure does not abort the full sync run.
           # Generally we should sync FROM the primary service first, since it should be the source of truth
           # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-          @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
-          @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
+          @service_logs << service.sync_from_primary(@primary_service, service_items:) if service.sync_strategies.include?(:from_primary)
+          @service_logs << service.sync_to_primary(@primary_service, service_items:) if service.sync_strategies.include?(:to_primary)
         end
       rescue StandardError => e
         @service_logs << {

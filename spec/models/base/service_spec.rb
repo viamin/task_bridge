@@ -70,6 +70,13 @@ RSpec.describe Base::Service do
       expect(service).to have_received(:should_sync?).with(service_last_modified)
       expect(primary_service).to have_received(:update_item).with(existing_item, service_item)
     end
+
+    it "loads existing primary items once per sync run" do
+      service.sync_to_primary(primary_service)
+
+      expect(service).to have_received(:existing_items).with(primary_service).once
+      expect(service_item).to have_received(:find_matching_item_in).with([existing_item]).once
+    end
   end
 
   describe "#paired_items" do
