@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_04_05_000000) do
+ActiveRecord::Schema[7.2].define(version: 2026_04_05_000001) do
   create_table "sync_collections", force: :cascade do |t|
     t.string "title"
     t.datetime "last_synced"
@@ -25,7 +25,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_04_05_000000) do
     t.datetime "due_at"
     t.datetime "due_date"
     t.boolean "flagged"
-    t.string "notes"
+    t.text "notes"
     t.datetime "start_at"
     t.datetime "start_date"
     t.string "status"
@@ -41,6 +41,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_04_05_000000) do
     t.datetime "updated_at", null: false
     t.index ["parent_item_id"], name: "index_sync_items_on_parent_item_id"
     t.index ["sync_collection_id"], name: "index_sync_items_on_sync_collection_id"
+    t.index ["sync_collection_id", "type"], name: "index_sync_items_on_sync_collection_id_and_type", unique: true, where: "(sync_collection_id IS NOT NULL)"
     t.index ["last_modified"], name: "index_sync_items_on_last_modified"
     t.index ["type", "external_id"], name: "index_sync_items_on_type_and_external_id", unique: true
   end

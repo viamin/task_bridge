@@ -9,7 +9,7 @@ class CreateSyncItems < ActiveRecord::Migration[7.1]
       t.datetime :due_at
       t.datetime :due_date
       t.boolean :flagged
-      t.string :notes
+      t.text :notes
       t.datetime :start_at
       t.datetime :start_date
       t.string :status

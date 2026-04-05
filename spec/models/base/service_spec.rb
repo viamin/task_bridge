@@ -20,6 +20,21 @@ RSpec.describe Base::Service do
       end
     end)
   end
+  let(:primary_sync_item_class) do
+    stub_const("PrimaryServiceSpecItem", Class.new(Base::SyncItem) do
+      def self.attribute_map
+        {}
+      end
+
+      def provider
+        "PrimaryService"
+      end
+
+      def external_data
+        {}
+      end
+    end)
+  end
   let(:service_class) do
     Class.new(described_class) do
       def friendly_name
@@ -75,6 +90,11 @@ RSpec.describe Base::Service do
   let(:service_last_modified) { Time.current - 1.minute }
   let(:service_updated_at) { Time.current - 2.hours }
 
+  before do
+    sync_item_class
+    primary_sync_item_class
+  end
+
   describe "#sync_to_primary" do
     before do
       allow(service).to receive(:items_to_sync).and_return([service_item])
@@ -105,7 +125,7 @@ RSpec.describe Base::Service do
         completed: false,
         last_modified: Time.current - 1.minute
       )
-      persisted_primary_item = sync_item_class.create!(
+      persisted_primary_item = primary_sync_item_class.create!(
         title: "Persisted primary task",
         external_id: "primary-123",
         completed: false,
@@ -137,7 +157,7 @@ RSpec.describe Base::Service do
       allow(service).to receive(:should_sync?).with(persisted_service_item.last_modified).and_return(true)
       allow(service).to receive(:existing_items).with(primary_service).and_return([])
       allow(persisted_service_item).to receive(:find_matching_item_in).with([]).and_return(nil)
-      allow(primary_service).to receive(:item_class).and_return(sync_item_class)
+      allow(primary_service).to receive(:item_class).and_return(primary_sync_item_class)
       allow(primary_service).to receive(:add_item) do
         persisted_service_item.define_singleton_method(:primary_service_id) { "primary-create-123" }
         persisted_service_item.define_singleton_method(:primary_service_url) { "https://example.test/tasks/primary-create-123" }
@@ -147,7 +167,7 @@ RSpec.describe Base::Service do
         service.sync_to_primary(primary_service)
       end.to change(SyncCollection, :count).by(1)
 
-      created_primary_item = sync_item_class.find_by!(external_id: "primary-create-123")
+      created_primary_item = primary_sync_item_class.find_by!(external_id: "primary-create-123")
       expect(persisted_service_item.reload.sync_collection_id).to eq(created_primary_item.sync_collection_id)
       expect(created_primary_item.title).to eq(persisted_service_item.title)
     end
@@ -155,7 +175,7 @@ RSpec.describe Base::Service do
 
   describe "#sync_from_primary" do
     it "persists a sync collection for newly created service items" do
-      primary_item = sync_item_class.create!(
+      primary_item = primary_sync_item_class.create!(
         title: "Newly created service task",
         external_id: "primary-create-456",
         completed: false,
