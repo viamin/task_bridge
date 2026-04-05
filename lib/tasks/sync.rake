@@ -51,7 +51,8 @@ namespace :task_bridge do
     options[:uses_personal_tags] = options[:work_tags].blank?
     options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
     options[:logger] = StructuredLogger.new(options)
-    @primary_service = "#{options[:primary]}::Service".safe_constantize.new
+    primary_service_reference = options[:primary_service] || "#{options[:primary]}::Service".safe_constantize
+    @primary_service = primary_service_reference.is_a?(Class) ? primary_service_reference.new : primary_service_reference
     options[:primary_service] = @primary_service
     @services = options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new] }
     start_time = Time.now

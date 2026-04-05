@@ -128,6 +128,37 @@ RSpec.describe "task_bridge:sync task" do
     expect(passing_service).to have_received(:sync_to_primary).with(primary_service, service_items: [service_item])
   end
 
+  it "reuses an instantiated primary service from global options" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    primary_service = instance_double("Primary::Service")
+    passing_service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      items_to_sync: [],
+      sync_strategies: [:from_primary]
+    )
+
+    allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
+      {
+        service: "Passing",
+        last_attempted: "2024-01-01 09:00AM",
+        last_successful: "2024-01-01 09:00AM",
+        items_synced: 0
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Passing"], primary_service:)
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    stub_service("Passing", passing_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task }.not_to raise_error
+    end
+
+    expect(passing_service).to have_received(:sync_from_primary).with(primary_service, service_items: [])
+  end
+
   it "updates last_synced only for collections touched by successful services" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     primary_service = instance_double("Primary::Service")
@@ -224,9 +255,10 @@ RSpec.describe "task_bridge:sync task" do
     expect(SyncCollection).not_to have_received(:create)
   end
 
-  def stub_sync_defaults(services:, quiet: false)
+  def stub_sync_defaults(services:, quiet: false, primary_service: nil)
     Thread.current[:global_options] = {
       primary: "Primary",
+      primary_service: primary_service,
       tags: [],
       services: services,
       personal_tags: [],
