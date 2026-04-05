@@ -4,16 +4,14 @@ require "google/apis/tasks_v1"
 
 module GoogleTasks
   # A service class to connect to the Google Tasks API
-  class Service < BaseCli
-    prepend MemoWise
-    include Debug
-    include GlobalOptions
+  class Service < Base::Service
+    include AuthorizationHelpers
 
     attr_reader :tasks_service, :authorized
 
     # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L26
     def initialize(options: nil, tasks_service: Google::Apis::TasksV1::TasksService.new, authorization: nil)
-      self.options = options if options
+      super(options:)
       @tasks_service = tasks_service
       @tasks_service.authorization = authorization || user_credentials_for(Google::Apis::TasksV1::AUTH_TASKS)
       @authorized = true
@@ -29,25 +27,22 @@ module GoogleTasks
       @authorized = false
     end
 
-    desc "item_class", "The class of the item to sync"
     def item_class
       GoogleTasks::Task
     end
 
-    desc "friendly_name", "The friendly name of the service for use in tagging (and elsewhere)"
     def friendly_name
       "Google Tasks"
     end
 
-    desc "sync_strategies", "Supported sync strategies for Google Tasks"
     def sync_strategies
       [:from_primary]
     end
 
-    desc "items_to_sync", "Get all of the tasks to sync in options[:list]"
     def items_to_sync(*, only_modified_dates: false, **)
       debug("called", options[:debug])
-      @items_to_sync ||= begin
+      @items_to_sync ||= {}
+      @items_to_sync[only_modified_dates] ||= begin
         raw_tasks = tasks_service.list_tasks(
           tasklist.id,
           max_results: 100,
@@ -64,7 +59,6 @@ module GoogleTasks
       end
     end
 
-    desc "add_item", "Add a new task to a given task list"
     def add_item(external_task)
       return external_task.flag! if external_task.respond_to?(:estimated_minutes) && external_task.estimated_minutes.nil?
 
@@ -77,7 +71,6 @@ module GoogleTasks
       created_task.to_h
     end
 
-    desc "patch_item", "Patch an existing task in a task list"
     def patch_item(google_task, attributes_hash)
       debug("task: #{google_task.title}, attributes_hash: #{attributes_hash.pretty_inspect}", options[:debug])
       updated_task = Google::Apis::TasksV1::Task.new(**attributes_hash)
@@ -86,7 +79,6 @@ module GoogleTasks
       updated_task.to_h
     end
 
-    desc "update_item", "Update an existing task in a task list"
     def update_item(google_task, external_task)
       debug("existing_task: #{google_task.pretty_inspect}", options[:debug])
       updated_task_json = GoogleTasks::Task.from_external(external_task)
@@ -97,13 +89,11 @@ module GoogleTasks
       updated_task.to_h
     end
 
-    desc "prune", "Delete completed tasks"
     def prune
       tasks_service.clear_task(tasklist.id)
       puts "Deleted completed tasks from #{tasklist.title}" if options[:verbose]
     end
 
-    desc "should_sync?", "Return boolean whether or not this service should sync. Time-based."
     def should_sync?(task_updated_at = nil)
       time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
       return true if time_since_last_sync.nil? || options[:force]
@@ -172,12 +162,12 @@ module GoogleTasks
     def completed_min_timestamp
       Chronic.parse("1 week ago").iso8601
     end
-    no_commands { memo_wise :completed_min_timestamp }
+    memo_wise :completed_min_timestamp
 
     # Returns the last successful sync time from the logger, or nil if never synced
     def last_sync_time
       options[:logger]&.last_synced(friendly_name)
     end
-    no_commands { memo_wise :last_sync_time }
+    memo_wise :last_sync_time
   end
 end

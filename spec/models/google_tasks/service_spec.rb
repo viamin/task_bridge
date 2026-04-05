@@ -20,6 +20,7 @@ RSpec.describe "GoogleTasks::Service" do
 
       it "syncs from primary" do
         expect(service.sync_strategies).to contain_exactly(:from_primary)
+        expect(service).to respond_to(:sync_from_primary)
       end
     end
   end
@@ -61,6 +62,15 @@ RSpec.describe "GoogleTasks::Service" do
 
         expect(wrapped_task).to have_received(:refresh_from_external!).with(only_modified_dates: true)
       end
+    end
+
+    it "caches full and partial reads independently" do
+      service.items_to_sync(only_modified_dates: true)
+      service.items_to_sync(only_modified_dates: false)
+
+      expect(wrapped_task).to have_received(:refresh_from_external!).with(only_modified_dates: true)
+      expect(wrapped_task).to have_received(:refresh_from_external!).with(only_modified_dates: false)
+      expect(tasks_service).to have_received(:list_tasks).twice
     end
   end
 

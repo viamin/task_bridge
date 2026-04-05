@@ -31,7 +31,8 @@ RSpec.describe Asana::Service, :full_options do
         due_date: nil,
         flagged: false,
         project: "Pets:Bucky",
-        sync_notes: "notes"
+        sync_notes: "notes",
+        patch_external_attributes: true
       )
     end
     let(:created_task_data) do
@@ -61,6 +62,13 @@ RSpec.describe Asana::Service, :full_options do
       )
 
       service.add_item(external_task)
+    end
+
+    it "returns the created task on success so the sync collection can be persisted" do
+      created_task = service.add_item(external_task)
+
+      expect(created_task).to be_a(Asana::Task)
+      expect(created_task.external_id).to eq(created_task_data["gid"])
     end
   end
 end

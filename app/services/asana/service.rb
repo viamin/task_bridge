@@ -73,7 +73,9 @@ module Asana
       section_move_error = move_task_to_section(section_identifier_for(external_task), new_task.external_id)
       handle_sub_items(new_task, external_task)
       update_sync_data(external_task, new_task.external_id, new_task.url)
-      section_move_error
+      return section_move_error if section_move_error.present?
+
+      new_task
     end
 
     # Asana's update task API supports a PATCH-like syntax using PUT
