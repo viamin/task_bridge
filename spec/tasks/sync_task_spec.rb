@@ -189,6 +189,41 @@ RSpec.describe "task_bridge:sync task" do
     expect(SyncCollection).not_to have_received(:find_by).with(id: 202)
   end
 
+  it "does not persist sync collections from title-only matches during item gathering" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    primary_service = instance_double("Primary::Service")
+    service_a_item = instance_double(
+      Base::SyncItem,
+      sync_collection_id: nil,
+      title: "Shared title",
+      incomplete?: true,
+      provider: "ServiceA"
+    )
+    service_b_item = instance_double(
+      Base::SyncItem,
+      sync_collection_id: nil,
+      title: "Shared title",
+      incomplete?: true,
+      provider: "ServiceB"
+    )
+    service_a = instance_double("ServiceA::Service", friendly_name: "ServiceA", items_to_sync: [service_a_item], sync_strategies: [])
+    service_b = instance_double("ServiceB::Service", friendly_name: "ServiceB", items_to_sync: [service_b_item], sync_strategies: [])
+
+    stub_sync_defaults(services: %w[ServiceA ServiceB])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary ServiceA ServiceB])
+    stub_service("Primary", primary_service)
+    stub_service("ServiceA", service_a)
+    stub_service("ServiceB", service_b)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+    allow(SyncCollection).to receive(:create)
+
+    capture_output do
+      expect { invoke_task }.not_to raise_error
+    end
+
+    expect(SyncCollection).not_to have_received(:create)
+  end
+
   def stub_sync_defaults(services:, quiet: false)
     Thread.current[:global_options] = {
       primary: "Primary",

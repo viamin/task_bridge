@@ -90,7 +90,8 @@ RSpec.describe "Asana::Task" do
         "name",
         "completed",
         "completed_at",
-        "modified_at"
+        "modified_at",
+        "num_subtasks"
       )
     end
   end

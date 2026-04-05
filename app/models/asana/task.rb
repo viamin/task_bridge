@@ -128,7 +128,7 @@ module Asana
           notes: false,
           start_on: false,
           start_at: false,
-          num_subtasks: false,
+          num_subtasks: true,
           "memberships.section.name": true,
           "memberships.project.name": true,
           subtasks_name: false,

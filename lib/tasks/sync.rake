@@ -63,38 +63,23 @@ namespace :task_bridge do
     @services.each do |service_name, service|
       if service.respond_to?(:authorized) && service.authorized == false
         progressbar.log "Skipping unauthorized service #{service.friendly_name}"
+        items_by_service[service_name] = []
         progressbar.increment
         next
       end
       progressbar.log "Gathering items from #{service.friendly_name}"
       # Reuse these loaded items during the later service syncs so title grouping
       # does not trigger a second full remote scan for the same collection.
-      items_by_service[service_name.to_sym] = service.items_to_sync(tags: options[:tags])
+      items_by_service[service_name] = service.items_to_sync(tags: options[:tags])
       progressbar.increment
     end
 
-    # Group items into sync collections. All services return Base::SyncItem
-    # subclasses (e.g., Asana::Task, GoogleTasks::Task), so they all respond to
-    # sync_collection_id, title, and incomplete?.
-    items_by_collection = items_by_service.values.flatten.group_by(&:sync_collection_id)
-    ungrouped_items = items_by_collection.delete(nil) || []
-    # group the remaining items by title
-    ungrouped_items_by_title = ungrouped_items.group_by(&:title)
-    # for each group, create a sync collection if the statuses match
-    ungrouped_items_by_title.each do |title, items|
-      providers = items.map(&:provider)
-      next unless items.count > 1 &&
-                  items.any?(&:incomplete?) &&
-                  providers.uniq.count == items.count &&
-                  items.count <= items_by_service.keys.length
-
-      collection = SyncCollection.create(title:)
-      items.each { |item| collection << item }
-      items_by_collection[collection.id] = items
-    end
-    @services.each do |service_name, service|
+    # Title-only matches stay ephemeral during the sync run. Persisting a
+    # SyncCollection here would make an unverified title collision durable
+    # before a successful sync establishes an explicit cross-service link.
+    items_by_service.each do |service_name, service_items|
+      service = @services.fetch(service_name)
       @service_logs = []
-      service_items = items_by_service[service_name.to_sym] || []
       begin
         if service.respond_to?(:authorized) && service.authorized == false
           @service_logs << { service: service.friendly_name, last_attempted: options[:sync_started_at] }.stringify_keys
