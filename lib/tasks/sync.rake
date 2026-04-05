@@ -44,7 +44,8 @@ namespace :task_bridge do
     o.parse!(args)
     self.options = overrides
 
-    raise "Supported services: #{supported_services.join(', ')}" unless supported_services.intersect?(options[:services])
+    unsupported_services = options[:services] - supported_services
+raise "Supported services: #{supported_services.join(', ')}" if unsupported_services.any?
 
     options[:max_age_timestamp] = options[:max_age].zero? ? nil : Chronic.parse("#{options[:max_age]} ago")
     options[:uses_personal_tags] = options[:work_tags].blank?
@@ -126,6 +127,13 @@ namespace :task_bridge do
         warn "Sync failed for #{service.friendly_name}: #{e.class} #{e.message}" unless options[:quiet]
       end
       options[:logger].save_service_log!(@service_logs)
+  # Update last_synced for each sync collection that was processed
+  items_by_collection.each_key do |collection_id|
+    collection = SyncCollection.find_by(id: collection_id)
+    if collection
+      collection.update(last_synced: Time.now)
+    end
+  end
     end
     end_time = Time.now
     return if options[:quiet]
