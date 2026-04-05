@@ -70,8 +70,8 @@ module GoogleTasks
           completed: external_task.completed_at&.to_date&.rfc3339,
           due: external_task.due_date&.to_date&.rfc3339,
           notes: external_task.sync_notes,
-          status: external_task.completed ? "completed" : "needsAction",
-          title: external_task.title + Reclaim::Task.title_addon(self, skip: skip_reclaim)
+          status: external_task.completed? ? "completed" : "needsAction",
+          title: external_task.title + Reclaim::Task.title_addon(external_task, skip: skip_reclaim)
         }.compact
       end
     end

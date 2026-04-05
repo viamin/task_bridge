@@ -62,4 +62,29 @@ RSpec.describe GoogleTasks::Task do
       expect(google_task.omnifocus_id).to eq("jU466dYHf2o")
     end
   end
+
+  describe ".from_external" do
+    let(:external_task) do
+      instance_double(
+        Reclaim::Task,
+        completed?: true,
+        completed_at: Time.zone.parse("2024-04-03 10:00:00 UTC"),
+        due_date: Time.zone.parse("2024-04-04 10:00:00 UTC"),
+        sync_notes: "sync notes",
+        title: "Review PR"
+      )
+    end
+
+    it "uses the polymorphic completion predicate for the exported status" do
+      allow(Reclaim::Task).to receive(:title_addon).with(external_task, skip: false).and_return(" (addon)")
+
+      expect(described_class.from_external(external_task, skip_reclaim: false)).to include(
+        completed: "2024-04-03T00:00:00+00:00",
+        due: "2024-04-04T00:00:00+00:00",
+        notes: "sync notes",
+        status: "completed",
+        title: "Review PR (addon)"
+      )
+    end
+  end
 end
