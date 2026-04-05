@@ -126,7 +126,7 @@ module Base
     end
 
     def service
-      if options[:primary] == provider
+      @service ||= if options[:primary] == provider
         # options[:primary_service] may be either a class or an already-instantiated
         # service object (the rake task stores an instance). Handle both cases.
         primary = options[:primary_service]

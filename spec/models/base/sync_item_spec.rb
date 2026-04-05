@@ -394,6 +394,33 @@ RSpec.describe "Base::SyncItem", :full_options do
     end
   end
 
+  describe "#service" do
+    let(:service_class) do
+      Class.new do
+        def initialize(options: nil)
+          @options = options
+        end
+
+        attr_reader :options
+      end
+    end
+
+    before do
+      stub_const("TestService::Service", service_class)
+    end
+
+    it "memoizes the resolved service instance" do
+      item = create_mock_item(test_item_class)
+
+      expect(service_class).to receive(:new).with(hash_including(options: kind_of(Hash))).once.and_call_original
+
+      first_service = item.service
+      second_service = item.service
+
+      expect(second_service).to equal(first_service)
+    end
+  end
+
   describe "#refresh_from_external!" do
     let(:asana_task_data) do
       {
