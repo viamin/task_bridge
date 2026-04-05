@@ -115,9 +115,10 @@ module Asana
         # the following hash contains keys that are task attributes
         # the value is whether it is needed when only_modified_dates is true
         fields = {
-          name: false,
+          gid: true,
+          name: true,
           permalink_url: false,
-          completed: false,
+          completed: true,
           completed_at: true,
           projects: true,
           due_on: false,

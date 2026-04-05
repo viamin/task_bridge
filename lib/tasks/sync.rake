@@ -127,9 +127,10 @@ namespace :task_bridge do
         warn "Sync failed for #{service.friendly_name}: #{e.class} #{e.message}" unless options[:quiet]
       end
       options[:logger].save_service_log!(@service_logs)
-      # Update last_synced for each sync collection that was processed
-      items_by_collection.each_key do |collection_id|
-        SyncCollection.find_by(id: collection_id)&.update(last_synced: Time.now)
+      next if @service_logs.any? { |log| log["status"] == "failed" }
+
+      service_items.filter_map(&:sync_collection_id).uniq.each do |collection_id|
+        SyncCollection.find_by(id: collection_id)&.update(last_synced: Time.current)
       end
     end
     end_time = Time.now

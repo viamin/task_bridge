@@ -82,4 +82,16 @@ RSpec.describe "Asana::Task" do
       expect(task.sub_items).to eq([])
     end
   end
+
+  describe ".requested_fields" do
+    it "keeps identity and completion fields in only_modified_dates mode" do
+      expect(Asana::Task.requested_fields(only_modified_dates: true)).to include(
+        "gid",
+        "name",
+        "completed",
+        "completed_at",
+        "modified_at"
+      )
+    end
+  end
 end

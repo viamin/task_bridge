@@ -128,6 +128,67 @@ RSpec.describe "task_bridge:sync task" do
     expect(passing_service).to have_received(:sync_to_primary).with(primary_service, service_items: [service_item])
   end
 
+  it "updates last_synced only for collections touched by successful services" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    primary_service = instance_double("Primary::Service")
+    synced_collection = instance_double(SyncCollection, update: true)
+    passing_item = instance_double(
+      Base::SyncItem,
+      sync_collection_id: 101,
+      title: "Passing task",
+      incomplete?: true,
+      provider: "Passing"
+    )
+    failing_item = instance_double(
+      Base::SyncItem,
+      sync_collection_id: 202,
+      title: "Failing task",
+      incomplete?: true,
+      provider: "Failing"
+    )
+    passing_service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      items_to_sync: [passing_item],
+      sync_strategies: [:from_primary]
+    )
+    failing_service = instance_double(
+      "Failing::Service",
+      friendly_name: "Failing",
+      items_to_sync: [failing_item],
+      sync_strategies: [:from_primary]
+    )
+
+    allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: [passing_item]).and_return(
+      {
+        service: "Passing",
+        last_attempted: "2024-01-01 09:00AM",
+        last_successful: "2024-01-01 09:00AM",
+        items_synced: 1
+      }.stringify_keys
+    )
+    allow(failing_service).to receive(:sync_from_primary).with(primary_service, service_items: [failing_item]).and_raise(
+      RuntimeError, "boom"
+    )
+
+    stub_sync_defaults(services: %w[Passing Failing])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing Failing])
+    stub_service("Primary", primary_service)
+    stub_service("Passing", passing_service)
+    stub_service("Failing", failing_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+    allow(SyncCollection).to receive(:find_by).with(id: 101).and_return(synced_collection)
+    allow(SyncCollection).to receive(:find_by).with(id: 202).and_return(nil)
+
+    capture_output do
+      expect { invoke_task }.not_to raise_error
+    end
+
+    expect(SyncCollection).to have_received(:find_by).with(id: 101)
+    expect(synced_collection).to have_received(:update).with(last_synced: kind_of(ActiveSupport::TimeWithZone))
+    expect(SyncCollection).not_to have_received(:find_by).with(id: 202)
+  end
+
   def stub_sync_defaults(services:, quiet: false)
     Thread.current[:global_options] = {
       primary: "Primary",
