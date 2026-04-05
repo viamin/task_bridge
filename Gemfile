@@ -78,6 +78,9 @@ gem "oauth", "~> 1.1"
 # https://github.com/ManageIQ/optimist
 gem "optimist", "~> 3.0"
 
+# https://github.com/ruby/ostruct
+gem "ostruct", "~> 0.6"
+
 # https://github.com/BrendanThompson/rb-scpt
 install_if(-> { RUBY_PLATFORM.include?("darwin") }) do
   gem "rb-scpt", "~> 1.0", platforms: [:ruby]
