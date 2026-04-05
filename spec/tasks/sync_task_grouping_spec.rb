@@ -14,7 +14,7 @@ RSpec.describe "task_bridge:sync collection grouping", :full_options do
       end
 
       def provider
-        "TestService"
+        @provider || "TestService"
       end
 
       def external_data
@@ -30,7 +30,7 @@ RSpec.describe "task_bridge:sync collection grouping", :full_options do
       "completed" => attrs[:completed] || false,
       "notes" => attrs[:notes] || ""
     }
-    test_item_class.new(
+    item = test_item_class.new(
       sync_item: sync_item,
       options: options,
       title: attrs[:title] || "Test Task",
@@ -40,17 +40,31 @@ RSpec.describe "task_bridge:sync collection grouping", :full_options do
       last_modified: attrs[:last_modified],
       sync_collection_id: attrs[:sync_collection_id]
     )
+    item.instance_variable_set(:@provider, attrs[:provider]) if attrs[:provider]
+    item
   end
 
   # Replicate the grouping logic from sync.rake
   def group_items_into_collections(items_by_service)
+    items_by_service.each do |service_name, items|
+      items.each do |item|
+        next if item.provider.present? && item.provider != "TestService"
+
+        item.instance_variable_set(:@provider, service_name.to_s)
+      end
+    end
+
     items_by_collection = items_by_service.values.flatten.group_by(&:sync_collection_id)
     ungrouped_items = items_by_collection.delete(nil) || []
     ungrouped_items_by_title = ungrouped_items.group_by(&:title)
     collections = []
 
     ungrouped_items_by_title.each do |title, items|
-      next unless items.count > 1 && items.any?(&:incomplete?) && (items.count <= items_by_service.keys.length)
+      providers = items.map(&:provider)
+      next unless items.count > 1 &&
+                  items.any?(&:incomplete?) &&
+                  providers.uniq.count == items.count &&
+                  items.count <= items_by_service.keys.length
 
       collection = SyncCollection.create(title: title)
       items.each { |item| collection << item }
@@ -132,6 +146,17 @@ RSpec.describe "task_bridge:sync collection grouping", :full_options do
       item_b = build_item(title: "Task Beta", id: "b1")
 
       result = group_items_into_collections(ServiceA: [item_a], ServiceB: [item_b])
+
+      expect(result[:collections]).to be_empty
+      expect(item_a.sync_collection_id).to be_nil
+      expect(item_b.sync_collection_id).to be_nil
+    end
+
+    it "does not create a collection when duplicate titles come from the same provider" do
+      item_a = build_item(title: "Inbox", id: "a1", provider: "GitHub")
+      item_b = build_item(title: "Inbox", id: "a2", provider: "GitHub")
+
+      result = group_items_into_collections(ServiceA: [item_a, item_b], ServiceB: [])
 
       expect(result[:collections]).to be_empty
       expect(item_a.sync_collection_id).to be_nil

@@ -163,7 +163,7 @@ module Asana
         section == "Untitled section" ? project : "#{project}:#{section}"
       else
         # we'll only sync a task with one project at a time
-        asana_task["projects"].first
+        asana_task["projects"]&.first&.dig("name")
       end
     end
 

@@ -51,4 +51,20 @@ RSpec.describe "Asana::Task" do
       expect(asana_task.omnifocus_id).to eq("jU466dYHf2o")
     end
   end
+
+  describe "#project" do
+    it "returns the project name when memberships are absent" do
+      task = Asana::Task.new(
+        asana_task: {
+          "gid" => "123",
+          "name" => "Task",
+          "projects" => [{ "name" => "Project Name" }],
+          "memberships" => []
+        }
+      )
+      task.read_original
+
+      expect(task.project).to eq("Project Name")
+    end
+  end
 end
