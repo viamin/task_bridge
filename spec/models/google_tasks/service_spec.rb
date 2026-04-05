@@ -25,7 +25,43 @@ RSpec.describe "GoogleTasks::Service" do
   end
 
   describe "#items_to_sync" do
-    subject { service.items_to_sync }
+    subject(:items_to_sync) { service.items_to_sync(only_modified_dates:) }
+
+    let(:only_modified_dates) { false }
+    let(:tasklist) { instance_double(Google::Apis::TasksV1::TaskList, id: "task-list-id", title: "My Tasks") }
+    let(:tasklists_response) { double("tasklists_response", items: [tasklist]) }
+    let(:external_task) { instance_double(Google::Apis::TasksV1::Task, id: "google-task-id") }
+    let(:tasks_response) { instance_double(Google::Apis::TasksV1::Tasks, items: [external_task]) }
+    let(:wrapped_task) { instance_double(GoogleTasks::Task, "google_task=": external_task) }
+
+    before do
+      allow(tasks_service).to receive(:list_tasklists).and_return(tasklists_response)
+      allow(tasks_service).to receive(:list_tasks).with(
+        "task-list-id",
+        max_results: 100,
+        completed_min: service.send(:completed_min_timestamp),
+        updated_min: service.send(:last_sync_time)&.iso8601
+      ).and_return(tasks_response)
+      allow(GoogleTasks::Task).to receive(:find_or_initialize_by).with(external_id: "google-task-id").and_return(wrapped_task)
+      allow(wrapped_task).to receive(:refresh_from_external!).and_return(wrapped_task)
+    end
+
+    it "hydrates tasks using the caller's partial-read setting" do
+      items_to_sync
+
+      expect(wrapped_task).to have_received(:refresh_from_external!).with(only_modified_dates: false)
+      expect(items_to_sync).to eq([wrapped_task])
+    end
+
+    context "when partial reads are requested" do
+      let(:only_modified_dates) { true }
+
+      it "passes the partial-read flag through to the wrapped task" do
+        items_to_sync
+
+        expect(wrapped_task).to have_received(:refresh_from_external!).with(only_modified_dates: true)
+      end
+    end
   end
 
   describe "#item_class" do

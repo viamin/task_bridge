@@ -171,6 +171,29 @@ RSpec.describe Base::Service do
       expect(persisted_service_item.reload.sync_collection_id).to eq(created_primary_item.sync_collection_id)
       expect(created_primary_item.title).to eq(persisted_service_item.title)
     end
+
+    it "refuses to merge items from different sync collections" do
+      first_collection = SyncCollection.create!(title: "Service collection")
+      second_collection = SyncCollection.create!(title: "Primary collection")
+      persisted_service_item = sync_item_class.create!(
+        title: "Persisted service task",
+        external_id: "service-merge-123",
+        completed: false,
+        last_modified: Time.current - 1.minute,
+        sync_collection_id: first_collection.id
+      )
+      persisted_primary_item = primary_sync_item_class.create!(
+        title: "Persisted primary task",
+        external_id: "primary-merge-123",
+        completed: false,
+        last_modified: Time.current - 2.minutes,
+        sync_collection_id: second_collection.id
+      )
+
+      expect do
+        service.send(:persist_sync_collection_for, persisted_primary_item, persisted_service_item)
+      end.to raise_error(ArgumentError, "cannot merge items from different sync collections")
+    end
   end
 
   describe "#sync_from_primary" do

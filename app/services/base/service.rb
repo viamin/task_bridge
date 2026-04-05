@@ -213,9 +213,11 @@ module Base
       end
       return if collection_items.length < 2
 
-      existing_collection_id = collection_items.filter_map(&:sync_collection_id).first
-      collection = if existing_collection_id
-        SyncCollection.find_by(id: existing_collection_id)
+      existing_collection_ids = collection_items.filter_map(&:sync_collection_id).uniq
+      raise ArgumentError, "cannot merge items from different sync collections" if existing_collection_ids.many?
+
+      collection = if existing_collection_ids.one?
+        SyncCollection.find_by(id: existing_collection_ids.first)
       else
         SyncCollection.create!(title: collection_items.filter_map(&:title).first)
       end

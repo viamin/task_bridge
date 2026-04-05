@@ -45,7 +45,7 @@ module GoogleTasks
     end
 
     desc "items_to_sync", "Get all of the tasks to sync in options[:list]"
-    def items_to_sync(*, **)
+    def items_to_sync(*, only_modified_dates: false, **)
       debug("called", options[:debug])
       @items_to_sync ||= begin
         raw_tasks = tasks_service.list_tasks(
@@ -59,7 +59,7 @@ module GoogleTasks
         raw_tasks.map do |external_task|
           task = Task.find_or_initialize_by(external_id: external_task.id)
           task.google_task = external_task
-          task.refresh_from_external!(only_modified_dates: true)
+          task.refresh_from_external!(only_modified_dates:)
         end
       end
     end
