@@ -136,7 +136,7 @@ module GoogleTasks
     # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/classes.rb#L175
     def tasklist
       debug("called", options[:debug])
-      tasklists = tasks_service.list_tasklists.items
+      tasklists = tasks_service.list_tasklists.items || []
       tasklist = tasklists.find { |list| list.title == options[:list] }
       raise "tasklist (#{options[:list]}) not found in #{tasklists}" if tasklist.nil?
 
@@ -154,7 +154,10 @@ module GoogleTasks
     end
 
     def external_task_id_for(google_task)
-      google_task.try(:external_id) || google_task.id
+      task_id = google_task.try(:external_id) || google_task.try(:id)
+      raise ArgumentError, "Google task is missing an external ID" if task_id.blank?
+
+      task_id
     end
 
     # Returns RFC 3339 timestamp for 1 week ago, used to filter completed tasks

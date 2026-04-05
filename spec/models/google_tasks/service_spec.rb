@@ -113,6 +113,16 @@ RSpec.describe "GoogleTasks::Service" do
     it "updates the task using the remote task id" do
       expect(subject).to eq(updated_task_payload)
     end
+
+    context "when the remote task id is missing" do
+      let(:google_task) { instance_double(Google::Apis::TasksV1::Task, id: nil, pretty_inspect: "existing task") }
+
+      it "raises a clear error before calling the API" do
+        expect(tasks_service).not_to receive(:patch_task)
+
+        expect { subject }.to raise_error(ArgumentError, "Google task is missing an external ID")
+      end
+    end
   end
 
   describe "#patch_item" do
@@ -134,6 +144,19 @@ RSpec.describe "GoogleTasks::Service" do
       it "patches using the sync item's external_id" do
         expect(subject).to eq(attributes_hash)
       end
+    end
+  end
+
+  describe "#tasklist" do
+    let(:service_with_list) { GoogleTasks::Service.new(options: { list: "Missing" }, tasks_service:, authorization: {}) }
+    let(:tasklists_response) { double("tasklists_response", items: nil) }
+
+    before do
+      allow(tasks_service).to receive(:list_tasklists).and_return(tasklists_response)
+    end
+
+    it "raises a clear error when the API returns no task lists" do
+      expect { service_with_list.send(:tasklist) }.to raise_error(RuntimeError, "tasklist (Missing) not found in []")
     end
   end
 end
