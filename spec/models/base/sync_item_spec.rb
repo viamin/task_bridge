@@ -421,6 +421,16 @@ RSpec.describe "Base::SyncItem", :full_options do
     end
   end
 
+  describe ".new" do
+    it "forwards the ActiveRecord initializer block" do
+      item = test_item_class.new(title: "Before block") do |record|
+        record.title = "From block"
+      end
+
+      expect(item.title).to eq("From block")
+    end
+  end
+
   describe "#refresh_from_external!" do
     let(:asana_task_data) do
       {

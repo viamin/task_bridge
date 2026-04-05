@@ -50,7 +50,7 @@ module Base
 
     after_initialize :read_notes, :set_tags
 
-    def initialize(attributes = nil)
+    def initialize(attributes = nil, &)
       attributes ||= {}
       # Extract non-column attributes before passing to ActiveRecord
       column_names = self.class.column_names.map(&:to_sym)
@@ -67,7 +67,7 @@ module Base
       extra_attrs.each do |key, value|
         instance_variable_set(:"@#{key}", value)
       end
-      super(ar_attrs)
+      super(ar_attrs, &)
     end
 
     validates :external_id, uniqueness: { scope: :type }

@@ -35,6 +35,7 @@ RSpec.describe Asana::Service, :full_options do
         project: external_task_project,
         sync_notes: "notes",
         sub_item_count: 0,
+        due_at: nil,
         due_date: nil,
         flagged: false
       )
@@ -146,6 +147,7 @@ RSpec.describe Asana::Service, :full_options do
           project: "Different Project",
           sync_notes: "notes",
           sub_item_count: 0,
+          due_at: nil,
           due_date: nil,
           flagged: false
         )
@@ -224,6 +226,7 @@ RSpec.describe Asana::Service, :full_options do
           project: nil,
           sync_notes: "notes",
           sub_item_count: 0,
+          due_at: nil,
           due_date: nil,
           flagged: false
         )
@@ -252,6 +255,7 @@ RSpec.describe Asana::Service, :full_options do
           project: "Pets:Bucky",
           sync_notes: "notes",
           sub_item_count: 0,
+          due_at: nil,
           due_date: nil,
           flagged: false
         )
@@ -279,6 +283,7 @@ RSpec.describe Asana::Service, :full_options do
           project: "Different Project",
           sync_notes: "notes",
           sub_item_count: 0,
+          due_at: nil,
           due_date: nil,
           flagged: false
         )

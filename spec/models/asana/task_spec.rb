@@ -86,6 +86,24 @@ RSpec.describe "Asana::Task" do
     end
   end
 
+  describe ".from_external" do
+    it "preserves due_at timestamps for timed tasks" do
+      due_at = Time.zone.parse("2024-04-03 15:45:00 UTC")
+      external_task = instance_double(
+        "ExternalTask",
+        completed?: false,
+        due_at: due_at,
+        flagged: false,
+        title: "Timed task",
+        sync_notes: "notes"
+      )
+
+      expect(Asana::Task.from_external(external_task)).to include(
+        due_at: due_at.iso8601
+      )
+    end
+  end
+
   describe "#read_original" do
     it "keeps subtask metadata in only_modified_dates mode" do
       task = Asana::Task.new(

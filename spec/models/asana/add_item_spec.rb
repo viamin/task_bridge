@@ -28,6 +28,7 @@ RSpec.describe Asana::Service, :full_options do
         "ExternalTask",
         title: "Test Task",
         completed?: false,
+        due_at: nil,
         due_date: nil,
         flagged: false,
         project: "Pets:Bucky",
