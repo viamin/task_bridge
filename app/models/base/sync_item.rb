@@ -231,10 +231,12 @@ module Base
         end
         value = value.get if value.respond_to?(:get)
         value == :missing_value ? nil : value
-      rescue Appscript::CommandError
+      rescue Appscript::CommandError => e
         # Stale AppleScript references (e.g., OSERROR -1728 "Can't get reference")
         # occur when a task is deleted mid-iteration. Return nil to keep the sync
         # run from crashing.
+        raise unless e.to_i == -1728
+
         nil
       end
 

@@ -382,4 +382,22 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.asana_url).to be_nil
     end
   end
+
+  describe ".read_external_attribute" do
+    it "returns nil for stale AppleScript references" do
+      external_data = double("external_data")
+      allow(external_data).to receive(:title).and_raise(make_stale_reference_error)
+
+      expect(omnifocus_item_class.read_external_attribute(external_data, "title")).to be_nil
+    end
+
+    it "re-raises non-stale AppleScript command errors" do
+      external_data = double("external_data")
+      allow(external_data).to receive(:title).and_raise(make_event_not_handled_error)
+
+      expect do
+        omnifocus_item_class.read_external_attribute(external_data, "title")
+      end.to raise_error(Appscript::CommandError)
+    end
+  end
 end

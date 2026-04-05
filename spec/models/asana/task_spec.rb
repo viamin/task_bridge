@@ -68,6 +68,24 @@ RSpec.describe "Asana::Task" do
     end
   end
 
+  describe "#to_json" do
+    it "serializes project gids when the fallback project is a plain name" do
+      task = Asana::Task.new(
+        asana_task: {
+          "gid" => "123",
+          "name" => "Task",
+          "projects" => [{ "gid" => "project-123", "name" => "Project Name" }],
+          "memberships" => []
+        }
+      )
+      task.read_original
+
+      payload = JSON.parse(task.to_json)
+
+      expect(payload.dig("data", "projects")).to eq(["project-123"])
+    end
+  end
+
   describe "#read_original" do
     it "keeps subtask metadata in only_modified_dates mode" do
       task = Asana::Task.new(

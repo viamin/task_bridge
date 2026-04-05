@@ -73,6 +73,16 @@ module OmnifocusErrorHelpers
     Appscript::CommandError.new(reference, command, {}, mock_error, nil)
   end
 
+  # Creates an Appscript::CommandError that simulates OSERROR -1728
+  # "Can't get reference"
+  def make_stale_reference_error(command: "get", reference: 'app("/Applications/OmniFocus.app")')
+    mock_error = OpenStruct.new(
+      to_i: -1728,
+      to_s: "Can't get reference."
+    )
+    Appscript::CommandError.new(reference, command, {}, mock_error, nil)
+  end
+
   # Creates an Appscript::ApplicationNotFoundError
   def make_app_not_found_error(name: "Omnifocus")
     Appscript::ApplicationNotFoundError.new(nil, nil, name)

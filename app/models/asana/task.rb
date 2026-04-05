@@ -83,6 +83,7 @@ module Asana
 
     # fields required for Asana
     def to_json(*)
+      project_gids = serialized_project_gids
       {
         data: {
           completed: completed?,
@@ -93,7 +94,7 @@ module Asana
           name: title,
           start_at: start_at&.iso8601,
           start_on: start_date&.to_date&.iso8601,
-          projects: [project["gid"]]
+          projects: project_gids
         }.compact
       }.to_json
     end
@@ -166,6 +167,12 @@ module Asana
         # we'll only sync a task with one project at a time
         asana_task["projects"]&.first&.dig("name")
       end
+    end
+
+    def serialized_project_gids
+      return [project["gid"]] if project.is_a?(Hash)
+
+      asana_task["projects"]&.filter_map { |asana_project| asana_project["gid"] } if asana_task.is_a?(Hash)
     end
 
     # {
