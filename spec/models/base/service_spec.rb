@@ -223,6 +223,27 @@ RSpec.describe Base::Service do
     end
   end
 
+  describe "#should_sync?" do
+    it "uses ActiveRecord-backed sync state instead of the structured log file" do
+      SyncServiceState.create!(
+        service_name: service.friendly_name,
+        last_successful_at: Time.current - 5.minutes
+      )
+      allow(logger).to receive(:last_synced).and_return(nil)
+
+      expect(service.should_sync?(Time.current - 1.minute)).to be true
+    end
+
+    it "skips syncing unchanged items when the service state is newer than the item" do
+      SyncServiceState.create!(
+        service_name: service.friendly_name,
+        last_successful_at: Time.current - 30.seconds
+      )
+
+      expect(service.should_sync?(Time.current - 1.minute)).to be false
+    end
+  end
+
   describe "#paired_items" do
     let(:primary_item) { instance_double(Base::SyncItem, last_modified: Time.current - 10.minutes, updated_at: Time.current - 1.minute) }
     let(:matching_item) { instance_double(Base::SyncItem, last_modified: Time.current - 2.minutes, updated_at: Time.current - 20.minutes) }

@@ -95,14 +95,7 @@ module GoogleTasks
     end
 
     def should_sync?(task_updated_at = nil)
-      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: task_updated_at.nil?)
-      return true if time_since_last_sync.nil? || options[:force]
-
-      if task_updated_at.present?
-        time_since_last_sync < task_updated_at
-      else
-        time_since_last_sync > min_sync_interval
-      end
+      super
     end
 
     private
@@ -166,7 +159,7 @@ module GoogleTasks
 
     # Returns the last successful sync time from the logger, or nil if never synced
     def last_sync_time
-      options[:logger]&.last_synced(friendly_name)
+      last_successful_sync_at
     end
     memo_wise :last_sync_time
   end

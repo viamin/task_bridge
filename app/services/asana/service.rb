@@ -340,7 +340,7 @@ module Asana
 
     # Returns the last successful sync time from the logger, or nil if never synced
     def last_sync_time
-      options[:logger]&.last_synced(friendly_name)
+      last_successful_sync_at
     end
     memo_wise :last_sync_time
   end

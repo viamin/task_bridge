@@ -8,7 +8,7 @@ module Base
 
     def initialize(options: nil)
       self.options = options if options
-      @last_sync_data = self.options[:logger]&.sync_data_for(friendly_name) || {}
+      @last_sync_data = sync_state&.to_log_hash || self.options[:logger]&.sync_data_for(friendly_name) || {}
     end
 
     def item_class
@@ -153,13 +153,21 @@ module Base
     end
 
     def should_sync?(item_updated_at = nil)
-      time_since_last_sync = options[:logger].last_synced(friendly_name, interval: item_updated_at.nil?)
-      return true if time_since_last_sync.nil? || options[:force]
+      last_successful_at = sync_state&.last_successful_at
+      if last_successful_at.nil?
+        time_since_last_sync = options[:logger]&.last_synced(friendly_name, interval: item_updated_at.nil?)
+        return true if time_since_last_sync.nil? || options[:force]
+        return time_since_last_sync < item_updated_at if item_updated_at.present?
+
+        return time_since_last_sync > min_sync_interval
+      end
+
+      return true if options[:force]
 
       if item_updated_at.present?
-        time_since_last_sync < item_updated_at
+        last_successful_at < item_updated_at
       else
-        time_since_last_sync > min_sync_interval
+        Time.current - last_successful_at > min_sync_interval
       end
     end
 
@@ -188,6 +196,14 @@ module Base
     end
 
     private
+
+    def last_successful_sync_at
+      sync_state&.last_successful_at || options[:logger]&.last_synced(friendly_name)
+    end
+
+    def sync_state
+      SyncServiceState.find_by(service_name: friendly_name)
+    end
 
     # find all paired items
     def paired_items(primary_items, service_items)

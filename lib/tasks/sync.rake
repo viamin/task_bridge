@@ -114,6 +114,9 @@ namespace :task_bridge do
         warn "Sync failed for #{service.friendly_name}: #{e.class} #{e.message}" unless options[:quiet]
       end
       options[:logger].save_service_log!(@service_logs)
+      SyncServiceState.record_summary!(
+        options[:logger].summarize_service_run(service_name: service.friendly_name, logs: @service_logs)
+      )
       next if @service_logs.any? { |log| log["status"] == "failed" }
 
       touched_collection_ids = @service_logs.flat_map do |log|

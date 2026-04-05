@@ -35,6 +35,7 @@ RSpec.describe "task_bridge:sync task" do
 
   it "logs a failed service and continues syncing later services" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
     primary_service = instance_double("Primary::Service")
     failing_service = instance_double(
       "Failing::Service",
@@ -96,6 +97,7 @@ RSpec.describe "task_bridge:sync task" do
 
   it "reuses preloaded service items during sync_to_primary" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
     primary_service = instance_double("Primary::Service")
     service_item = instance_double(Base::SyncItem, sync_collection_id: nil, title: "Task", incomplete?: true, provider: "Passing")
     passing_service = instance_double(
@@ -130,6 +132,7 @@ RSpec.describe "task_bridge:sync task" do
 
   it "reuses an instantiated primary service from global options" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
     primary_service = instance_double("Primary::Service")
     passing_service = instance_double(
       "Passing::Service",
@@ -161,6 +164,7 @@ RSpec.describe "task_bridge:sync task" do
 
   it "updates last_synced only for collections touched by successful services" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
     primary_service = instance_double("Primary::Service")
     synced_collection = instance_double(SyncCollection, update: true)
     passing_item = instance_double(
@@ -221,8 +225,80 @@ RSpec.describe "task_bridge:sync task" do
     expect(SyncCollection).not_to have_received(:find_by).with(id: 202)
   end
 
+  it "persists service sync state in the database for successful runs" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    passing_service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      items_to_sync: [],
+      sync_strategies: [:from_primary]
+    )
+
+    allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
+      {
+        service: "Passing",
+        last_attempted: "2024-01-01 09:00AM",
+        last_successful: "2024-01-01 09:00AM",
+        items_synced: 1
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    stub_service("Primary", primary_service)
+    stub_service("Passing", passing_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    expect do
+      capture_output { invoke_task }
+    end.to change(SyncServiceState, :count).by(1)
+
+    state = SyncServiceState.find_by!(service_name: "Passing")
+    expect(state.status).to eq("success")
+    expect(state.items_synced).to eq(1)
+    expect(state.last_successful_at).to eq(Time.zone.parse("2024-01-01 09:00AM"))
+  end
+
+  it "preserves the previous successful sync timestamp when a later run fails" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    failing_service = instance_double(
+      "Failing::Service",
+      friendly_name: "Failing",
+      items_to_sync: [],
+      sync_strategies: [:from_primary]
+    )
+    SyncServiceState.create!(
+      service_name: "Failing",
+      status: "success",
+      items_synced: 2,
+      last_successful_at: Time.zone.parse("2024-01-01 08:00AM")
+    )
+
+    allow(failing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_raise(RuntimeError, "boom")
+
+    stub_sync_defaults(services: ["Failing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Failing])
+    stub_service("Primary", primary_service)
+    stub_service("Failing", failing_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task }.not_to raise_error
+    end
+
+    state = SyncServiceState.find_by!(service_name: "Failing")
+    expect(state.status).to eq("failed")
+    expect(state.last_successful_at).to eq(Time.zone.parse("2024-01-01 08:00AM"))
+    expect(state.last_failed_at).to be_present
+  end
+
   it "does not persist sync collections from title-only matches during item gathering" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
     primary_service = instance_double("Primary::Service")
     service_a_item = instance_double(
       Base::SyncItem,
@@ -321,5 +397,29 @@ RSpec.describe "task_bridge:sync task" do
   ensure
     $stdout = previous_stdout
     $stderr = previous_stderr
+  end
+
+  def stub_logger_summary(logger)
+    allow(logger).to receive(:summarize_service_run) do |service_name:, logs:|
+      normalized_logs = Array(logs)
+      failed = normalized_logs.any? { |entry| entry["status"] == "failed" }
+      status = if failed
+        "failed"
+      elsif normalized_logs.any?
+        "success"
+      else
+        "idle"
+      end
+
+      {
+        service: service_name,
+        status: status,
+        items_synced: normalized_logs.sum { |entry| entry.fetch("items_synced", 0).to_i },
+        last_attempted: normalized_logs.filter_map { |entry| entry["last_attempted"] }.last,
+        last_successful: normalized_logs.filter_map { |entry| entry["last_successful"] }.last,
+        last_failed: normalized_logs.filter_map { |entry| entry["last_failed"] }.last,
+        detail: normalized_logs.filter_map { |entry| entry["detail"] }.last
+      }
+    end
   end
 end

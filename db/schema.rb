@@ -10,12 +10,26 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_04_05_000001) do
+ActiveRecord::Schema[7.2].define(version: 2026_04_05_000002) do
   create_table "sync_collections", force: :cascade do |t|
     t.string "title"
     t.datetime "last_synced"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "sync_service_states", force: :cascade do |t|
+    t.string "service_name", null: false
+    t.string "status"
+    t.integer "items_synced", default: 0, null: false
+    t.text "detail"
+    t.datetime "last_attempted_at"
+    t.datetime "last_successful_at"
+    t.datetime "last_failed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["last_successful_at"], name: "index_sync_service_states_on_last_successful_at"
+    t.index ["service_name"], name: "index_sync_service_states_on_service_name", unique: true
   end
 
   create_table "sync_items", force: :cascade do |t|
