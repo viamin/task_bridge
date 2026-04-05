@@ -43,6 +43,7 @@ module Asana
           sub_item_hashes.each do |sub_item_hash|
             sub_item = Task.find_or_initialize_by(external_id: sub_item_hash[Task.external_attribute_map[:external_id]])
             sub_item.asana_task = sub_item_hash
+            sub_item.read_original(only_modified_dates:)
             parent_task.sub_items << sub_item
             # Remove the sub_item from the main task list
             # so we don't double sync them
@@ -68,7 +69,7 @@ module Asana
       return failure_message("create an Asana task", response) unless response.success?
 
       response_body = JSON.parse(response.body)
-      new_task = Task.new(asana_task: response_body["data"])
+      new_task = Task.new(asana_task: response_body["data"]).tap(&:read_original)
       section_move_error = move_task_to_section(section_identifier_for(external_task), new_task.external_id)
       handle_sub_items(new_task, external_task)
       update_sync_data(external_task, new_task.external_id, new_task.url)
