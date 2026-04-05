@@ -6,10 +6,12 @@ RSpec.describe "GoogleTasks::Service" do
   let(:tasks_service) { instance_double(Google::Apis::TasksV1::TasksService, "authorization=": true) }
   let(:service) { GoogleTasks::Service.new(tasks_service:, authorization: {}) }
   let(:last_sync) { Time.now - service.send(:min_sync_interval) }
+  let(:force) { false }
 
   before do
     allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})
     allow_any_instance_of(StructuredLogger).to receive(:last_synced).and_return(last_sync)
+    service.options = service.options.merge(force:)
   end
 
   describe "#sync_from_primary" do
@@ -61,6 +63,14 @@ RSpec.describe "GoogleTasks::Service" do
       let(:task_updated_at) { Chronic.parse("31 minutes ago") }
 
       it { is_expected.to be false }
+    end
+
+    context "when force is enabled" do
+      let(:force) { true }
+      let(:task_updated_at) { nil }
+      let(:last_sync) { Time.now - Chronic.parse("1 minute ago") }
+
+      it { is_expected.to be true }
     end
   end
 
