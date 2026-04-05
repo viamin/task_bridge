@@ -46,7 +46,7 @@ module Base
 
     attr_reader :tags, :debug_data
 
-    delegate :external_attribute_map, :attribute_map, :modified_date_attributes, :read_external_attribute, to: :class
+    delegate :external_attribute_map, :attribute_map, :read_external_attribute, to: :class
 
     after_initialize :read_notes, :set_tags
 
@@ -74,10 +74,15 @@ module Base
 
     def read_original(only_modified_dates: false)
       values_hash = external_attribute_map.each_with_object({}) do |(attribute_key, attribute_value), hash|
+        next if only_modified_dates &&
+                !self.class.send(:modified_date_attributes).include?(attribute_key) &&
+                !self.class.send(:identity_attributes).include?(attribute_key) &&
+                !self.class.send(:completion_indicator_attributes).include?(attribute_key)
+
         value = read_external_attribute(external_data, attribute_value, only_modified_dates:, attribute_key:)
         value = Chronic.parse(value) if value && chronic_attributes.include?(attribute_key)
         hash[attribute_key] = value
-      end.compact
+      end
       assign_attributes(values_hash)
       # Skip expensive notes parsing (which may trigger API/AppleScript reads)
       # when we only need date and identity attributes for grouping.

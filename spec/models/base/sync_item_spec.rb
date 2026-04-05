@@ -450,6 +450,53 @@ RSpec.describe "Base::SyncItem", :full_options do
     end
   end
 
+  describe "#read_original" do
+    let(:sync_item_data) do
+      {
+        "id" => "test-123",
+        "title" => "Updated Task",
+        "completed" => false,
+        "completed_at" => nil,
+        "due_date" => nil,
+        "updated_at" => "2024-04-03T12:00:00Z",
+        "notes" => nil
+      }
+    end
+
+    it "clears requested nil values during a full refresh" do
+      item = test_item_class.new(
+        sync_item: sync_item_data,
+        options: options,
+        external_id: "test-123",
+        title: "Original Task",
+        due_date: Time.zone.parse("2024-04-01T09:00:00Z")
+      )
+
+      item.read_original
+
+      expect(item.title).to eq("Updated Task")
+      expect(item.due_date).to be_nil
+      expect(item.notes).to be_nil
+    end
+
+    it "skips unrequested fields but still clears requested nil values during partial refresh" do
+      item = test_item_class.new(
+        sync_item: sync_item_data,
+        options: options,
+        external_id: "test-123",
+        title: "Original Task",
+        due_date: Time.zone.parse("2024-04-01T09:00:00Z"),
+        completed_at: Time.zone.parse("2024-04-02T10:00:00Z")
+      )
+
+      item.read_original(only_modified_dates: true)
+
+      expect(item.title).to eq("Updated Task")
+      expect(item.due_date).to eq(Time.zone.parse("2024-04-01T09:00:00Z"))
+      expect(item.completed_at).to be_nil
+    end
+  end
+
   describe ".read_external_attribute" do
     it "returns nil for stale AppleScript references" do
       external_data = double("external_data")
