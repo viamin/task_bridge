@@ -10,7 +10,7 @@ RSpec.describe StructuredLogger do
     {
       services: %w[Asana Github],
       log_file: log_file,
-      sync_started_at: "2024-01-01 09:00AM"
+      sync_started_at: "2024-01-01T09:00:00.000000Z"
     }
   end
   let(:logger) { described_class.new(options) }
@@ -71,7 +71,7 @@ RSpec.describe StructuredLogger do
         [
           {
             "service" => "Asana",
-            "last_attempted" => "2024-01-01 09:00AM",
+            "last_attempted" => "2024-01-01T09:00:00.000000Z",
             "status" => "failed"
           }
         ]
@@ -89,7 +89,7 @@ RSpec.describe StructuredLogger do
           service: "Asana",
           status: "success",
           items_synced: 2,
-          last_successful: "2024-01-01 09:00AM",
+          last_successful: "2024-01-01T09:00:00.000000Z",
           last_failed: "",
           detail: "2 items processed"
         }
@@ -120,15 +120,15 @@ RSpec.describe StructuredLogger do
         service_name: "Asana",
         status: "success",
         items_synced: 4,
-        last_attempted_at: Time.zone.parse("2024-01-01 09:00AM"),
-        last_successful_at: Time.zone.parse("2024-01-01 09:00AM"),
+        last_attempted_at: Time.zone.parse("2024-01-01T09:00:00.000000Z"),
+        last_successful_at: Time.zone.parse("2024-01-01T09:00:00.000000Z"),
         detail: "4 items processed"
       )
 
       output = capture_stdout { logger.print_logs }
 
       expect(output).to include("Asana")
-      expect(output).to include("2024-01-01 09:00AM")
+      expect(output).to include("2024-01-01T09:00:00.000000+00:00")
       expect(output).to include("4")
       expect(output).to include("success")
     end

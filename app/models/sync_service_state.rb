@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SyncServiceState < ApplicationRecord
-  TIMESTAMP_FORMAT = "%Y-%m-%d %I:%M%p"
+  TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%6N%:z"
 
   validates :service_name, presence: true, uniqueness: true
 
@@ -41,6 +41,6 @@ class SyncServiceState < ApplicationRecord
   private
 
   def formatted_timestamp(value)
-    value&.strftime(TIMESTAMP_FORMAT)
+    value&.utc&.strftime(TIMESTAMP_FORMAT)
   end
 end

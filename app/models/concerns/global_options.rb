@@ -7,7 +7,7 @@ module GlobalOptions
     Thread.current[:global_options] ||= default_options.merge({
                                                                 max_age_timestamp: default_options[:max_age].zero? ? nil : Chronic.parse("#{default_options[:max_age]} ago"),
                                                                 uses_personal_tags: default_options[:work_tags].blank?,
-                                                                sync_started_at: Time.now.strftime("%Y-%m-%d %I:%M%p"),
+                                                                sync_started_at: Time.current.utc.iso8601(6),
                                                                 logger: StructuredLogger.new(default_options),
                                                                 primary_service: "#{default_options[:primary]}::Service".safe_constantize
                                                               })

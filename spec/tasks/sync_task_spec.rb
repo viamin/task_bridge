@@ -68,8 +68,8 @@ RSpec.describe "task_bridge:sync task" do
     allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
       {
         service: "Passing",
-        last_attempted: "2024-01-01 09:00AM",
-        last_successful: "2024-01-01 09:00AM",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
         items_synced: 1
       }.stringify_keys
     )
@@ -102,7 +102,7 @@ RSpec.describe "task_bridge:sync task" do
       array_including(
         hash_including(
           "service" => "Passing",
-          "last_successful" => "2024-01-01 09:00AM",
+          "last_successful" => "2024-01-01T09:00:00.000000Z",
           "items_synced" => 1
         )
       )
@@ -131,8 +131,8 @@ RSpec.describe "task_bridge:sync task" do
     allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
       {
         service: "Passing",
-        last_attempted: "2024-01-01 09:00AM",
-        last_successful: "2024-01-01 09:00AM",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
         items_synced: 1
       }.stringify_keys
     )
@@ -202,7 +202,7 @@ RSpec.describe "task_bridge:sync task" do
     allow(service).to receive(:sync_from_primary).with(primary_service).and_return(
       {
         service: "Passing",
-        last_attempted: "2024-01-01 09:00AM",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
         items_synced: 0,
         detail: "Sync not required"
       }.stringify_keys
@@ -279,8 +279,8 @@ RSpec.describe "task_bridge:sync task" do
     allow(passing_service).to receive(:sync_to_primary).with(primary_service, service_items: [service_item]).and_return(
       {
         service: "Passing",
-        last_attempted: "2024-01-01 09:00AM",
-        last_successful: "2024-01-01 09:00AM",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
         items_synced: 1
       }.stringify_keys
     )
@@ -314,8 +314,8 @@ RSpec.describe "task_bridge:sync task" do
     allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
       {
         service: "Passing",
-        last_attempted: "2024-01-01 09:00AM",
-        last_successful: "2024-01-01 09:00AM",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
         items_synced: 0
       }.stringify_keys
     )
@@ -369,8 +369,8 @@ RSpec.describe "task_bridge:sync task" do
     allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: [passing_item]).and_return(
       {
         service: "Passing",
-        last_attempted: "2024-01-01 09:00AM",
-        last_successful: "2024-01-01 09:00AM",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
         items_synced: 1,
         touched_collection_ids: [101]
       }.stringify_keys
@@ -412,8 +412,8 @@ RSpec.describe "task_bridge:sync task" do
     allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
       {
         service: "Passing",
-        last_attempted: "2024-01-01 09:00AM",
-        last_successful: "2024-01-01 09:00AM",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
         items_synced: 1
       }.stringify_keys
     )
@@ -431,7 +431,7 @@ RSpec.describe "task_bridge:sync task" do
     state = SyncServiceState.find_by!(service_name: "Passing")
     expect(state.status).to eq("success")
     expect(state.items_synced).to eq(1)
-    expect(state.last_successful_at).to eq(Time.zone.parse("2024-01-01 09:00AM"))
+    expect(state.last_successful_at).to eq(Time.zone.parse("2024-01-01T09:00:00.000000Z"))
   end
 
   it "preserves the previous successful sync timestamp when a later run fails" do

@@ -7,7 +7,7 @@ RSpec.describe Asana::Service, :full_options do
   let(:base_options) do
     full_options.merge(
       logger: logger,
-      sync_started_at: "2024-01-01 09:00AM",
+      sync_started_at: "2024-01-01T09:00:00.000000Z",
       quiet: true,
       debug: false,
       pretend: false

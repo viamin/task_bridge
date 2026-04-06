@@ -51,13 +51,13 @@ namespace :task_bridge do
 
     options[:max_age_timestamp] = options[:max_age].zero? ? nil : Chronic.parse("#{options[:max_age]} ago")
     options[:uses_personal_tags] = options[:work_tags].blank?
-    options[:sync_started_at] = Time.now.strftime("%Y-%m-%d %I:%M%p")
+    options[:sync_started_at] = Time.current.utc.iso8601(6)
     options[:logger] = StructuredLogger.new(options)
     primary_service_reference = options[:primary_service] || "#{options[:primary]}::Service".safe_constantize
     @primary_service = primary_service_reference.is_a?(Class) ? primary_service_reference.new : primary_service_reference
     options[:primary_service] = @primary_service
     @services = options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new] }
-    start_time = Time.now
+    start_time = Time.current
     failed_services = false
     puts "Starting sync at #{options[:sync_started_at]}" unless options[:quiet]
     puts options.pretty_inspect if options[:debug]
@@ -118,7 +118,7 @@ namespace :task_bridge do
           service: service.friendly_name,
           status: "failed",
           last_attempted: options[:sync_started_at],
-          last_failed: Time.now.strftime("%Y-%m-%d %I:%M%p"),
+          last_failed: Time.current.utc.iso8601(6),
           items_synced: 0,
           error_class: e.class.name,
           error_message: e.message
@@ -138,9 +138,9 @@ namespace :task_bridge do
         SyncCollection.find_by(id: collection_id)&.update(last_synced: Time.current)
       end
     end
-    end_time = Time.now
+    end_time = Time.current
     unless options[:quiet]
-      puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
+      puts "Finished sync at #{end_time.utc.iso8601(6)}"
       puts "Sync took #{end_time - start_time} seconds"
     end
 
