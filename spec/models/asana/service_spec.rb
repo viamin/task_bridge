@@ -34,6 +34,50 @@ RSpec.describe "Asana::Service" do
     subject { service.items_to_sync }
   end
 
+  describe "incremental fetch cursors" do
+    let(:response) { instance_double(HTTParty::Response, success?: true, body: { data: [] }.to_json) }
+
+    before do
+      allow(HTTParty).to receive(:get).and_return(response)
+    end
+
+    it "does not apply modified_since to full project reads" do
+      service.send(:list_project_tasks, "project-gid", only_modified_dates: false)
+
+      expect(HTTParty).to have_received(:get).with(
+        "https://app.asana.com/api/1.0/projects/project-gid/tasks",
+        hash_including(query: hash_excluding(:modified_since))
+      )
+    end
+
+    it "applies modified_since to incremental project reads" do
+      service.send(:list_project_tasks, "project-gid", only_modified_dates: true)
+
+      expect(HTTParty).to have_received(:get).with(
+        "https://app.asana.com/api/1.0/projects/project-gid/tasks",
+        hash_including(query: hash_including(:modified_since))
+      )
+    end
+
+    it "does not apply modified_since to full subtask reads" do
+      service.send(:list_task_sub_items, "task-gid", only_modified_dates: false)
+
+      expect(HTTParty).to have_received(:get).with(
+        "https://app.asana.com/api/1.0/tasks/task-gid/subtasks",
+        hash_including(query: hash_excluding(:modified_since))
+      )
+    end
+
+    it "applies modified_since to incremental subtask reads" do
+      service.send(:list_task_sub_items, "task-gid", only_modified_dates: true)
+
+      expect(HTTParty).to have_received(:get).with(
+        "https://app.asana.com/api/1.0/tasks/task-gid/subtasks",
+        hash_including(query: hash_including(:modified_since))
+      )
+    end
+  end
+
   describe "#should_sync?" do
     subject { service.should_sync?(task_updated_at) }
 

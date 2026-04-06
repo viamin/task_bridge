@@ -44,7 +44,7 @@ RSpec.describe Asana::Service, :full_options do
     before do
       allow(service).to receive(:list_projects).and_return([{ "gid" => "project-gid" }])
       allow(service).to receive(:list_project_tasks).with("project-gid", only_modified_dates: false).and_return([parent_task_data, sub_task_data])
-      allow(service).to receive(:list_task_sub_items).with("parent-gid").and_return([sub_task_data])
+      allow(service).to receive(:list_task_sub_items).with("parent-gid", only_modified_dates: false).and_return([sub_task_data])
       allow(Asana::Task).to receive(:find_or_initialize_by).with(external_id: "parent-gid").and_return(parent_task)
       allow(Asana::Task).to receive(:find_or_initialize_by).with(external_id: "subtask-gid").and_return(sub_task)
     end
@@ -61,6 +61,13 @@ RSpec.describe Asana::Service, :full_options do
       expect do
         service.items_to_sync(tags: ["TaskBridge"], inbox: true)
       end.not_to raise_error
+    end
+
+    it "threads only_modified_dates through subtask reads" do
+      expect(service).to receive(:list_project_tasks).with("project-gid", only_modified_dates: true).and_return([parent_task_data, sub_task_data])
+      expect(service).to receive(:list_task_sub_items).with("parent-gid", only_modified_dates: true).and_return([sub_task_data])
+
+      service.items_to_sync(only_modified_dates: true)
     end
   end
 

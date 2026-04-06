@@ -40,7 +40,7 @@ module Asana
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count&.positive? }
       if tasks_with_sub_items.any?
         tasks_with_sub_items.each do |parent_task|
-          sub_item_hashes = list_task_sub_items(parent_task.external_id)
+          sub_item_hashes = list_task_sub_items(parent_task.external_id, only_modified_dates:)
           sub_item_hashes.each do |sub_item_hash|
             sub_item = Task.find_or_initialize_by(external_id: sub_item_hash[Task.external_attribute_map[:external_id]])
             sub_item.asana_task = sub_item_hash
@@ -105,7 +105,7 @@ module Asana
 
       # Detect if this was a title match vs ID match
       # Title match: external_task doesn't have our sync ID
-      matched_by_title = external_task.try(:asana_id).blank?
+      matched_by_title = matched_by_title?(external_task, asana_task)
 
       # Only move projects/sections for ID-matched items (reliable link)
       # Title matches are not reliable enough to warrant moving tasks between projects
@@ -216,8 +216,9 @@ module Asana
           completed_since: completed_since_timestamp
         }
       }
-      # Only fetch tasks modified since last sync (if we have a previous sync time)
-      query[:query][:modified_since] = last_sync_time.iso8601 if last_sync_time.present?
+      # Only use incremental reads when the caller explicitly asked for the
+      # lightweight date-only path. Full reads need the complete comparison set.
+      query[:query][:modified_since] = last_sync_time.iso8601 if only_modified_dates && last_sync_time.present?
 
       response = HTTParty.get("#{base_url}/projects/#{project_gid}/tasks", authenticated_options.merge(query))
       raise "Error loading Asana tasks - check personal access token" unless response.success?
@@ -225,16 +226,17 @@ module Asana
       JSON.parse(response.body)["data"]
     end
 
-    def list_task_sub_items(task_gid)
+    def list_task_sub_items(task_gid, only_modified_dates: false)
       query = {
         query: {
-          opt_fields: Task.requested_fields.join(","),
+          opt_fields: Task.requested_fields(only_modified_dates:).join(","),
           # Return incomplete subtasks + subtasks completed within the last week
           completed_since: completed_since_timestamp
         }
       }
-      # Only fetch subtasks modified since last sync (if we have a previous sync time)
-      query[:query][:modified_since] = last_sync_time.iso8601 if last_sync_time.present?
+      # Keep full comparison scans complete; only incremental date reads should
+      # constrain the remote fetch cursor.
+      query[:query][:modified_since] = last_sync_time.iso8601 if only_modified_dates && last_sync_time.present?
 
       response = HTTParty.get("#{base_url}/tasks/#{task_gid}/subtasks", authenticated_options.merge(query))
       raise "Error loading Asana task subtasks - check personal access token" unless response.success?
@@ -254,6 +256,11 @@ module Asana
 
     def section_identifier_for(external_task)
       memberships_for_task(external_task)["section"]
+    end
+
+    def matched_by_title?(external_task, asana_task)
+      current_sync_id = external_task.try(:asana_id)
+      current_sync_id.blank? || current_sync_id != asana_task.external_id
     end
 
     # Makes some big assumptions about the layout we use in Asana...

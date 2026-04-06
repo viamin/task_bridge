@@ -77,6 +77,20 @@ RSpec.describe Asana::Service, :full_options do
       end
     end
 
+    context "when the item fell back to a title match after a stale sync ID" do
+      let(:options) { base_options.merge(update_ids_for_existing: false) }
+
+      before do
+        allow(external_task).to receive(:try).with(:asana_id).and_return("stale-asana-id")
+      end
+
+      it "heals the stale sync ID to the matched Asana task" do
+        expect(service).to receive(:update_sync_data).with(external_task, asana_task.external_id, asana_task.url)
+
+        service.update_item(asana_task, external_task)
+      end
+    end
+
     context "when update_ids_for_existing option is enabled" do
       let(:options) { base_options.merge(update_ids_for_existing: true) }
 
@@ -311,6 +325,39 @@ RSpec.describe Asana::Service, :full_options do
 
       it "still adds sync ID so future syncs use ID matching" do
         expect(service).to receive(:update_sync_data).with(external_task, asana_task.external_id, asana_task.url)
+
+        service.update_item(asana_task, external_task)
+      end
+    end
+
+    context "when items were matched by title after a stale sync ID fallback" do
+      let(:external_task) do
+        double(
+          "ExternalTask",
+          completed?: false,
+          title: "Test Task",
+          project: "Different Project",
+          sync_notes: "notes",
+          sub_item_count: 0,
+          due_at: nil,
+          due_date: nil,
+          flagged: false
+        )
+      end
+
+      before do
+        allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
+        allow(external_task).to receive(:try).with(:asana_id).and_return("stale-asana-id")
+        allow(external_task).to receive(:instance_variable_set)
+        allow(external_task).to receive(:patch_external_attributes)
+      end
+
+      it "does not attempt to change the project for stale-id title matches" do
+        expect(HTTParty).not_to receive(:post).with(
+          a_string_matching(/addProject/),
+          anything
+        )
+        expect(service).not_to receive(:move_task_to_section)
 
         service.update_item(asana_task, external_task)
       end
