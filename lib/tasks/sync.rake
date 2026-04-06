@@ -68,6 +68,13 @@ namespace :task_bridge do
           @service_logs << { service: service.friendly_name, last_attempted: options[:sync_started_at] }.stringify_keys
         elsif options[:delete]
           service.prune if service.respond_to?(:prune)
+          @service_logs << {
+            service: service.friendly_name,
+            last_attempted: options[:sync_started_at],
+            last_successful: options[:sync_started_at],
+            items_synced: 0,
+            detail: "Pruned completed items"
+          }.stringify_keys
         elsif options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
           service_items = service.items_to_sync(tags: options[:tags], only_modified_dates: true)
           @service_logs << service.sync_to_primary(@primary_service, service_items:)

@@ -183,6 +183,46 @@ RSpec.describe "task_bridge:sync task" do
     expect(service).not_to have_received(:items_to_sync)
   end
 
+  it "records delete runs as successful service logs" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      sync_strategies: [:from_primary],
+      prune: nil
+    )
+
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    stub_service("Primary", primary_service)
+    stub_service("Passing", service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task("--delete") }.not_to raise_error
+    end
+
+    expect(logger).to have_received(:save_service_log!).with(
+      array_including(
+        hash_including(
+          "service" => "Passing",
+          "last_attempted" => kind_of(String),
+          "last_successful" => kind_of(String),
+          "items_synced" => 0,
+          "detail" => "Pruned completed items"
+        )
+      )
+    )
+
+    state = SyncServiceState.find_by!(service_name: "Passing")
+    expect(state.status).to eq("success")
+    expect(state.items_synced).to eq(0)
+    expect(state.last_successful_at).to be_present
+    expect(state.detail).to eq("Pruned completed items")
+  end
+
   it "passes loaded service items through to sync_to_primary without refetching" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)

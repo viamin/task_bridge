@@ -172,6 +172,32 @@ RSpec.describe Base::Service do
       expect(created_primary_item.title).to eq(persisted_service_item.title)
     end
 
+    it "does not mark a collection as touched when the provider update returns a failure message" do
+      persisted_service_item = sync_item_class.create!(
+        title: "Provider failure service task",
+        external_id: "service-failure-123",
+        completed: false,
+        last_modified: Time.current - 1.minute
+      )
+      persisted_primary_item = primary_sync_item_class.create!(
+        title: "Provider failure primary task",
+        external_id: "primary-failure-123",
+        completed: false,
+        last_modified: Time.current - 2.minutes
+      )
+
+      allow(service).to receive(:items_to_sync).and_return([persisted_service_item])
+      allow(service).to receive(:should_sync?).with(persisted_service_item.last_modified).and_return(true)
+      allow(service).to receive(:existing_items).with(primary_service).and_return([persisted_primary_item])
+      allow(persisted_service_item).to receive(:find_matching_item_in).with([persisted_primary_item]).and_return(persisted_primary_item)
+      allow(primary_service).to receive(:update_item).with(persisted_primary_item, persisted_service_item).and_return("Failed to update item")
+
+      expect do
+        result = service.sync_to_primary(primary_service)
+        expect(result["touched_collection_ids"]).to eq([])
+      end.not_to change(SyncCollection, :count)
+    end
+
     it "refuses to merge items from different sync collections" do
       first_collection = SyncCollection.create!(title: "Service collection")
       second_collection = SyncCollection.create!(title: "Primary collection")

@@ -60,25 +60,31 @@ module Base
       end
       item_pairs.each do |pair|
         older_item, newer_item = pair
-        if newer_item.instance_of?(primary_service.item_class)
+        output = if newer_item.instance_of?(primary_service.item_class)
           update_item(older_item, newer_item)
         else
           primary_service.update_item(older_item, newer_item)
         end
-        touched_collection_ids << persist_sync_collection_for(*pair)&.id unless options[:pretend]
+        track_touched_collection!(touched_collection_ids, output) do
+          persist_sync_collection_for(*pair)&.id
+        end
         progressbar.increment unless options[:quiet]
       end
       unmatched_primary_items.each do |primary_item|
         unless primary_service.skip_create?(primary_item)
           added_item = add_item(primary_item)
-          touched_collection_ids << persist_created_sync_collection_for(primary_item, self, added_item)&.id unless options[:pretend]
+          track_touched_collection!(touched_collection_ids, added_item) do
+            persist_created_sync_collection_for(primary_item, self, added_item)&.id
+          end
         end
         progressbar.increment unless options[:quiet]
       end
       unmatched_service_items.each do |service_item|
         unless skip_create?(service_item)
           added_item = primary_service.add_item(service_item)
-          touched_collection_ids << persist_created_sync_collection_for(service_item, primary_service, added_item)&.id unless options[:pretend]
+          track_touched_collection!(touched_collection_ids, added_item) do
+            persist_created_sync_collection_for(service_item, primary_service, added_item)&.id
+          end
         end
         progressbar.increment unless options[:quiet]
       end
@@ -103,15 +109,19 @@ module Base
       service_items.each do |service_item|
         output = if (existing_item = service_item.find_matching_item_in(existing_primary_items))
           if should_sync?(sync_timestamp_for(service_item))
-            primary_service.update_item(existing_item, service_item).tap do
-              touched_collection_ids << persist_sync_collection_for(existing_item, service_item)&.id unless options[:pretend]
+            primary_service.update_item(existing_item, service_item).tap do |result|
+              track_touched_collection!(touched_collection_ids, result) do
+                persist_sync_collection_for(existing_item, service_item)&.id
+              end
             end
           else
             debug("Skipping sync of #{service_item.title} (should_sync? == false)", options[:debug])
           end
         elsif !service_item.completed?
           primary_service.add_item(service_item).tap do |added_item|
-            touched_collection_ids << persist_created_sync_collection_for(service_item, primary_service, added_item)&.id unless options[:pretend]
+            track_touched_collection!(touched_collection_ids, added_item) do
+              persist_created_sync_collection_for(service_item, primary_service, added_item)&.id
+            end
           end
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
@@ -137,12 +147,16 @@ module Base
       end
       primary_items.each do |primary_item|
         output = if (existing_item = primary_item.find_matching_item_in(service_items))
-          update_item(existing_item, primary_item).tap do
-            touched_collection_ids << persist_sync_collection_for(existing_item, primary_item)&.id unless options[:pretend]
+          update_item(existing_item, primary_item).tap do |result|
+            track_touched_collection!(touched_collection_ids, result) do
+              persist_sync_collection_for(existing_item, primary_item)&.id
+            end
           end
         elsif !primary_item.completed?
           add_item(primary_item).tap do |added_item|
-            touched_collection_ids << persist_created_sync_collection_for(primary_item, self, added_item)&.id unless options[:pretend]
+            track_touched_collection!(touched_collection_ids, added_item) do
+              persist_created_sync_collection_for(primary_item, self, added_item)&.id
+            end
           end
         end
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
@@ -285,6 +299,16 @@ module Base
 
     def service_identifier_for(service_name)
       service_name.to_s.underscore.tr(" ", "_")
+    end
+
+    def sync_operation_successful?(result)
+      !result.is_a?(String)
+    end
+
+    def track_touched_collection!(touched_collection_ids, result)
+      return if options[:pretend] || !sync_operation_successful?(result)
+
+      touched_collection_ids << yield
     end
 
     # the default minimum time we should wait between syncing items
