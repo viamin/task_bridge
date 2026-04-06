@@ -54,6 +54,37 @@ RSpec.describe "Github::Service" do
     end
   end
 
+  describe "#list_issues" do
+    let(:response) { instance_double(HTTParty::Response, success?: true, body: [].to_json) }
+    let(:captured_query) { {} }
+
+    before do
+      allow(HTTParty).to receive(:get) do |_url, options|
+        captured_query.replace(options.fetch(:query))
+        response
+      end
+    end
+
+    it "uses the last successful sync time when present" do
+      sync_time = Time.zone.parse("2024-04-03 12:00:00 UTC")
+      allow(service).to receive(:last_successful_sync_at).and_return(sync_time)
+
+      service.send(:list_issues, "org/repo", [])
+
+      expect(captured_query[:since]).to eq(sync_time.iso8601)
+    end
+
+    it "falls back to the initial two-day window when no sync state exists" do
+      fallback_time = Time.zone.parse("2024-04-03 12:00:00 UTC")
+      allow(service).to receive(:last_successful_sync_at).and_return(nil)
+      allow(Chronic).to receive(:parse).with("2 days ago").and_return(fallback_time)
+
+      service.send(:list_issues, "org/repo", [])
+
+      expect(captured_query[:since]).to eq(fallback_time.iso8601)
+    end
+  end
+
   describe "#should_sync?" do
     subject { service.should_sync?(task_updated_at) }
 

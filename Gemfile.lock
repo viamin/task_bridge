@@ -450,7 +450,7 @@ DEPENDENCIES
   ostruct (~> 0.6)
   pry
   puma
-  rails
+  rails (~> 7.2.3)
   rb-scpt (~> 1.0)
   redis
   rspec-rails

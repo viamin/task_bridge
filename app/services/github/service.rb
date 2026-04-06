@@ -96,7 +96,7 @@ module Github
         query: {
           state: "all",
           labels: (tags || options[:tags]).join(","),
-          since: Chronic.parse("2 days ago").iso8601,
+          since: (last_successful_sync_at || Chronic.parse("2 days ago")).iso8601,
           per_page: "100"
         }
       }
