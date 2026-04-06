@@ -80,7 +80,7 @@ RSpec.describe "task_bridge:sync task" do
     allow(StructuredLogger).to receive(:new).and_return(logger)
 
     capture_output do
-      expect { invoke_task }.not_to raise_error
+      expect { invoke_task }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
     end
 
     expect(failing_service).to have_received(:sync_from_primary).with(primary_service, service_items: [])
@@ -141,7 +141,7 @@ RSpec.describe "task_bridge:sync task" do
     allow(StructuredLogger).to receive(:new).and_return(logger)
 
     capture_output do
-      expect { invoke_task("--only-from-primary") }.not_to raise_error
+      expect { invoke_task("--only-from-primary") }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
     end
 
     expect(failing_service).to have_received(:items_to_sync).with(tags: [])
@@ -345,7 +345,7 @@ RSpec.describe "task_bridge:sync task" do
     allow(SyncCollection).to receive(:find_by).with(id: 202).and_return(nil)
 
     capture_output do
-      expect { invoke_task }.not_to raise_error
+      expect { invoke_task }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
     end
 
     expect(SyncCollection).to have_received(:find_by).with(id: 101)
@@ -415,7 +415,7 @@ RSpec.describe "task_bridge:sync task" do
     allow(StructuredLogger).to receive(:new).and_return(logger)
 
     capture_output do
-      expect { invoke_task }.not_to raise_error
+      expect { invoke_task }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
     end
 
     state = SyncServiceState.find_by!(service_name: "Failing")

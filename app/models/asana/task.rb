@@ -104,6 +104,7 @@ module Asana
         {
           completed: external_item.completed?,
           due_at: external_item.due_at&.iso8601,
+          due_on: external_item.due_date&.to_date&.iso8601,
           liked: external_item.flagged,
           name: external_item.title,
           notes: external_item.sync_notes

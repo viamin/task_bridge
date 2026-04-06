@@ -58,6 +58,7 @@ namespace :task_bridge do
     options[:primary_service] = @primary_service
     @services = options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new] }
     start_time = Time.now
+    failed_services = false
     puts "Starting sync at #{options[:sync_started_at]}" unless options[:quiet]
     puts options.pretty_inspect if options[:debug]
 
@@ -95,6 +96,7 @@ namespace :task_bridge do
           @service_logs << service.sync_to_primary(@primary_service, service_items:) if service.sync_strategies.include?(:to_primary)
         end
       rescue StandardError => e
+        failed_services = true
         @service_logs << {
           service: service.friendly_name,
           status: "failed",
@@ -120,9 +122,11 @@ namespace :task_bridge do
       end
     end
     end_time = Time.now
-    return if options[:quiet]
+    unless options[:quiet]
+      puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
+      puts "Sync took #{end_time - start_time} seconds"
+    end
 
-    puts "Finished sync at #{end_time.strftime('%Y-%m-%d %I:%M%p')}"
-    puts "Sync took #{end_time - start_time} seconds"
+    exit 1 if failed_services
   end
 end

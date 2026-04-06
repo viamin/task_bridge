@@ -93,6 +93,7 @@ RSpec.describe "Asana::Task" do
         "ExternalTask",
         completed?: false,
         due_at: due_at,
+        due_date: nil,
         flagged: false,
         title: "Timed task",
         sync_notes: "notes"
@@ -101,6 +102,25 @@ RSpec.describe "Asana::Task" do
       expect(Asana::Task.from_external(external_task)).to include(
         due_at: due_at.iso8601
       )
+      expect(Asana::Task.from_external(external_task)).not_to have_key(:due_on)
+    end
+
+    it "preserves due_on for date-only tasks" do
+      due_date = Date.new(2024, 4, 3)
+      external_task = instance_double(
+        "ExternalTask",
+        completed?: false,
+        due_at: nil,
+        due_date: due_date,
+        flagged: false,
+        title: "Date-only task",
+        sync_notes: "notes"
+      )
+
+      expect(Asana::Task.from_external(external_task)).to include(
+        due_on: due_date.iso8601
+      )
+      expect(Asana::Task.from_external(external_task)).not_to have_key(:due_at)
     end
   end
 
