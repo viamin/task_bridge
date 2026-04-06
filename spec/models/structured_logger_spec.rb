@@ -5,7 +5,7 @@ require "stringio"
 
 RSpec.describe StructuredLogger do
   let(:log_file) { "structured_logger_spec.json" }
-  let(:log_path) { File.expand_path("../../log/#{log_file}", __dir__) }
+  let(:log_path) { Rails.root.join(log_file) }
   let(:options) do
     {
       services: %w[Asana Github],
@@ -112,5 +112,25 @@ RSpec.describe StructuredLogger do
     captured.string
   ensure
     $stdout = previous_stdout
+  end
+
+  describe "#print_logs" do
+    it "includes ActiveRecord-backed service state when no legacy log file exists" do
+      SyncServiceState.create!(
+        service_name: "Asana",
+        status: "success",
+        items_synced: 4,
+        last_attempted_at: Time.zone.parse("2024-01-01 09:00AM"),
+        last_successful_at: Time.zone.parse("2024-01-01 09:00AM"),
+        detail: "4 items processed"
+      )
+
+      output = capture_stdout { logger.print_logs }
+
+      expect(output).to include("Asana")
+      expect(output).to include("2024-01-01 09:00AM")
+      expect(output).to include("4")
+      expect(output).to include("success")
+    end
   end
 end

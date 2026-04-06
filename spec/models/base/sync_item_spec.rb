@@ -440,6 +440,15 @@ RSpec.describe "Base::SyncItem", :full_options do
 
       expect(item.title).to eq("From block")
     end
+
+    it "accepts belongs_to associations during initialization" do
+      collection = SyncCollection.create!(title: "Linked")
+
+      item = test_item_class.new(title: "Task", sync_collection: collection)
+
+      expect(item.sync_collection).to eq(collection)
+      expect(item.sync_collection_id).to eq(collection.id)
+    end
   end
 
   describe "#refresh_from_external!" do

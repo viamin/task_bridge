@@ -4,7 +4,7 @@ require "rails_helper"
 
 RSpec.describe SyncCollection, :full_options do
   let(:test_item_class) do
-    Class.new(Base::SyncItem) do
+    stub_const("SyncCollectionSpecItem", Class.new(Base::SyncItem) do
       def self.attribute_map
         {}
       end
@@ -16,7 +16,22 @@ RSpec.describe SyncCollection, :full_options do
       def external_data
         @sync_item
       end
-    end
+    end)
+  end
+  let(:other_item_class) do
+    stub_const("OtherSyncCollectionSpecItem", Class.new(Base::SyncItem) do
+      def self.attribute_map
+        {}
+      end
+
+      def provider
+        "OtherTestService"
+      end
+
+      def external_data
+        @sync_item
+      end
+    end)
   end
 
   def build_item(attrs = {})
@@ -42,6 +57,14 @@ RSpec.describe SyncCollection, :full_options do
       collection = described_class.new(title: "Empty Collection")
       expect(collection.items).to eq([])
     end
+
+    it "returns all linked sync_items through the STI table" do
+      collection = described_class.create!(title: "Linked Collection")
+      first_item = test_item_class.create!(title: "First", external_id: SecureRandom.uuid, sync_collection_id: collection.id)
+      second_item = other_item_class.create!(title: "Second", external_id: SecureRandom.uuid, sync_collection_id: collection.id)
+
+      expect(collection.items.map(&:external_id)).to contain_exactly(first_item.external_id, second_item.external_id)
+    end
   end
 
   describe "#<<" do
@@ -65,32 +88,31 @@ RSpec.describe SyncCollection, :full_options do
     end
 
     it "returns false when last_synced is set and no items have been modified" do
-      collection = described_class.new(title: "Synced", last_synced: Time.now)
-      allow(collection).to receive(:items).and_return([])
+      collection = described_class.create!(title: "Synced", last_synced: Time.current)
       expect(collection.needs_sync?).to be false
     end
 
     it "returns true when an item was modified after last_synced" do
       synced_at = 1.hour.ago
-      collection = described_class.new(title: "Synced", last_synced: synced_at)
-      item = build_item(title: "Modified Task", last_modified: Time.now)
-      allow(collection).to receive(:items).and_return([item])
+      collection = described_class.create!(title: "Synced", last_synced: synced_at)
+      test_item_class.create!(title: "Modified Task", external_id: SecureRandom.uuid, sync_collection_id: collection.id, last_modified: Time.current)
+
       expect(collection.needs_sync?).to be true
     end
 
     it "returns false when all items were modified before last_synced" do
-      synced_at = Time.now
-      collection = described_class.new(title: "Synced", last_synced: synced_at)
-      item = build_item(title: "Old Task", last_modified: 2.hours.ago)
-      allow(collection).to receive(:items).and_return([item])
+      synced_at = Time.current
+      collection = described_class.create!(title: "Synced", last_synced: synced_at)
+      test_item_class.create!(title: "Old Task", external_id: SecureRandom.uuid, sync_collection_id: collection.id, last_modified: 2.hours.ago)
+
       expect(collection.needs_sync?).to be false
     end
 
     it "handles items with nil last_modified gracefully" do
-      synced_at = Time.now
-      collection = described_class.new(title: "Synced", last_synced: synced_at)
-      item = build_item(title: "No Dates")
-      allow(collection).to receive(:items).and_return([item])
+      synced_at = Time.current
+      collection = described_class.create!(title: "Synced", last_synced: synced_at)
+      test_item_class.create!(title: "No Dates", external_id: SecureRandom.uuid, sync_collection_id: collection.id)
+
       expect(collection.needs_sync?).to be false
     end
   end

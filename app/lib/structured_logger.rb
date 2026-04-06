@@ -47,16 +47,19 @@ class StructuredLogger
   end
 
   def print_logs
+    rows = history_logs
+    service_width = [@space_needed, rows.map { |log_hash| log_hash["service"].to_s.length }.max].compact.max
+
     puts format(
-      "%-#{@space_needed}s |   Last Attempted   |   Last Successful  |   Last Failed     | Items Synced | Status",
+      "%-#{service_width}s |   Last Attempted   |   Last Successful  |   Last Failed     | Items Synced | Status",
       "Service"
     )
-    puts "#{'-' * @space_needed}-|#{'-' * 20}|#{'-' * 20}|#{'-' * 20}|#{'-' * 13}|#{'-' * 8}"
-    @existing_logs.each do |log_hash|
-      next unless options[:services].include?(log_hash["service"].delete(" "))
+    puts "#{'-' * service_width}-|#{'-' * 20}|#{'-' * 20}|#{'-' * 20}|#{'-' * 13}|#{'-' * 8}"
+    rows.each do |log_hash|
+      next unless tracked_service?(log_hash["service"])
 
       puts format(
-        "%-#{@space_needed}s | %18s | %18s | %18s | %12d | %-6s",
+        "%-#{service_width}s | %18s | %18s | %18s | %12d | %-6s",
         log_hash["service"],
         log_hash.fetch("last_attempted", ""),
         log_hash.fetch("last_successful", ""),
@@ -180,8 +183,30 @@ class StructuredLogger
 
   private
 
+  def history_logs
+    merged_logs = @existing_logs.index_by { |log_hash| log_hash["service"] }
+    persisted_logs.each do |log_hash|
+      merged_logs[log_hash["service"]] = log_hash
+    end
+    merged_logs.values.sort_by { |log_hash| log_hash["service"].to_s }
+  end
+
+  def persisted_logs
+    return [] unless SyncServiceState.table_exists?
+
+    SyncServiceState.all.filter_map do |state|
+      state.to_log_hash if tracked_service?(state.service_name)
+    end
+  rescue ActiveRecord::NoDatabaseError, ActiveRecord::StatementInvalid
+    []
+  end
+
   def pluck_last(logs, key)
     logs.filter_map { |entry| entry[key] }.last
+  end
+
+  def tracked_service?(service_name)
+    options[:services].include?(service_name.to_s.delete(" "))
   end
 
   def status_for_log(log_hash)

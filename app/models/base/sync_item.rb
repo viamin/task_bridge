@@ -13,7 +13,7 @@
 #  flagged            :boolean
 #  item_type          :string
 #  last_modified      :datetime
-#  notes              :string
+#  notes              :text
 #  start_at           :datetime
 #  start_date         :datetime
 #  status             :string
@@ -28,8 +28,11 @@
 #
 # Indexes
 #
-#  index_sync_items_on_parent_item_id      (parent_item_id)
-#  index_sync_items_on_sync_collection_id  (sync_collection_id)
+#  index_sync_items_on_last_modified               (last_modified)
+#  index_sync_items_on_parent_item_id              (parent_item_id)
+#  index_sync_items_on_sync_collection_id          (sync_collection_id)
+#  index_sync_items_on_sync_collection_id_and_type (sync_collection_id,type) UNIQUE WHERE (sync_collection_id IS NOT NULL)
+#  index_sync_items_on_type_and_external_id        (type,external_id) UNIQUE
 #
 # Foreign Keys
 #
@@ -50,15 +53,21 @@ module Base
 
     after_initialize :read_notes, :set_tags
 
+    belongs_to :sync_collection, optional: true, inverse_of: :sync_items
+
     def initialize(attributes = nil, &)
       attributes ||= {}
       # Extract non-column attributes before passing to ActiveRecord
       column_names = self.class.column_names.map(&:to_sym)
+      association_names = self.class.reflections.keys.map(&:to_sym)
       ar_attrs = {}
       extra_attrs = {}
+      association_attrs = {}
       attributes.each do |key, value|
         if column_names.include?(key.to_sym)
           ar_attrs[key] = value
+        elsif association_names.include?(key.to_sym)
+          association_attrs[key] = value
         else
           extra_attrs[key] = value
         end
@@ -68,6 +77,9 @@ module Base
         instance_variable_set(:"@#{key}", value)
       end
       super(ar_attrs, &)
+      association_attrs.each do |key, value|
+        public_send(:"#{key}=", value)
+      end
     end
 
     validates :external_id, uniqueness: { scope: :type }
