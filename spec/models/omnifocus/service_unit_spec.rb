@@ -238,4 +238,46 @@ RSpec.describe Omnifocus::Service, :full_options do
       )
     end
   end
+
+  describe "#add_item" do
+    let(:service) { described_class.new(options:) }
+    let(:mock_new_task) { double("OmnifocusNativeTask", id_: double(get: "of-123")) }
+    let(:wrapped_task) { instance_double("Omnifocus::Task") }
+    let(:sub_item) do
+      double(
+        "SubItem",
+        title: "Sub task",
+        completed?: false
+      )
+    end
+    let(:external_task) do
+      double(
+        "ExternalTask",
+        title: "Task with sub-items",
+        sub_item_count: 1,
+        sub_items: [sub_item],
+        project: nil
+      )
+    end
+    let(:tag) { double("Tag") }
+
+    before do
+      allow(mock_omnifocus_app).to receive(:make).and_return(mock_new_task)
+      allow(service).to receive(:tags).with(external_task).and_return([tag])
+      allow(service).to receive(:tag).with(tag).and_return(tag)
+      allow(service).to receive(:update_sync_data).and_return(nil)
+      allow(service).to receive(:add_tag)
+      allow(service).to receive(:handle_sub_items).with(wrapped_task, external_task)
+      allow(Omnifocus::Task).to receive(:new).with(omnifocus_task: mock_new_task).and_return(wrapped_task)
+      allow(wrapped_task).to receive(:sub_items).and_return([])
+      allow(wrapped_task).to receive(:refresh_from_external!)
+    end
+
+    it "hydrates the created task before syncing sub-items" do
+      expect(wrapped_task).to receive(:refresh_from_external!).ordered
+      expect(service).to receive(:handle_sub_items).with(wrapped_task, external_task).ordered
+
+      service.add_item(external_task)
+    end
+  end
 end

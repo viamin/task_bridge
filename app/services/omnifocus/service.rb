@@ -70,7 +70,9 @@ module Omnifocus
       tags(external_task).each do |tag|
         add_tag(tag:, task: new_task)
       end
-      handle_sub_items(Omnifocus::Task.new(omnifocus_task: new_task), external_task)
+      Omnifocus::Task.new(omnifocus_task: new_task).tap(&:refresh_from_external!).then do |omnifocus_item|
+        handle_sub_items(omnifocus_item, external_task)
+      end
       new_task
     end
 
