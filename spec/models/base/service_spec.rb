@@ -145,6 +145,34 @@ RSpec.describe Base::Service do
       expect(persisted_service_item.sync_collection_id).to be_present
     end
 
+    it "persists a sync collection for matched items even when the item is skipped as unchanged" do
+      persisted_service_item = sync_item_class.create!(
+        title: "Unchanged service task",
+        external_id: "service-unchanged-123",
+        completed: false,
+        last_modified: Time.current - 2.minutes
+      )
+      persisted_primary_item = primary_sync_item_class.create!(
+        title: "Unchanged primary task",
+        external_id: "primary-unchanged-123",
+        completed: false,
+        last_modified: Time.current - 3.minutes
+      )
+
+      allow(service).to receive(:items_to_sync).and_return([persisted_service_item])
+      allow(service).to receive(:should_sync?).with(persisted_service_item.last_modified).and_return(false)
+      allow(service).to receive(:existing_items).with(primary_service).and_return([persisted_primary_item])
+      allow(persisted_service_item).to receive(:find_matching_item_in).with([persisted_primary_item]).and_return(persisted_primary_item)
+
+      expect do
+        result = service.sync_to_primary(primary_service)
+        expect(result["touched_collection_ids"]).to eq([])
+      end.to change(SyncCollection, :count).by(1)
+
+      expect(primary_service).not_to have_received(:update_item)
+      expect(persisted_service_item.reload.sync_collection_id).to eq(persisted_primary_item.reload.sync_collection_id)
+    end
+
     it "persists a sync collection for newly created primary items" do
       persisted_service_item = sync_item_class.create!(
         title: "Newly created primary task",
@@ -267,6 +295,14 @@ RSpec.describe Base::Service do
       )
 
       expect(service.should_sync?(Time.current - 1.minute)).to be false
+    end
+
+    it "uses the fallback logger timestamp when deciding whether an item changed" do
+      last_sync_time = Time.current - 30.seconds
+      allow(logger).to receive(:last_synced).with(service.friendly_name).and_return(last_sync_time)
+
+      expect(service.should_sync?(Time.current - 1.minute)).to be false
+      expect(service.should_sync?(Time.current - 10.seconds)).to be true
     end
   end
 

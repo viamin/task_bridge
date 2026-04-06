@@ -115,6 +115,7 @@ module Base
               end
             end
           else
+            persist_sync_collection_for(existing_item, service_item) unless options[:pretend]
             debug("Skipping sync of #{service_item.title} (should_sync? == false)", options[:debug])
           end
         elsif !service_item.completed?
@@ -169,11 +170,13 @@ module Base
     def should_sync?(item_updated_at = nil)
       last_successful_at = sync_state&.last_successful_at
       if last_successful_at.nil?
-        time_since_last_sync = options[:logger]&.last_synced(friendly_name, interval: item_updated_at.nil?)
-        return true if time_since_last_sync.nil? || options[:force]
-        return time_since_last_sync < item_updated_at if item_updated_at.present?
+        return true if options[:force]
+        return last_synced_before?(item_updated_at) if item_updated_at.present?
 
-        return time_since_last_sync > min_sync_interval
+        last_sync_interval = options[:logger]&.last_synced(friendly_name, interval: true)
+        return true if last_sync_interval.nil?
+
+        return last_sync_interval > min_sync_interval
       end
 
       return true if options[:force]
@@ -210,6 +213,13 @@ module Base
     end
 
     private
+
+    def last_synced_before?(item_updated_at)
+      last_sync_time = options[:logger]&.last_synced(friendly_name)
+      return true if last_sync_time.nil?
+
+      last_sync_time < item_updated_at
+    end
 
     def last_successful_sync_at
       sync_state&.last_successful_at || options[:logger]&.last_synced(friendly_name)
