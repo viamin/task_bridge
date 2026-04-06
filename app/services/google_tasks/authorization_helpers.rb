@@ -10,7 +10,7 @@ module GoogleTasks
     OOB_URI = "urn:ietf:wg:oauth:2.0:oob"
 
     def client_secrets_path
-      return Rails.root.join(Chamber.dig!(:google, :client_secrets_file)) if Chamber.dig(:google, :client_secrets_file)
+      return Rails.root.join(Chamber.dig!(:google, :client, :secrets_file)) if Chamber.dig(:google, :client, :secrets_file)
 
       well_known_path_for("client_secrets.json")
     end
