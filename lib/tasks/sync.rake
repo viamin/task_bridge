@@ -57,9 +57,16 @@ namespace :task_bridge do
     options[:sync_started_at] = Time.current.utc.iso8601(6)
     options[:logger] = StructuredLogger.new(options)
     primary_service_reference = options[:primary_service] || "#{options[:primary]}::Service".safe_constantize
+    raise "Unknown primary service: #{options[:primary]}" unless primary_service_reference
+
     @primary_service = primary_service_reference.is_a?(Class) ? primary_service_reference.new : primary_service_reference
     options[:primary_service] = @primary_service
-    @services = options[:services].to_h { |s| [s, "#{s}::Service".safe_constantize.new] }
+    @services = options[:services].to_h do |service_name|
+      service_class = "#{service_name}::Service".safe_constantize
+      raise "Unknown service: #{service_name}" unless service_class
+
+      [service_name, service_class.new]
+    end
     start_time = Time.current
     failed_services = false
     puts "Starting sync at #{options[:sync_started_at]}" unless options[:quiet]

@@ -45,6 +45,30 @@ RSpec.describe "task_bridge:sync task" do
     expect(history_logger).to have_received(:print_logs)
   end
 
+  it "raises when --primary references an unknown service class" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    expect { invoke_task("--primary", "Missing") }.to raise_error(RuntimeError, "Unknown primary service: Missing")
+  end
+
+  it "raises when a configured service constant is missing" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    primary_service = instance_double("Primary::Service")
+    stub_logger_summary(logger)
+
+    stub_sync_defaults(services: ["Missing"], primary_service:)
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Missing])
+    stub_service("Primary", primary_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    expect { invoke_task("--services", "Missing") }.to raise_error(RuntimeError, "Unknown service: Missing")
+  end
+
   it "logs a failed service and continues syncing later services" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)

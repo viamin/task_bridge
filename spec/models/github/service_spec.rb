@@ -83,6 +83,18 @@ RSpec.describe "Github::Service" do
 
       expect(captured_query[:since]).to eq(fallback_time.iso8601)
     end
+
+    it "raises a readable error message when the issues request fails" do
+      failed_response = instance_double(HTTParty::Response, code: 500, success?: false, body: "boom")
+      allow(HTTParty).to receive(:get).and_return(failed_response)
+
+      expect do
+        service.send(:list_issues, "org/repo", [])
+      end.to raise_error(
+        RuntimeError,
+        "Error loading Github issues - check repository name and access (response code: 500)"
+      )
+    end
   end
 
   describe "#should_sync?" do

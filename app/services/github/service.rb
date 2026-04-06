@@ -101,7 +101,7 @@ module Github
         }
       }
       response = HTTParty.get("https://api.github.com/repos/#{repository}/issues", authenticated_options.merge(query))
-      raise "Error loading Github issues - check repository name and access (response code: #{response.code}" unless response.success?
+      raise "Error loading Github issues - check repository name and access (response code: #{response.code})" unless response.success?
 
       JSON.parse(response.body)
     end
