@@ -35,10 +35,7 @@ namespace :task_bridge do
       puts o
       exit
     end
-    o.on("-h", "--history", "Print sync service history") do
-      StructuredLogger.new(log_file: overrides[:log_file], services: overrides[:services]).print_logs
-      exit
-    end
+    o.on("-h", "--history", "Print sync service history") { overrides[:history] = true }
     # o.require_exact = true
     args = o.order!(ARGV)
     o.parse!(args)
@@ -46,6 +43,11 @@ namespace :task_bridge do
 
     unsupported_services = options[:services] - supported_services
     raise "Supported services: #{supported_services.join(', ')}" if unsupported_services.any?
+
+    if options[:history]
+      StructuredLogger.new(log_file: options[:log_file], services: options[:services]).print_logs
+      next
+    end
 
     options[:max_age_timestamp] = options[:max_age].zero? ? nil : Chronic.parse("#{options[:max_age]} ago")
     options[:uses_personal_tags] = options[:work_tags].blank?
@@ -59,28 +61,7 @@ namespace :task_bridge do
     puts "Starting sync at #{options[:sync_started_at]}" unless options[:quiet]
     puts options.pretty_inspect if options[:debug]
 
-    items_by_service = {}
-    progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: @services.length)
-    @services.each do |service_name, service|
-      if service.respond_to?(:authorized) && service.authorized == false
-        progressbar.log "Skipping unauthorized service #{service.friendly_name}"
-        items_by_service[service_name] = []
-        progressbar.increment
-        next
-      end
-      progressbar.log "Gathering items from #{service.friendly_name}"
-      # Reuse these loaded items during the later service syncs so title grouping
-      # does not trigger a second full remote scan for the same collection.
-      only_modified_dates = service.sync_strategies == [:to_primary]
-      items_by_service[service_name] = service.items_to_sync(tags: options[:tags], only_modified_dates:)
-      progressbar.increment
-    end
-
-    # Title-only matches stay ephemeral during the sync run. Persisting a
-    # SyncCollection here would make an unverified title collision durable
-    # before a successful sync establishes an explicit cross-service link.
-    items_by_service.each do |service_name, service_items|
-      service = @services.fetch(service_name)
+    @services.each_value do |service|
       @service_logs = []
       begin
         if service.respond_to?(:authorized) && service.authorized == false
@@ -88,16 +69,21 @@ namespace :task_bridge do
         elsif options[:delete]
           service.prune if service.respond_to?(:prune)
         elsif options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
+          service_items = service.items_to_sync(tags: options[:tags], only_modified_dates: true)
           @service_logs << service.sync_to_primary(@primary_service, service_items:)
         elsif options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
+          service_items = service.items_to_sync(tags: options[:tags])
           @service_logs << service.sync_from_primary(@primary_service, service_items:)
         elsif service.sync_strategies.include?(:two_way)
+          service_items = service.items_to_sync(tags: options[:tags])
           # if the #sync_with_primary method exists, we should use it unless options force us not to
           @service_logs << service.sync_with_primary(@primary_service, service_items:)
         else
           # Keep each service isolated so one transient failure does not abort the full sync run.
           # Generally we should sync FROM the primary service first, since it should be the source of truth
           # and we want to avoid overwriting anything in the primary service if a duplicate task exists
+          only_modified_dates = service.sync_strategies == [:to_primary]
+          service_items = service.items_to_sync(tags: options[:tags], only_modified_dates:)
           @service_logs << service.sync_from_primary(@primary_service, service_items:) if service.sync_strategies.include?(:from_primary)
           @service_logs << service.sync_to_primary(@primary_service, service_items:) if service.sync_strategies.include?(:to_primary)
         end
