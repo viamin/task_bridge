@@ -12,7 +12,10 @@ namespace :task_bridge do
     o = OptionParser.new
     supported_services = Chamber.dig!(:task_bridge, :all_supported_services)
     o.banner = "Sync Tasks from one service to another\nSupported services: #{supported_services.join(', ')}\nBy default, tasks found with the tags in --tags will have a work context"
-    o.on("-p", "--primary [PRIMARY]", "Primary task service") { |value| overrides[:primary] = value }
+    o.on("-p", "--primary [PRIMARY]", "Primary task service") do |value|
+      overrides[:primary] = value
+      overrides[:primary_service] = "#{value}::Service".safe_constantize
+    end
     o.on("-t", "--tags [TAGS]", "Tags (or labels) to sync") { |value| overrides[:tags] = value.split(",") }
     o.on("-s", "--services [SERVICES]", String, "Services to sync tasks among") { |services| overrides[:services] = services.split(",") }
     o.on("-e", "--personal-tags [TAGS]", "Tags (or labels) used for personal context") { |value| overrides[:personal_tags] = value.split(",") }

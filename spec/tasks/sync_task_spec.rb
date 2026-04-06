@@ -332,6 +332,41 @@ RSpec.describe "task_bridge:sync task" do
     expect(passing_service).to have_received(:sync_from_primary).with(primary_service, service_items: [])
   end
 
+  it "replaces an instantiated primary service when --primary is provided" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    default_primary_service = instance_double("Primary::Service")
+    explicit_primary_service = instance_double("Alternate::Service")
+    passing_service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      items_to_sync: [],
+      sync_strategies: [:from_primary]
+    )
+
+    allow(passing_service).to receive(:should_sync?).and_return(false)
+    allow(passing_service).to receive(:sync_from_primary).with(explicit_primary_service).and_return(
+      {
+        service: "Passing",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        items_synced: 0,
+        detail: "Sync not required"
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Passing"], primary_service: default_primary_service)
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Alternate Passing])
+    stub_service("Alternate", explicit_primary_service)
+    stub_service("Passing", passing_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task("--primary", "Alternate", "--only-from-primary") }.not_to raise_error
+    end
+
+    expect(passing_service).to have_received(:sync_from_primary).with(explicit_primary_service)
+  end
+
   it "updates last_synced only for collections touched by successful services" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)
