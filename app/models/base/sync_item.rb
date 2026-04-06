@@ -58,8 +58,8 @@ module Base
     def initialize(attributes = nil, &)
       attributes ||= {}
       # Extract non-column attributes before passing to ActiveRecord
-      column_names = self.class.column_names.map(&:to_sym)
-      association_names = self.class.reflections.keys.map(&:to_sym)
+      column_names = self.class.cached_column_names
+      association_names = self.class.cached_association_names
       ar_attrs = {}
       extra_attrs = {}
       association_attrs = {}
@@ -224,6 +224,14 @@ module Base
     end
 
     class << self
+      def cached_column_names
+        @cached_column_names ||= column_names.map(&:to_sym).freeze
+      end
+
+      def cached_association_names
+        @cached_association_names ||= reflections.keys.map(&:to_sym).freeze
+      end
+
       def external_attribute_map
         standard_attribute_map.merge(attribute_map).compact
       end

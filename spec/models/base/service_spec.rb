@@ -226,7 +226,7 @@ RSpec.describe Base::Service do
       end.not_to change(SyncCollection, :count)
     end
 
-    it "refuses to merge items from different sync collections" do
+    it "skips sync collection persistence when items are already in different collections" do
       first_collection = SyncCollection.create!(title: "Service collection")
       second_collection = SyncCollection.create!(title: "Primary collection")
       persisted_service_item = sync_item_class.create!(
@@ -246,7 +246,10 @@ RSpec.describe Base::Service do
 
       expect do
         service.send(:persist_sync_collection_for, persisted_primary_item, persisted_service_item)
-      end.to raise_error(ArgumentError, "cannot merge items from different sync collections")
+      end.not_to raise_error
+
+      expect(persisted_service_item.reload.sync_collection).to eq(first_collection)
+      expect(persisted_primary_item.reload.sync_collection).to eq(second_collection)
     end
   end
 

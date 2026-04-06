@@ -254,7 +254,10 @@ module Base
       return if collection_items.length < 2
 
       existing_collection_ids = collection_items.filter_map(&:sync_collection_id).uniq
-      raise ArgumentError, "cannot merge items from different sync collections" if existing_collection_ids.many?
+      if existing_collection_ids.many?
+        debug("Skipping sync collection persistence because items are already linked to different collections: #{existing_collection_ids.join(', ')}")
+        return
+      end
 
       collection = if existing_collection_ids.one?
         SyncCollection.find_by(id: existing_collection_ids.first)

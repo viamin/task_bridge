@@ -433,6 +433,22 @@ RSpec.describe "Base::SyncItem", :full_options do
   end
 
   describe ".new" do
+    it "reuses cached ActiveRecord metadata for initialization" do
+      expect(test_item_class.cached_column_names).to eq(test_item_class.cached_column_names)
+      expect(test_item_class.cached_association_names).to eq(test_item_class.cached_association_names)
+
+      metadata_cached_column_names = test_item_class.cached_column_names
+      metadata_cached_association_names = test_item_class.cached_association_names
+
+      expect do
+        test_item_class.new(title: "Cached metadata", external_id: "first")
+        test_item_class.new(title: "Cached metadata", external_id: "second")
+      end.not_to raise_error
+
+      expect(test_item_class.cached_column_names.object_id).to eq(metadata_cached_column_names.object_id)
+      expect(test_item_class.cached_association_names.object_id).to eq(metadata_cached_association_names.object_id)
+    end
+
     it "forwards the ActiveRecord initializer block" do
       item = test_item_class.new(title: "Before block") do |record|
         record.title = "From block"
