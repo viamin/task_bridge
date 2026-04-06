@@ -65,6 +65,23 @@ RSpec.describe StructuredLogger do
     end
   end
 
+  describe "#last_synced" do
+    it "returns nil when the service has no recorded successful sync" do
+      logger.save_service_log!(
+        [
+          {
+            "service" => "Asana",
+            "last_attempted" => "2024-01-01 09:00AM",
+            "status" => "failed"
+          }
+        ]
+      )
+
+      expect(logger.last_synced("Asana")).to be_nil
+      expect(logger.last_synced("Asana", interval: true)).to be_nil
+    end
+  end
+
   describe "#print_run_summary" do
     it "prints a tabular summary of results" do
       summaries = [

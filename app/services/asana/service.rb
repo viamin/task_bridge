@@ -36,6 +36,7 @@ module Asana
         asana_task.asana_task = external_task
         asana_task.refresh_from_external!(only_modified_dates:)
       end
+      sub_item_ids = Set.new
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count&.positive? }
       if tasks_with_sub_items.any?
         tasks_with_sub_items.each do |parent_task|
@@ -45,14 +46,11 @@ module Asana
             sub_item.asana_task = sub_item_hash
             sub_item.refresh_from_external!(only_modified_dates:)
             parent_task.sub_items << sub_item
-            # Remove the sub_item from the main task list
-            # so we don't double sync them
-            # (the Asana API doesn't have a filter for sub_items)
-            tasks.delete_if { |task| task.external_id == sub_item.external_id }
+            sub_item_ids << sub_item.external_id
           end
         end
       end
-      tasks
+      tasks.reject { |task| sub_item_ids.include?(task.external_id) }
     end
 
     def add_item(external_task, parent_task_gid = nil)

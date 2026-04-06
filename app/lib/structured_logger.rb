@@ -35,9 +35,10 @@ class StructuredLogger
   def last_synced(service_name, interval: false)
     debug("service_name: #{service_name}, interval: #{interval}", options[:debug])
     raw_sync_data = sync_data_for(service_name)
-    return if raw_sync_data.nil?
+    last_successful = raw_sync_data&.[]("last_successful")
+    return if last_successful.blank?
 
-    last_sync = Time.parse(raw_sync_data["last_successful"])
+    last_sync = Time.parse(last_successful)
     if interval
       Time.now - last_sync
     else

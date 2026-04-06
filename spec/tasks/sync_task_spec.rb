@@ -62,6 +62,8 @@ RSpec.describe "task_bridge:sync task" do
       sync_strategies: [:from_primary]
     )
 
+    allow(failing_service).to receive(:should_sync?).and_return(true)
+    allow(passing_service).to receive(:should_sync?).and_return(true)
     allow(failing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_raise(RuntimeError, "boom")
     allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
       {
@@ -122,6 +124,8 @@ RSpec.describe "task_bridge:sync task" do
       sync_strategies: [:from_primary]
     )
 
+    allow(failing_service).to receive(:should_sync?).and_return(true)
+    allow(passing_service).to receive(:should_sync?).and_return(true)
     allow(failing_service).to receive(:items_to_sync).with(tags: []).and_raise(RuntimeError, "fetch boom")
     allow(passing_service).to receive(:items_to_sync).with(tags: []).and_return([])
     allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
@@ -183,6 +187,42 @@ RSpec.describe "task_bridge:sync task" do
     expect(service).not_to have_received(:items_to_sync)
   end
 
+  it "does not preload service items when a service is skipped by should_sync?" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      sync_strategies: [:from_primary]
+    )
+
+    allow(service).to receive(:should_sync?).and_return(false)
+    allow(service).to receive(:items_to_sync)
+    allow(service).to receive(:sync_from_primary).with(primary_service).and_return(
+      {
+        service: "Passing",
+        last_attempted: "2024-01-01 09:00AM",
+        items_synced: 0,
+        detail: "Sync not required"
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    stub_service("Primary", primary_service)
+    stub_service("Passing", service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task("--only-from-primary") }.not_to raise_error
+    end
+
+    expect(service).to have_received(:should_sync?)
+    expect(service).not_to have_received(:items_to_sync)
+    expect(service).to have_received(:sync_from_primary).with(primary_service)
+  end
+
   it "records delete runs as successful service logs" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)
@@ -234,6 +274,7 @@ RSpec.describe "task_bridge:sync task" do
       sync_strategies: [:to_primary]
     )
 
+    allow(passing_service).to receive(:should_sync?).and_return(true)
     allow(passing_service).to receive(:items_to_sync).with(tags: [], only_modified_dates: true).and_return([service_item])
     allow(passing_service).to receive(:sync_to_primary).with(primary_service, service_items: [service_item]).and_return(
       {
@@ -269,6 +310,7 @@ RSpec.describe "task_bridge:sync task" do
       sync_strategies: [:from_primary]
     )
 
+    allow(passing_service).to receive(:should_sync?).and_return(true)
     allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
       {
         service: "Passing",
@@ -322,6 +364,8 @@ RSpec.describe "task_bridge:sync task" do
       sync_strategies: [:from_primary]
     )
 
+    allow(passing_service).to receive(:should_sync?).and_return(true)
+    allow(failing_service).to receive(:should_sync?).and_return(true)
     allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: [passing_item]).and_return(
       {
         service: "Passing",
@@ -364,6 +408,7 @@ RSpec.describe "task_bridge:sync task" do
       sync_strategies: [:from_primary]
     )
 
+    allow(passing_service).to receive(:should_sync?).and_return(true)
     allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
       {
         service: "Passing",
@@ -406,6 +451,7 @@ RSpec.describe "task_bridge:sync task" do
       last_successful_at: Time.zone.parse("2024-01-01 08:00AM")
     )
 
+    allow(failing_service).to receive(:should_sync?).and_return(true)
     allow(failing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_raise(RuntimeError, "boom")
 
     stub_sync_defaults(services: ["Failing"])
@@ -444,6 +490,8 @@ RSpec.describe "task_bridge:sync task" do
     )
     service_a = instance_double("ServiceA::Service", friendly_name: "ServiceA", items_to_sync: [service_a_item], sync_strategies: [])
     service_b = instance_double("ServiceB::Service", friendly_name: "ServiceB", items_to_sync: [service_b_item], sync_strategies: [])
+    allow(service_a).to receive(:should_sync?).and_return(true)
+    allow(service_b).to receive(:should_sync?).and_return(true)
 
     stub_sync_defaults(services: %w[ServiceA ServiceB])
     allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary ServiceA ServiceB])

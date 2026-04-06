@@ -77,23 +77,40 @@ namespace :task_bridge do
             detail: "Pruned completed items"
           }.stringify_keys
         elsif options[:only_to_primary] && service.sync_strategies.include?(:to_primary)
-          service_items = service.items_to_sync(tags: options[:tags], only_modified_dates: true)
-          @service_logs << service.sync_to_primary(@primary_service, service_items:)
+          @service_logs << if service.should_sync?
+            service_items = service.items_to_sync(tags: options[:tags], only_modified_dates: true)
+            service.sync_to_primary(@primary_service, service_items:)
+          else
+            service.sync_to_primary(@primary_service)
+          end
         elsif options[:only_from_primary] && service.sync_strategies.include?(:from_primary)
-          service_items = service.items_to_sync(tags: options[:tags])
-          @service_logs << service.sync_from_primary(@primary_service, service_items:)
+          @service_logs << if service.should_sync?
+            service_items = service.items_to_sync(tags: options[:tags])
+            service.sync_from_primary(@primary_service, service_items:)
+          else
+            service.sync_from_primary(@primary_service)
+          end
         elsif service.sync_strategies.include?(:two_way)
-          service_items = service.items_to_sync(tags: options[:tags])
           # if the #sync_with_primary method exists, we should use it unless options force us not to
-          @service_logs << service.sync_with_primary(@primary_service, service_items:)
+          @service_logs << if service.should_sync?
+            service_items = service.items_to_sync(tags: options[:tags])
+            service.sync_with_primary(@primary_service, service_items:)
+          else
+            service.sync_with_primary(@primary_service)
+          end
         else
           # Keep each service isolated so one transient failure does not abort the full sync run.
           # Generally we should sync FROM the primary service first, since it should be the source of truth
           # and we want to avoid overwriting anything in the primary service if a duplicate task exists
           only_modified_dates = service.sync_strategies == [:to_primary]
-          service_items = service.items_to_sync(tags: options[:tags], only_modified_dates:)
-          @service_logs << service.sync_from_primary(@primary_service, service_items:) if service.sync_strategies.include?(:from_primary)
-          @service_logs << service.sync_to_primary(@primary_service, service_items:) if service.sync_strategies.include?(:to_primary)
+          if service.should_sync?
+            service_items = service.items_to_sync(tags: options[:tags], only_modified_dates:)
+            @service_logs << service.sync_from_primary(@primary_service, service_items:) if service.sync_strategies.include?(:from_primary)
+            @service_logs << service.sync_to_primary(@primary_service, service_items:) if service.sync_strategies.include?(:to_primary)
+          else
+            @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
+            @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
+          end
         end
       rescue StandardError => e
         failed_services = true
