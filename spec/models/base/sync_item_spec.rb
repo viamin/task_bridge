@@ -494,6 +494,31 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.notes).to eq(asana_task_data["notes"])
       expect(item.omnifocus_id).to eq("of-123")
     end
+
+    it "does not persist hydrated attributes in pretend mode" do
+      item = test_item_class.create!(
+        external_id: "test-pretend-123",
+        title: "Local title",
+        notes: "local note"
+      )
+      item.options = options.merge(pretend: true)
+      item.instance_variable_set(
+        :@sync_item,
+        {
+          "id" => "test-pretend-123",
+          "title" => "Remote title",
+          "completed" => false,
+          "notes" => "omnifocus_id: of-pretend"
+        }
+      )
+
+      item.refresh_from_external!
+
+      expect(item.title).to eq("Remote title")
+      expect(item.notes).to eq("omnifocus_id: of-pretend")
+      expect(item.reload.title).to eq("Local title")
+      expect(item.reload.notes).to eq("local note")
+    end
   end
 
   describe "#read_original" do

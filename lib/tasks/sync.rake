@@ -108,19 +108,17 @@ namespace :task_bridge do
           else
             service.sync_with_primary(@primary_service)
           end
-        else
+        elsif service.should_sync?
           # Keep each service isolated so one transient failure does not abort the full sync run.
           # Generally we should sync FROM the primary service first, since it should be the source of truth
           # and we want to avoid overwriting anything in the primary service if a duplicate task exists
-          only_modified_dates = service.sync_strategies == [:to_primary]
-          if service.should_sync?
-            service_items = service.items_to_sync(tags: options[:tags], only_modified_dates:)
-            @service_logs << service.sync_from_primary(@primary_service, service_items:) if service.sync_strategies.include?(:from_primary)
-            @service_logs << service.sync_to_primary(@primary_service, service_items:) if service.sync_strategies.include?(:to_primary)
-          else
-            @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
-            @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
-          end
+          from_primary_items = service.items_to_sync(tags: options[:tags]) if service.sync_strategies.include?(:from_primary)
+          to_primary_items = service.items_to_sync(tags: options[:tags], only_modified_dates: true) if service.sync_strategies.include?(:to_primary)
+          @service_logs << service.sync_from_primary(@primary_service, service_items: from_primary_items) if service.sync_strategies.include?(:from_primary)
+          @service_logs << service.sync_to_primary(@primary_service, service_items: to_primary_items) if service.sync_strategies.include?(:to_primary)
+        else
+          @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
+          @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
         end
       rescue StandardError => e
         failed_services = true

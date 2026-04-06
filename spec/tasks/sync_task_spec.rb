@@ -211,6 +211,54 @@ RSpec.describe "task_bridge:sync task" do
     expect(service).not_to have_received(:items_to_sync)
   end
 
+  it "uses modified-date reads only for to-primary when a service supports both directions" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    from_primary_item = instance_double(Base::SyncItem, sync_collection_id: nil, title: "From-primary task", incomplete?: true, provider: "Passing")
+    to_primary_item = instance_double(Base::SyncItem, sync_collection_id: nil, title: "To-primary task", incomplete?: true, provider: "Passing")
+    passing_service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      sync_strategies: %i[from_primary to_primary]
+    )
+
+    allow(passing_service).to receive(:should_sync?).and_return(true)
+    allow(passing_service).to receive(:items_to_sync).with(tags: []).and_return([from_primary_item])
+    allow(passing_service).to receive(:items_to_sync).with(tags: [], only_modified_dates: true).and_return([to_primary_item])
+    allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: [from_primary_item]).and_return(
+      {
+        service: "Passing",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
+        items_synced: 1
+      }.stringify_keys
+    )
+    allow(passing_service).to receive(:sync_to_primary).with(primary_service, service_items: [to_primary_item]).and_return(
+      {
+        service: "Passing",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
+        items_synced: 1
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    stub_service("Primary", primary_service)
+    stub_service("Passing", passing_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task }.not_to raise_error
+    end
+
+    expect(passing_service).to have_received(:items_to_sync).with(tags: []).once
+    expect(passing_service).to have_received(:items_to_sync).with(tags: [], only_modified_dates: true).once
+    expect(passing_service).to have_received(:sync_from_primary).with(primary_service, service_items: [from_primary_item]).once
+    expect(passing_service).to have_received(:sync_to_primary).with(primary_service, service_items: [to_primary_item]).once
+  end
+
   it "does not preload service items when a service is skipped by should_sync?" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)

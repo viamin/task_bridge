@@ -104,6 +104,8 @@ module Base
 
     def refresh_from_external!(only_modified_dates: false)
       read_original(only_modified_dates:)
+      return self if options[:pretend]
+
       save! if changed?
       self
     end
