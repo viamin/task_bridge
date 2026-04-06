@@ -208,15 +208,35 @@ RSpec.describe "GoogleTasks::Service" do
   end
 
   describe "#tasklist" do
-    let(:service_with_list) { GoogleTasks::Service.new(options: { list: "Missing" }, tasks_service:, authorization: {}) }
+    let(:service_with_list) do
+      GoogleTasks::Service.new(
+        options: { list: "Missing", quiet: true },
+        tasks_service:,
+        authorization: {}
+      )
+    end
     let(:tasklists_response) { double("tasklists_response", items: nil) }
 
     before do
       allow(tasks_service).to receive(:list_tasklists).and_return(tasklists_response)
     end
 
-    it "raises a clear error when the API returns no task lists" do
-      expect { service_with_list.send(:tasklist) }.to raise_error(RuntimeError, "tasklist (Missing) not found in []")
+    it "returns nil when configured list is unavailable" do
+      expect(service_with_list.send(:tasklist)).to be_nil
+    end
+
+    it "marks service as unauthorized when configured list is unavailable" do
+      expect(service_with_list.authorized).to be true
+
+      service_with_list.send(:tasklist)
+
+      expect(service_with_list.authorized).to be false
+      expect(service_with_list.send(:tasklist)).to be_nil
+    end
+
+    it "returns an empty collection when the list is unavailable" do
+      expect(service_with_list.items_to_sync).to eq([])
+      expect(service_with_list.authorized).to be false
     end
   end
 end

@@ -98,7 +98,10 @@ module Base
       assign_attributes(values_hash)
       # Skip expensive notes parsing (which may trigger API/AppleScript reads)
       # when we only need date and identity attributes for grouping.
-      read_notes unless only_modified_dates
+      # However, when notes are not already present, we still need to parse sync
+      # IDs so metadata-only updates can preserve foreign sync IDs and avoid
+      # clearing valid IDs when applying updates.
+      read_notes if !only_modified_dates || notes.nil?
       self
     end
 

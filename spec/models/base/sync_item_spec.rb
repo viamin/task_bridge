@@ -566,6 +566,19 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.due_date).to eq(Time.zone.parse("2024-04-01T09:00:00Z"))
       expect(item.completed_at).to be_nil
     end
+
+    it "hydrates metadata keys from notes during partial reads when notes were not already set" do
+      item = test_item_class.new(
+        sync_item: sync_item_data.merge("notes" => "asana_id: asana-999"),
+        options: options,
+        external_id: "test-123",
+        title: "Original Task"
+      )
+
+      item.read_original(only_modified_dates: true)
+
+      expect(item.instance_variable_get(:@asana_id)).to eq("asana-999")
+    end
   end
 
   describe ".read_external_attribute" do
