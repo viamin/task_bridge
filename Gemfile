@@ -82,9 +82,10 @@ gem "optimist", "~> 3.0"
 gem "ostruct", "~> 0.6"
 
 # https://github.com/BrendanThompson/rb-scpt
-install_if(-> { RUBY_PLATFORM.include?("darwin") }) do
-  gem "rb-scpt", "~> 1.0", platforms: [:ruby]
-end
+# Loaded explicitly in Omnifocus/Reminders services (macOS only).
+# Do not remove require: false — auto-loading via Bundler.require causes
+# a superclass mismatch on macOS with Ruby 3.4+.
+gem "rb-scpt", "~> 1.0", require: false
 
 # https://github.com/jfelchner/ruby-progressbar
 gem "ruby-progressbar", "~> 1.13"

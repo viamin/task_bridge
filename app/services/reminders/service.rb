@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "rb-scpt" if RUBY_PLATFORM.include?("darwin")
+
 module Reminders
   class Service < Base::Service
     include GlobalOptions
