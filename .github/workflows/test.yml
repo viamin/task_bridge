@@ -26,6 +26,7 @@ jobs:
 
       - name: Test with RSpec
         run: |
+          set -o pipefail
           bundle exec rspec --tag ~no_ci 2>&1 | tee rspec_output.txt
 
       - name: Rerun failed examples
