@@ -1,19 +1,19 @@
 # frozen_string_literal: true
 
-require "rb-scpt" if RUBY_PLATFORM.include?("darwin")
-
 module Reminders
   class Service < Base::Service
+    include Base::AppleScriptLoader
     include GlobalOptions
 
     attr_reader :reminders_app, :authorized
 
     def initialize(options: nil)
       super
+      ensure_appscript_loaded!
       # Assumes you already have Reminders installed
       @reminders_app = Appscript.app.by_name(friendly_name)
       @authorized = true
-    rescue StandardError => e
+    rescue LoadError, StandardError => e
       # If Reminders app is not available, skip the service
       puts "Reminders initialization failed: #{e.message}" unless self.options[:quiet]
       @reminders_app = nil

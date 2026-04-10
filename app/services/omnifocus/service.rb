@@ -1,17 +1,18 @@
 # frozen_string_literal: true
 
-require "rb-scpt" if RUBY_PLATFORM.include?("darwin")
-
 module Omnifocus
   class Service < Base::Service
+    include Base::AppleScriptLoader
+
     attr_reader :omnifocus_app, :authorized
 
     def initialize(options: nil)
       super
+      ensure_appscript_loaded!
       # Assumes you already have OmniFocus installed
       @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
       @authorized = true
-    rescue StandardError => e
+    rescue LoadError, StandardError => e
       # If OmniFocus app is not available, skip the service
       puts "OmniFocus initialization failed: #{e.message}" unless self.options[:quiet]
       @omnifocus_app = nil
