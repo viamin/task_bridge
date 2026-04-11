@@ -86,5 +86,12 @@ RSpec.describe GoogleTasks::Task do
         title: "Review PR (addon)"
       )
     end
+
+    it "handles skip_reclaim: true without raising" do
+      allow(Reclaim::Task).to receive(:title_addon).with(external_task, skip: true).and_return(nil)
+
+      result = described_class.from_external(external_task, skip_reclaim: true)
+      expect(result[:title]).to eq("Review PR")
+    end
   end
 end

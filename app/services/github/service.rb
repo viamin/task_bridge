@@ -78,7 +78,9 @@ module Github
     # For some reason this API call doesn't always return
     # all of my assigned issues, and I don't know why
     def list_assigned
-      @list_assigned ||= begin
+      return @list_assigned if defined?(@list_assigned)
+
+      @list_assigned = begin
         query = {
           query: {
             state: "all",
@@ -88,6 +90,7 @@ module Github
         response = HTTParty.get("https://api.github.com/issues", authenticated_options.merge(query))
         JSON.parse(response.body) if response.success?
       end
+      @list_assigned || []
     end
 
     # https://docs.github.com/en/rest/issues/issues#list-repository-issues

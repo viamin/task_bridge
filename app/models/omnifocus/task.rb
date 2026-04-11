@@ -99,7 +99,7 @@ module Omnifocus
         task.omnifocus_task = sub_item
         task.refresh_from_external!(only_modified_dates:)
       end
-      @sub_item_count = @sub_items&.count
+      @sub_item_count = @sub_items&.count || 0
       self
     end
 
@@ -177,8 +177,10 @@ module Omnifocus
 
     def patch_external_attributes(attributes)
       attributes.each do |key, value|
-        original_attribute_key = attribute_map[key].to_sym
-        original_task.send(original_attribute_key).set(value)
+        mapped_key = attribute_map[key]
+        next if mapped_key.nil?
+
+        original_task.send(mapped_key.to_sym).set(value)
       end
     end
 

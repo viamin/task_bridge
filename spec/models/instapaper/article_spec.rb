@@ -97,4 +97,28 @@ RSpec.describe Instapaper::Article do
       end
     end
   end
+
+  describe "#image_time" do
+    it "returns 0.0 for zero images" do
+      expect(article.send(:image_time, 0)).to eq(0.0)
+    end
+  end
+
+  context "when progress_timestamp is nil" do
+    let(:article_props_no_ts) do
+      {
+        "id" => "id_nil_ts",
+        "title" => "No timestamp",
+        "url" => Faker::Internet.url,
+        "folder" => "unread",
+        "progress_timestamp" => nil,
+        "updated_at" => Chronic.parse("1 week ago")
+      }
+    end
+
+    it "does not raise during read_original" do
+      art = Instapaper::Article.new(instapaper_article: article_props_no_ts)
+      expect { art.read_original }.not_to raise_error
+    end
+  end
 end

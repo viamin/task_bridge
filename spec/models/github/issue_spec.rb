@@ -92,4 +92,23 @@ RSpec.describe "Github::Issue" do
       expect(issue.project).to eq("unknown")
     end
   end
+
+  context "when labels is nil" do
+    let(:properties) do
+      {
+        "id" => id,
+        "number" => number,
+        "title" => title,
+        "html_url" => url,
+        "repository_url" => repo_url,
+        "body" => body,
+        "state" => status,
+        "labels" => nil
+      }
+    end
+
+    it "does not raise during read_original" do
+      expect { issue.read_original }.not_to raise_error
+    end
+  end
 end

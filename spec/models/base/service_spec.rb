@@ -334,4 +334,11 @@ RSpec.describe Base::Service do
       expect { service.send(:paired_items, [nil_timestamp_item], []) }.not_to raise_error
     end
   end
+
+  describe "#sync_state" do
+    it "returns nil when database is unavailable" do
+      allow(SyncServiceState).to receive(:find_by).and_raise(ActiveRecord::StatementInvalid)
+      expect(service.send(:sync_state)).to be_nil
+    end
+  end
 end

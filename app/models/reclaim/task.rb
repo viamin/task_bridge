@@ -91,8 +91,8 @@ module Reclaim
         eventColor: nil,
         eventCategory: item_type,
         timeChunksRequired: time_required,
-        snoozeUntil: start_date.rfc3339,
-        due: due_date.rfc3339, # "2022-10-08T03:00:00.000Z"
+        snoozeUntil: start_date&.rfc3339,
+        due: due_date&.rfc3339,
         minChunkSize: minimum_chunk_size,
         maxChunkSize: maximum_chunk_size,
         notes:,

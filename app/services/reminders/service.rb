@@ -92,7 +92,20 @@ module Reminders
 
     def reminders_in_list(list_name)
       reminder_list = lists.find { |list| list.name.get == list_name }
+      return [] unless reminder_list
+
       reminder_list.reminders.get
+    end
+
+    def list(external_task)
+      target_name = project_map.key(external_task.project)
+      lists.find { |l| l.name.get == target_name } if target_name
+    end
+
+    def project_map
+      return {} if options[:reminders_mapping].nil?
+
+      options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
     end
   end
 end

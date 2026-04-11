@@ -82,7 +82,7 @@ module Reminders
     end
 
     def original_reminder
-      Service.new(options:).reminders_app.lists[list].reminders.ID(external_id)
+      service.reminders_app.lists[list].reminders.ID(external_id)
     end
 
     def external_sync_notes
@@ -99,8 +99,10 @@ module Reminders
 
     def patch_external_attributes(attributes)
       attributes.each do |key, value|
-        original_attribute_key = attribute_map[key].to_sym
-        original_reminder.send(original_attribute_key).set(value)
+        mapped_key = attribute_map[key]
+        next if mapped_key.nil?
+
+        original_reminder.send(mapped_key.to_sym).set(value)
       end
     end
 

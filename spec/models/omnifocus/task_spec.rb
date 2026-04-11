@@ -119,4 +119,14 @@ RSpec.describe "Omnifocus::Task" do
       expect(task_with_nil_tags.personal?).to be false
     end
   end
+
+  context "when sub_items is nil" do
+    let(:tasks) { nil }
+    let(:nil_sub_task) { Omnifocus::Task.new(omnifocus_task: OpenStruct.new({ id_: "sub_nil", name: "SubNil", completed: false, note: "", tasks: nil })) }
+
+    it "sub_item_count defaults to 0 instead of nil" do
+      nil_sub_task.read_original
+      expect(nil_sub_task.sub_item_count).to eq(0)
+    end
+  end
 end

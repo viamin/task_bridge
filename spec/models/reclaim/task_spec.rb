@@ -106,4 +106,25 @@ RSpec.describe "Reclaim::Task" do
       expect(task.incomplete?).to be false
     end
   end
+
+  context "when dates are nil" do
+    let(:task_no_dates) do
+      data = {
+        "id" => "reclaim-no-dates",
+        "title" => "No dates",
+        "eventCategory" => "WORK"
+      }
+      Reclaim::Task.new(reclaim_task: data).tap(&:read_original)
+    end
+
+    it "to_h does not raise when start_date is nil" do
+      task_no_dates.start_date = nil
+      expect { task_no_dates.to_h }.not_to raise_error
+    end
+
+    it "to_h does not raise when due_date is nil" do
+      task_no_dates.due_date = nil
+      expect { task_no_dates.to_h }.not_to raise_error
+    end
+  end
 end

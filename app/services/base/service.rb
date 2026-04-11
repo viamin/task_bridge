@@ -227,6 +227,8 @@ module Base
 
     def sync_state
       SyncServiceState.find_by(service_name: friendly_name)
+    rescue ActiveRecord::NoDatabaseError, ActiveRecord::StatementInvalid
+      nil
     end
 
     # find all paired items

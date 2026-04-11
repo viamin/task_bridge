@@ -46,7 +46,8 @@ module Instapaper
       super
       @folder = read_external_attribute(instapaper_article, "folder", only_modified_dates:)
       @project = Chamber.dig(:instapaper, :project)
-      self.last_modified = Time.at(instapaper_article["progress_timestamp"])
+      timestamp = instapaper_article["progress_timestamp"]
+      self.last_modified = timestamp ? Time.at(timestamp) : nil
       @estimated_minutes = nil
       self
     end
@@ -100,7 +101,8 @@ module Instapaper
     private
 
     def image_time(image_count)
-      # because I'm too lazy to do the math on this...
+      return 0.0 if image_count <= 0
+
       precalculated = [12, 23, 33, 42, 50, 57, 63, 68, 72, 75]
       seconds = if image_count <= 10
         precalculated[image_count - 1]
