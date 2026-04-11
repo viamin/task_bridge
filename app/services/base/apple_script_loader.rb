@@ -7,9 +7,7 @@ module Base
     def ensure_appscript_loaded!
       return if defined?(Appscript)
 
-      unless RUBY_PLATFORM.include?("darwin")
-        raise LoadError, "Appscript is only supported on macOS"
-      end
+      raise LoadError, "Appscript is only supported on macOS" unless RUBY_PLATFORM.include?("darwin")
 
       require "rb-scpt"
     rescue LoadError, TypeError => e
