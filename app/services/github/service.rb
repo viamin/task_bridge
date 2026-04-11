@@ -66,7 +66,7 @@ module Github
     end
 
     def sync_repositories(with_url: false)
-      repos = options[:repositories]
+      repos = Array(options[:repositories])
       if with_url
         repos.map { |repo| "https://api.github.com/repos/#{repo}" }
       else

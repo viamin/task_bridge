@@ -31,5 +31,13 @@ RSpec.describe "Reminders::Service" do
         expect(subject.first.title).to eq("Test Reminder with all the fixings")
       end
     end
+
+    context "when reminders_mapping is nil" do
+      let(:reminders_mapping) { nil }
+
+      it "returns an empty array without crashing" do
+        expect(subject).to eq([])
+      end
+    end
   end
 end

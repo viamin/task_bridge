@@ -74,10 +74,14 @@ module Reclaim
     end
 
     def completed?
+      return false if time_remaining.nil?
+
       time_remaining.to_i <= 0
     end
 
     def incomplete?
+      return false if time_remaining.nil?
+
       time_remaining.to_i.positive?
     end
 

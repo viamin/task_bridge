@@ -94,10 +94,10 @@ RSpec.describe "Reclaim::Task" do
       }
     end
 
-    it "completed? returns true instead of raising" do
+    it "completed? returns false instead of raising" do
       task = Reclaim::Task.new(reclaim_task: reclaim_task_data)
       expect { task.completed? }.not_to raise_error
-      expect(task.completed?).to be true
+      expect(task.completed?).to be false
     end
 
     it "incomplete? returns false instead of raising" do

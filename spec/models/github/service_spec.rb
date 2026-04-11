@@ -128,4 +128,11 @@ RSpec.describe "Github::Service" do
       it { is_expected.to be false }
     end
   end
+
+  describe "#sync_repositories" do
+    it "returns an empty array when repositories option is nil" do
+      allow(service).to receive(:options).and_return({ repositories: nil })
+      expect(service.send(:sync_repositories)).to eq([])
+    end
+  end
 end

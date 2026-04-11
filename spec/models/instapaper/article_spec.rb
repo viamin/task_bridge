@@ -64,6 +64,13 @@ RSpec.describe Instapaper::Article do
     it "returns the opposite of unread?" do
       expect(article.completed?).to be(false)
     end
+
+    context "when folder is nil" do
+      it "returns false instead of treating nil as completed" do
+        article_nil = Instapaper::Article.new(instapaper_article: article_props.merge("folder" => nil))
+        expect(article_nil.completed?).to be(false)
+      end
+    end
   end
 
   describe "#unread?" do

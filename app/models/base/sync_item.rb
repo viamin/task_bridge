@@ -132,7 +132,7 @@ module Base
     end
 
     def completed?
-      completed
+      completed == true
     end
 
     def incomplete?
@@ -150,13 +150,14 @@ module Base
     end
 
     def service
-      @service ||= if options[:primary] == provider
-        # options[:primary_service] may be either a class or an already-instantiated
-        # service object (the rake task stores an instance). Handle both cases.
+      return @service if defined?(@service) && !@service.nil?
+
+      @service = if options[:primary] == provider
         primary = options[:primary_service]
         primary.is_a?(Class) ? primary.new : primary
       else
-        "#{provider}::Service".safe_constantize.new(options:)
+        service_class = "#{provider}::Service".safe_constantize
+        service_class&.new(options:)
       end
     end
 

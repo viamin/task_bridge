@@ -61,6 +61,8 @@ module Instapaper
     end
 
     def completed?
+      return false if folder.nil?
+
       !unread?
     end
 

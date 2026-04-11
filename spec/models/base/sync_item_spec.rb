@@ -605,4 +605,26 @@ RSpec.describe "Base::SyncItem", :full_options do
       end.to raise_error(Appscript::CommandError)
     end
   end
+
+  describe "#completed?" do
+    it "returns strict boolean false when completed column is nil" do
+      item = test_item_class.new(title: "Test", completed: nil)
+      expect(item.completed?).to be(false)
+    end
+
+    it "returns true when completed column is true" do
+      item = test_item_class.new(title: "Test", completed: true)
+      expect(item.completed?).to be(true)
+    end
+  end
+
+  describe "#service" do
+    it "returns nil when service class cannot be resolved" do
+      item = test_item_class.new(title: "Test")
+      allow(item).to receive(:provider).and_return("NonExistentService")
+      allow(item).to receive(:options).and_return({ primary: "Omnifocus", services: [] })
+
+      expect(item.service).to be_nil
+    end
+  end
 end

@@ -89,7 +89,7 @@ module Omnifocus
         if options[:pretend]
           "Would have marked #{omnifocus_task.title} complete in Omnifocus"
         else
-          omnifocus_task.mark_complete unless options[:pretend]
+          omnifocus_task.mark_complete
           handle_sub_items(omnifocus_task, external_task)
         end
       elsif !options[:pretend] && !external_task.completed? # don't add tags to completed tasks

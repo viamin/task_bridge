@@ -162,12 +162,6 @@ module GoogleTasks
       task_id
     end
 
-    def update_sync_data(existing_item, sync_id, sync_url = nil)
-      existing_item.instance_variable_set(:@google_tasks_id, sync_id) if sync_id
-      existing_item.instance_variable_set(:@google_tasks_url, sync_url) if sync_url
-      existing_item.patch_external_attributes(notes: existing_item.sync_notes)
-    end
-
     # Returns RFC 3339 timestamp for 1 week ago, used to filter completed tasks
     # This allows syncing recently completed tasks while reducing API response size
     def completed_min_timestamp

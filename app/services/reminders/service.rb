@@ -35,6 +35,8 @@ module Reminders
     # Since Reminders via Applescript doesn't currently support tags, we use the mapping
     # REMINDERS_LIST_MAPPING=Reminder list 1~Primary list,Reminder list 2~Primary list 2
     def items_to_sync(*, **)
+      return [] if options[:reminders_mapping].nil?
+
       sync_maps = options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
       reminders_lists = sync_maps.keys
       debug("reminders_lists: #{reminders_lists}", options[:debug])
@@ -49,7 +51,10 @@ module Reminders
     def add_item(external_task, parent_object = nil)
       debug("external_task: #{external_task}, parent_object: #{parent_object}", options[:debug])
       if !options[:pretend]
-        new_reminder = list(external_task).make(new: :reminder, with_properties: Reminder.from_external(external_task))
+        target_list = list(external_task)
+        return nil if target_list.nil?
+
+        new_reminder = target_list.make(new: :reminder, with_properties: Reminder.from_external(external_task))
         new_reminder_id = new_reminder.id_.get
         update_sync_data(external_task, new_reminder_id)
         new_reminder
