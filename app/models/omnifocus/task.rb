@@ -117,6 +117,8 @@ module Omnifocus
     end
 
     def personal?
+      return false if @tags.nil?
+
       if options[:uses_personal_tags]
         @tags.intersect?(options[:personal_tags])
       elsif options[:work_tags]&.any?

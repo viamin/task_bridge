@@ -121,6 +121,8 @@ module Reminders
     private
 
     def project_map
+      return {} if options[:reminders_mapping].nil?
+
       options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
     end
   end

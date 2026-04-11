@@ -83,4 +83,13 @@ RSpec.describe "Github::Issue" do
       expect(issue).to be_completed
     end
   end
+
+  context "when repository_url is nil" do
+    let(:repo_url) { nil }
+
+    it "uses unknown as the short repo name instead of raising" do
+      issue.read_original
+      expect(issue.project).to eq("unknown")
+    end
+  end
 end

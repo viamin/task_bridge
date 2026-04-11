@@ -81,4 +81,29 @@ RSpec.describe "Reclaim::Task" do
       expect(task).to be_personal
     end
   end
+
+  context "when time_remaining is nil" do
+    let(:reclaim_task_data) do
+      {
+        "id" => "reclaim-nil-123",
+        "title" => "Missing time remaining",
+        "timeChunksRemaining" => nil,
+        "dueDate" => "2024-04-03T12:00:00Z",
+        "startDate" => "2024-04-02T12:00:00Z",
+        "eventCategory" => Reclaim::Task::PERSONAL
+      }
+    end
+
+    it "completed? returns true instead of raising" do
+      task = Reclaim::Task.new(reclaim_task: reclaim_task_data)
+      expect { task.completed? }.not_to raise_error
+      expect(task.completed?).to be true
+    end
+
+    it "incomplete? returns false instead of raising" do
+      task = Reclaim::Task.new(reclaim_task: reclaim_task_data)
+      expect { task.incomplete? }.not_to raise_error
+      expect(task.incomplete?).to be false
+    end
+  end
 end

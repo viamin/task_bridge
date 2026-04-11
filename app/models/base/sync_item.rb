@@ -181,7 +181,7 @@ module Base
     end
 
     def friendly_title
-      title.strip
+      title.to_s.strip
     end
 
     def friendly_title_matches(item)

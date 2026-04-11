@@ -74,11 +74,11 @@ module Reclaim
     end
 
     def completed?
-      time_remaining <= 0
+      time_remaining.to_i <= 0
     end
 
     def incomplete?
-      time_remaining.positive?
+      time_remaining.to_i.positive?
     end
 
     def personal?

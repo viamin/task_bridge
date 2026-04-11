@@ -9,9 +9,11 @@ module Base
 
       raise LoadError, "Appscript is only supported on macOS" unless RUBY_PLATFORM.include?("darwin")
 
-      require "rb-scpt"
-    rescue LoadError, TypeError => e
-      raise LoadError, "Unable to load rb-scpt: #{e.message}"
+      begin
+        require "rb-scpt"
+      rescue LoadError, TypeError => e
+        raise LoadError, "Unable to load rb-scpt: #{e.message}"
+      end
     end
   end
 end

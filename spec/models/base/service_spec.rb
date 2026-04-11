@@ -323,5 +323,15 @@ RSpec.describe Base::Service do
 
       expect(paired_items).to eq([[primary_item, matching_item]])
     end
+
+    it "handles items with nil last_modified and nil updated_at without crashing" do
+      nil_timestamp_item = instance_double(Base::SyncItem, last_modified: nil, updated_at: nil)
+      other_item = instance_double(Base::SyncItem, last_modified: Time.current - 5.minutes, updated_at: Time.current - 1.hour)
+
+      allow(nil_timestamp_item).to receive(:find_matching_item_in).and_return(other_item)
+      allow(other_item).to receive(:find_matching_item_in).and_return(nil)
+
+      expect { service.send(:paired_items, [nil_timestamp_item], []) }.not_to raise_error
+    end
   end
 end

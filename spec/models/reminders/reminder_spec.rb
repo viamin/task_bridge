@@ -65,4 +65,12 @@ RSpec.describe "Reminders::Reminder" do
       expect(reminder.omnifocus_id).to eq("jU466dYHf2o")
     end
   end
+
+  describe "#project_map" do
+    it "returns an empty hash when reminders_mapping is nil" do
+      allow(reminder).to receive(:options).and_return({ reminders_mapping: nil })
+
+      expect(reminder.send(:project_map)).to eq({})
+    end
+  end
 end

@@ -343,6 +343,13 @@ RSpec.describe "Base::SyncItem", :full_options do
       target = create_mock_item(asana_item_class, title: "Get bread")
       expect(source_item.friendly_title_matches(target)).to be false
     end
+
+    it "returns an empty string for nil titles without raising" do
+      item = test_item_class.new(options: options, external_id: "nil-title-test")
+
+      expect(item.title).to be_nil
+      expect(item.friendly_title).to eq("")
+    end
   end
 
   describe "#read_notes" do

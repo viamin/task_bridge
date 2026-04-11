@@ -314,7 +314,7 @@ module Asana
       response = HTTParty.get("#{base_url}/users/me", authenticated_options)
       raise "Error loading Asana user - check personal access token" unless response.success?
 
-      JSON.parse(response.body)["data"]&.stringify_keys
+      JSON.parse(response.body)["data"]&.stringify_keys || {}
     end
 
     def authenticated_options

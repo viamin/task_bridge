@@ -95,7 +95,7 @@ module Github
     private
 
     def short_repo_name(github_issue)
-      github_issue["repository_url"].split("/").last
+      github_issue["repository_url"]&.split("/")&.last || "unknown"
     end
 
     # Raw:

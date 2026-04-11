@@ -104,4 +104,19 @@ RSpec.describe "Omnifocus::Task" do
       end
     end
   end
+
+  context "when tags are nil" do
+    let(:tags) { [] }
+    let(:task_with_nil_tags) { Omnifocus::Task.new(omnifocus_task: properties) }
+
+    before do
+      task_with_nil_tags.instance_variable_set(:@tags, nil)
+      allow(task_with_nil_tags).to receive(:options).and_return({ uses_personal_tags: true, personal_tags: ["Personal"] })
+    end
+
+    it "personal? returns false without raising" do
+      expect { task_with_nil_tags.personal? }.not_to raise_error
+      expect(task_with_nil_tags.personal?).to be false
+    end
+  end
 end

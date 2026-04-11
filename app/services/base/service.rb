@@ -244,7 +244,7 @@ module Base
     end
 
     def sync_timestamp_for(item)
-      item.last_modified || item.updated_at
+      item.last_modified || item.updated_at || Time.zone.at(0)
     end
 
     def persist_sync_collection_for(*items)
