@@ -98,8 +98,10 @@ module Omnifocus
           add_tag(tag:, task: omnifocus_task)
         end
         # Detect if this was a title match vs ID match
-        # Title match: external_task doesn't have our sync ID
-        matched_by_title = external_task.try(:omnifocus_id).blank?
+        # Title match: external_task doesn't have our sync ID, or has a stale one
+        # (pointing to a different/deleted OmniFocus task)
+        matched_by_title = external_task.try(:omnifocus_id).blank? ||
+                           external_task.try(:omnifocus_id) != omnifocus_task.external_id
         # Only move projects for ID-matched items (reliable link)
         # Title matches are not reliable enough to warrant moving tasks between projects
         if !matched_by_title && external_task.try(:project) && !task_projects_match(external_task, omnifocus_task)
