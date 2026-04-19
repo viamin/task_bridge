@@ -82,6 +82,39 @@ RSpec.describe StructuredLogger do
     end
   end
 
+  describe "#save_service_log!" do
+    it "clears stale error fields when a later run succeeds" do
+      logger.save_service_log!(
+        [
+          {
+            "service" => "Asana",
+            "last_attempted" => "2024-01-01T08:00:00.000000Z",
+            "last_failed" => "2024-01-01T08:00:01.000000Z",
+            "status" => "failed",
+            "error_class" => "RuntimeError",
+            "error_message" => "boom"
+          }
+        ]
+      )
+
+      logger.save_service_log!(
+        [
+          {
+            "service" => "Asana",
+            "last_attempted" => options[:sync_started_at],
+            "last_successful" => options[:sync_started_at],
+            "items_synced" => 1
+          }
+        ]
+      )
+
+      log_entry = JSON.parse(File.read(log_path)).find { |entry| entry["service"] == "Asana" }
+      expect(log_entry["status"]).to eq("success")
+      expect(log_entry).not_to have_key("error_class")
+      expect(log_entry).not_to have_key("error_message")
+    end
+  end
+
   describe "#print_run_summary" do
     it "prints a tabular summary of results" do
       summaries = [

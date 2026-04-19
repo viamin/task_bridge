@@ -35,6 +35,7 @@ module Reminders
     # Since Reminders via Applescript doesn't currently support tags, we use the mapping
     # REMINDERS_LIST_MAPPING=Reminder list 1~Primary list,Reminder list 2~Primary list 2
     def items_to_sync(*, **)
+      return [] unless authorized
       return [] if options[:reminders_mapping].nil?
 
       sync_maps = options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
@@ -95,6 +96,8 @@ module Reminders
     end
 
     def lists
+      return [] unless authorized
+
       reminders_app.lists.get
     end
 

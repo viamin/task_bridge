@@ -14,6 +14,7 @@ RSpec.describe "Omnifocus::Service AppleScript Error Handling", :full_options do
   let(:service) { Omnifocus::Service.new(options:) }
   let(:logger) { double(StructuredLogger) }
   let(:last_sync) { Time.now - 20.minutes }
+  let(:options) { full_options.merge(quiet: true, debug: false, pretend: false) }
 
   before do
     allow(logger).to receive(:sync_data_for).and_return({})
@@ -73,6 +74,7 @@ RSpec.describe "Omnifocus::Service AppleScript Error Handling", :full_options do
     let(:mock_omnifocus_app) { double("OmnifocusDocument") }
 
     before do
+      allow(service).to receive(:authorized).and_return(true)
       allow(service).to receive(:omnifocus_app).and_return(mock_omnifocus_app)
     end
 
@@ -174,6 +176,7 @@ RSpec.describe "Omnifocus::Service AppleScript Error Handling", :full_options do
       double("ExternalTask",
              title: "Test Task",
              completed?: true,
+             last_modified: Time.now,
              updated_at: Time.now,
              tags: [],
              project: nil,
@@ -227,6 +230,7 @@ RSpec.describe "Omnifocus::Task AppleScript Error Handling", :full_options do
   let(:service) { Omnifocus::Service.new(options:) }
   let(:logger) { double(StructuredLogger) }
   let(:last_sync) { Time.now - 20.minutes }
+  let(:options) { full_options.merge(quiet: true, debug: false, pretend: false) }
 
   before do
     allow(logger).to receive(:sync_data_for).and_return({})

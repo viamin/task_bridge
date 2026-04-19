@@ -251,6 +251,9 @@ RSpec.describe Base::Service do
       expect do
         result = service.sync_to_primary(primary_service)
         expect(result["touched_collection_ids"]).to eq([])
+        expect(result["status"]).to eq("failed")
+        expect(result["error_message"]).to eq("Failed to update item")
+        expect(result).not_to have_key("last_successful")
       end.not_to change(SyncCollection, :count)
     end
 

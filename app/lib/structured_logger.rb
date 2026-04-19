@@ -170,7 +170,9 @@ class StructuredLogger
     output = service_logs.map do |service_log|
       existing_index = @existing_logs.find_index { |hash| hash["service"] == service_log["service"] }
       if existing_index
-        service_log.reverse_merge(@existing_logs.delete_at(existing_index))
+        merged = service_log.reverse_merge(@existing_logs.delete_at(existing_index))
+        clear_stale_error_fields!(merged) if service_log["status"] == "success" || service_log["last_successful"].present?
+        merged
       else
         service_log
       end
@@ -207,6 +209,12 @@ class StructuredLogger
 
   def tracked_service?(service_name)
     options[:services].include?(service_name.to_s.delete(" "))
+  end
+
+  def clear_stale_error_fields!(log_entry)
+    log_entry.delete("error_class")
+    log_entry.delete("error_message")
+    log_entry["status"] = "success" if log_entry["status"] == "failed"
   end
 
   def status_for_log(log_hash)
