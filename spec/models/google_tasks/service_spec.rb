@@ -29,7 +29,7 @@ RSpec.describe "GoogleTasks::Service" do
     subject(:items_to_sync) { service.items_to_sync(only_modified_dates:) }
 
     let(:only_modified_dates) { false }
-    let(:tasklist) { instance_double(Google::Apis::TasksV1::TaskList, id: "task-list-id", title: "Default List") }
+    let(:tasklist) { instance_double(Google::Apis::TasksV1::TaskList, id: "task-list-id", title: service.options[:list]) }
     let(:tasklists_response) { double("tasklists_response", items: [tasklist]) }
     let(:external_task) { instance_double(Google::Apis::TasksV1::Task, id: "google-task-id") }
     let(:tasks_response) { instance_double(Google::Apis::TasksV1::Tasks, items: [external_task]) }

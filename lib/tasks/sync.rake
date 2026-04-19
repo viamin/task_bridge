@@ -46,9 +46,7 @@ namespace :task_bridge do
     o.parse!(args)
     self.options = overrides
 
-    if options[:only_from_primary] && options[:only_to_primary]
-      raise OptionParser::InvalidOption, "--only-from-primary and --only-to-primary are mutually exclusive"
-    end
+    raise OptionParser::InvalidOption, "--only-from-primary and --only-to-primary are mutually exclusive" if options[:only_from_primary] && options[:only_to_primary]
 
     unsupported_services = options[:services] - supported_services
     raise "Supported services: #{supported_services.join(', ')}" if unsupported_services.any?
