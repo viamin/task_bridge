@@ -82,7 +82,7 @@ GEM
     ast (2.4.3)
     base64 (0.3.0)
     benchmark (0.5.0)
-    bigdecimal (4.1.1)
+    bigdecimal (4.1.2)
     bindex (0.8.1)
     bootsnap (1.23.0)
       msgpack (~> 1.2)
@@ -122,7 +122,7 @@ GEM
     drb (2.2.3)
     erb (6.0.2)
     erubi (1.13.1)
-    faker (3.6.1)
+    faker (3.8.0)
       i18n (>= 1.8.11, < 2)
     faraday (2.14.1)
       faraday-net_http (>= 2.0, < 3.5)
@@ -342,7 +342,7 @@ GEM
     ruby-progressbar (1.13.0)
     rubyzip (3.2.2)
     securerandom (0.4.1)
-    selenium-webdriver (4.41.0)
+    selenium-webdriver (4.43.0)
       base64 (~> 0.2)
       logger (~> 1.4)
       rexml (~> 3.2, >= 3.2.5)
@@ -370,9 +370,9 @@ GEM
       actionpack (>= 6.1)
       activesupport (>= 6.1)
       sprockets (>= 3.0.0)
-    sqlite3 (2.9.2)
+    sqlite3 (2.9.3)
       mini_portile2 (~> 2.8.0)
-    sqlite3 (2.9.2-aarch64-linux-gnu)
+    sqlite3 (2.9.3-aarch64-linux-gnu)
     standard (1.54.0)
       language_server-protocol (~> 3.17.0.2)
       lint_roller (~> 1.0)
@@ -426,7 +426,7 @@ PLATFORMS
 DEPENDENCIES
   annotate
   base64 (~> 0.2)
-  bigdecimal (~> 4.0)
+  bigdecimal (~> 4.1)
   bootsnap
   capybara
   chamber (~> 3.0)
@@ -436,7 +436,7 @@ DEPENDENCIES
   csv (~> 3.3)
   debug
   dotenv (~> 3.1)
-  faker (~> 3.2)
+  faker (~> 3.8)
   google-apis-tasks_v1 (~> 0.15)
   googleauth (~> 1.5)
   httparty (~> 0.21)
