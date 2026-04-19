@@ -1,0 +1,652 @@
+# frozen_string_literal: true
+
+require "rails_helper"
+
+RSpec.describe "Base::SyncItem", :full_options do
+  # Create a concrete test class since Base::SyncItem is abstract
+  let(:test_item_class) do
+    Class.new(Base::SyncItem) do
+      def self.attribute_map
+        {}
+      end
+
+      def provider
+        "TestService"
+      end
+
+      def external_data
+        @sync_item
+      end
+    end
+  end
+
+  let(:asana_item_class) do
+    Class.new(Base::SyncItem) do
+      def self.attribute_map
+        {}
+      end
+
+      def provider
+        "Asana"
+      end
+
+      def external_data
+        @sync_item
+      end
+    end
+  end
+
+  let(:omnifocus_item_class) do
+    Class.new(Base::SyncItem) do
+      def self.attribute_map
+        {}
+      end
+
+      def provider
+        "Omnifocus"
+      end
+
+      def external_data
+        @sync_item
+      end
+    end
+  end
+
+  # Helper to create mock items with specific attributes
+  def create_mock_item(item_class, attrs = {})
+    sync_item = {
+      "id" => attrs[:id] || SecureRandom.uuid,
+      "title" => attrs[:title] || "Test Task",
+      "completed" => attrs[:completed] || false,
+      "notes" => attrs[:notes] || ""
+    }
+    item_class.new(
+      sync_item: sync_item,
+      options: options,
+      title: attrs[:title] || "Test Task",
+      external_id: attrs[:id] || sync_item["id"],
+      completed: attrs[:completed] || false,
+      notes: attrs[:notes] || ""
+    )
+  end
+
+  describe "#find_matching_item_in" do
+    context "with empty collection" do
+      let(:source_item) { create_mock_item(omnifocus_item_class, title: "Buy milk") }
+
+      it "returns nil" do
+        expect(source_item.find_matching_item_in([])).to be_nil
+      end
+
+      it "returns nil for nil collection" do
+        expect(source_item.find_matching_item_in(nil)).to be_nil
+      end
+    end
+
+    context "with ID matching" do
+      let(:asana_id) { "asana-123" }
+      let(:omnifocus_id) { "of-456" }
+
+      context "when source has target's sync ID" do
+        let(:source_item) do
+          create_mock_item(omnifocus_item_class,
+                           id: omnifocus_id,
+                           title: "Buy milk",
+                           notes: "asana_id: #{asana_id}")
+        end
+        let(:target_item) do
+          create_mock_item(asana_item_class,
+                           id: asana_id,
+                           title: "Buy milk")
+        end
+
+        it "matches by ID" do
+          expect(source_item.find_matching_item_in([target_item])).to eq(target_item)
+        end
+
+        it "matches by ID even with different titles" do
+          different_title_target = create_mock_item(asana_item_class,
+                                                    id: asana_id,
+                                                    title: "Get milk")
+          expect(source_item.find_matching_item_in([different_title_target])).to eq(different_title_target)
+        end
+      end
+
+      context "when target has source's sync ID" do
+        let(:source_item) do
+          create_mock_item(omnifocus_item_class,
+                           id: omnifocus_id,
+                           title: "Buy milk")
+        end
+        let(:target_item) do
+          create_mock_item(asana_item_class,
+                           id: asana_id,
+                           title: "Buy milk",
+                           notes: "omnifocus_id: #{omnifocus_id}")
+        end
+
+        it "matches by ID" do
+          expect(source_item.find_matching_item_in([target_item])).to eq(target_item)
+        end
+      end
+
+      context "when sync IDs have different Ruby types" do
+        let(:source_item) do
+          create_mock_item(asana_item_class,
+                           id: "123",
+                           title: "Buy milk")
+        end
+        let(:target_item) do
+          create_mock_item(omnifocus_item_class,
+                           id: omnifocus_id,
+                           title: "Buy milk",
+                           notes: "asana_id: 123")
+        end
+
+        before do
+          allow(source_item).to receive(:external_id).and_return(123)
+        end
+
+        it "matches by ID after normalizing values to strings" do
+          expect(source_item.find_matching_item_in([target_item])).to eq(target_item)
+        end
+      end
+    end
+
+    context "with title matching" do
+      context "when neither item has a sync ID (first-time sync)" do
+        let(:source_item) do
+          create_mock_item(omnifocus_item_class,
+                           id: "of-123",
+                           title: "Buy milk")
+        end
+        let(:target_item) do
+          create_mock_item(asana_item_class,
+                           id: "asana-456",
+                           title: "Buy milk")
+        end
+
+        it "matches by title" do
+          expect(source_item.find_matching_item_in([target_item])).to eq(target_item)
+        end
+
+        it "matches case-insensitively" do
+          uppercase_target = create_mock_item(asana_item_class,
+                                              id: "asana-456",
+                                              title: "BUY MILK")
+          expect(source_item.find_matching_item_in([uppercase_target])).to eq(uppercase_target)
+        end
+
+        it "does not match different titles" do
+          different_target = create_mock_item(asana_item_class,
+                                              id: "asana-456",
+                                              title: "Get bread")
+          expect(source_item.find_matching_item_in([different_target])).to be_nil
+        end
+      end
+
+      context "when source has a stale sync ID (linked item was deleted)" do
+        let(:source_item) do
+          create_mock_item(omnifocus_item_class,
+                           id: "of-123",
+                           title: "Buy milk",
+                           notes: "asana_id: asana-old-999") # Has a stale Asana ID (that task no longer exists)
+        end
+        let(:target_item) do
+          create_mock_item(asana_item_class,
+                           id: "asana-456", # Different ID than what source has - the old task was deleted
+                           title: "Buy milk")
+        end
+
+        it "DOES match by title as fallback when sync ID is stale" do
+          # The sync ID didn't match anything in the collection, so it's stale.
+          # Allow title matching as a fallback to prevent orphaned items.
+          expect(source_item.find_matching_item_in([target_item])).to eq(target_item)
+        end
+      end
+
+      context "when target already has a sync ID (is linked to another item)" do
+        let(:source_item) do
+          create_mock_item(omnifocus_item_class,
+                           id: "of-123",
+                           title: "Buy milk")
+        end
+        let(:target_item) do
+          create_mock_item(asana_item_class,
+                           id: "asana-456",
+                           title: "Buy milk",
+                           notes: "omnifocus_id: of-old-999") # Has a stale/different OmniFocus ID
+        end
+
+        it "does NOT match by title to prevent stealing links" do
+          expect(source_item.find_matching_item_in([target_item])).to be_nil
+        end
+      end
+
+      context "when both items have sync IDs pointing to different items" do
+        let(:source_item) do
+          create_mock_item(omnifocus_item_class,
+                           id: "of-123",
+                           title: "Buy milk",
+                           notes: "asana_id: asana-different")
+        end
+        let(:target_item) do
+          create_mock_item(asana_item_class,
+                           id: "asana-456",
+                           title: "Buy milk",
+                           notes: "omnifocus_id: of-different")
+        end
+
+        it "does NOT match since both are linked elsewhere" do
+          expect(source_item.find_matching_item_in([target_item])).to be_nil
+        end
+      end
+    end
+
+    context "shopping list scenario with repeated item titles" do
+      let(:omnifocus_milk_new) do
+        create_mock_item(omnifocus_item_class,
+                         id: "of-new-milk",
+                         title: "Buy milk")
+        # No asana_id - this is a brand new task
+      end
+
+      let(:asana_milk_old_completed) do
+        create_mock_item(asana_item_class,
+                         id: "asana-old-milk",
+                         title: "Buy milk",
+                         completed: true,
+                         notes: "omnifocus_id: of-old-milk") # Linked to a previous OmniFocus task
+      end
+
+      let(:asana_milk_active) do
+        create_mock_item(asana_item_class,
+                         id: "asana-active-milk",
+                         title: "Buy milk")
+        # No omnifocus_id - never synced
+      end
+
+      it "new task does NOT match old completed task that is already linked" do
+        expect(omnifocus_milk_new.find_matching_item_in([asana_milk_old_completed])).to be_nil
+      end
+
+      it "new task DOES match unlinked active task with same title" do
+        expect(omnifocus_milk_new.find_matching_item_in([asana_milk_active])).to eq(asana_milk_active)
+      end
+
+      it "new task matches only the unlinked task when both exist in collection" do
+        collection = [asana_milk_old_completed, asana_milk_active]
+        expect(omnifocus_milk_new.find_matching_item_in(collection)).to eq(asana_milk_active)
+      end
+    end
+
+    context "after items are synced and both have sync IDs" do
+      let(:omnifocus_task) do
+        create_mock_item(omnifocus_item_class,
+                         id: "of-123",
+                         title: "Review PR",
+                         notes: "asana_id: asana-456")
+      end
+
+      let(:asana_task) do
+        create_mock_item(asana_item_class,
+                         id: "asana-456",
+                         title: "Review PR",
+                         notes: "omnifocus_id: of-123")
+      end
+
+      it "matches by ID even if title changes" do
+        renamed_asana = create_mock_item(asana_item_class,
+                                         id: "asana-456",
+                                         title: "Review Pull Request", # Different title
+                                         notes: "omnifocus_id: of-123")
+
+        expect(omnifocus_task.find_matching_item_in([renamed_asana])).to eq(renamed_asana)
+      end
+    end
+
+    context "with multiple items having the same title" do
+      let(:source_item) do
+        create_mock_item(omnifocus_item_class,
+                         id: "of-new",
+                         title: "Buy milk")
+      end
+
+      let(:target_linked_to_other) do
+        create_mock_item(asana_item_class,
+                         id: "asana-1",
+                         title: "Buy milk",
+                         notes: "omnifocus_id: of-other")
+      end
+
+      let(:target_unlinked) do
+        create_mock_item(asana_item_class,
+                         id: "asana-2",
+                         title: "Buy milk")
+      end
+
+      it "only matches the unlinked item" do
+        collection = [target_linked_to_other, target_unlinked]
+        expect(source_item.find_matching_item_in(collection)).to eq(target_unlinked)
+      end
+
+      it "returns nil if all matching titles are already linked" do
+        another_linked = create_mock_item(asana_item_class,
+                                          id: "asana-3",
+                                          title: "Buy milk",
+                                          notes: "omnifocus_id: of-another")
+
+        collection = [target_linked_to_other, another_linked]
+        expect(source_item.find_matching_item_in(collection)).to be_nil
+      end
+    end
+  end
+
+  describe "#friendly_title_matches" do
+    let(:source_item) { create_mock_item(omnifocus_item_class, title: "Buy milk") }
+
+    it "matches identical titles" do
+      target = create_mock_item(asana_item_class, title: "Buy milk")
+      expect(source_item.friendly_title_matches(target)).to be true
+    end
+
+    it "matches case-insensitively" do
+      target = create_mock_item(asana_item_class, title: "BUY MILK")
+      expect(source_item.friendly_title_matches(target)).to be true
+    end
+
+    it "handles whitespace" do
+      source_with_spaces = create_mock_item(omnifocus_item_class, title: "  Buy milk  ")
+      target = create_mock_item(asana_item_class, title: "Buy milk")
+      expect(source_with_spaces.friendly_title_matches(target)).to be true
+    end
+
+    it "does not match different titles" do
+      target = create_mock_item(asana_item_class, title: "Get bread")
+      expect(source_item.friendly_title_matches(target)).to be false
+    end
+
+    it "returns an empty string for nil titles without raising" do
+      item = test_item_class.new(options: options, external_id: "nil-title-test")
+
+      expect(item.title).to be_nil
+      expect(item.friendly_title).to eq("")
+    end
+  end
+
+  describe "#read_notes" do
+    it "re-raises non-stale note read errors instead of silently returning nil" do
+      external_data = Object.new
+      external_data.define_singleton_method(:notes) do
+        raise NoMethodError, "unexpected note reader failure"
+      end
+
+      expect do
+        omnifocus_item_class.new(sync_item: external_data, options: options)
+      end.to raise_error(NoMethodError, /unexpected note reader failure/)
+    end
+
+    it "parses from the assigned notes attribute without re-reading external data" do
+      expect(omnifocus_item_class).not_to receive(:read_external_attribute)
+
+      item = omnifocus_item_class.new(
+        sync_item: instance_double(Hash),
+        options: options,
+        notes: "asana_id: asana-123\nasana_url: https://app.asana.com/0/123"
+      )
+
+      expect(item.asana_id).to eq("asana-123")
+      expect(item.asana_url).to eq("https://app.asana.com/0/123")
+    end
+
+    it "does not redefine note accessors when called more than once" do
+      item = create_mock_item(omnifocus_item_class,
+                              notes: "asana_id: asana-123\nasana_url: https://app.asana.com/0/123")
+
+      expect { 2.times { item.read_notes } }.not_to output(/method redefined/).to_stderr
+      expect(item.asana_id).to eq("asana-123")
+      expect(item.asana_url).to eq("https://app.asana.com/0/123")
+    end
+
+    it "clears previously parsed sync note values when notes are removed" do
+      item = create_mock_item(omnifocus_item_class,
+                              notes: "asana_id: asana-123\nasana_url: https://app.asana.com/0/123")
+
+      expect(item.asana_id).to eq("asana-123")
+      expect(item.asana_url).to eq("https://app.asana.com/0/123")
+
+      item.notes = ""
+      item.read_notes
+
+      expect(item.asana_id).to be_nil
+      expect(item.asana_url).to be_nil
+    end
+
+    it "preserves ActiveRecord dirty tracking for notes after parsing" do
+      item = create_mock_item(omnifocus_item_class,
+                              notes: "body\n\nasana_id: asana-123")
+
+      item.clear_changes_information
+      item.assign_attributes(notes: "updated body\n\nasana_id: asana-456")
+
+      expect(item.notes).to eq("updated body\n\nasana_id: asana-456")
+      expect(item.changes["notes"]).to eq(["body\n\nasana_id: asana-123", "updated body\n\nasana_id: asana-456"])
+    end
+  end
+
+  describe "#service" do
+    let(:service_class) do
+      Class.new do
+        def initialize(options: nil)
+          @options = options
+        end
+
+        attr_reader :options
+      end
+    end
+
+    before do
+      stub_const("TestService::Service", service_class)
+    end
+
+    it "memoizes the resolved service instance" do
+      item = create_mock_item(test_item_class)
+
+      expect(service_class).to receive(:new).with(hash_including(options: kind_of(Hash))).once.and_call_original
+
+      first_service = item.service
+      second_service = item.service
+
+      expect(second_service).to equal(first_service)
+    end
+  end
+
+  describe ".new" do
+    it "reuses cached ActiveRecord metadata for initialization" do
+      expect(test_item_class.cached_column_names).to eq(test_item_class.cached_column_names)
+      expect(test_item_class.cached_association_names).to eq(test_item_class.cached_association_names)
+
+      metadata_cached_column_names = test_item_class.cached_column_names
+      metadata_cached_association_names = test_item_class.cached_association_names
+
+      expect do
+        test_item_class.new(title: "Cached metadata", external_id: "first")
+        test_item_class.new(title: "Cached metadata", external_id: "second")
+      end.not_to raise_error
+
+      expect(test_item_class.cached_column_names.object_id).to eq(metadata_cached_column_names.object_id)
+      expect(test_item_class.cached_association_names.object_id).to eq(metadata_cached_association_names.object_id)
+    end
+
+    it "forwards the ActiveRecord initializer block" do
+      item = test_item_class.new(title: "Before block") do |record|
+        record.title = "From block"
+      end
+
+      expect(item.title).to eq("From block")
+    end
+
+    it "accepts belongs_to associations during initialization" do
+      collection = SyncCollection.create!(title: "Linked")
+
+      item = test_item_class.new(title: "Task", sync_collection: collection)
+
+      expect(item.sync_collection).to eq(collection)
+      expect(item.sync_collection_id).to eq(collection.id)
+    end
+  end
+
+  describe "#refresh_from_external!" do
+    let(:asana_task_data) do
+      {
+        "gid" => "asana-123",
+        "name" => "Persisted Task",
+        "completed" => false,
+        "completed_at" => nil,
+        "modified_at" => "2024-04-03T12:00:00Z",
+        "notes" => "omnifocus_id: of-123\nomnifocus_url: omnifocus:///task/of-123",
+        "projects" => [],
+        "memberships" => [],
+        "num_subtasks" => 0
+      }
+    end
+
+    it "persists hydrated attributes so sync history survives future runs" do
+      item = Asana::Task.find_or_initialize_by(external_id: "asana-123")
+      item.asana_task = asana_task_data
+
+      item.refresh_from_external!
+      item.reload
+
+      expect(item.title).to eq("Persisted Task")
+      expect(item.last_modified).to eq(Time.zone.parse("2024-04-03T12:00:00Z"))
+      expect(item.notes).to eq(asana_task_data["notes"])
+      expect(item.omnifocus_id).to eq("of-123")
+    end
+
+    it "does not persist hydrated attributes in pretend mode" do
+      item = test_item_class.create!(
+        external_id: "test-pretend-123",
+        title: "Local title",
+        notes: "local note"
+      )
+      item.options = options.merge(pretend: true)
+      item.instance_variable_set(
+        :@sync_item,
+        {
+          "id" => "test-pretend-123",
+          "title" => "Remote title",
+          "completed" => false,
+          "notes" => "omnifocus_id: of-pretend"
+        }
+      )
+
+      item.refresh_from_external!
+
+      expect(item.title).to eq("Remote title")
+      expect(item.notes).to eq("omnifocus_id: of-pretend")
+      expect(item.reload.title).to eq("Local title")
+      expect(item.reload.notes).to eq("local note")
+    end
+  end
+
+  describe "#read_original" do
+    let(:sync_item_data) do
+      {
+        "id" => "test-123",
+        "title" => "Updated Task",
+        "completed" => false,
+        "completed_at" => nil,
+        "due_date" => nil,
+        "updated_at" => "2024-04-03T12:00:00Z",
+        "notes" => nil
+      }
+    end
+
+    it "clears requested nil values during a full refresh" do
+      item = test_item_class.new(
+        sync_item: sync_item_data,
+        options: options,
+        external_id: "test-123",
+        title: "Original Task",
+        due_date: Time.zone.parse("2024-04-01T09:00:00Z")
+      )
+
+      item.read_original
+
+      expect(item.title).to eq("Updated Task")
+      expect(item.due_date).to be_nil
+      expect(item.notes).to be_nil
+    end
+
+    it "skips unrequested fields but still clears requested nil values during partial refresh" do
+      item = test_item_class.new(
+        sync_item: sync_item_data,
+        options: options,
+        external_id: "test-123",
+        title: "Original Task",
+        due_date: Time.zone.parse("2024-04-01T09:00:00Z"),
+        completed_at: Time.zone.parse("2024-04-02T10:00:00Z")
+      )
+
+      item.read_original(only_modified_dates: true)
+
+      expect(item.title).to eq("Updated Task")
+      expect(item.due_date).to eq(Time.zone.parse("2024-04-01T09:00:00Z"))
+      expect(item.completed_at).to be_nil
+    end
+
+    it "hydrates metadata keys from notes during partial reads when notes were not already set" do
+      item = test_item_class.new(
+        sync_item: sync_item_data.merge("notes" => "asana_id: asana-999"),
+        options: options,
+        external_id: "test-123",
+        title: "Original Task"
+      )
+
+      item.read_original(only_modified_dates: true)
+
+      expect(item.instance_variable_get(:@asana_id)).to eq("asana-999")
+    end
+  end
+
+  describe ".read_external_attribute" do
+    it "returns nil for stale AppleScript references" do
+      external_data = double("external_data")
+      allow(external_data).to receive(:title).and_raise(make_stale_reference_error)
+
+      expect(omnifocus_item_class.read_external_attribute(external_data, "title")).to be_nil
+    end
+
+    it "re-raises non-stale AppleScript command errors" do
+      external_data = double("external_data")
+      allow(external_data).to receive(:title).and_raise(make_event_not_handled_error)
+
+      expect do
+        omnifocus_item_class.read_external_attribute(external_data, "title")
+      end.to raise_error(Appscript::CommandError)
+    end
+  end
+
+  describe "#completed?" do
+    it "returns strict boolean false when completed column is nil" do
+      item = test_item_class.new(title: "Test", completed: nil)
+      expect(item.completed?).to be(false)
+    end
+
+    it "returns true when completed column is true" do
+      item = test_item_class.new(title: "Test", completed: true)
+      expect(item.completed?).to be(true)
+    end
+  end
+
+  describe "#service" do
+    it "returns nil when service class cannot be resolved" do
+      item = test_item_class.new(title: "Test")
+      allow(item).to receive(:provider).and_return("NonExistentService")
+      allow(item).to receive(:options).and_return({ primary: "Omnifocus", services: [] })
+
+      expect(item.service).to be_nil
+    end
+  end
+end

@@ -1,19 +1,34 @@
 # frozen_string_literal: true
 
-ruby "~> 3.1"
-
 source "https://rubygems.org"
+git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 
-# https://github.com/rails/rails/tree/main/activesupport
-gem "activesupport", "~> 8.0",
-  require: [
-    "active_support",
-    "active_support/core_ext/hash", # for reverse_merge and stringify_keys
-    "active_support/core_ext/integer", # for 1.year
-    "active_support/core_ext/numeric", # for 1.week
-    "active_support/core_ext/object", # for try
-    "active_support/core_ext/string" # for squish
-  ]
+ruby ">= 3.1"
+gem "rails", "~> 7.2.3"
+
+gem "bootsnap", require: false
+gem "cssbundling-rails" # https://github.com/rails/cssbundling-rails
+gem "jsbundling-rails" # https://github.com/rails/jsbundling-rails
+gem "puma" # https://github.com/puma/puma
+gem "sprockets-rails" # https://github.com/rails/sprockets-rails
+gem "sqlite3", ">= 2.1"
+gem "stimulus-rails" # https://stimulus.hotwired.dev
+gem "turbo-rails" # https://turbo.hotwired.dev
+
+# Use Redis adapter to run Action Cable in production
+gem "redis"
+
+# Use Kredis to get higher-level data types in Redis [https://github.com/rails/kredis]
+# gem "kredis"
+
+# Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
+# gem "bcrypt", "~> 3.1.7"
+
+group :development, :test do
+  # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
+  gem "debug", platforms: %i[mri mingw x64_mingw]
+  gem "pry"
+end
 
 # https://github.com/ruby/bigdecimal
 gem "bigdecimal", "~> 4.0"
@@ -63,8 +78,16 @@ gem "oauth", "~> 1.1"
 # https://github.com/ManageIQ/optimist
 gem "optimist", "~> 3.0"
 
+# https://github.com/ruby/ostruct
+gem "ostruct", "~> 0.6"
+
 # https://github.com/BrendanThompson/rb-scpt
-gem "rb-scpt", "~> 1.0"
+# Loaded explicitly in Omnifocus/Reminders services (macOS only).
+# Do not remove require: false — auto-loading via Bundler.require causes
+# a superclass mismatch on macOS with Ruby 3.4+.
+install_if -> { RUBY_PLATFORM.include?("darwin") } do
+  gem "rb-scpt", "~> 1.0", require: false
+end
 
 # https://github.com/jfelchner/ruby-progressbar
 gem "ruby-progressbar", "~> 1.13"
@@ -73,14 +96,25 @@ gem "ruby-progressbar", "~> 1.13"
 gem "thor", "~> 1.2"
 
 group :development do
-  gem "pry" # https://github.com/pry/pry
+  gem "annotate"
   gem "rubocop"
   gem "rubocop-performance"
   gem "standard", ">= 1.35.1"
+  # Use console on exceptions pages [https://github.com/rails/web-console]
+  gem "web-console"
+
+  # Add speed badges [https://github.com/MiniProfiler/rack-mini-profiler]
+  # gem "rack-mini-profiler"
+
+  # Speed up commands on slow machines / big apps [https://github.com/rails/spring]
+  # gem "spring"
 end
 
 group :test do
+  # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
+  gem "capybara"
   gem "faker", "~> 3.2" # https://github.com/faker-ruby/faker
-  gem "rspec", "~> 3.10"
-  gem "simplecov"
+  gem "rspec-rails"
+  gem "selenium-webdriver"
+  gem "simplecov", require: false
 end

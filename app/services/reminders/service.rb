@@ -1,0 +1,119 @@
+# frozen_string_literal: true
+
+module Reminders
+  class Service < Base::Service
+    include Base::AppleScriptLoader
+    include GlobalOptions
+
+    attr_reader :reminders_app, :authorized
+
+    def initialize(options: nil)
+      super
+      ensure_appscript_loaded!
+      # Assumes you already have Reminders installed
+      @reminders_app = Appscript.app.by_name(friendly_name)
+      @authorized = true
+    rescue LoadError, StandardError => e
+      # If Reminders app is not available, skip the service
+      puts "Reminders initialization failed: #{e.message}" unless self.options[:quiet]
+      @reminders_app = nil
+      @authorized = false
+    end
+
+    def item_class
+      Reminder
+    end
+
+    def friendly_name
+      "Reminders"
+    end
+
+    def sync_strategies
+      [:to_primary]
+    end
+
+    # Since Reminders via Applescript doesn't currently support tags, we use the mapping
+    # REMINDERS_LIST_MAPPING=Reminder list 1~Primary list,Reminder list 2~Primary list 2
+    def items_to_sync(*, **)
+      return [] if options[:reminders_mapping].nil?
+
+      sync_maps = options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
+      reminders_lists = sync_maps.keys
+      debug("reminders_lists: #{reminders_lists}", options[:debug])
+      merged_reminders = reminders_lists.map { |reminders_list| reminders_in_list(reminders_list) }.flatten
+      merged_reminders.filter_map do |external_reminder|
+        external_id = Reminder.read_external_attribute(external_reminder, Reminder.external_attribute_map[:external_id])
+        next if external_id.blank?
+
+        reminder = Reminder.find_or_initialize_by(external_id:)
+        reminder.reminder = external_reminder
+        reminder.refresh_from_external!(only_modified_dates: true)
+      end
+    end
+
+    def add_item(external_task, parent_object = nil)
+      debug("external_task: #{external_task}, parent_object: #{parent_object}", options[:debug])
+      if !options[:pretend]
+        target_list = list(external_task)
+        return nil if target_list.nil?
+
+        new_reminder = target_list.make(new: :reminder, with_properties: Reminder.from_external(external_task))
+        new_reminder_id = new_reminder.id_.get
+        update_sync_data(external_task, new_reminder_id)
+        new_reminder
+      elsif options[:pretend] && options[:verbose]
+        "Would have added #{external_task.title} to Reminders"
+      end
+    end
+
+    def update_item(reminder, external_task)
+      debug("reminder: #{reminder}, external_task: #{external_task}", options[:debug])
+      item_last_modified = sync_timestamp_for(external_task)
+      if options[:max_age_timestamp] && item_last_modified && (item_last_modified < options[:max_age_timestamp])
+        "Last modified more than #{options[:max_age]} ago - skipping #{external_task.title}"
+      elsif external_task.completed? && reminder.incomplete?
+        debug("Complete state doesn't match", options[:debug])
+        return "Would have marked #{reminder.title} complete in Reminders" if options[:pretend]
+
+        reminder.mark_complete
+        reminder_id = reminder.id_.get
+        # If external_task doesn't have our sync ID, this was a title match
+        # Add sync ID so future syncs use ID matching instead of title matching
+        matched_by_title = external_task.try(:reminders_id).blank?
+        update_sync_data(external_task, reminder_id) if matched_by_title || options[:update_ids_for_existing]
+        external_task
+      elsif options[:pretend]
+        "Would have updated #{external_task.title} in Reminders"
+      end
+    end
+
+    private
+
+    # the minimum time we should wait between syncing tasks
+    def min_sync_interval
+      5.minutes.to_i
+    end
+
+    def lists
+      reminders_app.lists.get
+    end
+
+    def reminders_in_list(list_name)
+      reminder_list = lists.find { |list| list.name.get == list_name }
+      return [] unless reminder_list
+
+      reminder_list.reminders.get
+    end
+
+    def list(external_task)
+      target_name = project_map.key(external_task.project)
+      lists.find { |l| l.name.get == target_name } if target_name
+    end
+
+    def project_map
+      return {} if options[:reminders_mapping].nil?
+
+      options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
+    end
+  end
+end

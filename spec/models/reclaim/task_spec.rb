@@ -1,0 +1,130 @@
+# frozen_string_literal: true
+
+# == Schema Information
+#
+# Table name: sync_items
+#
+#  id                 :integer          not null, primary key
+#  completed          :boolean
+#  completed_at       :datetime
+#  completed_on       :datetime
+#  due_at             :datetime
+#  due_date           :datetime
+#  flagged            :boolean
+#  item_type          :string
+#  last_modified      :datetime
+#  notes              :string
+#  start_at           :datetime
+#  start_date         :datetime
+#  status             :string
+#  title              :string
+#  type               :string
+#  url                :string
+#  created_at         :datetime         not null
+#  updated_at         :datetime         not null
+#  external_id        :string
+#  parent_item_id     :integer
+#  sync_collection_id :integer
+#
+# Indexes
+#
+#  index_sync_items_on_parent_item_id      (parent_item_id)
+#  index_sync_items_on_sync_collection_id  (sync_collection_id)
+#
+# Foreign Keys
+#
+#  parent_item_id      (parent_item_id => sync_items.id)
+#  sync_collection_id  (sync_collection_id => sync_collections.id)
+#
+require "rails_helper"
+
+RSpec.describe "Reclaim::Task" do
+  let(:service) { Reclaim::Service.new }
+  let(:task) { Reclaim::Task.new(reclaim_task: properties) }
+  let(:id) { Faker::Number.number(digits: 7) }
+  let(:title) { Faker::Lorem.sentence }
+  let(:notes) { "notes" }
+  let(:start_date) { "Today" }
+  let(:due_date) { "Tomorrow" }
+  let(:event_category) { %w[WORK PERSONAL].sample }
+  let(:properties) do
+    {
+      "id" => id,
+      "title" => title,
+      "due" => due_date,
+      "snoozeUntil" => start_date,
+      "notes" => notes,
+      "eventCategory" => event_category
+    }.compact
+  end
+
+  before do
+    task.read_original
+  end
+
+  it_behaves_like "sync_item" do
+    let(:item) { task }
+  end
+
+  it "parses the due_date" do
+    expect(task.due_date).to be_instance_of(ActiveSupport::TimeWithZone)
+  end
+
+  it "parses the start_date" do
+    expect(task.start_date).to be_instance_of(ActiveSupport::TimeWithZone)
+  end
+
+  context "when eventCategory is personal" do
+    let(:event_category) { Reclaim::Task::PERSONAL }
+
+    it "is personal" do
+      expect(task).to be_personal
+    end
+  end
+
+  context "when time_remaining is nil" do
+    let(:reclaim_task_data) do
+      {
+        "id" => "reclaim-nil-123",
+        "title" => "Missing time remaining",
+        "timeChunksRemaining" => nil,
+        "dueDate" => "2024-04-03T12:00:00Z",
+        "startDate" => "2024-04-02T12:00:00Z",
+        "eventCategory" => Reclaim::Task::PERSONAL
+      }
+    end
+
+    it "completed? returns false instead of raising" do
+      task = Reclaim::Task.new(reclaim_task: reclaim_task_data)
+      expect { task.completed? }.not_to raise_error
+      expect(task.completed?).to be false
+    end
+
+    it "incomplete? returns false instead of raising" do
+      task = Reclaim::Task.new(reclaim_task: reclaim_task_data)
+      expect { task.incomplete? }.not_to raise_error
+      expect(task.incomplete?).to be false
+    end
+  end
+
+  context "when dates are nil" do
+    let(:task_no_dates) do
+      data = {
+        "id" => "reclaim-no-dates",
+        "title" => "No dates",
+        "eventCategory" => "WORK"
+      }
+      Reclaim::Task.new(reclaim_task: data).tap(&:read_original)
+    end
+
+    it "to_h does not raise when start_date is nil" do
+      task_no_dates.start_date = nil
+      expect { task_no_dates.to_h }.not_to raise_error
+    end
+
+    it "to_h does not raise when due_date is nil" do
+      task_no_dates.due_date = nil
+      expect { task_no_dates.to_h }.not_to raise_error
+    end
+  end
+end

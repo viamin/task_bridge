@@ -21,5 +21,25 @@ jobs:
         with:
           bundler-cache: true
 
+      - name: Setup database
+        run: bundle exec rails db:test:prepare
+
       - name: Test with RSpec
-        run: bundle exec rspec --tag ~no_ci
+        run: |
+          set -o pipefail
+          bundle exec rspec --tag ~no_ci 2>&1 | tee rspec_output.txt
+
+      - name: Rerun failed examples
+        if: failure()
+        run: |
+          echo "::group::Failed examples only"
+          bundle exec rspec --tag ~no_ci --only-failures --format documentation 2>&1 || true
+          echo "::endgroup::"
+
+      - name: Upload rspec output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rspec-output
+          path: rspec_output.txt
+          retention-days: 7
