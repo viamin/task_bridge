@@ -3,16 +3,27 @@
 require "rails_helper"
 
 RSpec.describe "Reminders::Service" do
-  let(:service) { Reminders::Service.new }
+  let(:service) { Reminders::Service.new(options:) }
   let(:reminders_mapping) { "" }
   let(:logger) { double(StructuredLogger) }
-  let(:last_sync) { Time.now - service.send(:min_sync_interval) }
-  let(:options) { { reminders_mapping:, tags: [] } }
+  let(:last_sync) { Time.now - 5.minutes }
+  let(:options) do
+    {
+      logger:,
+      quiet: true,
+      debug: false,
+      pretend: false,
+      reminders_mapping:,
+      tags: [],
+      services: [],
+      primary: "Omnifocus"
+    }
+  end
 
-  before do
-    allow_any_instance_of(StructuredLogger).to receive(:sync_data_for).and_return({})
-    allow_any_instance_of(StructuredLogger).to receive(:last_synced).and_return(last_sync)
-    allow_any_instance_of(GlobalOptions).to receive(:options).and_return(options)
+  before do |example|
+    allow(logger).to receive(:sync_data_for).and_return({})
+    allow(logger).to receive(:last_synced).and_return(last_sync)
+    skip "Reminders is not available to AppleScript" if example.metadata[:no_ci] && !service.authorized
   end
 
   describe "#items_to_sync" do
@@ -48,6 +59,7 @@ RSpec.describe "Reminders::Service" do
       let(:wrapped_reminder) { instance_double(Reminders::Reminder, "reminder=": nil) }
 
       before do
+        allow(service).to receive(:authorized).and_return(true)
         allow(stale_id).to receive(:get).and_raise(make_stale_reference_error(command: "id_.get"))
         allow(service).to receive(:reminders_in_list).with("TaskBridge").and_return([stale_reminder, valid_reminder])
         allow(Reminders::Reminder).to receive(:find_or_initialize_by).with(external_id: "reminder-ok").and_return(wrapped_reminder)

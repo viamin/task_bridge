@@ -286,7 +286,13 @@ module Asana
 
       # Find the project GID by name
       project_gid = project_gid_from_name(target_project_name)
-      return {} if project_gid.blank?
+      if project_gid.blank?
+        unless @_unmatched_projects&.include?(target_project_name)
+          (@_unmatched_projects ||= Set.new) << target_project_name
+          warn "[Asana] No matching Asana project for #{target_project_name.inspect}"
+        end
+        return {}
+      end
 
       # Find the section within that specific project
       matching_section = nil
@@ -329,7 +335,17 @@ module Asana
 
     def failure_message(action, response)
       debug(response.body, options[:debug])
-      "Failed to #{action} - code #{response.code}"
+      message = "Failed to #{action} - code #{response.code}"
+      error_detail = response_error_detail(response)
+      message += " (#{error_detail})" if error_detail
+      message
+    end
+
+    def response_error_detail(response)
+      parsed_body = JSON.parse(response.body)
+      parsed_body.dig("errors", 0, "message") || parsed_body["error"]
+    rescue JSON::ParserError, TypeError
+      nil
     end
 
     def base_url

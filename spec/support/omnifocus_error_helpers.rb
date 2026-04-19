@@ -2,7 +2,13 @@
 
 require "ostruct"
 
-# Stub Appscript module when rb-scpt gem is not available (non-macOS platforms)
+begin
+  require "rb-scpt" if RUBY_PLATFORM.include?("darwin") && !defined?(Appscript)
+rescue LoadError, TypeError
+  nil
+end
+
+# Stub Appscript module when rb-scpt is not available.
 unless defined?(Appscript)
   module Appscript
     class Reference # :nodoc:

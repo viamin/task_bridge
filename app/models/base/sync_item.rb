@@ -271,7 +271,7 @@ module Base
         # Stale AppleScript references (e.g., OSERROR -1728 "Can't get reference")
         # occur when a task is deleted mid-iteration. Return nil to keep the sync
         # run from crashing.
-        raise unless e.to_i == -1728
+        raise unless stale_applescript_reference?(e)
 
         nil
       end
@@ -281,6 +281,15 @@ module Base
       end
 
       private
+
+      def stale_applescript_reference?(error)
+        return true if error.respond_to?(:to_i) && error.to_i == -1728
+
+        real_error = error.instance_variable_get(:@real_error) if error.instance_variable_defined?(:@real_error)
+        return true if real_error.respond_to?(:to_i) && real_error.to_i == -1728
+
+        error.message.include?("Can't get reference")
+      end
 
       def standard_attribute_map
         # NOTE: Do not map `created_at` here. AR manages `created_at`/`updated_at`

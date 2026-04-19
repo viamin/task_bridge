@@ -104,8 +104,11 @@ RSpec.describe Asana::Service, :full_options do
         double("ExternalTask", project: "NonExistentProject:SomeSection")
       end
 
-      it "returns an empty hash" do
-        result = service.send(:memberships_for_task, external_task, for_create: false)
+      it "returns an empty hash and warns once" do
+        result = nil
+        expect do
+          2.times { result = service.send(:memberships_for_task, external_task, for_create: false) }
+        end.to output("[Asana] No matching Asana project for \"NonExistentProject\"\n").to_stderr
         expect(result).to eq({})
       end
     end

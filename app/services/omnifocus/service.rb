@@ -32,6 +32,8 @@ module Omnifocus
     end
 
     def items_to_sync(tags: options[:tags], inbox: true, only_modified_dates: false)
+      return [] unless authorized
+
       omnifocus_tasks = tagged_tasks(tags)
       omnifocus_tasks += inbox_tasks if inbox
       tasks = omnifocus_tasks.filter_map do |external_task|
@@ -133,6 +135,8 @@ module Omnifocus
 
     def inbox_tasks
       debug("called", options[:debug])
+      return [] unless authorized
+
       inbox_tasks = omnifocus_app.inbox_tasks.get.map { |t| all_omnifocus_sub_items(t) }.flatten
       inbox_tasks.compact.uniq(&:id_)
     end
@@ -140,6 +144,7 @@ module Omnifocus
     def tagged_tasks(tags = nil, incomplete_only: false)
       debug("tags: #{tags}", options[:debug])
       return [] if tags.blank?
+      return [] unless authorized
 
       # Use direct AppleScript reference lookup instead of fetching all tags and filtering in Ruby
       # This is much faster as it avoids fetching every tag from OmniFocus

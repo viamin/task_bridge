@@ -43,6 +43,7 @@ module Base
     def sync_with_primary(primary_service, service_items: nil)
       return @last_sync_data unless should_sync?
 
+      sync_errors = []
       touched_collection_ids = []
       primary_items = primary_service.items_to_sync(tags: [friendly_name])
       service_items ||= items_to_sync(tags: options[:tags])
@@ -65,6 +66,7 @@ module Base
         else
           primary_service.update_item(older_item, newer_item)
         end
+        track_sync_error!(sync_errors, output)
         track_touched_collection!(touched_collection_ids, output) do
           persist_sync_collection_for(*pair)&.id
         end
@@ -73,6 +75,7 @@ module Base
       unmatched_primary_items.each do |primary_item|
         unless primary_service.skip_create?(primary_item)
           added_item = add_item(primary_item)
+          track_sync_error!(sync_errors, added_item)
           track_touched_collection!(touched_collection_ids, added_item) do
             persist_created_sync_collection_for(primary_item, self, added_item)&.id
           end
@@ -82,20 +85,23 @@ module Base
       unmatched_service_items.each do |service_item|
         unless skip_create?(service_item)
           added_item = primary_service.add_item(service_item)
+          track_sync_error!(sync_errors, added_item)
           track_touched_collection!(touched_collection_ids, added_item) do
             persist_created_sync_collection_for(service_item, primary_service, added_item)&.id
           end
         end
         progressbar.increment unless options[:quiet]
       end
+      warn_sync_errors(sync_errors)
       puts "Synced #{item_count} #{options[:primary]} and #{friendly_name} items" unless options[:quiet]
-      sync_result(item_count, touched_collection_ids:)
+      sync_result(item_count, touched_collection_ids:, errors: sync_errors)
     end
 
     # implements the :to_primary sync strategy
     def sync_to_primary(primary_service, service_items: nil)
       return @last_sync_data unless should_sync?
 
+      sync_errors = []
       touched_collection_ids = []
       service_items ||= items_to_sync(tags: options[:tags], only_modified_dates: true)
       existing_primary_items = existing_items(primary_service)
@@ -110,6 +116,7 @@ module Base
         output = if (existing_item = service_item.find_matching_item_in(existing_primary_items))
           if should_sync?(sync_timestamp_for(service_item))
             primary_service.update_item(existing_item, service_item).tap do |result|
+              track_sync_error!(sync_errors, result)
               track_touched_collection!(touched_collection_ids, result) do
                 persist_sync_collection_for(existing_item, service_item)&.id
               end
@@ -120,6 +127,7 @@ module Base
           end
         elsif !service_item.completed?
           primary_service.add_item(service_item).tap do |added_item|
+            track_sync_error!(sync_errors, added_item)
             track_touched_collection!(touched_collection_ids, added_item) do
               persist_created_sync_collection_for(service_item, primary_service, added_item)&.id
             end
@@ -128,14 +136,16 @@ module Base
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
+      warn_sync_errors(sync_errors)
       puts "Synced #{service_items.length} #{friendly_name} items to #{options[:primary]}" unless options[:quiet]
-      sync_result(service_items.length, touched_collection_ids:)
+      sync_result(service_items.length, touched_collection_ids:, errors: sync_errors)
     end
 
     # implements the :from_primary sync strategy
     def sync_from_primary(primary_service, service_items: nil)
       return @last_sync_data unless should_sync?
 
+      sync_errors = []
       touched_collection_ids = []
       primary_items = primary_service.items_to_sync(tags: [friendly_name])
       service_items ||= items_to_sync(tags: options[:tags])
@@ -149,12 +159,14 @@ module Base
       primary_items.each do |primary_item|
         output = if (existing_item = primary_item.find_matching_item_in(service_items))
           update_item(existing_item, primary_item).tap do |result|
+            track_sync_error!(sync_errors, result)
             track_touched_collection!(touched_collection_ids, result) do
               persist_sync_collection_for(existing_item, primary_item)&.id
             end
           end
         elsif !primary_item.completed?
           add_item(primary_item).tap do |added_item|
+            track_sync_error!(sync_errors, added_item)
             track_touched_collection!(touched_collection_ids, added_item) do
               persist_created_sync_collection_for(primary_item, self, added_item)&.id
             end
@@ -163,8 +175,9 @@ module Base
         progressbar.log "#{self.class}##{__method__}: #{output}" if !output.blank? && ((options[:pretend] && options[:verbose] && !options[:quiet]) || options[:debug])
         progressbar.increment unless options[:quiet]
       end
+      warn_sync_errors(sync_errors)
       puts "Synced #{primary_items.length} #{options[:primary]} items to #{friendly_name}" unless options[:quiet]
-      sync_result(primary_items.length, touched_collection_ids:)
+      sync_result(primary_items.length, touched_collection_ids:, errors: sync_errors)
     end
 
     def should_sync?(item_updated_at = nil)
@@ -309,14 +322,26 @@ module Base
       item.instance_variable_get(instance_variable) if item.instance_variable_defined?(instance_variable)
     end
 
-    def sync_result(items_synced, touched_collection_ids:)
-      {
+    def sync_result(items_synced, touched_collection_ids:, errors: [])
+      result = {
         service: friendly_name,
         last_attempted: options[:sync_started_at],
-        last_successful: options[:sync_started_at],
         items_synced:,
         touched_collection_ids: touched_collection_ids.compact.uniq
-      }.stringify_keys
+      }
+
+      if errors.any?
+        result.merge!(
+          status: "failed",
+          last_failed: Time.current.utc.iso8601(6),
+          error_class: "ProviderError",
+          error_message: errors.uniq.join("; ")
+        )
+      else
+        result[:last_successful] = options[:sync_started_at]
+      end
+
+      result.stringify_keys
     end
 
     def service_identifier_for(service_name)
@@ -324,7 +349,22 @@ module Base
     end
 
     def sync_operation_successful?(result)
-      !result.is_a?(String)
+      !sync_error?(result)
+    end
+
+    def sync_error?(result)
+      result.is_a?(String) && result.start_with?("Failed")
+    end
+
+    def track_sync_error!(sync_errors, result)
+      sync_errors << result if sync_error?(result)
+    end
+
+    def warn_sync_errors(sync_errors)
+      return if sync_errors.empty? || options[:quiet]
+
+      warn "[#{friendly_name}] #{sync_errors.length} sync errors:"
+      sync_errors.uniq.each { |error| warn "  #{error}" }
     end
 
     def track_touched_collection!(touched_collection_ids, result)

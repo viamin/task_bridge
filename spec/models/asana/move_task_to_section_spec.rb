@@ -48,6 +48,20 @@ RSpec.describe Asana::Service do
 
         expect(result).to eq("Failed to move an Asana task to a section - code 500")
       end
+
+      it "includes an Asana error message when present" do
+        response = instance_double(
+          HTTParty::Response,
+          success?: false,
+          code: 404,
+          body: { errors: [{ message: "Section not found" }] }.to_json
+        )
+        allow(HTTParty).to receive(:post).and_return(response)
+
+        result = service.send(:move_task_to_section, "section_gid", "task_gid")
+
+        expect(result).to eq("Failed to move an Asana task to a section - code 404 (Section not found)")
+      end
     end
   end
 end
