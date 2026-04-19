@@ -129,4 +129,31 @@ RSpec.describe "Omnifocus::Task" do
       expect(nil_sub_task.sub_item_count).to eq(0)
     end
   end
+
+  context "when a sub_item reference goes stale while reading the id" do
+    let(:stale_id) do
+      double("StaleSubItemId").tap do |id|
+        allow(id).to receive(:get).and_raise(make_stale_reference_error(command: "id_.get"))
+      end
+    end
+    let(:stale_sub_item) { OpenStruct.new(id_: stale_id) }
+    let(:valid_sub_item) do
+      OpenStruct.new(
+        id_: "sub_ok",
+        name: "Sub task",
+        completed: false,
+        note: "",
+        containing_project: "",
+        tags: [],
+        tasks: [],
+        modification_date: Time.current
+      )
+    end
+    let(:tasks) { [stale_sub_item, valid_sub_item] }
+
+    it "skips the stale sub_item" do
+      expect(task.sub_items.map(&:external_id)).to eq(["sub_ok"])
+      expect(task.sub_item_count).to eq(1)
+    end
+  end
 end

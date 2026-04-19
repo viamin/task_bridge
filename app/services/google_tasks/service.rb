@@ -41,8 +41,7 @@ module GoogleTasks
 
     def items_to_sync(*, only_modified_dates: false, **)
       debug("called", options[:debug])
-      target_tasklist = tasklist
-      return [] if target_tasklist.nil?
+      target_tasklist = tasklist!
 
       @items_to_sync ||= {}
       @items_to_sync[only_modified_dates] ||= begin
@@ -63,7 +62,7 @@ module GoogleTasks
     end
 
     def add_item(external_task)
-      return nil if (target_tasklist = tasklist).nil?
+      target_tasklist = tasklist!
 
       return external_task.flag! if external_task.respond_to?(:estimated_minutes) && external_task.estimated_minutes.nil?
 
@@ -77,7 +76,7 @@ module GoogleTasks
     end
 
     def patch_item(google_task, attributes_hash)
-      return nil if (target_tasklist = tasklist).nil?
+      target_tasklist = tasklist!
 
       debug("task: #{google_task.title}, attributes_hash: #{attributes_hash.pretty_inspect}", options[:debug])
       updated_task = Google::Apis::TasksV1::Task.new(**attributes_hash)
@@ -87,7 +86,7 @@ module GoogleTasks
     end
 
     def update_item(google_task, external_task)
-      return nil if (target_tasklist = tasklist).nil?
+      target_tasklist = tasklist!
 
       debug("existing_task: #{google_task.pretty_inspect}", options[:debug])
       updated_task_json = GoogleTasks::Task.from_external(external_task)
@@ -99,7 +98,7 @@ module GoogleTasks
     end
 
     def prune
-      return nil if (target_tasklist = tasklist).nil?
+      target_tasklist = tasklist!
 
       tasks_service.clear_task(target_tasklist.id)
       puts "Deleted completed tasks from #{target_tasklist.title}" if options[:verbose]
@@ -114,7 +113,7 @@ module GoogleTasks
     # a helper method to fix bad syncs
     # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L291
     def delete_all_tasks
-      return if (target_tasklist = tasklist).nil?
+      target_tasklist = tasklist!
 
       progressbar = ProgressBar.create(format: " %c/%C |%w>%i| %e ", total: items_to_sync.length)
       items_to_sync.each do |task|
@@ -143,6 +142,10 @@ module GoogleTasks
       end
 
       @tasklist = tasklist
+    end
+
+    def tasklist!
+      tasklist || raise("Google Tasks list not configured or inaccessible: #{options[:list]}")
     end
 
     # In case a reclaim title is present, match the title

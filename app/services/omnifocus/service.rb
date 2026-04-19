@@ -34,13 +34,14 @@ module Omnifocus
     def items_to_sync(tags: options[:tags], inbox: true, only_modified_dates: false)
       omnifocus_tasks = tagged_tasks(tags)
       omnifocus_tasks += inbox_tasks if inbox
-      tasks = omnifocus_tasks.map do |external_task|
-        task = Task.find_or_initialize_by(external_id: external_task.id_.get)
+      tasks = omnifocus_tasks.filter_map do |external_task|
+        external_id = external_id_for(external_task)
+        next if external_id.blank?
+
+        task = Task.find_or_initialize_by(external_id:)
         task.omnifocus_task = external_task
         task.refresh_from_external!(only_modified_dates:)
       end
-      # Filter out stale references (tasks deleted while iterating)
-      tasks = tasks.reject { |task| task.external_id.nil? }
       # remove sub_items from the list to avoid duplicates
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
       sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:external_id)
@@ -158,6 +159,10 @@ module Omnifocus
 
     def min_sync_interval
       15.minutes.to_i
+    end
+
+    def external_id_for(external_task)
+      Task.read_external_attribute(external_task, Task.external_attribute_map[:external_id])
     end
 
     # create or update sub_items on a task

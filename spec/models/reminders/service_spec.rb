@@ -39,5 +39,24 @@ RSpec.describe "Reminders::Service" do
         expect(subject).to eq([])
       end
     end
+
+    context "when a reminder reference goes stale while reading the id" do
+      let(:reminders_mapping) { "TaskBridge~TaskBridge:Test" }
+      let(:stale_id) { double("StaleReminderId") }
+      let(:stale_reminder) { double("StaleReminder", id_: stale_id) }
+      let(:valid_reminder) { double("ValidReminder", id_: double(get: "reminder-ok")) }
+      let(:wrapped_reminder) { instance_double(Reminders::Reminder, "reminder=": nil) }
+
+      before do
+        allow(stale_id).to receive(:get).and_raise(make_stale_reference_error(command: "id_.get"))
+        allow(service).to receive(:reminders_in_list).with("TaskBridge").and_return([stale_reminder, valid_reminder])
+        allow(Reminders::Reminder).to receive(:find_or_initialize_by).with(external_id: "reminder-ok").and_return(wrapped_reminder)
+        allow(wrapped_reminder).to receive(:refresh_from_external!).with(only_modified_dates: true).and_return(wrapped_reminder)
+      end
+
+      it "skips the stale reminder and keeps syncing remaining reminders" do
+        expect(subject).to eq([wrapped_reminder])
+      end
+    end
   end
 end

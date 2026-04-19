@@ -200,6 +200,34 @@ RSpec.describe Base::Service do
       expect(created_primary_item.title).to eq(persisted_service_item.title)
     end
 
+    it "persists newly created primary items when sync IDs are stored as note instance variables" do
+      persisted_service_item = sync_item_class.create!(
+        title: "Newly created primary task with transient sync ID",
+        external_id: "service-create-ivar-123",
+        completed: false,
+        last_modified: Time.current - 1.minute
+      )
+
+      allow(service).to receive(:items_to_sync).and_return([persisted_service_item])
+      allow(service).to receive(:should_sync?).with(persisted_service_item.last_modified).and_return(true)
+      allow(service).to receive(:existing_items).with(primary_service).and_return([])
+      allow(persisted_service_item).to receive(:find_matching_item_in).with([]).and_return(nil)
+      allow(primary_service).to receive(:item_class).and_return(primary_sync_item_class)
+      allow(primary_service).to receive(:add_item) do
+        persisted_service_item.instance_variable_set(:@primary_service_id, "primary-create-ivar-123")
+        persisted_service_item.instance_variable_set(:@primary_service_url, "https://example.test/tasks/primary-create-ivar-123")
+        { id: "primary-create-ivar-123" }
+      end
+
+      expect do
+        service.sync_to_primary(primary_service)
+      end.to change(SyncCollection, :count).by(1)
+
+      created_primary_item = primary_sync_item_class.find_by!(external_id: "primary-create-ivar-123")
+      expect(persisted_service_item.reload.sync_collection_id).to eq(created_primary_item.sync_collection_id)
+      expect(created_primary_item.url).to eq("https://example.test/tasks/primary-create-ivar-123")
+    end
+
     it "does not mark a collection as touched when the provider update returns a failure message" do
       persisted_service_item = sync_item_class.create!(
         title: "Provider failure service task",

@@ -41,8 +41,11 @@ module Reminders
       reminders_lists = sync_maps.keys
       debug("reminders_lists: #{reminders_lists}", options[:debug])
       merged_reminders = reminders_lists.map { |reminders_list| reminders_in_list(reminders_list) }.flatten
-      merged_reminders.map do |external_reminder|
-        reminder = Reminder.find_or_initialize_by(external_id: external_reminder.id_.get)
+      merged_reminders.filter_map do |external_reminder|
+        external_id = Reminder.read_external_attribute(external_reminder, Reminder.external_attribute_map[:external_id])
+        next if external_id.blank?
+
+        reminder = Reminder.find_or_initialize_by(external_id:)
         reminder.reminder = external_reminder
         reminder.refresh_from_external!(only_modified_dates: true)
       end

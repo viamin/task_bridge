@@ -124,6 +124,23 @@ RSpec.describe Omnifocus::Service, :full_options do
       end
     end
 
+    context "when a task reference goes stale while reading the id" do
+      let(:stale_id) { double("StaleTaskId") }
+      let(:stale_task) { double("StaleTask", id_: stale_id) }
+
+      before do
+        allow(stale_id).to receive(:get).and_raise(make_stale_reference_error(command: "id_.get"))
+        allow(service).to receive(:tagged_tasks).and_return([stale_task, mock_task1])
+        allow(service).to receive(:inbox_tasks).and_return([])
+      end
+
+      it "skips the stale task and keeps syncing remaining tasks" do
+        tasks = service.items_to_sync(tags: ["TaskBridge"], inbox: false)
+
+        expect(tasks.map(&:external_id)).to eq(["task-1"])
+      end
+    end
+
     context "with sub-items" do
       let(:mock_parent_task) do
         double("ParentTask",

@@ -40,9 +40,15 @@ namespace :task_bridge do
     end
     o.on("-h", "--history", "Print sync service history") { overrides[:history] = true }
     # o.require_exact = true
-    args = o.order!(ARGV)
+    args = ARGV.drop_while { |arg| arg != "--" && !arg.start_with?("-") }
+    args = args.drop(1) if args.first == "--"
+    args = o.order!(args)
     o.parse!(args)
     self.options = overrides
+
+    if options[:only_from_primary] && options[:only_to_primary]
+      raise OptionParser::InvalidOption, "--only-from-primary and --only-to-primary are mutually exclusive"
+    end
 
     unsupported_services = options[:services] - supported_services
     raise "Supported services: #{supported_services.join(', ')}" if unsupported_services.any?

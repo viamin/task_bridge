@@ -45,6 +45,27 @@ RSpec.describe "task_bridge:sync task" do
     expect(history_logger).to have_received(:print_logs)
   end
 
+  it "parses task options after the rake argument separator" do
+    history_logger = instance_double(StructuredLogger, print_logs: nil)
+
+    stub_sync_defaults(services: %w[Primary Failing Passing])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Failing Passing])
+    allow(StructuredLogger).to receive(:new).with(log_file: "log/task_bridge_test.json", services: ["Passing"]).and_return(history_logger)
+
+    expect { invoke_task("task_bridge:sync", "--", "--history", "--services", "Passing") }.not_to raise_error
+
+    expect(history_logger).to have_received(:print_logs)
+  end
+
+  it "rejects mutually exclusive direction flags" do
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+
+    expect do
+      invoke_task("--only-from-primary", "--only-to-primary")
+    end.to raise_error(OptionParser::InvalidOption, /mutually exclusive/)
+  end
+
   it "raises when --primary references an unknown service class" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)

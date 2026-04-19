@@ -290,16 +290,23 @@ module Base
       return unless item_class.is_a?(Class) && item_class <= Base::SyncItem
 
       target_service_key = service_identifier_for(target_service.friendly_name)
-      external_id = source_item.try(:"#{target_service_key}_id")
+      external_id = sync_note_value(source_item, :"#{target_service_key}_id")
       return if external_id.blank?
 
       item_class.find_or_initialize_by(external_id:).tap do |target_item|
         target_item.title ||= source_item.title if source_item.respond_to?(:title)
         target_item.completed = source_item.completed? if source_item.respond_to?(:completed?)
         target_item.last_modified ||= sync_timestamp_for(source_item)
-        target_item.url ||= source_item.try(:"#{target_service_key}_url")
+        target_item.url ||= sync_note_value(source_item, :"#{target_service_key}_url")
         target_item.save! if target_item.new_record? || target_item.changed?
       end
+    end
+
+    def sync_note_value(item, key)
+      return item.public_send(key) if item.respond_to?(key)
+
+      instance_variable = :"@#{key}"
+      item.instance_variable_get(instance_variable) if item.instance_variable_defined?(instance_variable)
     end
 
     def sync_result(items_synced, touched_collection_ids:)

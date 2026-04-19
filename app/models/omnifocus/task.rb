@@ -94,8 +94,11 @@ module Omnifocus
       @tags = read_external_attribute(omnifocus_task, :tags)
       @tags = @tags.map { |tag| read_external_attribute(tag, :name) } unless @tags.nil?
       self.due_date = date_from_tags(omnifocus_task, @tags)
-      @sub_items = read_external_attribute(omnifocus_task, :tasks)&.map do |sub_item|
-        task = Task.find_or_initialize_by(external_id: sub_item.id_.get)
+      @sub_items = read_external_attribute(omnifocus_task, :tasks)&.filter_map do |sub_item|
+        external_id = self.class.read_external_attribute(sub_item, self.class.external_attribute_map[:external_id])
+        next if external_id.blank?
+
+        task = Task.find_or_initialize_by(external_id:)
         task.omnifocus_task = sub_item
         task.refresh_from_external!(only_modified_dates:)
       end
