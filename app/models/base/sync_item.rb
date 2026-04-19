@@ -170,7 +170,10 @@ module Base
       my_target_id = try(target_id_field)
 
       # First, try to match by sync ID
-      id_match = collection.find { |item| (item.external_id && (item.external_id == my_target_id)) || (item.try(source_id_field) && (item.try(source_id_field) == external_id)) }
+      id_match = collection.find do |item|
+        sync_ids_match?(item.external_id, my_target_id) ||
+          sync_ids_match?(item.try(source_id_field), external_id)
+      end
       return id_match if id_match
 
       # If we have a sync ID that didn't match anything in the collection,
@@ -353,6 +356,12 @@ module Base
 
     def attributes_have_changed?(attributes)
       attributes.any? { |key, value| send(key.to_sym) != value }
+    end
+
+    def sync_ids_match?(left, right)
+      return false if left.blank? || right.blank?
+
+      left.to_s == right.to_s
     end
   end
 end

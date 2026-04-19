@@ -129,6 +129,28 @@ RSpec.describe "Base::SyncItem", :full_options do
           expect(source_item.find_matching_item_in([target_item])).to eq(target_item)
         end
       end
+
+      context "when sync IDs have different Ruby types" do
+        let(:source_item) do
+          create_mock_item(asana_item_class,
+                           id: "123",
+                           title: "Buy milk")
+        end
+        let(:target_item) do
+          create_mock_item(omnifocus_item_class,
+                           id: omnifocus_id,
+                           title: "Buy milk",
+                           notes: "asana_id: 123")
+        end
+
+        before do
+          allow(source_item).to receive(:external_id).and_return(123)
+        end
+
+        it "matches by ID after normalizing values to strings" do
+          expect(source_item.find_matching_item_in([target_item])).to eq(target_item)
+        end
+      end
     end
 
     context "with title matching" do
