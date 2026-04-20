@@ -96,7 +96,6 @@ gem "ruby-progressbar", "~> 1.13"
 gem "thor", "~> 1.2"
 
 group :development do
-  gem "annotate"
   gem "rubocop"
   gem "rubocop-performance"
   gem "standard", ">= 1.35.1"
