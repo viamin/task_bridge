@@ -31,7 +31,7 @@ group :development, :test do
 end
 
 # https://github.com/ruby/bigdecimal
-gem "bigdecimal", "~> 4.0"
+gem "bigdecimal", "~> 4.1"
 
 # https://github.com/ruby/base64
 gem "base64", "~> 0.2"
@@ -113,7 +113,7 @@ end
 group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
-  gem "faker", "~> 3.2" # https://github.com/faker-ruby/faker
+  gem "faker", "~> 3.8" # https://github.com/faker-ruby/faker
   gem "rspec-rails"
   gem "selenium-webdriver"
   gem "simplecov", require: false
