@@ -77,6 +77,9 @@ GEM
       uri (>= 0.13.1)
     addressable (2.8.9)
       public_suffix (>= 2.0.2, < 8.0)
+    annotaterb (4.22.0)
+      activerecord (>= 6.0.0)
+      activesupport (>= 6.0.0)
     ast (2.4.3)
     base64 (0.3.0)
     bigdecimal (4.1.2)
@@ -421,6 +424,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  annotaterb
   base64 (~> 0.2)
   bigdecimal (~> 4.1)
   bootsnap
