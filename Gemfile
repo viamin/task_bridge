@@ -4,7 +4,7 @@ source "https://rubygems.org"
 git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 
 ruby ">= 3.1"
-gem "rails", "~> 7.2.3"
+gem "rails", "~> 8.1.3"
 
 gem "bootsnap", require: false
 gem "cssbundling-rails" # https://github.com/rails/cssbundling-rails
@@ -96,7 +96,7 @@ gem "ruby-progressbar", "~> 1.13"
 gem "thor", "~> 1.2"
 
 group :development do
-  gem "annotate"
+  gem "annotaterb"
   gem "rubocop"
   gem "rubocop-performance"
   gem "standard", ">= 1.35.1"

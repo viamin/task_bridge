@@ -23,6 +23,9 @@ Bundler.require(*Rails.groups)
 module TaskBridgeRails
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
+    # Keep at 7.1 while upgrading to Rails 8.1 to avoid applying all intermediate
+    # default changes at once (7.2, 8.0, 8.1). New defaults should be opted into
+    # incrementally via config/initializers/new_framework_defaults_*.rb files.
     config.load_defaults 7.1
 
     # Configuration for the application, engines, and railties goes here.
