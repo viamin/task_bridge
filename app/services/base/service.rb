@@ -301,7 +301,7 @@ module Base
 
       existing_collection_ids = collection_items.filter_map(&:sync_collection_id).uniq
       if existing_collection_ids.many?
-        debug("Skipping sync collection persistence because items are already linked to different collections: #{existing_collection_ids.join(", ")}")
+        debug("Skipping sync collection persistence because items are already linked to different collections: #{existing_collection_ids.join(', ')}")
         return
       end
 

@@ -75,25 +75,25 @@ RSpec.describe Omnifocus::Service, :full_options do
     let(:service) { described_class.new(options:) }
     let(:mock_task1) do
       double("OmnifocusTask1",
-        id_: double(get: "task-1"),
-        name: double(get: "Task 1"),
-        completed: double(get: false),
-        note: double(get: ""),
-        containing_project: double(get: :missing_value),
-        tags: double(get: []),
-        tasks: double(get: []),
-        modification_date: double(get: Time.now))
+             id_: double(get: "task-1"),
+             name: double(get: "Task 1"),
+             completed: double(get: false),
+             note: double(get: ""),
+             containing_project: double(get: :missing_value),
+             tags: double(get: []),
+             tasks: double(get: []),
+             modification_date: double(get: Time.now))
     end
     let(:mock_task2) do
       double("OmnifocusTask2",
-        id_: double(get: "task-2"),
-        name: double(get: "Task 2"),
-        completed: double(get: false),
-        note: double(get: ""),
-        containing_project: double(get: :missing_value),
-        tags: double(get: []),
-        tasks: double(get: []),
-        modification_date: double(get: Time.now))
+             id_: double(get: "task-2"),
+             name: double(get: "Task 2"),
+             completed: double(get: false),
+             note: double(get: ""),
+             containing_project: double(get: :missing_value),
+             tags: double(get: []),
+             tasks: double(get: []),
+             modification_date: double(get: Time.now))
     end
 
     before do
@@ -174,25 +174,25 @@ RSpec.describe Omnifocus::Service, :full_options do
     context "with sub-items" do
       let(:mock_parent_task) do
         double("ParentTask",
-          id_: double(get: "parent-1"),
-          name: double(get: "Parent Task"),
-          completed: double(get: false),
-          note: double(get: ""),
-          containing_project: double(get: :missing_value),
-          tags: double(get: []),
-          tasks: double(get: [mock_subtask]),
-          modification_date: double(get: Time.now))
+               id_: double(get: "parent-1"),
+               name: double(get: "Parent Task"),
+               completed: double(get: false),
+               note: double(get: ""),
+               containing_project: double(get: :missing_value),
+               tags: double(get: []),
+               tasks: double(get: [mock_subtask]),
+               modification_date: double(get: Time.now))
       end
       let(:mock_subtask) do
         double("Subtask",
-          id_: double(get: "subtask-1"),
-          name: double(get: "Subtask"),
-          completed: double(get: false),
-          note: double(get: ""),
-          containing_project: double(get: :missing_value),
-          tags: double(get: []),
-          tasks: double(get: []),
-          modification_date: double(get: Time.now))
+               id_: double(get: "subtask-1"),
+               name: double(get: "Subtask"),
+               completed: double(get: false),
+               note: double(get: ""),
+               containing_project: double(get: :missing_value),
+               tags: double(get: []),
+               tasks: double(get: []),
+               modification_date: double(get: Time.now))
       end
 
       before do
@@ -295,6 +295,36 @@ RSpec.describe Omnifocus::Service, :full_options do
       matches = service.matching_items_for([service_item], tag: "Github")
 
       expect(matches.map(&:title)).to eq(["Task 1"])
+      expect(matches.first.github_id).to eq("gh-1")
+    end
+
+    it "uses persisted sync metadata for normalized title matches" do
+      service_item = OpenStruct.new(friendly_title: "Buy milk")
+      tag_ref = double("TagRef", get: true)
+      tag_tasks = double(
+        "TagTasks",
+        id_: double(get: ["task-1"]),
+        name: double(get: ["  BUY MILK  "]),
+        completed: double(get: [false]),
+        modification_date: double(get: [Time.current])
+      )
+      inbox_tasks = double(
+        "InboxTasks",
+        id_: double(get: []),
+        name: double(get: []),
+        completed: double(get: []),
+        modification_date: double(get: [])
+      )
+      allow(tag_ref).to receive(:tasks).and_return(tag_tasks)
+      flattened_tags = double("FlattenedTags")
+      allow(flattened_tags).to receive(:[]).with("Github").and_return(tag_ref)
+      allow(mock_omnifocus_app).to receive(:flattened_tags).and_return(flattened_tags)
+      allow(mock_omnifocus_app).to receive(:inbox_tasks).and_return(inbox_tasks)
+      Omnifocus::Task.create!(external_id: "task-1", title: "  BUY MILK  ", notes: "github_id: gh-1")
+
+      matches = service.matching_items_for([service_item], tag: "Github")
+
+      expect(matches.map(&:external_id)).to eq(["task-1"])
       expect(matches.first.github_id).to eq("gh-1")
     end
 

@@ -235,7 +235,7 @@ RSpec.describe Base::Service do
       allow(primary_service).to receive(:add_item) do
         persisted_service_item.instance_variable_set(:@primary_service_id, "primary-create-ivar-123")
         persisted_service_item.instance_variable_set(:@primary_service_url, "https://example.test/tasks/primary-create-ivar-123")
-        {id: "primary-create-ivar-123"}
+        { id: "primary-create-ivar-123" }
       end
 
       expect do

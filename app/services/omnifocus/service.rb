@@ -58,7 +58,11 @@ module Omnifocus
       return [] unless authorized
 
       needs_title_lookup = service_items.any? { |service_item| service_item.try(:omnifocus_id).blank? }
-      task_summaries_by_title = needs_title_lookup ? matching_task_summaries(tag).group_by { |task| task[:name] } : {}
+      task_summaries_by_title = if needs_title_lookup
+        matching_task_summaries(tag).group_by { |task| normalized_title_key(task[:name]) }
+      else
+        {}
+      end
       service_items
         .flat_map { |service_item| matching_external_data_for(service_item, task_summaries_by_title:) }
         .uniq { |external_data| external_id_for(external_data) }
@@ -126,7 +130,7 @@ module Omnifocus
         # Title match: external_task doesn't have our sync ID, or has a stale one
         # (pointing to a different/deleted OmniFocus task)
         matched_by_title = external_task.try(:omnifocus_id).blank? ||
-          external_task.try(:omnifocus_id) != omnifocus_task.external_id
+                           external_task.try(:omnifocus_id) != omnifocus_task.external_id
         # Only move projects for ID-matched items (reliable link)
         # Title matches are not reliable enough to warrant moving tasks between projects
         if !matched_by_title && external_task.try(:project) && !task_projects_match(external_task, omnifocus_task)
@@ -175,7 +179,7 @@ module Omnifocus
         begin
           tag_ref.get # Verify tag exists
           tag_ref
-        rescue
+        rescue StandardError
           nil # Tag doesn't exist
         end
       end
@@ -206,7 +210,7 @@ module Omnifocus
       return external_task unless only_modified_dates
 
       external_task.properties_.get
-    rescue
+    rescue StandardError
       external_task
     end
 
@@ -217,14 +221,18 @@ module Omnifocus
         return [external_data_for(task, only_modified_dates: true)].compact if task
       end
 
-      task_summaries_by_title.fetch(service_item.friendly_title, [])
-        .filter_map { |task_summary| external_data_for_summary(task_summary) }
+      task_summaries_by_title.fetch(normalized_title_key(service_item.friendly_title), [])
+                             .filter_map { |task_summary| external_data_for_summary(task_summary) }
+    end
+
+    def normalized_title_key(title)
+      title.to_s.strip.downcase
     end
 
     def task_by_id(external_id)
       task = omnifocus_app.flattened_tasks.ID(external_id)
       task.get
-    rescue
+    rescue StandardError
       nil
     end
 
@@ -249,13 +257,13 @@ module Omnifocus
         tag_ref.get
         task_summaries_for_collection(tag_ref.tasks)
       end
-    rescue
+    rescue StandardError
       []
     end
 
     def task_summaries_for_inbox
       @task_summaries_for_inbox ||= task_summaries_for_collection(omnifocus_app.inbox_tasks)
-    rescue
+    rescue StandardError
       []
     end
 
@@ -346,7 +354,7 @@ module Omnifocus
     def folder(folder_name)
       debug("folder_name: #{folder_name}", options[:debug])
       omnifocus_app.flattened_folders[folder_name].get
-    rescue
+    rescue StandardError
       puts "The folder #{folder_name} could not be found in Omnifocus" if options[:verbose]
       nil
     end
@@ -375,7 +383,7 @@ module Omnifocus
       debug("project: #{project.name.get}", options[:debug])
       project.get
       project
-    rescue
+    rescue StandardError
       puts "The project #{project_structure} does not exist in Omnifocus" if options[:verbose]
       nil
     end
@@ -384,7 +392,7 @@ module Omnifocus
     def tag(name)
       tag = omnifocus_app.flattened_tags[name]
       tag.get
-    rescue
+    rescue StandardError
       puts "The tag #{name} does not exist in Omnifocus" if options[:verbose]
       nil
     end
@@ -396,10 +404,10 @@ module Omnifocus
 
     def all_tasks_in_container(container, incomplete_only: false)
       tasks = case container
-      when Array
-        container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_) }.flatten
-      when Appscript::Reference
-        container.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
+              when Array
+                container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_) }.flatten
+              when Appscript::Reference
+                container.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
       end
       return tasks unless incomplete_only
 

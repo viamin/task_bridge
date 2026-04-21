@@ -11,7 +11,7 @@ namespace :task_bridge do
     overrides = options
     o = OptionParser.new
     supported_services = Chamber.dig!(:task_bridge, :all_supported_services)
-    o.banner = "Sync Tasks from one service to another\nSupported services: #{supported_services.join(", ")}\nBy default, tasks found with the tags in --tags will have a work context"
+    o.banner = "Sync Tasks from one service to another\nSupported services: #{supported_services.join(', ')}\nBy default, tasks found with the tags in --tags will have a work context"
     o.on("-p", "--primary [PRIMARY]", "Primary task service") do |value|
       overrides[:primary] = value
       overrides[:primary_service] = "#{value}::Service".safe_constantize
@@ -49,7 +49,7 @@ namespace :task_bridge do
     raise OptionParser::InvalidOption, "--only-from-primary and --only-to-primary are mutually exclusive" if options[:only_from_primary] && options[:only_to_primary]
 
     unsupported_services = options[:services] - supported_services
-    raise "Supported services: #{supported_services.join(", ")}" if unsupported_services.any?
+    raise "Supported services: #{supported_services.join(', ')}" if unsupported_services.any?
 
     if options[:history]
       StructuredLogger.new(log_file: options[:log_file], services: options[:services]).print_logs
@@ -80,7 +80,7 @@ namespace :task_bridge do
       @service_logs = []
       begin
         if service.respond_to?(:authorized) && service.authorized == false
-          @service_logs << {service: service.friendly_name, last_attempted: options[:sync_started_at]}.stringify_keys
+          @service_logs << { service: service.friendly_name, last_attempted: options[:sync_started_at] }.stringify_keys
         elsif options[:delete]
           service.prune if service.respond_to?(:prune)
           @service_logs << {
@@ -124,7 +124,7 @@ namespace :task_bridge do
           @service_logs << service.sync_from_primary(@primary_service) if service.sync_strategies.include?(:from_primary)
           @service_logs << service.sync_to_primary(@primary_service) if service.sync_strategies.include?(:to_primary)
         end
-      rescue => e
+      rescue StandardError => e
         failed_services = true
         @service_logs << {
           service: service.friendly_name,

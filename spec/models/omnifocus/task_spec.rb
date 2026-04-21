@@ -55,7 +55,7 @@ RSpec.describe "Omnifocus::Task" do
       completed:,
       note: notes,
       containing_project:,
-      tags: tags.map { |tag| OpenStruct.new({name: tag}) },
+      tags: tags.map { |tag| OpenStruct.new({ name: tag }) },
       tasks:
     }.compact)
   end
@@ -83,7 +83,7 @@ RSpec.describe "Omnifocus::Task" do
       it "sets a due date in December" do
         parsed_date = Chronic.parse("12 - December")
         # If the date is in the past, the code adds 1 year
-        expected_date = (parsed_date < Time.now) ? parsed_date + 1.year : parsed_date
+        expected_date = parsed_date < Time.now ? parsed_date + 1.year : parsed_date
         expect(task.due_date).to eq(expected_date)
       end
 
@@ -111,7 +111,7 @@ RSpec.describe "Omnifocus::Task" do
 
     before do
       task_with_nil_tags.instance_variable_set(:@tags, nil)
-      allow(task_with_nil_tags).to receive(:options).and_return({uses_personal_tags: true, personal_tags: ["Personal"]})
+      allow(task_with_nil_tags).to receive(:options).and_return({ uses_personal_tags: true, personal_tags: ["Personal"] })
     end
 
     it "personal? returns false without raising" do
@@ -122,7 +122,7 @@ RSpec.describe "Omnifocus::Task" do
 
   context "when sub_items is nil" do
     let(:tasks) { nil }
-    let(:nil_sub_task) { Omnifocus::Task.new(omnifocus_task: OpenStruct.new({id_: "sub_nil", name: "SubNil", completed: false, note: "", tasks: nil})) }
+    let(:nil_sub_task) { Omnifocus::Task.new(omnifocus_task: OpenStruct.new({ id_: "sub_nil", name: "SubNil", completed: false, note: "", tasks: nil })) }
 
     it "sub_item_count defaults to 0 instead of nil" do
       nil_sub_task.read_original
