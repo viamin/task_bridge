@@ -83,6 +83,12 @@ module Omnifocus
 
     def read_original(only_modified_dates: false)
       super
+      if only_modified_dates
+        @sub_items = []
+        @sub_item_count = 0
+        return self
+      end
+
       containing_project = read_external_attribute(omnifocus_task, :containing_project, only_modified_dates:)
       @project = if containing_project.respond_to?(:get)
         containing_project.name.get

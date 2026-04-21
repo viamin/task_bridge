@@ -206,6 +206,68 @@ RSpec.describe "task_bridge:sync task" do
     )
   end
 
+  it "exits non-zero when a service returns a failed sync result" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    failing_service = instance_double(
+      "Failing::Service",
+      friendly_name: "Failing",
+      items_to_sync: [],
+      sync_strategies: [:from_primary]
+    )
+    passing_service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      items_to_sync: [],
+      sync_strategies: [:from_primary]
+    )
+
+    allow(failing_service).to receive(:should_sync?).and_return(true)
+    allow(passing_service).to receive(:should_sync?).and_return(true)
+    allow(failing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
+      {
+        service: "Failing",
+        status: "failed",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_failed: "2024-01-01T09:00:00.000000Z",
+        items_synced: 0,
+        error_class: "ProviderError",
+        error_message: "provider unavailable"
+      }.stringify_keys
+    )
+    allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
+      {
+        service: "Passing",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
+        items_synced: 1
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: %w[Failing Passing])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Failing Passing])
+    stub_service("Primary", primary_service)
+    stub_service("Failing", failing_service)
+    stub_service("Passing", passing_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+    end
+
+    expect(passing_service).to have_received(:sync_from_primary).with(primary_service, service_items: [])
+    expect(logger).to have_received(:save_service_log!).with(
+      array_including(
+        hash_including(
+          "service" => "Failing",
+          "status" => "failed",
+          "error_message" => "provider unavailable"
+        )
+      )
+    )
+  end
+
   it "does not preload service items for delete runs" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)

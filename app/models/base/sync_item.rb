@@ -82,14 +82,14 @@ module Base
       end
     end
 
-    validates :external_id, uniqueness: { scope: :type }
+    validates :external_id, uniqueness: {scope: :type}
 
     def read_original(only_modified_dates: false)
       values_hash = external_attribute_map.each_with_object({}) do |(attribute_key, attribute_value), hash|
         next if only_modified_dates &&
-                !self.class.send(:modified_date_attributes).include?(attribute_key) &&
-                !self.class.send(:identity_attributes).include?(attribute_key) &&
-                !self.class.send(:completion_indicator_attributes).include?(attribute_key)
+          !self.class.send(:modified_date_attributes).include?(attribute_key) &&
+          !self.class.send(:identity_attributes).include?(attribute_key) &&
+          !self.class.send(:completion_indicator_attributes).include?(attribute_key)
 
         value = read_external_attribute(external_data, attribute_value, only_modified_dates:, attribute_key:)
         value = Chronic.parse(value) if value && chronic_attributes.include?(attribute_key)
@@ -256,17 +256,17 @@ module Base
       def read_external_attribute(external_data, attribute, only_modified_dates: false, attribute_key: nil)
         return if attribute.nil?
         return if only_modified_dates && attribute_key &&
-                  !modified_date_attributes.include?(attribute_key) &&
-                  !identity_attributes.include?(attribute_key) &&
-                  !completion_indicator_attributes.include?(attribute_key)
+          !modified_date_attributes.include?(attribute_key) &&
+          !identity_attributes.include?(attribute_key) &&
+          !completion_indicator_attributes.include?(attribute_key)
 
         value = if external_data.is_a? Hash
-          external_data.fetch(attribute, nil)
+          external_data.fetch(attribute) { external_data.fetch(attribute.to_s) { external_data.fetch(attribute.to_sym, nil) } }
         elsif external_data.respond_to?(attribute.to_sym)
           external_data.send(attribute.to_sym)
         end
         value = value.get if value.respond_to?(:get)
-        value == :missing_value ? nil : value
+        (value == :missing_value) ? nil : value
       rescue Appscript::CommandError => e
         # Stale AppleScript references (e.g., OSERROR -1728 "Can't get reference")
         # occur when a task is deleted mid-iteration. Return nil to keep the sync

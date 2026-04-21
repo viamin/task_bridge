@@ -55,7 +55,7 @@ RSpec.describe "Omnifocus::Task" do
       completed:,
       note: notes,
       containing_project:,
-      tags: tags.map { |tag| OpenStruct.new({ name: tag }) },
+      tags: tags.map { |tag| OpenStruct.new({name: tag}) },
       tasks:
     }.compact)
   end
@@ -83,7 +83,7 @@ RSpec.describe "Omnifocus::Task" do
       it "sets a due date in December" do
         parsed_date = Chronic.parse("12 - December")
         # If the date is in the past, the code adds 1 year
-        expected_date = parsed_date < Time.now ? parsed_date + 1.year : parsed_date
+        expected_date = (parsed_date < Time.now) ? parsed_date + 1.year : parsed_date
         expect(task.due_date).to eq(expected_date)
       end
 
@@ -111,7 +111,7 @@ RSpec.describe "Omnifocus::Task" do
 
     before do
       task_with_nil_tags.instance_variable_set(:@tags, nil)
-      allow(task_with_nil_tags).to receive(:options).and_return({ uses_personal_tags: true, personal_tags: ["Personal"] })
+      allow(task_with_nil_tags).to receive(:options).and_return({uses_personal_tags: true, personal_tags: ["Personal"]})
     end
 
     it "personal? returns false without raising" do
@@ -122,7 +122,7 @@ RSpec.describe "Omnifocus::Task" do
 
   context "when sub_items is nil" do
     let(:tasks) { nil }
-    let(:nil_sub_task) { Omnifocus::Task.new(omnifocus_task: OpenStruct.new({ id_: "sub_nil", name: "SubNil", completed: false, note: "", tasks: nil })) }
+    let(:nil_sub_task) { Omnifocus::Task.new(omnifocus_task: OpenStruct.new({id_: "sub_nil", name: "SubNil", completed: false, note: "", tasks: nil})) }
 
     it "sub_item_count defaults to 0 instead of nil" do
       nil_sub_task.read_original
@@ -154,6 +154,30 @@ RSpec.describe "Omnifocus::Task" do
     it "skips the stale sub_item" do
       expect(task.sub_items.map(&:external_id)).to eq(["sub_ok"])
       expect(task.sub_item_count).to eq(1)
+    end
+  end
+
+  context "with metadata-only reads" do
+    let(:metadata_task_data) do
+      double(
+        "OmnifocusMetadataTask",
+        id_: "metadata-task",
+        name: "Metadata task",
+        completed: false,
+        completion_date: nil,
+        modification_date: Time.current,
+        note: ""
+      )
+    end
+    let(:metadata_task) { Omnifocus::Task.new(omnifocus_task: metadata_task_data) }
+
+    it "does not read project, tags, due date, or sub-items" do
+      metadata_task.read_original(only_modified_dates: true)
+
+      expect(metadata_task.external_id).to eq("metadata-task")
+      expect(metadata_task.title).to eq("Metadata task")
+      expect(metadata_task.sub_items).to eq([])
+      expect(metadata_task.sub_item_count).to eq(0)
     end
   end
 end
