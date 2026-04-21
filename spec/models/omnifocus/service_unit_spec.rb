@@ -328,6 +328,37 @@ RSpec.describe Omnifocus::Service, :full_options do
       expect(matches.first.github_id).to eq("gh-1")
     end
 
+    it "uses metadata-backed title matches when the stored OmniFocus sync ID is stale" do
+      service_item = OpenStruct.new(omnifocus_id: "stale-task", friendly_title: "Task 1")
+      tag_ref = double("TagRef", get: true)
+      tag_tasks = double(
+        "TagTasks",
+        id_: double(get: ["task-1"]),
+        name: double(get: ["Task 1"]),
+        completed: double(get: [false]),
+        modification_date: double(get: [Time.current])
+      )
+      inbox_tasks = double(
+        "InboxTasks",
+        id_: double(get: []),
+        name: double(get: []),
+        completed: double(get: []),
+        modification_date: double(get: [])
+      )
+      allow(flattened_tasks).to receive(:ID).with("stale-task").and_raise(StandardError)
+      allow(tag_ref).to receive(:tasks).and_return(tag_tasks)
+      flattened_tags = double("FlattenedTags")
+      allow(flattened_tags).to receive(:[]).with("Github").and_return(tag_ref)
+      allow(mock_omnifocus_app).to receive(:flattened_tags).and_return(flattened_tags)
+      allow(mock_omnifocus_app).to receive(:inbox_tasks).and_return(inbox_tasks)
+      Omnifocus::Task.create!(external_id: "task-1", title: "Task 1", notes: "github_id: gh-1")
+
+      matches = service.matching_items_for([service_item], tag: "Github")
+
+      expect(matches.map(&:external_id)).to eq(["task-1"])
+      expect(matches.first.github_id).to eq("gh-1")
+    end
+
     it "does not return title matches when sync metadata cannot be loaded" do
       service_item = OpenStruct.new(friendly_title: "Task 1")
       tag_ref = double("TagRef", get: true)
@@ -351,6 +382,64 @@ RSpec.describe Omnifocus::Service, :full_options do
       allow(mock_omnifocus_app).to receive(:flattened_tags).and_return(flattened_tags)
       allow(mock_omnifocus_app).to receive(:inbox_tasks).and_return(inbox_tasks)
       expect(flattened_tasks).not_to receive(:ID)
+
+      matches = service.matching_items_for([service_item], tag: "Github")
+
+      expect(matches).to eq([])
+    end
+
+    it "does not return title matches when cached notes are empty" do
+      service_item = OpenStruct.new(friendly_title: "Task 1")
+      tag_ref = double("TagRef", get: true)
+      tag_tasks = double(
+        "TagTasks",
+        id_: double(get: ["task-1"]),
+        name: double(get: ["Task 1"]),
+        completed: double(get: [false]),
+        modification_date: double(get: [Time.current])
+      )
+      inbox_tasks = double(
+        "InboxTasks",
+        id_: double(get: []),
+        name: double(get: []),
+        completed: double(get: []),
+        modification_date: double(get: [])
+      )
+      allow(tag_ref).to receive(:tasks).and_return(tag_tasks)
+      flattened_tags = double("FlattenedTags")
+      allow(flattened_tags).to receive(:[]).with("Github").and_return(tag_ref)
+      allow(mock_omnifocus_app).to receive(:flattened_tags).and_return(flattened_tags)
+      allow(mock_omnifocus_app).to receive(:inbox_tasks).and_return(inbox_tasks)
+      Omnifocus::Task.create!(external_id: "task-1", title: "Task 1", notes: "")
+
+      matches = service.matching_items_for([service_item], tag: "Github")
+
+      expect(matches).to eq([])
+    end
+
+    it "does not return title matches when cached notes lack metadata for the source provider" do
+      service_item = OpenStruct.new(friendly_title: "Task 1")
+      tag_ref = double("TagRef", get: true)
+      tag_tasks = double(
+        "TagTasks",
+        id_: double(get: ["task-1"]),
+        name: double(get: ["Task 1"]),
+        completed: double(get: [false]),
+        modification_date: double(get: [Time.current])
+      )
+      inbox_tasks = double(
+        "InboxTasks",
+        id_: double(get: []),
+        name: double(get: []),
+        completed: double(get: []),
+        modification_date: double(get: [])
+      )
+      allow(tag_ref).to receive(:tasks).and_return(tag_tasks)
+      flattened_tags = double("FlattenedTags")
+      allow(flattened_tags).to receive(:[]).with("Github").and_return(tag_ref)
+      allow(mock_omnifocus_app).to receive(:flattened_tags).and_return(flattened_tags)
+      allow(mock_omnifocus_app).to receive(:inbox_tasks).and_return(inbox_tasks)
+      Omnifocus::Task.create!(external_id: "task-1", title: "Task 1", notes: "asana_id: asana-1")
 
       matches = service.matching_items_for([service_item], tag: "Github")
 

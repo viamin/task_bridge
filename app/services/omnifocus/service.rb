@@ -57,23 +57,21 @@ module Omnifocus
     def matching_items_for(service_items, tag:)
       return [] unless authorized
 
-      needs_title_lookup = service_items.any? { |service_item| service_item.try(:omnifocus_id).blank? }
-      task_summaries_by_title = if needs_title_lookup
-        matching_task_summaries(tag).group_by { |task| normalized_title_key(task[:name]) }
-      else
-        {}
-      end
-      service_items
-        .flat_map { |service_item| matching_external_data_for(service_item, task_summaries_by_title:) }
-        .uniq { |external_data| external_id_for(external_data) }
-        .filter_map do |external_data|
-          external_id = external_id_for(external_data)
-          next if external_id.blank?
-
-          task = Task.find_or_initialize_by(external_id:)
-          task.omnifocus_task = external_data
-          task.refresh_from_external!(only_modified_dates: true)
+      task_summaries_by_title = nil
+      matching_external_data = service_items.flat_map do |service_item|
+        matching_external_data_for(service_item, source_provider: tag) do
+          task_summaries_by_title ||= matching_task_summaries(tag).group_by { |task| normalized_title_key(task[:name]) }
         end
+      end
+
+      matching_external_data.uniq { |external_data| external_id_for(external_data) }.filter_map do |external_data|
+        external_id = external_id_for(external_data)
+        next if external_id.blank?
+
+        task = Task.find_or_initialize_by(external_id:)
+        task.omnifocus_task = external_data
+        task.refresh_from_external!(only_modified_dates: true)
+      end
     end
 
     def add_item(external_task, parent_object = nil)
@@ -214,15 +212,16 @@ module Omnifocus
       external_task
     end
 
-    def matching_external_data_for(service_item, task_summaries_by_title:)
+    def matching_external_data_for(service_item, source_provider:)
       omnifocus_id = service_item.try(:omnifocus_id)
       if omnifocus_id.present?
         task = task_by_id(omnifocus_id)
         return [external_data_for(task, only_modified_dates: true)].compact if task
       end
 
-      task_summaries_by_title.fetch(normalized_title_key(service_item.friendly_title), [])
-                             .filter_map { |task_summary| external_data_for_summary(task_summary) }
+      resolved_source_provider = service_item.try(:provider) || service_item.try(:provider_name) || source_provider
+      yield.fetch(normalized_title_key(service_item.friendly_title), [])
+           .filter_map { |task_summary| external_data_for_summary(task_summary, source_provider: resolved_source_provider) }
     end
 
     def normalized_title_key(title)
@@ -236,14 +235,19 @@ module Omnifocus
       nil
     end
 
-    def external_data_for_summary(task_summary)
+    def external_data_for_summary(task_summary, source_provider:)
       external_id = task_summary[:id_]
       return if external_id.blank?
 
       existing_task = Task.find_by(external_id:)
-      return unless existing_task && !existing_task.notes.nil?
+      return unless existing_task && sync_metadata_present?(existing_task, source_provider)
 
       task_summary.merge(note: existing_task.notes)
+    end
+
+    def sync_metadata_present?(task, source_provider)
+      task.read_notes
+      task.try(:"#{source_provider.underscore}_id").present?
     end
 
     def matching_task_summaries(tag)

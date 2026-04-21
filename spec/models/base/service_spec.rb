@@ -137,6 +137,17 @@ RSpec.describe Base::Service do
       expect(service_item).not_to have_received(:find_matching_item_in)
     end
 
+    it "fails before returning success when the primary service is unavailable and no service items are present" do
+      unavailable_primary = double("UnavailablePrimary", friendly_name: "Primary Service", authorized: false)
+      allow(service).to receive(:items_to_sync).and_return([])
+
+      result = service.sync_to_primary(unavailable_primary)
+
+      expect(result["status"]).to eq("failed")
+      expect(result["error_message"]).to eq("Failed to sync with Primary Service: service is not authorized")
+      expect(service).not_to have_received(:items_to_sync)
+    end
+
     it "persists a sync collection for matched items that sync successfully" do
       persisted_service_item = sync_item_class.create!(
         title: "Persisted service task",

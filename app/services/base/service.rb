@@ -108,14 +108,14 @@ module Base
 
       sync_errors = []
       touched_collection_ids = []
+      if (unavailable_error = service_unavailable_error(primary_service))
+        warn_sync_errors([unavailable_error])
+        return sync_result(0, touched_collection_ids:, errors: [unavailable_error])
+      end
       service_items ||= items_to_sync(tags: options[:tags], only_modified_dates: true)
       if service_items.empty?
         puts "Synced 0 #{friendly_name} items to #{primary_service.friendly_name}" unless options[:quiet]
         return sync_result(0, touched_collection_ids:, errors: sync_errors)
-      end
-      if (unavailable_error = service_unavailable_error(primary_service))
-        warn_sync_errors([unavailable_error])
-        return sync_result(0, touched_collection_ids:, errors: [unavailable_error])
       end
 
       existing_primary_items = existing_items_for(primary_service, service_items)
