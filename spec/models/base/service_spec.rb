@@ -315,14 +315,13 @@ RSpec.describe Base::Service do
   end
 
   describe "#existing_items" do
-    it "uses metadata-only reads for primary items" do
+    it "uses full reads so generic sync ID matching can inspect provider metadata" do
       allow(primary_service).to receive(:items_to_sync).and_return([existing_item])
 
       expect(service.send(:existing_items, primary_service)).to eq([existing_item])
       expect(primary_service).to have_received(:items_to_sync).with(
         tags: ["Test Service"],
-        inbox: true,
-        only_modified_dates: true
+        inbox: true
       )
     end
   end

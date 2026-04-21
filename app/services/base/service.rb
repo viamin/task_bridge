@@ -228,7 +228,7 @@ module Base
     end
 
     def existing_items(service)
-      service.items_to_sync(tags: [friendly_name], inbox: true, only_modified_dates: true)
+      service.items_to_sync(tags: [friendly_name], inbox: true)
     end
 
     def existing_items_for(service, service_items)
