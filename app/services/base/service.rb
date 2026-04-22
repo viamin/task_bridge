@@ -45,6 +45,11 @@ module Base
 
       sync_errors = []
       touched_collection_ids = []
+      if (unavailable_error = service_unavailable_error(primary_service))
+        warn_sync_errors([unavailable_error])
+        return sync_result(0, touched_collection_ids:, errors: [unavailable_error])
+      end
+
       primary_items = primary_service.items_to_sync(tags: [friendly_name])
       service_items ||= items_to_sync(tags: options[:tags])
 
@@ -103,8 +108,17 @@ module Base
 
       sync_errors = []
       touched_collection_ids = []
+      if (unavailable_error = service_unavailable_error(primary_service))
+        warn_sync_errors([unavailable_error])
+        return sync_result(0, touched_collection_ids:, errors: [unavailable_error])
+      end
       service_items ||= items_to_sync(tags: options[:tags], only_modified_dates: true)
-      existing_primary_items = existing_items(primary_service)
+      if service_items.empty?
+        puts "Synced 0 #{friendly_name} items to #{primary_service.friendly_name}" unless options[:quiet]
+        return sync_result(0, touched_collection_ids:, errors: sync_errors)
+      end
+
+      existing_primary_items = existing_items_for(primary_service, service_items)
       unless options[:quiet]
         progressbar = ProgressBar.create(
           format: "%t: %c/%C |%w>%i| %e ",
@@ -147,6 +161,11 @@ module Base
 
       sync_errors = []
       touched_collection_ids = []
+      if (unavailable_error = service_unavailable_error(primary_service))
+        warn_sync_errors([unavailable_error])
+        return sync_result(0, touched_collection_ids:, errors: [unavailable_error])
+      end
+
       primary_items = primary_service.items_to_sync(tags: [friendly_name])
       service_items ||= items_to_sync(tags: options[:tags])
       unless options[:quiet]
@@ -212,6 +231,12 @@ module Base
       service.items_to_sync(tags: [friendly_name], inbox: true)
     end
 
+    def existing_items_for(service, service_items)
+      return service.matching_items_for(service_items, tag: friendly_name) if service.respond_to?(:matching_items_for)
+
+      existing_items(service)
+    end
+
     def items_to_sync(*, **)
       raise "not implemented in #{self.class.name}"
     end
@@ -242,6 +267,12 @@ module Base
       SyncServiceState.find_by(service_name: friendly_name)
     rescue ActiveRecord::NoDatabaseError, ActiveRecord::StatementInvalid
       nil
+    end
+
+    def service_unavailable_error(service)
+      return unless service.respond_to?(:authorized) && service.authorized == false
+
+      "Failed to sync with #{service.friendly_name}: service is not authorized"
     end
 
     # find all paired items

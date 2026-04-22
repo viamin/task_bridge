@@ -118,6 +118,36 @@ RSpec.describe Base::Service do
       expect(service_item).to have_received(:find_matching_item_in).with([existing_item]).once
     end
 
+    it "does not load primary items when there are no service items to sync" do
+      allow(service).to receive(:items_to_sync).and_return([])
+
+      result = service.sync_to_primary(primary_service)
+
+      expect(result["items_synced"]).to eq(0)
+      expect(service).not_to have_received(:existing_items)
+    end
+
+    it "fails instead of pretending to sync when the primary service is unavailable" do
+      unavailable_primary = double("UnavailablePrimary", friendly_name: "Primary Service", authorized: false)
+
+      result = service.sync_to_primary(unavailable_primary)
+
+      expect(result["status"]).to eq("failed")
+      expect(result["error_message"]).to eq("Failed to sync with Primary Service: service is not authorized")
+      expect(service_item).not_to have_received(:find_matching_item_in)
+    end
+
+    it "fails before returning success when the primary service is unavailable and no service items are present" do
+      unavailable_primary = double("UnavailablePrimary", friendly_name: "Primary Service", authorized: false)
+      allow(service).to receive(:items_to_sync).and_return([])
+
+      result = service.sync_to_primary(unavailable_primary)
+
+      expect(result["status"]).to eq("failed")
+      expect(result["error_message"]).to eq("Failed to sync with Primary Service: service is not authorized")
+      expect(service).not_to have_received(:items_to_sync)
+    end
+
     it "persists a sync collection for matched items that sync successfully" do
       persisted_service_item = sync_item_class.create!(
         title: "Persisted service task",
@@ -284,7 +314,37 @@ RSpec.describe Base::Service do
     end
   end
 
+  describe "#existing_items" do
+    it "uses full reads so generic sync ID matching can inspect provider metadata" do
+      allow(primary_service).to receive(:items_to_sync).and_return([existing_item])
+
+      expect(service.send(:existing_items, primary_service)).to eq([existing_item])
+      expect(primary_service).to have_received(:items_to_sync).with(
+        tags: ["Test Service"],
+        inbox: true
+      )
+    end
+  end
+
+  describe "#existing_items_for" do
+    it "uses targeted primary lookups when the primary service supports them" do
+      allow(primary_service).to receive(:matching_items_for).with([service_item], tag: "Test Service").and_return([existing_item])
+
+      expect(service.existing_items_for(primary_service, [service_item])).to eq([existing_item])
+    end
+  end
+
   describe "#sync_from_primary" do
+    it "fails before reading primary items when the primary service is unavailable" do
+      unavailable_primary = double("UnavailablePrimary", friendly_name: "Primary Service", authorized: false)
+
+      result = service.sync_from_primary(unavailable_primary)
+
+      expect(result["status"]).to eq("failed")
+      expect(result["error_message"]).to eq("Failed to sync with Primary Service: service is not authorized")
+      expect(result["items_synced"]).to eq(0)
+    end
+
     it "persists a sync collection for newly created service items" do
       primary_item = primary_sync_item_class.create!(
         title: "Newly created service task",

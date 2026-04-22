@@ -137,6 +137,7 @@ namespace :task_bridge do
         }.stringify_keys
         warn "Sync failed for #{service.friendly_name}: #{e.class} #{e.message}" unless options[:quiet]
       end
+      failed_services ||= @service_logs.any? { |log| log["status"] == "failed" }
       options[:logger].save_service_log!(@service_logs)
       SyncServiceState.record_summary!(
         options[:logger].summarize_service_run(service_name: service.friendly_name, logs: @service_logs)

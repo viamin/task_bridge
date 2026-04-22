@@ -156,4 +156,28 @@ RSpec.describe "Omnifocus::Task" do
       expect(task.sub_item_count).to eq(1)
     end
   end
+
+  context "with metadata-only reads" do
+    let(:metadata_task_data) do
+      double(
+        "OmnifocusMetadataTask",
+        id_: "metadata-task",
+        name: "Metadata task",
+        completed: false,
+        completion_date: nil,
+        modification_date: Time.current,
+        note: ""
+      )
+    end
+    let(:metadata_task) { Omnifocus::Task.new(omnifocus_task: metadata_task_data) }
+
+    it "does not read project, tags, due date, or sub-items" do
+      metadata_task.read_original(only_modified_dates: true)
+
+      expect(metadata_task.external_id).to eq("metadata-task")
+      expect(metadata_task.title).to eq("Metadata task")
+      expect(metadata_task.sub_items).to eq([])
+      expect(metadata_task.sub_item_count).to eq(0)
+    end
+  end
 end

@@ -261,7 +261,7 @@ module Base
                   !completion_indicator_attributes.include?(attribute_key)
 
         value = if external_data.is_a? Hash
-          external_data.fetch(attribute, nil)
+          external_data.fetch(attribute) { external_data.fetch(attribute.to_s) { external_data.fetch(attribute.to_sym, nil) } }
         elsif external_data.respond_to?(attribute.to_sym)
           external_data.send(attribute.to_sym)
         end

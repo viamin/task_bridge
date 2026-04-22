@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "timeout"
+
 module Omnifocus
   class Service < Base::Service
     include Base::AppleScriptLoader
@@ -9,6 +11,7 @@ module Omnifocus
     def initialize(options: nil)
       super
       ensure_appscript_loaded!
+      warm_omnifocus_applescript!
       # Assumes you already have OmniFocus installed
       @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
       @authorized = true
@@ -37,17 +40,38 @@ module Omnifocus
       omnifocus_tasks = tagged_tasks(tags)
       omnifocus_tasks += inbox_tasks if inbox
       tasks = omnifocus_tasks.filter_map do |external_task|
-        external_id = external_id_for(external_task)
+        external_data = external_data_for(external_task, only_modified_dates:)
+        external_id = external_id_for(external_data)
         next if external_id.blank?
 
         task = Task.find_or_initialize_by(external_id:)
-        task.omnifocus_task = external_task
+        task.omnifocus_task = external_data
         task.refresh_from_external!(only_modified_dates:)
       end
       # remove sub_items from the list to avoid duplicates
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
       sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:external_id)
       tasks.delete_if { |task| sub_item_ids.include?(task.external_id) }
+    end
+
+    def matching_items_for(service_items, tag:)
+      return [] unless authorized
+
+      task_summaries_by_title = nil
+      matching_external_data = service_items.flat_map do |service_item|
+        matching_external_data_for(service_item, source_provider: tag) do
+          task_summaries_by_title ||= matching_task_summaries(tag).group_by { |task| normalized_title_key(task[:name]) }
+        end
+      end
+
+      matching_external_data.uniq { |external_data| external_id_for(external_data) }.filter_map do |external_data|
+        external_id = external_id_for(external_data)
+        next if external_id.blank?
+
+        task = Task.find_or_initialize_by(external_id:)
+        task.omnifocus_task = external_data
+        task.refresh_from_external!(only_modified_dates: true)
+      end
     end
 
     def add_item(external_task, parent_object = nil)
@@ -166,8 +190,103 @@ module Omnifocus
       15.minutes.to_i
     end
 
+    def warm_omnifocus_applescript!
+      return if Rails.env.test?
+
+      Timeout.timeout(5) do
+        system("osascript", "-e", "tell application \"OmniFocus\" to count documents", out: File::NULL, err: File::NULL)
+      end
+    rescue Timeout::Error, SystemCallError
+      nil
+    end
+
     def external_id_for(external_task)
       Task.read_external_attribute(external_task, Task.external_attribute_map[:external_id])
+    end
+
+    def external_data_for(external_task, only_modified_dates:)
+      return external_task unless only_modified_dates
+
+      external_task.properties_.get
+    rescue StandardError
+      external_task
+    end
+
+    def matching_external_data_for(service_item, source_provider:)
+      omnifocus_id = service_item.try(:omnifocus_id)
+      if omnifocus_id.present?
+        task = task_by_id(omnifocus_id)
+        return [external_data_for(task, only_modified_dates: true)].compact if task
+      end
+
+      resolved_source_provider = service_item.try(:provider) || service_item.try(:provider_name) || source_provider
+      yield.fetch(normalized_title_key(service_item.friendly_title), [])
+           .filter_map { |task_summary| external_data_for_summary(task_summary, source_provider: resolved_source_provider) }
+    end
+
+    def normalized_title_key(title)
+      title.to_s.strip.downcase
+    end
+
+    def task_by_id(external_id)
+      task = omnifocus_app.flattened_tasks.ID(external_id)
+      task.get
+    rescue StandardError
+      nil
+    end
+
+    def external_data_for_summary(task_summary, source_provider:)
+      external_id = task_summary[:id_]
+      return if external_id.blank?
+
+      existing_task = Task.find_by(external_id:)
+      return unless existing_task && sync_metadata_present?(existing_task, source_provider)
+
+      task_summary.merge(note: existing_task.notes)
+    end
+
+    def sync_metadata_present?(task, source_provider)
+      task.read_notes
+      task.try(:"#{source_provider.underscore}_id").present?
+    end
+
+    def matching_task_summaries(tag)
+      (task_summaries_for_tag(tag) + task_summaries_for_inbox).uniq { |task_summary| task_summary[:id_] }
+    end
+
+    def task_summaries_for_tag(tag)
+      @task_summaries_by_tag ||= {}
+      @task_summaries_by_tag[tag] ||= begin
+        tag_ref = omnifocus_app.flattened_tags[tag]
+        tag_ref.get
+        task_summaries_for_collection(tag_ref.tasks)
+      end
+    rescue StandardError
+      []
+    end
+
+    def task_summaries_for_inbox
+      @task_summaries_for_inbox ||= task_summaries_for_collection(omnifocus_app.inbox_tasks)
+    rescue StandardError
+      []
+    end
+
+    def task_summaries_for_collection(task_collection)
+      ids = Array(task_collection.id_.get)
+      names = Array(task_collection.name.get)
+      completed_values = Array(task_collection.completed.get)
+      modification_dates = Array(task_collection.modification_date.get)
+
+      names.each_with_index.map do |name, index|
+        {
+          id_: ids[index],
+          name:,
+          completed: completed_values[index],
+          modification_date: modification_dates[index],
+          completion_date: nil,
+          note: nil
+        }
+      end
     end
 
     # create or update sub_items on a task
