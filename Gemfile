@@ -70,7 +70,7 @@ gem "loofah", "~> 2.20"
 gem "memo_wise", "~> 1.7"
 
 # https://github.com/sparklemotion/nokogiri
-gem "nokogiri", "~> 1.14"
+gem "nokogiri", "~> 1.19"
 
 # https://gitlab.com/oauth-xx/oauth
 gem "oauth", "~> 1.1"
