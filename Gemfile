@@ -55,7 +55,7 @@ gem "colorize", "~> 1.0"
 gem "dotenv", "~> 3.1", require: "dotenv/load"
 
 # https://github.com/googleapis/google-auth-library-ruby
-gem "googleauth", "~> 1.5"
+gem "googleauth", "~> 1.17"
 
 # https://github.com/googleapis/google-api-ruby-client/tree/main/google-api-client/generated/google/apis/tasks_v1
 gem "google-apis-tasks_v1", "~> 0.15"
