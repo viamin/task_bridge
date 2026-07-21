@@ -64,7 +64,7 @@ gem "google-apis-tasks_v1", "~> 0.32"
 gem "httparty", "~> 0.21"
 
 # https://github.com/flavorjones/loofah
-gem "loofah", "~> 2.20"
+gem "loofah", "~> 2.25"
 
 # https://github.com/panorama-ed/memo_wise
 gem "memo_wise", "~> 1.7"
