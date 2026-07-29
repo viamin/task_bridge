@@ -26,6 +26,12 @@ RSpec.describe "Reminders::Service" do
     skip "Reminders is not available to AppleScript" if example.metadata[:no_ci] && !service.authorized
   end
 
+  describe "#sync_strategies" do
+    it "supports syncing to and from the primary service" do
+      expect(service.sync_strategies).to contain_exactly(:from_primary, :to_primary)
+    end
+  end
+
   describe "#items_to_sync" do
     subject { service.items_to_sync }
 

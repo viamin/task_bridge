@@ -29,7 +29,7 @@ module Reminders
     end
 
     def sync_strategies
-      [:to_primary]
+      %i[from_primary to_primary]
     end
 
     # Since Reminders via Applescript doesn't currently support tags, we use the mapping
