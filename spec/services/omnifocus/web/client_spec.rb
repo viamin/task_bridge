@@ -107,5 +107,38 @@ RSpec.describe Omnifocus::Web::Client do
       expect(child).to be_a(described_class)
       expect(child.id_.get).to eq("child-1")
     end
+
+    it "supports folder project traversal with transport-backed nested references" do
+      allow(transport).to receive(:create_item).and_return({ id_: "child-2", name: "Nested child" })
+      folder = described_class.new(
+        {
+          id_: "folder-1",
+          name: "Work",
+          projects: [
+            {
+              id_: "project-1",
+              name: "Launch",
+              projects: [
+                { id_: "project-2", name: "Nested" }
+              ]
+            }
+          ]
+        },
+        transport:
+      )
+
+      direct_project = folder.projects["Launch"]
+      nested_project = folder.flattened_projects["Nested"]
+      child = nested_project.make(new: :task, with_properties: { name: "Nested child" })
+
+      expect(direct_project.id_.get).to eq("project-1")
+      expect(nested_project.id_.get).to eq("project-2")
+      expect(transport).to have_received(:create_item).with(
+        kind: :task,
+        properties: { name: "Nested child" },
+        container: nested_project
+      )
+      expect(child.id_.get).to eq("child-2")
+    end
   end
 end

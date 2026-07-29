@@ -306,6 +306,66 @@ RSpec.describe Omnifocus::Service, :full_options do
       tasks = service.tagged_tasks(["NonExistentTag"])
       expect(tasks).to eq([])
     end
+
+    it "deduplicates the same web task returned from multiple tags by scalar id" do
+      task_data = {
+        id_: "task-1",
+        name: "Task 1",
+        completed: false,
+        note: "",
+        containing_project: nil,
+        tags: [],
+        tasks: [],
+        modification_date: Time.current
+      }
+      tag_one = Omnifocus::Web::Client::Reference.new({ id_: "tag-1", name: "TaskBridge", tasks: [task_data] })
+      tag_two = Omnifocus::Web::Client::Reference.new({ id_: "tag-2", name: "Github", tasks: [task_data.dup] })
+      flattened_tags = Omnifocus::Web::Client::Lookup.new([tag_one, tag_two], key: :name)
+
+      allow(mock_omnifocus_app).to receive(:flattened_tags).and_return(flattened_tags)
+
+      tasks = service.tagged_tasks(%w[TaskBridge Github])
+
+      expect(tasks.map { |task| task.id_.get }).to eq(["task-1"])
+    end
+  end
+
+  describe "#project" do
+    let(:web_document) { instance_double("OmnifocusWebDocument") }
+    let(:web_client) { instance_double("OmnifocusWebClient", document: web_document) }
+    let(:service) do
+      described_class.new(
+        options: options.merge(
+          web_account: "test-account",
+          web_password: "test-password",
+          quiet: true
+        )
+      )
+    end
+
+    before do
+      allow(Omnifocus::Web::Client).to receive(:new).and_return(web_client)
+    end
+
+    it "resolves folder-backed web projects through folder project traversal" do
+      folder = Omnifocus::Web::Client::Reference.new(
+        {
+          id_: "folder-1",
+          name: "Operations",
+          projects: [
+            { id_: "project-1", name: "Launch" }
+          ]
+        }
+      )
+      flattened_folders = Omnifocus::Web::Client::Lookup.new([folder], key: :name)
+
+      allow(web_document).to receive(:flattened_folders).and_return(flattened_folders)
+
+      project = service.send(:project, nil, "Operations:Launch")
+
+      expect(project.id_.get).to eq("project-1")
+      expect(project.name.get).to eq("Launch")
+    end
   end
 
   describe "#matching_items_for" do
@@ -557,6 +617,27 @@ RSpec.describe Omnifocus::Service, :full_options do
     it "returns tasks from the inbox" do
       tasks = service.send(:inbox_tasks)
       expect(tasks).to include(mock_inbox_task)
+    end
+
+    it "deduplicates web inbox tasks by scalar id" do
+      task_data = {
+        id_: "task-1",
+        name: "Task 1",
+        completed: false,
+        note: "",
+        containing_project: nil,
+        tags: [],
+        tasks: [],
+        modification_date: Time.current
+      }
+      task_one = Omnifocus::Web::Client::Reference.new(task_data)
+      task_two = Omnifocus::Web::Client::Reference.new(task_data.dup)
+
+      allow(mock_omnifocus_app).to receive(:inbox_tasks).and_return(double(get: [task_one, task_two]))
+
+      tasks = service.send(:inbox_tasks)
+
+      expect(tasks.map { |task| task.id_.get }).to eq(["task-1"])
     end
   end
 

@@ -159,7 +159,7 @@ module Omnifocus
       return [] unless authorized
 
       inbox_tasks = omnifocus_app.inbox_tasks.get.map { |t| all_omnifocus_sub_items(t) }.flatten
-      inbox_tasks.compact.uniq(&:id_)
+      unique_tasks(inbox_tasks.compact)
     end
 
     def tagged_tasks(tags = nil, incomplete_only: false)
@@ -433,11 +433,11 @@ module Omnifocus
     def all_tasks_in_container(container, incomplete_only: false)
       tasks = case container
               when Array
-                container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_) }.flatten
+                unique_tasks(container.flat_map { |subcontainer| subcontainer.tasks.get.flatten.flat_map { |task| all_omnifocus_sub_items(task) } }.compact)
               when nil
                 []
               else
-                container.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
+                unique_tasks(container.tasks.get.flatten.flat_map { |task| all_omnifocus_sub_items(task) }.compact)
       end
       return tasks unless incomplete_only
 
@@ -447,6 +447,10 @@ module Omnifocus
     # adapted from https://github.com/fredoliveira/forecast
     def all_omnifocus_sub_items(task)
       [task] + task.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }
+    end
+
+    def unique_tasks(tasks)
+      tasks.uniq { |task| task.id_.get }
     end
 
     def task_title(task)

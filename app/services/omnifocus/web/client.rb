@@ -40,23 +40,23 @@ module Omnifocus
         end
 
         def inbox_tasks
-          Collection.new(@transport.load_collection(container: "inbox"))
+          Collection.new(@transport.load_collection(container: "inbox"), transport: @transport)
         end
 
         def flattened_tags
-          Lookup.new(@transport.load_lookup(container: "tags"), key: :name)
+          Lookup.new(@transport.load_lookup(container: "tags"), key: :name, transport: @transport)
         end
 
         def flattened_tasks
-          Lookup.new(@transport.load_lookup(container: "tasks"))
+          Lookup.new(@transport.load_lookup(container: "tasks"), transport: @transport)
         end
 
         def flattened_projects
-          Lookup.new(@transport.load_lookup(container: "projects"))
+          Lookup.new(@transport.load_lookup(container: "projects"), transport: @transport)
         end
 
         def flattened_folders
-          Lookup.new(@transport.load_lookup(container: "folders"))
+          Lookup.new(@transport.load_lookup(container: "folders"), transport: @transport)
         end
 
         def make(new:, with_properties:)
@@ -69,9 +69,9 @@ module Omnifocus
       end
 
       class Lookup
-        def initialize(items, key: :name)
+        def initialize(items, key: :name, transport: nil)
           @items_by_key = Array(items).each_with_object({}) do |item, index|
-            reference = item.is_a?(Reference) ? item : Reference.new(item)
+            reference = item.is_a?(Reference) ? item : Reference.new(item, transport:)
             name = reference.name.get
             index[name] = reference if name.present?
             external_id = reference.external_id
@@ -91,8 +91,8 @@ module Omnifocus
       end
 
       class Collection
-        def initialize(items)
-          @items = Array(items).map { |item| item.is_a?(Reference) ? item : Reference.new(item) }
+        def initialize(items, transport: nil)
+          @items = Array(items).map { |item| item.is_a?(Reference) ? item : Reference.new(item, transport:) }
         end
 
         def get
@@ -176,7 +176,15 @@ module Omnifocus
         end
 
         def tasks
-          Collection.new(fetch_value(:tasks))
+          Collection.new(fetch_value(:tasks), transport: @transport)
+        end
+
+        def projects
+          Lookup.new(fetch_value(:projects), transport: @transport)
+        end
+
+        def flattened_projects
+          Lookup.new(flatten_projects(fetch_value(:projects)), transport: @transport)
         end
 
         def tags
@@ -232,6 +240,13 @@ module Omnifocus
         def reference_from(*keys)
           raw = keys.filter_map { |key| @data[key] || @data[key.to_s] || @data[key.to_sym] }.first
           raw.nil? ? Value.new(nil) : Reference.new(raw, transport: @transport)
+        end
+
+        def flatten_projects(projects)
+          Array(projects).flat_map do |project|
+            reference = project.is_a?(Reference) ? project : Reference.new(project, transport: @transport)
+            [reference] + flatten_projects(reference.send(:fetch_value, :projects))
+          end
         end
 
         def fetch_value(name)
