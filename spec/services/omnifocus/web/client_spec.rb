@@ -53,6 +53,22 @@ RSpec.describe Omnifocus::Web::Client do
       )
     end
 
+    it "supports the web.omnifocus.com websocket host" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://web.omnifocus.com/socket" })
+      allow(Addrinfo).to receive(:getaddrinfo).with("web.omnifocus.com", 443, nil, :STREAM).and_return([public_addrinfo])
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task=", rid: "request-id", items: [] }.to_json
+      )
+
+      transport.load_collection(container: "inbox")
+
+      expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
+        have_attributes(to_s: "wss://web.omnifocus.com:443/socket"),
+        protocols: ["v1.omnifocus.omnigroup.com"]
+      )
+    end
+
     it "creates inbox items as tasks targeted at the inbox container" do
       allow(socket).to receive(:receive_json).and_return(
         { op: "session", key: "session-key" }.to_json,

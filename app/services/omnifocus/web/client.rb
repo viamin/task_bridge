@@ -317,8 +317,10 @@ module Omnifocus
       end
 
       class Transport
-        ALLOWED_WEBSOCKET_HOSTS = %w[omnifocus.com omnigroup.com].freeze
-        ALLOWED_WEBSOCKET_HOST_SUFFIXES = %w[.omnifocus.com .omnigroup.com].freeze
+        ALLOWED_WEBSOCKET_HOSTS = {
+          "sync.omnifocus.com" => "sync.omnifocus.com",
+          "web.omnifocus.com" => "web.omnifocus.com"
+        }.freeze
         BLOCKED_WEBSOCKET_NETWORKS = %w[
           0.0.0.0/8
           10.0.0.0/8
@@ -488,7 +490,7 @@ module Omnifocus
           return unless allowed_websocket_host?(normalized_host)
           return unless public_websocket_host?(normalized_host)
 
-          normalized_host
+          ALLOWED_WEBSOCKET_HOSTS[normalized_host]
         end
 
         def allowed_websocket_port?(port)
@@ -496,8 +498,7 @@ module Omnifocus
         end
 
         def allowed_websocket_host?(host)
-          ALLOWED_WEBSOCKET_HOSTS.include?(host) ||
-            ALLOWED_WEBSOCKET_HOST_SUFFIXES.any? { |suffix| host.end_with?(suffix) }
+          ALLOWED_WEBSOCKET_HOSTS.key?(host)
         end
 
         def ip_literal?(host)
