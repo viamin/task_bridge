@@ -10,16 +10,13 @@ module Omnifocus
 
     def initialize(options: nil)
       super
-      ensure_appscript_loaded!
-      warm_omnifocus_applescript!
-      # Assumes you already have OmniFocus installed
-      @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
-      @authorized = true
+      if web_backend_configured?
+        initialize_web_backend!
+      else
+        initialize_local_backend!
+      end
     rescue LoadError, StandardError => e
-      # If OmniFocus app is not available, skip the service
-      puts "OmniFocus initialization failed: #{e.message}" unless self.options[:quiet]
-      @omnifocus_app = nil
-      @authorized = false
+      handle_initialization_failure(e)
     end
 
     def item_class
@@ -78,8 +75,8 @@ module Omnifocus
       debug("external_task: #{external_task}, parent_object: #{parent_object}", options[:debug])
       task_type = :task
       if parent_object.nil?
-        if project(external_task).is_a?(Appscript::Reference)
-          parent_object = project(external_task)
+        if (project_ref = project(external_task))
+          parent_object = project_ref
         else
           parent_object = omnifocus_app
           task_type = :inbox_task
@@ -136,7 +133,7 @@ module Omnifocus
           # update the project via assigned_container property
           updated_project = project(nil, external_task.project)
           debug("updated_project: #{updated_project}", options[:debug])
-          task_to_update = if omnifocus_task.is_a?(Appscript::Reference)
+          task_to_update = if omnifocus_task.respond_to?(:assigned_container)
             omnifocus_task
           else
             omnifocus_task.original_task
@@ -186,11 +183,45 @@ module Omnifocus
 
     private
 
+    def initialize_local_backend!
+      ensure_appscript_loaded!
+      warm_omnifocus_applescript!
+      # Assumes you already have OmniFocus installed
+      @omnifocus_app = Appscript.app.by_name(friendly_name).default_document
+      @authorized = true
+    end
+
+    def initialize_web_backend!
+      @omnifocus_app = Omnifocus::Web::Client.new(credentials: web_backend_config, options:).document
+      @authorized = true
+    end
+
+    def handle_initialization_failure(error)
+      # If OmniFocus app is not available, skip the service
+      puts "OmniFocus initialization failed: #{error.message}" unless options[:quiet]
+      @omnifocus_app = nil
+      @authorized = false
+    end
+
+    def web_backend_configured?
+      web_backend_config[:account].present? && web_backend_config[:password].present?
+    end
+
+    def web_backend_config
+      @web_backend_config ||= {
+        account: options[:omnifocus_web_account] || options[:web_account],
+        password: options[:omnifocus_web_password] || options[:web_password],
+        server_label: options[:omnifocus_web_server_label] || options[:web_server_label],
+        locale: options[:omnifocus_web_locale] || options[:web_locale]
+      }.compact
+    end
+
     def min_sync_interval
       15.minutes.to_i
     end
 
     def warm_omnifocus_applescript!
+      return if web_backend_configured?
       return if Rails.env.test?
 
       Timeout.timeout(5) do
@@ -229,7 +260,12 @@ module Omnifocus
     end
 
     def task_by_id(external_id)
-      task = omnifocus_app.flattened_tasks.ID(external_id)
+      flattened_tasks = omnifocus_app.flattened_tasks
+      task = if flattened_tasks.respond_to?(:find_by_id)
+        flattened_tasks.find_by_id(external_id)
+      else
+        flattened_tasks.ID(external_id)
+      end
       task.get
     rescue StandardError
       nil
@@ -308,17 +344,9 @@ module Omnifocus
 
     def task_projects_match(task, external_task)
       debug("task: #{task}, external_task: #{external_task}", options[:debug])
-      project_name = if task.is_a?(Appscript::Reference)
-        task.containing_project.get.name.get
-      else
-        task.project
-      end
+      project_name = task_project_name(task)
       project_name = project_name.split(":").last if project_name.split(":").length > 1
-      external_project_name = if external_task.is_a?(Appscript::Reference)
-        external_task.containing_project.get.name.get
-      else
-        external_task.project
-      end
+      external_project_name = task_project_name(external_task)
       external_project_name = external_project_name.split(":").last if external_project_name.split(":").length > 1
       debug("project_name: #{project_name}, external_project_name: #{external_project_name}", options[:debug])
       project_name.strip == external_project_name.strip
@@ -326,11 +354,7 @@ module Omnifocus
 
     def friendly_titles_match?(task, external_task)
       debug("task: #{task}, external_task: #{external_task}", options[:debug])
-      if task.is_a?(Appscript::Reference)
-        task.name.get.downcase.strip == external_task.title.downcase.strip
-      else
-        task.title.downcase.strip == external_task.title.downcase.strip
-      end
+      task_title(task).downcase.strip == external_task.title.downcase.strip
     end
 
     # Checks if a tag is already on a task, and if not adds it
@@ -410,7 +434,9 @@ module Omnifocus
       tasks = case container
               when Array
                 container.map { |subcontainer| subcontainer.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_) }.flatten
-              when Appscript::Reference
+              when nil
+                []
+              else
                 container.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }.flatten.compact.uniq(&:id_)
       end
       return tasks unless incomplete_only
@@ -421,6 +447,21 @@ module Omnifocus
     # adapted from https://github.com/fredoliveira/forecast
     def all_omnifocus_sub_items(task)
       [task] + task.tasks.get.flatten.map { |t| all_omnifocus_sub_items(t) }
+    end
+
+    def task_title(task)
+      return task.name.get if task.respond_to?(:name) && task.name.respond_to?(:get)
+
+      task.title
+    end
+
+    def task_project_name(task)
+      if task.respond_to?(:containing_project) && task.containing_project.respond_to?(:get)
+        containing_project = task.containing_project.get
+        return containing_project.name.get if containing_project.respond_to?(:name) && containing_project.name.respond_to?(:get)
+      end
+
+      task.respond_to?(:project) ? task.project.to_s : ""
     end
   end
 end

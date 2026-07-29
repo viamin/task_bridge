@@ -45,6 +45,28 @@ RSpec.describe Omnifocus::Service, :full_options do
         expect(service.omnifocus_app).to be_nil
       end
     end
+
+    context "when OmniFocus for the Web is configured" do
+      let(:web_document) { instance_double("OmnifocusWebDocument") }
+      let(:web_client) { instance_double("OmnifocusWebClient", document: web_document) }
+
+      before do
+        allow(Omnifocus::Web::Client).to receive(:new).and_return(web_client)
+      end
+
+      it "uses the web document instead of Appscript" do
+        service = described_class.new(
+          options: options.merge(
+            web_account: "test-account",
+            web_password: "test-password",
+            quiet: true
+          )
+        )
+
+        expect(service.authorized).to be true
+        expect(service.omnifocus_app).to eq(web_document)
+      end
+    end
   end
 
   describe "#friendly_name" do
@@ -151,6 +173,54 @@ RSpec.describe Omnifocus::Service, :full_options do
         expect(tasks.first.external_id).to eq("task-1")
         expect(tasks.first.title).to eq("Task 1")
         expect(tasks.first.github_id).to eq("gh-1")
+      end
+    end
+
+    context "when initialized against OmniFocus for the Web" do
+      let(:service) do
+        described_class.new(
+          options: options.merge(
+            web_account: "test-account",
+            web_password: "test-password"
+          )
+        )
+      end
+      let(:web_document) { instance_double("OmnifocusWebDocument") }
+      let(:flattened_tags) { double("FlattenedTags") }
+      let(:tag_ref) { instance_double("OmnifocusWebTagRef") }
+      let(:tag_tasks) do
+        double(
+          "OmnifocusWebTagTasks",
+          id_: double(get: ["task-1"]),
+          name: double(get: ["Task 1"]),
+          completed: double(get: [false]),
+          modification_date: double(get: [Time.current])
+        )
+      end
+      let(:inbox_tasks) do
+        double(
+          "OmnifocusWebInboxTasks",
+          id_: double(get: []),
+          name: double(get: []),
+          completed: double(get: []),
+          modification_date: double(get: [])
+        )
+      end
+
+      before do
+        allow(Omnifocus::Web::Client).to receive(:new).and_return(instance_double("OmnifocusWebClient", document: web_document))
+        allow(web_document).to receive(:flattened_tags).and_return(flattened_tags)
+        allow(flattened_tags).to receive(:[]).with("TaskBridge").and_return(tag_ref)
+        allow(tag_ref).to receive(:get).and_return(true)
+        allow(tag_ref).to receive(:tasks).and_return(tag_tasks)
+        allow(web_document).to receive(:inbox_tasks).and_return(inbox_tasks)
+      end
+
+      it "hydrates tasks from the web backend collections" do
+        tasks = service.items_to_sync(tags: ["TaskBridge"], inbox: false)
+
+        expect(tasks.length).to eq(1)
+        expect(tasks.first.title).to eq("Task 1")
       end
     end
 

@@ -1,0 +1,407 @@
+# frozen_string_literal: true
+
+require "cgi"
+require "json"
+require "net/http"
+require "openssl"
+require "securerandom"
+require "socket"
+require "uri"
+
+module Omnifocus
+  module Web
+    class Client
+      class AuthenticationError < StandardError; end
+      class ConnectionError < StandardError; end
+
+      attr_reader :account, :password, :server_label, :locale
+
+      def initialize(credentials:, options: nil, transport: nil)
+        @account = credentials.fetch(:account)
+        @password = credentials.fetch(:password)
+        @server_label = credentials[:server_label]
+        @locale = credentials[:locale]
+        @options = options || {}
+        @transport = transport || Transport.new(
+          account:,
+          password:,
+          server_label:,
+          locale:
+        )
+      end
+
+      def document
+        @document ||= Document.new(transport: @transport)
+      end
+
+      class Document
+        def initialize(transport:)
+          @transport = transport
+        end
+
+        def inbox_tasks
+          Collection.new(@transport.load_collection(container: "inbox"))
+        end
+
+        def flattened_tags
+          Lookup.new(@transport.load_lookup(container: "tags"), key: :name)
+        end
+
+        def flattened_tasks
+          Lookup.new(@transport.load_lookup(container: "tasks"))
+        end
+
+        def flattened_projects
+          Lookup.new(@transport.load_lookup(container: "projects"))
+        end
+
+        def flattened_folders
+          Lookup.new(@transport.load_lookup(container: "folders"))
+        end
+
+        def make(new:, with_properties:)
+          Reference.new(@transport.create_item(kind: new, properties: with_properties), transport: @transport)
+        end
+
+        def add(tag, to:)
+          @transport.add_tag(tag:, to:)
+        end
+      end
+
+      class Lookup
+        def initialize(items, key: :name)
+          @items_by_key = Array(items).each_with_object({}) do |item, index|
+            reference = item.is_a?(Reference) ? item : Reference.new(item)
+            name = reference.name.get
+            index[name] = reference if name.present?
+            external_id = reference.external_id
+            index[external_id] = reference if external_id.present?
+            key_value = reference.public_send(key).get if reference.respond_to?(key)
+            index[key_value] = reference if key_value.present?
+          end
+        end
+
+        def [](value)
+          @items_by_key[value]
+        end
+
+        def find_by_id(value)
+          @items_by_key[value]
+        end
+      end
+
+      class Collection
+        def initialize(items)
+          @items = Array(items).map { |item| item.is_a?(Reference) ? item : Reference.new(item) }
+        end
+
+        def get
+          @items
+        end
+
+        def id_
+          field_values(:id_)
+        end
+
+        def name
+          field_values(:name)
+        end
+
+        def completed
+          field_values(:completed)
+        end
+
+        def modification_date
+          field_values(:modification_date)
+        end
+
+        def tasks
+          field_values(:tasks)
+        end
+
+        def method_missing(name, *args, &block)
+          return super if args.any? || block
+
+          field_values(name)
+        end
+
+        def respond_to_missing?(_name, _include_private = false)
+          true
+        end
+
+        private
+
+        def field_values(name)
+          Value.new(@items.filter_map { |item| item.public_send(name).get if item.respond_to?(name) })
+        end
+      end
+
+      class Reference
+        attr_reader :data
+
+        def initialize(data, transport: nil)
+          @data = data || {}
+          @transport = transport
+        end
+
+        def get
+          self
+        end
+
+        def id_
+          Value.new(fetch_value(:id_))
+        end
+
+        def name
+          Value.new(fetch_value(:name))
+        end
+
+        def completed
+          Value.new(fetch_value(:completed))
+        end
+
+        def note
+          Value.new(fetch_value(:note))
+        end
+
+        def modification_date
+          Value.new(fetch_value(:modification_date))
+        end
+
+        def tasks
+          Collection.new(fetch_value(:tasks))
+        end
+
+        def tags
+          TagCollection.new(fetch_value(:tags), reference: self, transport: @transport)
+        end
+
+        def containing_project
+          reference_from(:containing_project, :project)
+        end
+
+        def container
+          reference_from(:container)
+        end
+
+        def assigned_container
+          AssignedContainer.new(@transport, self)
+        end
+
+        def properties_
+          Value.new(@data)
+        end
+
+        def mark_complete
+          @transport&.complete_item(external_id)
+        end
+
+        def external_id
+          fetch_value(:id_).to_s
+        end
+
+        def friendly_title
+          name.get.to_s.strip
+        end
+
+        def method_missing(name, *args, &block)
+          return super if args.any? || block
+
+          return Value.new(fetch_value(name)) if @data.key?(name) || @data.key?(name.to_s) || @data.key?(name.to_sym)
+
+          super
+        end
+
+        def respond_to_missing?(name, _include_private = false)
+          @data.key?(name) || @data.key?(name.to_s) || @data.key?(name.to_sym) || super
+        end
+
+        private
+
+        def reference_from(*keys)
+          raw = keys.filter_map { |key| @data[key] || @data[key.to_s] || @data[key.to_sym] }.first
+          raw.nil? ? Value.new(nil) : Reference.new(raw, transport: @transport)
+        end
+
+        def fetch_value(name)
+          @data[name] || @data[name.to_s] || @data[name.to_sym]
+        end
+      end
+
+      class AssignedContainer
+        def initialize(transport, reference)
+          @transport = transport
+          @reference = reference
+        end
+
+        def set(value)
+          @transport&.move_task(reference: @reference, destination: value)
+        end
+      end
+
+      class TagCollection < Collection
+        attr_reader :reference
+
+        def initialize(items, reference:, transport:)
+          @reference = reference
+          @transport = transport
+          super(items)
+        end
+      end
+
+      class Value
+        def initialize(value)
+          @value = value
+        end
+
+        def get
+          @value
+        end
+      end
+
+      class Transport
+        attr_reader :account, :password, :server_label, :locale
+
+        def initialize(account:, password:, server_label: nil, locale: nil)
+          @account = account
+          @password = password
+          @server_label = server_label
+          @locale = locale
+          @response_cache = {}
+          @ws_url = nil
+        end
+
+        def load_collection(container:)
+          fetch_collection(container:)
+        end
+
+        def load_lookup(container:)
+          fetch_collection(container:)
+        end
+
+        def create_item(kind:, properties:)
+          request("add", payload: { op: kind.to_s, **properties })
+        end
+
+        def add_tag(tag:, to:)
+          request("edit", payload: { oid: external_id_for(to), tags: [external_id_for(tag)] })
+        end
+
+        def complete_item(external_id)
+          request("complete", payload: { ids: [external_id], done: true })
+        end
+
+        def move_task(reference:, destination:)
+          request("move", payload: { ids: [external_id_for(reference)], in: external_id_for(destination), rel: "task" })
+        end
+
+        private
+
+        def fetch_collection(container:)
+          response = request("watch", payload: { in: container, view: "all" })
+          Array(response["items"] || response["data"] || response["results"])
+        end
+
+        def request(operation, payload:)
+          socket = websocket
+          socket.send_json({ op: operation, rid: SecureRandom.uuid, **payload })
+          parse_response(socket.receive_json)
+        end
+
+        def websocket
+          @websocket ||= SocketConnection.new(ws_url)
+        end
+
+        def ws_url
+          @ws_url ||= resolve_instance.fetch("ws_url")
+        end
+
+        def resolve_instance
+          @response_cache[:instance] ||= begin
+            uri = URI("https://accounts.omnigroup.com/api/1.1/get-instance")
+            uri.query = URI.encode_www_form(account:, serverLabel: server_label, locale:)
+            response = Net::HTTP.get_response(uri)
+            parsed = JSON.parse(response.body)
+            raise AuthenticationError, parsed["error"] || parsed["message"] if parsed["ws_url"].blank?
+
+            parsed
+          end
+        end
+
+        def external_id_for(reference)
+          return reference.reference.external_id if reference.respond_to?(:reference) && reference.reference.respond_to?(:external_id)
+          return reference.external_id if reference.respond_to?(:external_id)
+          return reference.get.external_id if reference.respond_to?(:get) && reference.get.respond_to?(:external_id)
+
+          reference.to_s
+        end
+
+        def parse_response(response)
+          return {} if response.blank?
+
+          JSON.parse(response)
+        rescue JSON::ParserError
+          {}
+        end
+      end
+
+      class SocketConnection
+        def initialize(url)
+          @uri = URI.parse(url)
+          @handshake = WebSocket::Handshake::Client.new(url: @uri.to_s)
+          @socket = connect_socket
+          @socket.write(@handshake.to_s)
+          finish_handshake!
+          @incoming = WebSocket::Frame::Incoming::Client.new(version: @handshake.version)
+        end
+
+        def send_json(payload)
+          frame = WebSocket::Frame::Outgoing::Client.new(version: @handshake.version, data: payload.to_json, type: :text)
+          @socket.write(frame.to_s)
+        end
+
+        def receive_json
+          loop do
+            buffer = @socket.readpartial(4096)
+            @incoming << buffer
+            if (message = @incoming.next)
+              return message.to_s
+            end
+          end
+        end
+
+        private
+
+        def connect_socket
+          tcp_socket = TCPSocket.new(@uri.host, @uri.port || default_port)
+          return tcp_socket if @uri.scheme == "ws"
+
+          ssl_socket = OpenSSL::SSL::SSLSocket.new(tcp_socket, ssl_context)
+          ssl_socket.sync_close = true
+          ssl_socket.hostname = @uri.host if ssl_socket.respond_to?(:hostname=)
+          ssl_socket.connect
+          ssl_socket
+        end
+
+        def finish_handshake!
+          loop do
+            break if @handshake.finished?
+
+            @handshake << @socket.readpartial(4096)
+          end
+          raise AuthenticationError, "WebSocket handshake failed" unless @handshake.valid?
+        end
+
+        def default_port
+          @uri.scheme == "ws" ? 80 : 443
+        end
+
+        def ssl_context
+          @ssl_context ||= OpenSSL::SSL::SSLContext.new.tap do |context|
+            context.verify_mode = OpenSSL::SSL::VERIFY_PEER
+          end
+        end
+      end
+    end
+  end
+end

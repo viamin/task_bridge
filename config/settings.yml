@@ -18,6 +18,10 @@ default: &default
     work_tags: []
     log_file: log/service_sync.log
     primary_service: Omnifocus
+    omnifocus_web_account: ~
+    omnifocus_web_locale: ~
+    omnifocus_web_password: ~
+    omnifocus_web_server_label: ~
     provider_services:
       - Github
       - Instapaper

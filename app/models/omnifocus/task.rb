@@ -148,7 +148,7 @@ module Omnifocus
       search_tasks = if include_inbox
         (service.inbox_tasks + service.tagged_tasks(tags))
       else
-        service.omnifocus_app.flattened_tags[*options[:tags]].tasks.get
+        service.tagged_tasks(tags)
       end
       search_tasks.find { |task| task.id_.get == external_id }
     end
