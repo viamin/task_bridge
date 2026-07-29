@@ -79,6 +79,27 @@ RSpec.describe Omnifocus::Web::Client do
       )
     end
 
+    it "canonicalizes allowlisted websocket hosts before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://Web.OmniFocus.Com:443/socket" })
+      allow(Addrinfo).to receive(:getaddrinfo).with("web.omnifocus.com", 443, nil, :STREAM).and_return([public_addrinfo])
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task=", rid: "request-id", items: [] }.to_json
+      )
+
+      transport.load_collection(container: "inbox")
+
+      expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
+        have_attributes(
+          host: "web.omnifocus.com",
+          port: 443,
+          path: "/socket",
+          uri: have_attributes(to_s: "wss://web.omnifocus.com:443/socket")
+        ),
+        protocols: ["v1.omnifocus.omnigroup.com"]
+      )
+    end
+
     it "accepts the default TLS port when it is explicit in the websocket URL" do
       allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com:443/socket" })
       allow(socket).to receive(:receive_json).and_return(

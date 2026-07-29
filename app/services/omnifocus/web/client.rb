@@ -317,17 +317,15 @@ module Omnifocus
       end
 
       class Transport
-        ALLOWED_WEBSOCKET_ENDPOINTS = {
-          "sync.omnifocus.com" => {
-            host: "sync.omnifocus.com",
-            port: 443,
-            path: "/socket"
-          },
-          "web.omnifocus.com" => {
-            host: "web.omnifocus.com",
-            port: 443,
-            path: "/socket"
-          }
+        SYNC_WEBSOCKET_ENDPOINT = {
+          host: "sync.omnifocus.com",
+          port: 443,
+          path: "/socket"
+        }.freeze
+        WEB_WEBSOCKET_ENDPOINT = {
+          host: "web.omnifocus.com",
+          port: 443,
+          path: "/socket"
         }.freeze
         BLOCKED_WEBSOCKET_NETWORKS = %w[
           0.0.0.0/8
@@ -487,14 +485,17 @@ module Omnifocus
         end
 
         def allowed_websocket_endpoint(uri)
-          normalized_host = normalized_websocket_host(uri.host)
-          endpoint = ALLOWED_WEBSOCKET_ENDPOINTS[normalized_host]
+          endpoint =
+            case normalized_websocket_host(uri.host)
+            when SYNC_WEBSOCKET_ENDPOINT.fetch(:host)
+              SYNC_WEBSOCKET_ENDPOINT
+            when WEB_WEBSOCKET_ENDPOINT.fetch(:host)
+              WEB_WEBSOCKET_ENDPOINT
+            end
           return if endpoint.nil?
 
-          normalized_port = normalized_websocket_port(uri.port)
-          normalized_path = normalized_websocket_path(uri.path)
-          return if normalized_port != endpoint.fetch(:port)
-          return if normalized_path != endpoint.fetch(:path)
+          return if normalized_websocket_port(uri.port) != endpoint.fetch(:port)
+          return if normalized_websocket_path(uri.path) != endpoint.fetch(:path)
 
           endpoint
         end
