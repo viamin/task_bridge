@@ -185,8 +185,9 @@ RSpec.describe Asana::Service, :full_options do
     end
 
     it "memoizes the project list lookup" do
+      allow(service).to receive(:workspace_gids).and_return(["workspace-gid"])
       allow(HTTParty).to receive(:get).with(
-        "https://app.asana.com/api/1.0/projects",
+        "https://app.asana.com/api/1.0/workspaces/workspace-gid/projects",
         hash_including(query: { archived: false })
       ).and_return(projects_response)
 
