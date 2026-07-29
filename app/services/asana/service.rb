@@ -131,10 +131,10 @@ module Asana
         project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.external_id}/addProject", authenticated_options.merge(request_body))
         return failure_message("update Asana task ##{asana_task.external_id}", project_response) unless project_response.success?
 
-        section_gid = section_identifier_for(external_task)
+        section_gid = section_or_default_identifier_for(external_task)
         section_move_error = move_task_to_section(section_gid, asana_task.external_id) if section_gid.present?
-      elsif !matched_by_title && external_task.respond_to?(:tags) && external_task.tags.present?
-        section_gid = section_identifier_for(external_task)
+      elsif !matched_by_title && external_task.respond_to?(:tags)
+        section_gid = section_or_default_identifier_for(external_task)
         section_move_error = move_task_to_section(section_gid, asana_task.external_id) if section_gid.present?
       end
       handle_sub_items(asana_task, external_task)
@@ -285,6 +285,13 @@ module Asana
       matching_section_gid_for(external_task, project_gid)
     end
 
+    def section_or_default_identifier_for(external_task)
+      project_gid = project_gid_from_name(project_name_for(external_task.project))
+      return if project_gid.blank?
+
+      matching_section_gid_for(external_task, project_gid) || default_section_gid_for(project_gid)
+    end
+
     def matched_by_title?(external_task, asana_task)
       current_sync_id = external_task.try(:"#{service_identifier_for(service_name)}_id")
       current_sync_id.blank? || current_sync_id != asana_task.external_id
@@ -327,6 +334,10 @@ module Asana
     def section_hashes_for(project_gid)
       @section_hashes_by_project_gid ||= {}
       @section_hashes_by_project_gid[project_gid] ||= list_project_sections(project_gid, merge_project_gids: true)
+    end
+
+    def default_section_gid_for(project_gid)
+      section_hashes_for(project_gid).find { |section| section["name"] == "Untitled section" }&.dig("gid")
     end
 
     def project_name_for(project_string)

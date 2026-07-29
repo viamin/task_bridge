@@ -176,7 +176,7 @@ RSpec.describe Asana::Service, :full_options do
                                                                                           project: new_project_gid,
                                                                                           section: new_section_gid
                                                                                         })
-        allow(service).to receive(:section_identifier_for).with(external_task).and_return(new_section_gid)
+        allow(service).to receive(:section_or_default_identifier_for).with(external_task).and_return(new_section_gid)
       end
 
       it "adds the task to the new project via API" do
@@ -285,6 +285,22 @@ RSpec.describe Asana::Service, :full_options do
         expect(service).not_to receive(:move_task_to_section)
 
         service.update_item(asana_task, external_task)
+      end
+
+      context "when the synced task no longer has a matching section tag" do
+        let(:untitled_section_gid) { "section-gid-untitled" }
+
+        before do
+          allow(external_task).to receive(:respond_to?) { |method| %i[sub_item_count tags].include?(method) }
+          allow(external_task).to receive(:tags).and_return([])
+          allow(service).to receive(:section_or_default_identifier_for).with(external_task).and_return(untitled_section_gid)
+        end
+
+        it "moves the task back to the untitled section" do
+          expect(service).to receive(:move_task_to_section).with(untitled_section_gid, asana_task.external_id)
+
+          service.update_item(asana_task, external_task)
+        end
       end
     end
 
