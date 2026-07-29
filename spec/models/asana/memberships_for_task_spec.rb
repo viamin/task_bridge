@@ -166,6 +166,43 @@ RSpec.describe Asana::Service, :full_options do
     end
   end
 
+  describe "#section_change_requested?" do
+    let(:pets_project_gid) { "1203152506994879" }
+    let(:bucky_section_gid) { "1203152506994884" }
+    let(:projects_list) do
+      [
+        { "gid" => pets_project_gid, "name" => "Pets" }
+      ]
+    end
+    let(:pets_sections_list) do
+      [
+        { "gid" => bucky_section_gid, "name" => "Bucky", "project_gid" => pets_project_gid }
+      ]
+    end
+    let(:asana_task) { double("AsanaTask", section: "Bucky") }
+
+    before do
+      allow(service).to receive(:list_projects).and_return(projects_list)
+      allow(service).to receive(:list_project_sections)
+        .with(pets_project_gid, merge_project_gids: true)
+        .and_return(pets_sections_list)
+    end
+
+    it "returns false for unrelated tags that do not map to an Asana section" do
+      external_task = double("ExternalTask", project: "Pets", tags: ["urgent"])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, asana_task, external_task)).to be(false)
+    end
+
+    it "returns true when tags are explicitly empty and the task has a section" do
+      external_task = double("ExternalTask", project: "Pets", tags: [])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, asana_task, external_task)).to be(true)
+    end
+  end
+
   describe "#project_gid_from_name" do
     let(:pets_project_gid) { "1203152506994879" }
     let(:project_name) { "Pets" }

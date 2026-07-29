@@ -320,15 +320,7 @@ module Asana
     end
 
     def matching_section_gid_for(external_task, project_gid)
-      return if project_gid.blank?
-
-      section_hashes = section_hashes_for(project_gid)
-      section_name = Array(external_task.tags).find do |tag_name|
-        section_hashes.any? { |section| section["name"] == tag_name }
-      end
-      return if section_name.blank?
-
-      section_hashes.find { |section| section["name"] == section_name }&.dig("gid")
+      matching_section_hash_for(external_task, project_gid)&.dig("gid")
     end
 
     def section_hashes_for(project_gid)
@@ -347,11 +339,16 @@ module Asana
     def section_change_requested?(asana_task, external_task)
       return false if external_task.project.blank?
 
-      section_tags = external_task.respond_to?(:tags) ? Array(external_task.tags) : []
-      return false if asana_task.section.blank? && section_tags.blank?
-      return false if section_tags.include?(asana_task.section)
+      return false unless external_task.respond_to?(:tags)
 
-      true
+      section_tags = Array(external_task.tags)
+      return asana_task.section.present? if section_tags.empty?
+
+      project_gid = project_gid_from_name(project_name_for(external_task.project))
+      matching_section = matching_section_hash_for(external_task, project_gid)
+      return false if matching_section.blank?
+
+      matching_section["name"] != asana_task.section
     end
 
     def membership_for(asana_task)
@@ -363,6 +360,14 @@ module Asana
         asana_task.asana_task["projects"]&.first&.dig("gid") ||
         project_gid_from_name(project_name_for(asana_task.project))
       memberships.find { |membership| membership.dig("project", "gid") == project_gid } || memberships.first
+    end
+
+    def matching_section_hash_for(external_task, project_gid)
+      return if project_gid.blank?
+
+      section_hashes_for(project_gid).find do |section|
+        Array(external_task.tags).include?(section["name"])
+      end
     end
 
     def project_name_for(project_string)

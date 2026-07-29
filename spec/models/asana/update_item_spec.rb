@@ -25,6 +25,14 @@ RSpec.describe Asana::Service, :full_options do
   describe "#update_item adding sync IDs on title match" do
     let(:asana_task_json) { JSON.parse(File.read(File.expand_path(File.join(__dir__, "..", "..", "fixtures", "asana_task.json")))) }
     let(:asana_task) { Asana::Task.new(asana_task: asana_task_json, options: options).tap(&:read_original) }
+    let(:pets_project_gid) { "1203152506994879" }
+    let(:bucky_section_gid) { "1203152506994884" }
+    let(:pets_sections_list) do
+      [
+        { "gid" => "1203152506994880", "name" => "Untitled section", "project_gid" => pets_project_gid },
+        { "gid" => bucky_section_gid, "name" => "Bucky", "project_gid" => pets_project_gid }
+      ]
+    end
     # Use the same project as the fixture to avoid triggering memberships_for_task API calls
     let(:external_task_project) { "Pets:Bucky" }
     let(:external_task) do
@@ -47,6 +55,10 @@ RSpec.describe Asana::Service, :full_options do
     before do
       allow(HTTParty).to receive(:put).and_return(httparty_success_mock)
       allow(external_task).to receive(:respond_to?) { |method| %i[sub_item_count tags].include?(method) }
+      allow(service).to receive(:list_projects).and_return([{ "gid" => pets_project_gid, "name" => "Pets" }])
+      allow(service).to receive(:list_project_sections)
+        .with(pets_project_gid, merge_project_gids: true)
+        .and_return(pets_sections_list)
     end
 
     context "when the item was matched by title (external task has no sync ID)" do
@@ -149,9 +161,21 @@ RSpec.describe Asana::Service, :full_options do
     end
     let(:new_section_gid) { "section-gid-456" }
     let(:new_project_gid) { "project-gid-789" }
+    let(:pets_project_gid) { "1203152506994879" }
+    let(:bucky_section_gid) { "1203152506994884" }
+    let(:pets_sections_list) do
+      [
+        { "gid" => "1203152506994880", "name" => "Untitled section", "project_gid" => pets_project_gid },
+        { "gid" => bucky_section_gid, "name" => "Bucky", "project_gid" => pets_project_gid }
+      ]
+    end
 
     before do
       allow(HTTParty).to receive(:put).and_return(httparty_success_mock)
+      allow(service).to receive(:list_projects).and_return([{ "gid" => pets_project_gid, "name" => "Pets" }])
+      allow(service).to receive(:list_project_sections)
+        .with(pets_project_gid, merge_project_gids: true)
+        .and_return(pets_sections_list)
     end
 
     context "when external task has a different project than asana task" do
@@ -340,6 +364,18 @@ RSpec.describe Asana::Service, :full_options do
 
         it "moves the task back to the untitled section" do
           expect(service).to receive(:move_task_to_section).with(untitled_section_gid, asana_task.external_id)
+
+          service.update_item(asana_task, external_task)
+        end
+      end
+
+      context "when the synced task only has unrelated tags" do
+        before do
+          allow(external_task).to receive(:tags).and_return(["urgent"])
+        end
+
+        it "does not move the task back to the untitled section" do
+          expect(service).not_to receive(:move_task_to_section)
 
           service.update_item(asana_task, external_task)
         end
