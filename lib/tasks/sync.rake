@@ -68,9 +68,7 @@ namespace :task_bridge do
     raise "Unknown primary service: #{options[:primary]}" unless primary_service_reference
 
     @primary_service = if primary_service_reference.is_a?(Class)
-      primary_service_reference.new.tap do |service|
-        service.options = Base::Service.build_options(options, options[:primary]) if service.respond_to?(:options=)
-      end
+      primary_service_reference.new(options: Base::Service.build_options(options, options[:primary]))
     else
       primary_service_reference
     end
@@ -79,8 +77,7 @@ namespace :task_bridge do
       service_class = Base::Service.resolve_service_class(service_name)
       raise "Unknown service: #{service_name}" unless service_class
 
-      service = service_class.new
-      service.options = Base::Service.build_options(options, service_name) if service.respond_to?(:options=)
+      service = service_class.new(options: Base::Service.build_options(options, service_name))
       [service_name, service]
     end
     start_time = Time.current

@@ -72,6 +72,65 @@ RSpec.describe "task_bridge:sync task" do
     expect(history_logger).to have_received(:print_logs)
   end
 
+  it "passes normalized service options into service constructors" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_constructor_calls = []
+    secondary_constructor_calls = []
+
+    primary_service = instance_double(
+      "Asana::Service",
+      service_name: "Asana:work",
+      authorized: false
+    )
+    secondary_service = instance_double(
+      "Asana::Service",
+      service_name: "Asana:personal",
+      authorized: false
+    )
+    primary_namespace = Module.new
+    primary_service_class = Class.new
+    secondary_namespace = Module.new
+    secondary_service_class = Class.new
+
+    primary_service_class.define_singleton_method(:new) do |*args, **kwargs|
+      primary_constructor_calls << { args:, kwargs: }
+      primary_service
+    end
+    secondary_service_class.define_singleton_method(:new) do |*args, **kwargs|
+      secondary_constructor_calls << { args:, kwargs: }
+      secondary_service
+    end
+
+    stub_const("Primary", primary_namespace)
+    stub_const("Primary::Service", primary_service_class)
+    stub_const("Asana", secondary_namespace)
+    stub_const("Asana::Service", secondary_service_class)
+
+    stub_sync_defaults(services: ["Asana:personal"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Asana])
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task("--primary", "Primary:work") }.not_to raise_error
+    end
+
+    expect(primary_constructor_calls).to include(
+      hash_including(
+        kwargs: hash_including(
+          options: hash_including(service_name: "Primary:work", instance_name: "work")
+        )
+      )
+    )
+    expect(secondary_constructor_calls).to include(
+      hash_including(
+        kwargs: hash_including(
+          options: hash_including(service_name: "Asana:personal", instance_name: "personal")
+        )
+      )
+    )
+  end
+
   it "rejects mutually exclusive direction flags" do
     stub_sync_defaults(services: ["Passing"])
     allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
@@ -743,9 +802,9 @@ RSpec.describe "task_bridge:sync task" do
   def stub_service(name, instance)
     namespace = Module.new
     service_class = Class.new
+    service_class.define_singleton_method(:new) { |_args = nil, **_kwargs| instance }
     stub_const(name, namespace)
     stub_const("#{name}::Service", service_class)
-    allow(service_class).to receive(:new).and_return(instance)
   end
 
   def invoke_task(*args)
