@@ -306,6 +306,29 @@ RSpec.describe Asana::Service, :full_options do
         end
       end
 
+      context "when the fetched task only includes the requested section fields" do
+        let(:current_section_gid) { "1203152506994884" }
+        let(:asana_task_json) do
+          JSON.parse(File.read(File.expand_path(File.join(__dir__, "..", "..", "fixtures", "asana_task.json")))).deep_dup.tap do |task|
+            task["memberships"].first["section"] = {
+              "gid" => current_section_gid,
+              "name" => "Bucky"
+            }
+          end
+        end
+
+        before do
+          allow(external_task).to receive(:tags).and_return(["Bucky"])
+          allow(service).to receive(:section_or_default_identifier_for).with(external_task).and_return(current_section_gid)
+        end
+
+        it "does not move the task again" do
+          expect(service).not_to receive(:move_task_to_section)
+
+          service.update_item(asana_task, external_task)
+        end
+      end
+
       context "when the synced task no longer has a matching section tag" do
         let(:untitled_section_gid) { "section-gid-untitled" }
 

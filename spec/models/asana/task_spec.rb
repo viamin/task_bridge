@@ -252,7 +252,8 @@ RSpec.describe "Asana::Task" do
         "completed_at",
         "modified_at",
         "num_subtasks",
-        "memberships.project.gid"
+        "memberships.project.gid",
+        "memberships.section.gid"
       )
     end
   end

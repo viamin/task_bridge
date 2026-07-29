@@ -134,6 +134,7 @@ module Asana
           start_at: false,
           num_subtasks: true,
           "memberships.project.gid": true,
+          "memberships.section.gid": true,
           "memberships.section.name": true,
           "memberships.project.name": true,
           subtasks_name: false,
