@@ -172,13 +172,19 @@ module Asana
     # By default, this will list only active (unarchived) projects. Passing archived: true
     # will return only archived projects.
     def list_projects(archived: false)
+      workspace_gids.each_with_object([]) do |workspace_gid, projects|
+        projects.concat(list_workspace_projects(workspace_gid, archived:))
+      end
+    end
+    memo_wise :list_projects
+
+    def list_workspace_projects(workspace_gid, archived: false)
       query = { query: { archived: } }
-      response = HTTParty.get("#{base_url}/projects", authenticated_options.merge(query))
+      response = HTTParty.get("#{base_url}/workspaces/#{workspace_gid}/projects", authenticated_options.merge(query))
       raise "Error loading Asana projects - check personal access token" unless response.success?
 
       JSON.parse(response.body)["data"]
     end
-    memo_wise :list_projects
 
     def project_gids
       @project_gids ||= list_projects.map { |project| project["gid"] }
@@ -320,9 +326,12 @@ module Asana
     end
 
     def workspace_gids
-      workspaces = asana_user["workspaces"]
-      workspaces.map { |workspace| workspace["gid"] }
+      response = HTTParty.get("#{base_url}/workspaces", authenticated_options)
+      raise "Error loading Asana workspaces - check personal access token" unless response.success?
+
+      JSON.parse(response.body)["data"].map { |workspace| workspace["gid"] }
     end
+    memo_wise :workspace_gids
 
     def asana_user
       response = HTTParty.get("#{base_url}/users/me", authenticated_options)

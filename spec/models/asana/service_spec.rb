@@ -78,6 +78,78 @@ RSpec.describe "Asana::Service" do
     end
   end
 
+  describe "#workspace_gids" do
+    let(:workspaces) do
+      [
+        { "gid" => "workspace-1" },
+        { "gid" => "workspace-2" }
+      ]
+    end
+    let(:workspaces_response) do
+      instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: { data: workspaces }.to_json
+      )
+    end
+
+    it "uses the workspaces endpoint" do
+      allow(HTTParty).to receive(:get).with(
+        "https://app.asana.com/api/1.0/workspaces",
+        anything
+      ).and_return(workspaces_response)
+
+      expect(service.send(:workspace_gids)).to eq(%w[workspace-1 workspace-2])
+      expect(service.send(:workspace_gids)).to eq(%w[workspace-1 workspace-2])
+      expect(HTTParty).to have_received(:get).once
+    end
+  end
+
+  describe "#list_projects" do
+    let(:workspace_gids) { %w[workspace-1 workspace-2] }
+    let(:workspace_1_projects) do
+      [
+        { "gid" => "project-1", "name" => "Project One" }
+      ]
+    end
+    let(:workspace_2_projects) do
+      [
+        { "gid" => "project-2", "name" => "Project Two" }
+      ]
+    end
+    let(:workspace_1_response) do
+      instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: { data: workspace_1_projects }.to_json
+      )
+    end
+    let(:workspace_2_response) do
+      instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: { data: workspace_2_projects }.to_json
+      )
+    end
+
+    before do
+      allow(service).to receive(:workspace_gids).and_return(workspace_gids)
+    end
+
+    it "aggregates projects from each workspace" do
+      expect(HTTParty).to receive(:get).with(
+        "https://app.asana.com/api/1.0/workspaces/workspace-1/projects",
+        hash_including(query: { archived: false })
+      ).and_return(workspace_1_response)
+      expect(HTTParty).to receive(:get).with(
+        "https://app.asana.com/api/1.0/workspaces/workspace-2/projects",
+        hash_including(query: { archived: false })
+      ).and_return(workspace_2_response)
+
+      expect(service.send(:list_projects)).to eq(workspace_1_projects + workspace_2_projects)
+    end
+  end
+
   describe "#should_sync?" do
     subject { service.should_sync?(task_updated_at) }
 
