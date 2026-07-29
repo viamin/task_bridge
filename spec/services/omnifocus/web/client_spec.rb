@@ -23,11 +23,13 @@ RSpec.describe Omnifocus::Web::Client do
     let(:transport) { described_class.new(account: "account", password: "password") }
     let(:socket) { instance_double("SocketConnection", send_json: nil) }
     let(:ws_url) { "wss://sync.omnifocus.com/socket" }
+    let(:public_addrinfo) { instance_double(Addrinfo, ip_address: "34.120.0.1") }
 
     before do
       allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => ws_url })
       allow(Omnifocus::Web::Client::SocketConnection).to receive(:new).and_return(socket)
       allow(SecureRandom).to receive(:uuid).and_return("request-id")
+      allow(Addrinfo).to receive(:getaddrinfo).with("sync.omnifocus.com", 443, nil, :STREAM).and_return([public_addrinfo])
     end
 
     it "authenticates the websocket session before issuing requests" do
@@ -104,6 +106,29 @@ RSpec.describe Omnifocus::Web::Client do
       expect do
         transport.load_collection(container: "inbox")
       end.to raise_error(Omnifocus::Web::Client::ConnectionError, /must not include query parameters/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects Omni websocket hosts that resolve to private addresses" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://internal.omnifocus.com/socket" })
+      allow(Addrinfo).to receive(:getaddrinfo).with("internal.omnifocus.com", 443, nil, :STREAM).and_return(
+        [instance_double(Addrinfo, ip_address: "127.0.0.1")]
+      )
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /host is not allowed/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects websocket IP literals even when they use TLS" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://34.120.0.1/socket" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /host is not allowed/)
 
       expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
     end

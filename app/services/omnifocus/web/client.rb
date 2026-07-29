@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "cgi"
+require "ipaddr"
 require "json"
 require "net/http"
 require "openssl"
@@ -316,10 +317,23 @@ module Omnifocus
       end
 
       class Transport
-        ALLOWED_WEBSOCKET_HOSTS = [
-          /\A(?:[\w-]+\.)*omnifocus\.com\z/i,
-          /\A(?:[\w-]+\.)*omnigroup\.com\z/i
-        ].freeze
+        ALLOWED_WEBSOCKET_HOSTS = %w[omnifocus.com omnigroup.com].freeze
+        ALLOWED_WEBSOCKET_HOST_SUFFIXES = %w[.omnifocus.com .omnigroup.com].freeze
+        BLOCKED_WEBSOCKET_NETWORKS = %w[
+          0.0.0.0/8
+          10.0.0.0/8
+          100.64.0.0/10
+          127.0.0.0/8
+          169.254.0.0/16
+          172.16.0.0/12
+          192.168.0.0/16
+          224.0.0.0/4
+          ::/128
+          ::1/128
+          fc00::/7
+          fe80::/10
+          ff00::/8
+        ].map { |cidr| IPAddr.new(cidr) }.freeze
         SOCKET_PROTOCOL = "v1.omnifocus.omnigroup.com"
         SUPPORTED_LOCALES = %w[de en es fr it ja ko nl pt-BR ru zh].freeze
         WEB_CLIENT_VERSION = "*"
@@ -449,13 +463,13 @@ module Omnifocus
           uri = URI.parse(url)
           raise ConnectionError, "OmniFocus Web websocket URL must use wss" unless uri.scheme == "wss"
           raise ConnectionError, "OmniFocus Web websocket URL must include a host" if uri.host.blank?
+          raise ConnectionError, "OmniFocus Web websocket URL must not include credentials" if uri.userinfo.present?
+          raise ConnectionError, "OmniFocus Web websocket URL must not include query parameters" if uri.query.present?
+          raise ConnectionError, "OmniFocus Web websocket URL must not include a fragment" if uri.fragment.present?
 
           host = canonical_websocket_host(uri.host)
           raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if host.nil?
           raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless allowed_websocket_port?(uri.port)
-          raise ConnectionError, "OmniFocus Web websocket URL must not include credentials" if uri.userinfo.present?
-          raise ConnectionError, "OmniFocus Web websocket URL must not include query parameters" if uri.query.present?
-          raise ConnectionError, "OmniFocus Web websocket URL must not include a fragment" if uri.fragment.present?
 
           URI::Generic.build(
             scheme: "wss",
@@ -468,14 +482,46 @@ module Omnifocus
         end
 
         def canonical_websocket_host(host)
-          normalized_host = host.to_s.downcase
-          return normalized_host if ALLOWED_WEBSOCKET_HOSTS.any? { |pattern| pattern.match?(normalized_host) }
+          normalized_host = host.to_s.strip.downcase
+          return if normalized_host.blank? || !normalized_host.ascii_only?
+          return if ip_literal?(normalized_host)
+          return unless allowed_websocket_host?(normalized_host)
+          return unless public_websocket_host?(normalized_host)
 
-          nil
+          normalized_host
         end
 
         def allowed_websocket_port?(port)
           port.nil? || port == 443
+        end
+
+        def allowed_websocket_host?(host)
+          ALLOWED_WEBSOCKET_HOSTS.include?(host) ||
+            ALLOWED_WEBSOCKET_HOST_SUFFIXES.any? { |suffix| host.end_with?(suffix) }
+        end
+
+        def ip_literal?(host)
+          IPAddr.new(host)
+          true
+        rescue IPAddr::InvalidAddressError
+          false
+        end
+
+        def public_websocket_host?(host)
+          resolved_ip_addresses(host).all? { |address| public_ip_address?(address) }
+        rescue SocketError
+          false
+        end
+
+        def resolved_ip_addresses(host)
+          Addrinfo.getaddrinfo(host, 443, nil, :STREAM).filter_map(&:ip_address).uniq
+        end
+
+        def public_ip_address?(address)
+          ip_address = IPAddr.new(address)
+          BLOCKED_WEBSOCKET_NETWORKS.none? { |network| network.include?(ip_address) }
+        rescue IPAddr::InvalidAddressError
+          false
         end
 
         def normalized_websocket_path(path)
