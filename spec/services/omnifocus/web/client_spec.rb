@@ -146,6 +146,16 @@ RSpec.describe Omnifocus::Web::Client do
       expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
     end
 
+    it "rejects websocket URLs with unexpected paths before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com/other-path" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /path is not allowed/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
     it "rejects Omni websocket hosts that resolve to private addresses" do
       allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://internal.omnifocus.com/socket" })
       allow(Addrinfo).to receive(:getaddrinfo).with("internal.omnifocus.com", 443, nil, :STREAM).and_return(

@@ -320,11 +320,13 @@ module Omnifocus
         ALLOWED_WEBSOCKET_ENDPOINTS = {
           "sync.omnifocus.com" => {
             host: "sync.omnifocus.com",
-            port: 443
+            port: 443,
+            path: "/socket"
           },
           "web.omnifocus.com" => {
             host: "web.omnifocus.com",
-            port: 443
+            port: 443,
+            path: "/socket"
           }
         }.freeze
         BLOCKED_WEBSOCKET_NETWORKS = %w[
@@ -478,12 +480,9 @@ module Omnifocus
           endpoint = allowed_websocket_endpoint(uri.host)
           raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if endpoint.nil?
           raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless allowed_websocket_port?(uri.port)
+          raise ConnectionError, "OmniFocus Web websocket URL path is not allowed" unless allowed_websocket_path?(uri.path, endpoint)
 
-          WebsocketEndpoint.new(
-            host: endpoint.fetch(:host),
-            port: endpoint.fetch(:port),
-            path: normalized_websocket_path(uri.path)
-          )
+          WebsocketEndpoint.new(**endpoint)
         rescue URI::InvalidURIError => e
           raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
         end
@@ -536,6 +535,10 @@ module Omnifocus
           raise ConnectionError, "OmniFocus Web websocket URL path is not allowed" unless normalized_path.match?(%r{\A/[A-Za-z0-9\-._~/]*\z})
 
           normalized_path
+        end
+
+        def allowed_websocket_path?(path, endpoint)
+          normalized_websocket_path(path) == endpoint.fetch(:path)
         end
 
         def handle_authentication_message!(socket, response)
