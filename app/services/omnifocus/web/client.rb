@@ -329,6 +329,15 @@ module Omnifocus
             path: "/socket"
           }
         }.freeze
+        ALLOWED_WEBSOCKET_URLS = ALLOWED_WEBSOCKET_ENDPOINTS.each_with_object({}) do |(_host, endpoint), index|
+          uri = URI::Generic.build(
+            scheme: "wss",
+            host: endpoint.fetch(:host),
+            port: endpoint.fetch(:port),
+            path: endpoint.fetch(:path)
+          )
+          index[uri.to_s] = endpoint
+        end.freeze
         BLOCKED_WEBSOCKET_NETWORKS = %w[
           0.0.0.0/8
           10.0.0.0/8
@@ -477,30 +486,42 @@ module Omnifocus
           raise ConnectionError, "OmniFocus Web websocket URL must not include query parameters" if uri.query.present?
           raise ConnectionError, "OmniFocus Web websocket URL must not include a fragment" if uri.fragment.present?
 
-          endpoint = allowed_websocket_endpoint(uri.host)
-          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if endpoint.nil?
-          raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless allowed_websocket_port?(uri.port)
-          raise ConnectionError, "OmniFocus Web websocket URL path is not allowed" unless allowed_websocket_path?(uri.path, endpoint)
+          normalized_url = normalized_websocket_url(uri)
+          endpoint = ALLOWED_WEBSOCKET_URLS[normalized_url]
+          raise ConnectionError, "OmniFocus Web websocket URL is not allowed" if endpoint.nil?
+          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" unless public_websocket_host?(endpoint.fetch(:host))
 
-          WebsocketEndpoint.new(**endpoint)
+          WebsocketEndpoint.new(**endpoint.slice(:host, :port, :path))
         rescue URI::InvalidURIError => e
           raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
         end
 
-        def allowed_websocket_endpoint(host)
-          normalized_host = host.to_s.strip.downcase
-          return if normalized_host.blank? || !normalized_host.ascii_only?
-          return if ip_literal?(normalized_host)
+        def normalized_websocket_url(uri)
+          normalized_host = normalized_websocket_host(uri.host)
+          normalized_port = normalized_websocket_port(uri.port)
+          normalized_path = normalized_websocket_path(uri.path)
 
-          endpoint = ALLOWED_WEBSOCKET_ENDPOINTS[normalized_host]
-          return if endpoint.nil?
-          return unless public_websocket_host?(endpoint.fetch(:host))
-
-          endpoint
+          URI::Generic.build(
+            scheme: "wss",
+            host: normalized_host,
+            port: normalized_port,
+            path: normalized_path
+          ).to_s
         end
 
-        def allowed_websocket_port?(port)
-          port.nil? || port == 443
+        def normalized_websocket_host(host)
+          normalized_host = host.to_s.strip.downcase
+          raise ConnectionError, "OmniFocus Web websocket URL must include a host" if normalized_host.blank?
+          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" unless normalized_host.ascii_only?
+          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if ip_literal?(normalized_host)
+
+          normalized_host
+        end
+
+        def normalized_websocket_port(port)
+          raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless port.nil? || port == 443
+
+          443
         end
 
         def ip_literal?(host)
@@ -535,10 +556,6 @@ module Omnifocus
           raise ConnectionError, "OmniFocus Web websocket URL path is not allowed" unless normalized_path.match?(%r{\A/[A-Za-z0-9\-._~/]*\z})
 
           normalized_path
-        end
-
-        def allowed_websocket_path?(path, endpoint)
-          normalized_websocket_path(path) == endpoint.fetch(:path)
         end
 
         def handle_authentication_message!(socket, response)

@@ -79,6 +79,25 @@ RSpec.describe Omnifocus::Web::Client do
       )
     end
 
+    it "accepts the default TLS port when it is explicit in the websocket URL" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com:443/socket" })
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task=", rid: "request-id", items: [] }.to_json
+      )
+
+      transport.load_collection(container: "inbox")
+
+      expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
+        have_attributes(
+          host: "sync.omnifocus.com",
+          port: 443,
+          path: "/socket"
+        ),
+        protocols: ["v1.omnifocus.omnigroup.com"]
+      )
+    end
+
     it "creates inbox items as tasks targeted at the inbox container" do
       allow(socket).to receive(:receive_json).and_return(
         { op: "session", key: "session-key" }.to_json,
@@ -111,7 +130,7 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect do
         transport.load_collection(container: "inbox")
-      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /host is not allowed/)
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /URL is not allowed/)
 
       expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
     end
@@ -136,6 +155,16 @@ RSpec.describe Omnifocus::Web::Client do
       expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
     end
 
+    it "rejects websocket URLs with credentials before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://user:secret@sync.omnifocus.com/socket" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /must not include credentials/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
     it "rejects websocket URLs with unsafe paths before opening a socket" do
       allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com/socket\r\nx-test: injected" })
 
@@ -151,14 +180,23 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect do
         transport.load_collection(container: "inbox")
-      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /path is not allowed/)
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /URL is not allowed/)
 
       expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
     end
 
-    it "rejects Omni websocket hosts that resolve to private addresses" do
-      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://internal.omnifocus.com/socket" })
-      allow(Addrinfo).to receive(:getaddrinfo).with("internal.omnifocus.com", 443, nil, :STREAM).and_return(
+    it "rejects websocket URLs with fragments before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com/socket#fragment" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /must not include a fragment/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects allowed websocket hosts that resolve to private addresses" do
+      allow(Addrinfo).to receive(:getaddrinfo).with("sync.omnifocus.com", 443, nil, :STREAM).and_return(
         [instance_double(Addrinfo, ip_address: "127.0.0.1")]
       )
 
