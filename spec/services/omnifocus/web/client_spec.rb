@@ -49,6 +49,7 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
         have_attributes(
+          connect_host: "34.120.0.1",
           host: "sync.omnifocus.com",
           port: 443,
           path: "/socket",
@@ -70,6 +71,7 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
         have_attributes(
+          connect_host: "34.120.0.1",
           host: "web.omnifocus.com",
           port: 443,
           path: "/socket",
@@ -91,6 +93,7 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
         have_attributes(
+          connect_host: "34.120.0.1",
           host: "web.omnifocus.com",
           port: 443,
           path: "/socket",
@@ -111,6 +114,7 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
         have_attributes(
+          connect_host: "34.120.0.1",
           host: "sync.omnifocus.com",
           port: 443,
           path: "/socket"
@@ -242,6 +246,7 @@ RSpec.describe Omnifocus::Web::Client do
   describe Omnifocus::Web::Client::SocketConnection do
     let(:endpoint) do
       Omnifocus::Web::Client::Transport::WebsocketEndpoint.new(
+        connect_host: "34.120.0.1",
         host: "sync.omnifocus.com",
         port: 443,
         path: "/socket"
@@ -254,7 +259,7 @@ RSpec.describe Omnifocus::Web::Client do
     let(:incoming) { instance_double(WebSocket::Frame::Incoming::Client) }
 
     before do
-      allow(TCPSocket).to receive(:new).with("sync.omnifocus.com", 443).and_return(tcp_socket)
+      allow(TCPSocket).to receive(:new).with("34.120.0.1", 443).and_return(tcp_socket)
       allow(OpenSSL::SSL::SSLContext).to receive(:new).and_return(ssl_context)
       allow(OpenSSL::SSL::SSLSocket).to receive(:new).with(tcp_socket, ssl_context).and_return(ssl_socket)
       allow(WebSocket::Handshake::Client).to receive(:new).and_return(handshake)
@@ -268,6 +273,7 @@ RSpec.describe Omnifocus::Web::Client do
     it "verifies the certificate hostname for secure websocket connections" do
       described_class.new(endpoint, protocols: ["v1.omnifocus.omnigroup.com"])
 
+      expect(TCPSocket).to have_received(:new).with("34.120.0.1", 443)
       expect(ssl_context).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
       expect(ssl_context).to have_received(:verify_hostname=).with(true)
       expect(ssl_socket).to have_received(:hostname=).with("sync.omnifocus.com")

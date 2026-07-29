@@ -477,9 +477,11 @@ module Omnifocus
 
           endpoint = allowed_websocket_endpoint(uri)
           raise ConnectionError, "OmniFocus Web websocket URL is not allowed" if endpoint.nil?
-          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" unless public_websocket_host?(endpoint.fetch(:host))
 
-          WebsocketEndpoint.new(**endpoint.slice(:host, :port, :path))
+          resolved_address = validated_public_websocket_address(endpoint.fetch(:host))
+          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if resolved_address.nil?
+
+          WebsocketEndpoint.new(**endpoint.slice(:host, :port, :path), connect_host: resolved_address)
         rescue URI::InvalidURIError => e
           raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
         end
@@ -522,11 +524,14 @@ module Omnifocus
           false
         end
 
-        def public_websocket_host?(host)
+        def validated_public_websocket_address(host)
           addresses = resolved_ip_addresses(host)
-          addresses.any? && addresses.all? { |address| public_ip_address?(address) }
+          return if addresses.empty?
+          return unless addresses.all? { |address| public_ip_address?(address) }
+
+          addresses.first
         rescue SocketError
-          false
+          nil
         end
 
         def resolved_ip_addresses(host)
@@ -585,9 +590,10 @@ module Omnifocus
         end
 
         class WebsocketEndpoint
-          attr_reader :host, :port, :path
+          attr_reader :connect_host, :host, :path, :port
 
-          def initialize(host:, port:, path:)
+          def initialize(host:, port:, path:, connect_host:)
+            @connect_host = connect_host
             @host = host
             @port = port
             @path = path
@@ -632,7 +638,7 @@ module Omnifocus
         private
 
         def connect_socket
-          tcp_socket = TCPSocket.new(@endpoint.host, @endpoint.port)
+          tcp_socket = TCPSocket.new(@endpoint.connect_host, @endpoint.port)
           ssl_socket = OpenSSL::SSL::SSLSocket.new(tcp_socket, ssl_context)
           ssl_socket.sync_close = true
           ssl_socket.hostname = @endpoint.host if ssl_socket.respond_to?(:hostname=)
