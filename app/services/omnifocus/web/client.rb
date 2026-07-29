@@ -349,7 +349,7 @@ module Omnifocus
           @locale = locale
           @response_cache = {}
           @session_key = nil
-          @ws_uri = nil
+          @websocket_endpoint = nil
         end
 
         def load_collection(container:)
@@ -407,13 +407,13 @@ module Omnifocus
         end
 
         def websocket
-          @websocket ||= SocketConnection.new(ws_uri, protocols: [SOCKET_PROTOCOL]).tap do |socket|
+          @websocket ||= SocketConnection.new(websocket_endpoint, protocols: [SOCKET_PROTOCOL]).tap do |socket|
             authenticate_socket!(socket)
           end
         end
 
-        def ws_uri
-          @ws_uri ||= build_ws_uri(resolve_instance.fetch("ws_url"))
+        def websocket_endpoint
+          @websocket_endpoint ||= build_websocket_endpoint(resolve_instance.fetch("ws_url"))
         end
 
         def resolve_instance
@@ -461,7 +461,7 @@ module Omnifocus
           %w[cookie error key? pw? session state version].include?(response["op"])
         end
 
-        def build_ws_uri(url)
+        def build_websocket_endpoint(url)
           uri = URI.parse(url)
           raise ConnectionError, "OmniFocus Web websocket URL must use wss" unless uri.scheme == "wss"
           raise ConnectionError, "OmniFocus Web websocket URL must include a host" if uri.host.blank?
@@ -473,8 +473,7 @@ module Omnifocus
           raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if host.nil?
           raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless allowed_websocket_port?(uri.port)
 
-          URI::Generic.build(
-            scheme: "wss",
+          WebsocketEndpoint.new(
             host:,
             port: 443,
             path: normalized_websocket_path(uri.path)
@@ -565,12 +564,31 @@ module Omnifocus
         rescue JSON::ParserError
           {}
         end
+
+        class WebsocketEndpoint
+          attr_reader :host, :port, :path
+
+          def initialize(host:, port:, path:)
+            @host = host
+            @port = port
+            @path = path
+          end
+
+          def uri
+            URI::Generic.build(
+              scheme: "wss",
+              host:,
+              port:,
+              path:
+            )
+          end
+        end
       end
 
       class SocketConnection
-        def initialize(uri, protocols: [])
-          @uri = uri
-          @handshake = WebSocket::Handshake::Client.new(url: @uri.to_s, protocols:)
+        def initialize(endpoint, protocols: [])
+          @endpoint = endpoint
+          @handshake = WebSocket::Handshake::Client.new(url: @endpoint.uri.to_s, protocols:)
           @socket = connect_socket
           @socket.write(@handshake.to_s)
           finish_handshake!
@@ -595,14 +613,12 @@ module Omnifocus
         private
 
         def connect_socket
-          tcp_socket = TCPSocket.new(@uri.host, @uri.port || default_port)
-          return tcp_socket if @uri.scheme == "ws"
-
+          tcp_socket = TCPSocket.new(@endpoint.host, @endpoint.port)
           ssl_socket = OpenSSL::SSL::SSLSocket.new(tcp_socket, ssl_context)
           ssl_socket.sync_close = true
-          ssl_socket.hostname = @uri.host if ssl_socket.respond_to?(:hostname=)
+          ssl_socket.hostname = @endpoint.host if ssl_socket.respond_to?(:hostname=)
           ssl_socket.connect
-          ssl_socket.post_connection_check(@uri.host)
+          ssl_socket.post_connection_check(@endpoint.host)
           ssl_socket
         end
 
@@ -613,10 +629,6 @@ module Omnifocus
             @handshake << @socket.readpartial(4096)
           end
           raise AuthenticationError, "WebSocket handshake failed" unless @handshake.valid?
-        end
-
-        def default_port
-          @uri.scheme == "ws" ? 80 : 443
         end
 
         def ssl_context

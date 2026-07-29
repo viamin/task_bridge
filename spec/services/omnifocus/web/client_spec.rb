@@ -48,7 +48,12 @@ RSpec.describe Omnifocus::Web::Client do
       transport.load_collection(container: "inbox")
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
-        have_attributes(to_s: "wss://sync.omnifocus.com:443/socket"),
+        have_attributes(
+          host: "sync.omnifocus.com",
+          port: 443,
+          path: "/socket",
+          uri: have_attributes(to_s: "wss://sync.omnifocus.com:443/socket")
+        ),
         protocols: ["v1.omnifocus.omnigroup.com"]
       )
     end
@@ -64,7 +69,12 @@ RSpec.describe Omnifocus::Web::Client do
       transport.load_collection(container: "inbox")
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
-        have_attributes(to_s: "wss://web.omnifocus.com:443/socket"),
+        have_attributes(
+          host: "web.omnifocus.com",
+          port: 443,
+          path: "/socket",
+          uri: have_attributes(to_s: "wss://web.omnifocus.com:443/socket")
+        ),
         protocols: ["v1.omnifocus.omnigroup.com"]
       )
     end
@@ -151,7 +161,13 @@ RSpec.describe Omnifocus::Web::Client do
   end
 
   describe Omnifocus::Web::Client::SocketConnection do
-    let(:uri) { URI("wss://sync.omnifocus.com/socket") }
+    let(:endpoint) do
+      Omnifocus::Web::Client::Transport::WebsocketEndpoint.new(
+        host: "sync.omnifocus.com",
+        port: 443,
+        path: "/socket"
+      )
+    end
     let(:tcp_socket) { instance_double(TCPSocket, write: nil, readpartial: "") }
     let(:ssl_context) { instance_double(OpenSSL::SSL::SSLContext) }
     let(:ssl_socket) { instance_double(OpenSSL::SSL::SSLSocket, connect: nil, post_connection_check: nil, write: nil, readpartial: "") }
@@ -171,7 +187,7 @@ RSpec.describe Omnifocus::Web::Client do
     end
 
     it "verifies the certificate hostname for secure websocket connections" do
-      described_class.new(uri, protocols: ["v1.omnifocus.omnigroup.com"])
+      described_class.new(endpoint, protocols: ["v1.omnifocus.omnigroup.com"])
 
       expect(ssl_context).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
       expect(ssl_context).to have_received(:verify_hostname=).with(true)
