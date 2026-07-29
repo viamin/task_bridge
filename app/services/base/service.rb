@@ -65,7 +65,7 @@ module Base
     end
 
     def service_name
-      default_service_name = self.class.name&.deconstantize.presence || friendly_name
+      default_service_name = friendly_name.presence || self.class.name&.deconstantize
       self.class.normalized_service_name(options[:service_name].presence || default_service_name)
     end
 
