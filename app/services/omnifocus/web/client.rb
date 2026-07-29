@@ -329,15 +329,6 @@ module Omnifocus
             path: "/socket"
           }
         }.freeze
-        ALLOWED_WEBSOCKET_URLS = ALLOWED_WEBSOCKET_ENDPOINTS.each_with_object({}) do |(_host, endpoint), index|
-          uri = URI::Generic.build(
-            scheme: "wss",
-            host: endpoint.fetch(:host),
-            port: endpoint.fetch(:port),
-            path: endpoint.fetch(:path)
-          )
-          index[uri.to_s] = endpoint
-        end.freeze
         BLOCKED_WEBSOCKET_NETWORKS = %w[
           0.0.0.0/8
           10.0.0.0/8
@@ -486,8 +477,7 @@ module Omnifocus
           raise ConnectionError, "OmniFocus Web websocket URL must not include query parameters" if uri.query.present?
           raise ConnectionError, "OmniFocus Web websocket URL must not include a fragment" if uri.fragment.present?
 
-          normalized_url = normalized_websocket_url(uri)
-          endpoint = ALLOWED_WEBSOCKET_URLS[normalized_url]
+          endpoint = allowed_websocket_endpoint(uri)
           raise ConnectionError, "OmniFocus Web websocket URL is not allowed" if endpoint.nil?
           raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" unless public_websocket_host?(endpoint.fetch(:host))
 
@@ -496,17 +486,17 @@ module Omnifocus
           raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
         end
 
-        def normalized_websocket_url(uri)
+        def allowed_websocket_endpoint(uri)
           normalized_host = normalized_websocket_host(uri.host)
+          endpoint = ALLOWED_WEBSOCKET_ENDPOINTS[normalized_host]
+          return if endpoint.nil?
+
           normalized_port = normalized_websocket_port(uri.port)
           normalized_path = normalized_websocket_path(uri.path)
+          return if normalized_port != endpoint.fetch(:port)
+          return if normalized_path != endpoint.fetch(:path)
 
-          URI::Generic.build(
-            scheme: "wss",
-            host: normalized_host,
-            port: normalized_port,
-            path: normalized_path
-          ).to_s
+          endpoint
         end
 
         def normalized_websocket_host(host)
