@@ -180,4 +180,35 @@ RSpec.describe "Omnifocus::Task" do
       expect(metadata_task.sub_item_count).to eq(0)
     end
   end
+
+  describe "#patch_external_attributes" do
+    let(:transport) { instance_double(Omnifocus::Web::Client::Transport, update_item: true) }
+    let(:reference) do
+      Omnifocus::Web::Client::Reference.new(
+        {
+          id_: id,
+          name: name,
+          note: notes,
+          defer_date: nil,
+          completed: completed,
+          modification_date: Time.current
+        },
+        transport:
+      )
+    end
+
+    before do
+      allow(task).to receive(:original_task).and_return(reference)
+    end
+
+    it "writes sync metadata through the web reference setters" do
+      start_date = Time.zone.parse("2026-07-30 12:00:00 UTC")
+
+      task.patch_external_attributes(notes: "Updated note", title: "Updated title", start_date:)
+
+      expect(transport).to have_received(:update_item).with(reference:, attributes: { note: "Updated note" })
+      expect(transport).to have_received(:update_item).with(reference:, attributes: { name: "Updated title" })
+      expect(transport).to have_received(:update_item).with(reference:, attributes: { defer_date: start_date })
+    end
+  end
 end

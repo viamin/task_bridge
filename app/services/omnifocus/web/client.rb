@@ -149,23 +149,23 @@ module Omnifocus
         end
 
         def id_
-          Value.new(fetch_value(:id_))
+          property(:id_)
         end
 
         def name
-          Value.new(fetch_value(:name))
+          property(:name)
         end
 
         def completed
-          Value.new(fetch_value(:completed))
+          property(:completed)
         end
 
         def note
-          Value.new(fetch_value(:note))
+          property(:note)
         end
 
         def modification_date
-          Value.new(fetch_value(:modification_date))
+          property(:modification_date)
         end
 
         def tasks
@@ -207,7 +207,7 @@ module Omnifocus
         def method_missing(name, *args, &block)
           return super if args.any? || block
 
-          return Value.new(fetch_value(name)) if @data.key?(name) || @data.key?(name.to_s) || @data.key?(name.to_sym)
+          return property(name) if @data.key?(name) || @data.key?(name.to_s) || @data.key?(name.to_sym)
 
           super
         end
@@ -218,6 +218,10 @@ module Omnifocus
 
         private
 
+        def property(name)
+          Property.new(self, name, fetch_value(name), transport: @transport)
+        end
+
         def reference_from(*keys)
           raw = keys.filter_map { |key| @data[key] || @data[key.to_s] || @data[key.to_sym] }.first
           raw.nil? ? Value.new(nil) : Reference.new(raw, transport: @transport)
@@ -225,6 +229,36 @@ module Omnifocus
 
         def fetch_value(name)
           @data[name] || @data[name.to_s] || @data[name.to_sym]
+        end
+
+        def update_value(name, value)
+          key = if @data.key?(name)
+            name
+          elsif @data.key?(name.to_s)
+            name.to_s
+          else
+            name.to_sym
+          end
+          @data[key] = value
+        end
+
+        class Property
+          def initialize(reference, name, value, transport:)
+            @reference = reference
+            @name = name
+            @value = value
+            @transport = transport
+          end
+
+          def get
+            @value
+          end
+
+          def set(value)
+            @transport&.update_item(reference: @reference, attributes: { @name => value })
+            @reference.send(:update_value, @name, value)
+            @value = value
+          end
         end
       end
 
@@ -280,11 +314,15 @@ module Omnifocus
         end
 
         def create_item(kind:, properties:)
-          request("add", payload: { op: kind.to_s, **properties })
+          request("add", payload: { kind: kind.to_s, **properties })
         end
 
         def add_tag(tag:, to:)
           request("edit", payload: { oid: external_id_for(to), tags: [external_id_for(tag)] })
+        end
+
+        def update_item(reference:, attributes:)
+          request("edit", payload: { oid: external_id_for(reference), **attributes })
         end
 
         def complete_item(external_id)
