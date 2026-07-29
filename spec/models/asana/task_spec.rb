@@ -66,6 +66,32 @@ RSpec.describe "Asana::Task" do
 
       expect(task.project).to eq("Project Name")
     end
+
+    it "matches the membership for the first project gid" do
+      task = Asana::Task.new(
+        asana_task: {
+          "gid" => "123",
+          "name" => "Task",
+          "projects" => [
+            { "gid" => "pets-project", "name" => "Pets" },
+            { "gid" => "shopping-project", "name" => "Shopping List" }
+          ],
+          "memberships" => [
+            {
+              "project" => { "gid" => "shopping-project", "name" => "Shopping List" },
+              "section" => { "gid" => "shopping-groceries", "name" => "Groceries" }
+            },
+            {
+              "project" => { "gid" => "pets-project", "name" => "Pets" },
+              "section" => { "gid" => "pets-bucky", "name" => "Bucky" }
+            }
+          ]
+        }
+      )
+      task.read_original
+
+      expect(task.project).to eq("Pets:Bucky")
+    end
   end
 
   describe "#to_json" do

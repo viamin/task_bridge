@@ -159,15 +159,19 @@ module Asana
     # try to read the project and sections from the memberships array
     # If there isn't anything there, use the projects array
     def project_from_memberships(asana_task)
-      if asana_task["memberships"]&.any?
-        # Asana supports multiple sections, but TaskBridge currently supports only one per task
-        project = asana_task["memberships"].first.dig("project", "name")
-        section = asana_task["memberships"].first.dig("section", "name")
-        section == "Untitled section" ? project : "#{project}:#{section}"
-      else
-        # we'll only sync a task with one project at a time
-        asana_task["projects"]&.first&.dig("name")
-      end
+      membership = matching_membership(asana_task) || asana_task["memberships"]&.first
+      return asana_task["projects"]&.first&.dig("name") if membership.nil?
+
+      project = membership.dig("project", "name")
+      section = membership.dig("section", "name")
+      section == "Untitled section" ? project : "#{project}:#{section}"
+    end
+
+    def matching_membership(asana_task)
+      target_project_gid = asana_task["projects"]&.filter_map { |project| project["gid"] }&.first
+      return if target_project_gid.blank?
+
+      asana_task["memberships"]&.find { |membership| membership.dig("project", "gid") == target_project_gid }
     end
 
     def serialized_project_gids
