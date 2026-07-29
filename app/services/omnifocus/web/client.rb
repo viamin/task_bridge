@@ -144,6 +144,13 @@ module Omnifocus
           @transport = transport
         end
 
+        def make(new:, with_properties:)
+          Reference.new(
+            @transport.create_item(kind: new, properties: with_properties, container: self),
+            transport: @transport
+          )
+        end
+
         def get
           self
         end
@@ -294,6 +301,10 @@ module Omnifocus
       end
 
       class Transport
+        SOCKET_PROTOCOL = "v1.omnifocus.omnigroup.com"
+        SUPPORTED_LOCALES = %w[de en es fr it ja ko nl pt-BR ru zh].freeze
+        WEB_CLIENT_VERSION = "*"
+
         attr_reader :account, :password, :server_label, :locale
 
         def initialize(account:, password:, server_label: nil, locale: nil)
@@ -302,6 +313,7 @@ module Omnifocus
           @server_label = server_label
           @locale = locale
           @response_cache = {}
+          @session_key = nil
           @ws_url = nil
         end
 
@@ -313,8 +325,9 @@ module Omnifocus
           fetch_collection(container:)
         end
 
-        def create_item(kind:, properties:)
-          request("add", payload: { kind: kind.to_s, **properties })
+        def create_item(kind:, properties:, container: nil)
+          operation, payload = create_request_for(kind:, properties:, container:)
+          request(operation, payload:)
         end
 
         def add_tag(tag:, to:)
@@ -342,12 +355,26 @@ module Omnifocus
 
         def request(operation, payload:)
           socket = websocket
-          socket.send_json({ op: operation, rid: SecureRandom.uuid, **payload })
-          parse_response(socket.receive_json)
+          request_id = SecureRandom.uuid
+          socket.send_json({ op: operation, rid: request_id, **payload })
+
+          loop do
+            response = parse_response(socket.receive_json)
+            next if response.blank?
+
+            if authentication_message?(response)
+              handle_authentication_message!(socket, response)
+              next
+            end
+
+            return response if response["rid"] == request_id || response["request_id"] == request_id
+          end
         end
 
         def websocket
-          @websocket ||= SocketConnection.new(ws_url)
+          @websocket ||= SocketConnection.new(ws_url, protocols: [SOCKET_PROTOCOL]).tap do |socket|
+            authenticate_socket!(socket)
+          end
         end
 
         def ws_url
@@ -356,14 +383,66 @@ module Omnifocus
 
         def resolve_instance
           @response_cache[:instance] ||= begin
-            uri = URI("https://accounts.omnigroup.com/api/1.1/get-instance")
-            uri.query = URI.encode_www_form(account:, serverLabel: server_label, locale:)
+            uri = URI("https://c.omnifocus.com/api/0/get-instance")
+            uri.query = URI.encode_www_form(
+              account:,
+              server: server_label,
+              version: WEB_CLIENT_VERSION,
+              locale: normalized_locale,
+              timezone: Time.now.getlocal.zone
+            )
             response = Net::HTTP.get_response(uri)
             parsed = JSON.parse(response.body)
             raise AuthenticationError, parsed["error"] || parsed["message"] if parsed["ws_url"].blank?
 
             parsed
           end
+        end
+
+        def create_request_for(kind:, properties:, container:)
+          operation = kind.to_s
+          payload = properties.dup
+
+          if operation == "inbox_task"
+            operation = "task"
+            payload[:in] = "inbox"
+          end
+
+          payload[:in] = external_id_for(container) if container
+          [operation, payload]
+        end
+
+        def authenticate_socket!(socket)
+          loop do
+            response = parse_response(socket.receive_json)
+            next if response.blank?
+
+            handle_authentication_message!(socket, response)
+            return socket if response["op"] == "session"
+          end
+        end
+
+        def authentication_message?(response)
+          %w[cookie error key? pw? session state version].include?(response["op"])
+        end
+
+        def handle_authentication_message!(socket, response)
+          case response["op"]
+          when "pw?"
+            socket.send_json(op: "pw", rid: SecureRandom.uuid, kind: response["kind"], value: password)
+          when "key?"
+            raise AuthenticationError, "Encrypted OmniFocus Web databases require an encryption key, which this backend does not support"
+          when "error"
+            raise AuthenticationError, response["message"] || response["reason"] || "OmniFocus Web authentication failed"
+          when "session"
+            @session_key = response["key"]
+          end
+        end
+
+        def normalized_locale
+          return locale if SUPPORTED_LOCALES.include?(locale)
+
+          "en-US"
         end
 
         def external_id_for(reference)
@@ -384,9 +463,9 @@ module Omnifocus
       end
 
       class SocketConnection
-        def initialize(url)
+        def initialize(url, protocols: [])
           @uri = URI.parse(url)
-          @handshake = WebSocket::Handshake::Client.new(url: @uri.to_s)
+          @handshake = WebSocket::Handshake::Client.new(url: @uri.to_s, protocols:)
           @socket = connect_socket
           @socket.write(@handshake.to_s)
           finish_handshake!

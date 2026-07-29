@@ -634,5 +634,27 @@ RSpec.describe Omnifocus::Service, :full_options do
 
       service.add_item(external_task)
     end
+
+    it "creates project tasks through the web reference transport" do
+      web_transport = instance_double(Omnifocus::Web::Client::Transport)
+      parent_reference = Omnifocus::Web::Client::Reference.new({ id_: "project-1", name: "Project" }, transport: web_transport)
+      created_reference = Omnifocus::Web::Client::Reference.new({ id_: "task-1", name: "Task with sub-items" }, transport: web_transport)
+
+      allow(service).to receive(:project).with(external_task).and_return(parent_reference)
+      allow(service).to receive(:tags).with(external_task).and_return([])
+      allow(service).to receive(:update_sync_data).and_return(nil)
+      allow(service).to receive(:handle_sub_items).with(wrapped_task, external_task)
+      allow(Omnifocus::Task).to receive(:new).with(omnifocus_task: created_reference).and_return(wrapped_task)
+      allow(wrapped_task).to receive(:refresh_from_external!)
+      allow(web_transport).to receive(:create_item).and_return(created_reference.data)
+
+      service.add_item(external_task)
+
+      expect(web_transport).to have_received(:create_item).with(
+        kind: :task,
+        properties: Omnifocus::Task.from_external(external_task),
+        container: parent_reference
+      )
+    end
   end
 end
