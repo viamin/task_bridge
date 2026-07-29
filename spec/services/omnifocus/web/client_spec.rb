@@ -46,7 +46,7 @@ RSpec.describe Omnifocus::Web::Client do
       transport.load_collection(container: "inbox")
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
-        ws_url,
+        have_attributes(to_s: "wss://sync.omnifocus.com:443/socket"),
         protocols: ["v1.omnifocus.omnigroup.com"]
       )
     end
@@ -94,6 +94,16 @@ RSpec.describe Omnifocus::Web::Client do
       expect do
         transport.load_collection(container: "inbox")
       end.to raise_error(Omnifocus::Web::Client::ConnectionError, /must use wss/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects websocket URLs with query parameters before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com/socket?token=leak" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /must not include query parameters/)
 
       expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
     end

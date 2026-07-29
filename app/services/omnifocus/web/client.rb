@@ -333,7 +333,7 @@ module Omnifocus
           @locale = locale
           @response_cache = {}
           @session_key = nil
-          @ws_url = nil
+          @ws_uri = nil
         end
 
         def load_collection(container:)
@@ -391,13 +391,13 @@ module Omnifocus
         end
 
         def websocket
-          @websocket ||= SocketConnection.new(ws_url, protocols: [SOCKET_PROTOCOL]).tap do |socket|
+          @websocket ||= SocketConnection.new(ws_uri, protocols: [SOCKET_PROTOCOL]).tap do |socket|
             authenticate_socket!(socket)
           end
         end
 
-        def ws_url
-          @ws_url ||= validate_ws_url!(resolve_instance.fetch("ws_url")).to_s
+        def ws_uri
+          @ws_uri ||= build_ws_uri(resolve_instance.fetch("ws_url"))
         end
 
         def resolve_instance
@@ -445,24 +445,43 @@ module Omnifocus
           %w[cookie error key? pw? session state version].include?(response["op"])
         end
 
-        def validate_ws_url!(url)
+        def build_ws_uri(url)
           uri = URI.parse(url)
           raise ConnectionError, "OmniFocus Web websocket URL must use wss" unless uri.scheme == "wss"
           raise ConnectionError, "OmniFocus Web websocket URL must include a host" if uri.host.blank?
-          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" unless allowed_websocket_host?(uri.host)
-          raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless allowed_websocket_port?(uri.port)
 
-          uri
+          host = canonical_websocket_host(uri.host)
+          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if host.nil?
+          raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless allowed_websocket_port?(uri.port)
+          raise ConnectionError, "OmniFocus Web websocket URL must not include credentials" if uri.userinfo.present?
+          raise ConnectionError, "OmniFocus Web websocket URL must not include query parameters" if uri.query.present?
+          raise ConnectionError, "OmniFocus Web websocket URL must not include a fragment" if uri.fragment.present?
+
+          URI::Generic.build(
+            scheme: "wss",
+            host:,
+            port: 443,
+            path: normalized_websocket_path(uri.path)
+          )
         rescue URI::InvalidURIError => e
           raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
         end
 
-        def allowed_websocket_host?(host)
-          ALLOWED_WEBSOCKET_HOSTS.any? { |pattern| pattern.match?(host) }
+        def canonical_websocket_host(host)
+          normalized_host = host.to_s.downcase
+          return normalized_host if ALLOWED_WEBSOCKET_HOSTS.any? { |pattern| pattern.match?(normalized_host) }
+
+          nil
         end
 
         def allowed_websocket_port?(port)
           port.nil? || port == 443
+        end
+
+        def normalized_websocket_path(path)
+          normalized_path = path.to_s
+          normalized_path = "/#{normalized_path}" unless normalized_path.start_with?("/")
+          normalized_path.presence || "/"
         end
 
         def handle_authentication_message!(socket, response)
@@ -502,8 +521,8 @@ module Omnifocus
       end
 
       class SocketConnection
-        def initialize(url, protocols: [])
-          @uri = URI.parse(url)
+        def initialize(uri, protocols: [])
+          @uri = uri
           @handshake = WebSocket::Handshake::Client.new(url: @uri.to_s, protocols:)
           @socket = connect_socket
           @socket.write(@handshake.to_s)
