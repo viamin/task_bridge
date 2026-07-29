@@ -317,10 +317,10 @@ module Omnifocus
       end
 
       class Transport
-        ALLOWED_WEBSOCKET_HOSTS = {
-          "sync.omnifocus.com" => "sync.omnifocus.com",
-          "web.omnifocus.com" => "web.omnifocus.com"
-        }.freeze
+        ALLOWED_WEBSOCKET_HOSTS = %w[
+          sync.omnifocus.com
+          web.omnifocus.com
+        ].freeze
         BLOCKED_WEBSOCKET_NETWORKS = %w[
           0.0.0.0/8
           10.0.0.0/8
@@ -489,7 +489,12 @@ module Omnifocus
           return unless allowed_websocket_host?(normalized_host)
           return unless public_websocket_host?(normalized_host)
 
-          ALLOWED_WEBSOCKET_HOSTS[normalized_host]
+          case normalized_host
+          when "sync.omnifocus.com"
+            "sync.omnifocus.com"
+          when "web.omnifocus.com"
+            "web.omnifocus.com"
+          end
         end
 
         def allowed_websocket_port?(port)
@@ -497,7 +502,7 @@ module Omnifocus
         end
 
         def allowed_websocket_host?(host)
-          ALLOWED_WEBSOCKET_HOSTS.key?(host)
+          ALLOWED_WEBSOCKET_HOSTS.include?(host)
         end
 
         def ip_literal?(host)
@@ -527,7 +532,10 @@ module Omnifocus
         def normalized_websocket_path(path)
           normalized_path = path.to_s
           normalized_path = "/#{normalized_path}" unless normalized_path.start_with?("/")
-          normalized_path.presence || "/"
+          normalized_path = normalized_path.presence || "/"
+          raise ConnectionError, "OmniFocus Web websocket URL path is not allowed" unless normalized_path.match?(%r{\A/[A-Za-z0-9\-._~/]*\z})
+
+          normalized_path
         end
 
         def handle_authentication_message!(socket, response)
