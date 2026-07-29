@@ -66,6 +66,105 @@ RSpec.describe "Asana::Task" do
 
       expect(task.project).to eq("Project Name")
     end
+
+    it "matches the membership for the first project gid" do
+      task = Asana::Task.new(
+        asana_task: {
+          "gid" => "123",
+          "name" => "Task",
+          "projects" => [
+            { "gid" => "pets-project", "name" => "Pets" },
+            { "gid" => "shopping-project", "name" => "Shopping List" }
+          ],
+          "memberships" => [
+            {
+              "project" => { "gid" => "shopping-project", "name" => "Shopping List" },
+              "section" => { "gid" => "shopping-groceries", "name" => "Groceries" }
+            },
+            {
+              "project" => { "gid" => "pets-project", "name" => "Pets" },
+              "section" => { "gid" => "pets-bucky", "name" => "Bucky" }
+            }
+          ]
+        }
+      )
+      task.read_original
+
+      expect(task.project).to eq("Pets:Bucky")
+    end
+
+    it "matches the membership for the synced project gid" do
+      task = Asana::Task.new(
+        asana_task: {
+          "gid" => "123",
+          "name" => "Task",
+          "projects" => [
+            { "gid" => "pets-project", "name" => "Pets" },
+            { "gid" => "shopping-project", "name" => "Shopping List" }
+          ],
+          "memberships" => [
+            {
+              "project" => { "gid" => "pets-project", "name" => "Pets" },
+              "section" => { "gid" => "pets-bucky", "name" => "Bucky" }
+            },
+            {
+              "project" => { "gid" => "shopping-project", "name" => "Shopping List" },
+              "section" => { "gid" => "shopping-groceries", "name" => "Groceries" }
+            }
+          ]
+        }
+      )
+      task.synced_project_gid = "shopping-project"
+
+      task.read_original
+
+      expect(task.project).to eq("Shopping List:Groceries")
+    end
+
+    it "falls back to the first membership when membership project gids are absent" do
+      task = Asana::Task.new(
+        asana_task: {
+          "gid" => "123",
+          "name" => "Task",
+          "projects" => [
+            { "gid" => "pets-project", "name" => "Pets" },
+            { "gid" => "shopping-project", "name" => "Shopping List" }
+          ],
+          "memberships" => [
+            {
+              "project" => { "name" => "Shopping List" },
+              "section" => { "name" => "Groceries" }
+            },
+            {
+              "project" => { "name" => "Pets" },
+              "section" => { "name" => "Bucky" }
+            }
+          ]
+        }
+      )
+      task.read_original
+
+      expect(task.project).to eq("Shopping List:Groceries")
+    end
+
+    it "falls back to the synced project name when memberships are absent" do
+      task = Asana::Task.new(
+        asana_task: {
+          "gid" => "123",
+          "name" => "Task",
+          "projects" => [
+            { "gid" => "pets-project", "name" => "Pets" },
+            { "gid" => "shopping-project", "name" => "Shopping List" }
+          ],
+          "memberships" => []
+        }
+      )
+      task.synced_project_gid = "shopping-project"
+
+      task.read_original
+
+      expect(task.project).to eq("Shopping List")
+    end
   end
 
   describe "#to_json" do
@@ -147,7 +246,8 @@ RSpec.describe "Asana::Task" do
         "completed",
         "completed_at",
         "modified_at",
-        "num_subtasks"
+        "num_subtasks",
+        "memberships.project.gid"
       )
     end
   end

@@ -42,7 +42,7 @@ module Asana
   class Task < Base::SyncItem
     include Collectible
 
-    attr_accessor :asana_task
+    attr_accessor :asana_task, :synced_project_gid
     attr_reader :project, :section, :sub_item_count, :sub_items, :assignee
 
     def read_original(only_modified_dates: false)
@@ -131,6 +131,7 @@ module Asana
           start_on: false,
           start_at: false,
           num_subtasks: true,
+          "memberships.project.gid": true,
           "memberships.section.name": true,
           "memberships.project.name": true,
           subtasks_name: false,
@@ -159,15 +160,24 @@ module Asana
     # try to read the project and sections from the memberships array
     # If there isn't anything there, use the projects array
     def project_from_memberships(asana_task)
-      if asana_task["memberships"]&.any?
-        # Asana supports multiple sections, but TaskBridge currently supports only one per task
-        project = asana_task["memberships"].first.dig("project", "name")
-        section = asana_task["memberships"].first.dig("section", "name")
-        section == "Untitled section" ? project : "#{project}:#{section}"
-      else
-        # we'll only sync a task with one project at a time
-        asana_task["projects"]&.first&.dig("name")
-      end
+      membership = matching_membership(asana_task) || asana_task["memberships"]&.first
+      return fallback_project_name(asana_task) if membership.nil?
+
+      project = membership.dig("project", "name")
+      section = membership.dig("section", "name")
+      section == "Untitled section" ? project : "#{project}:#{section}"
+    end
+
+    def matching_membership(asana_task)
+      target_project_gid = synced_project_gid.presence || asana_task["projects"]&.filter_map { |project| project["gid"] }&.first
+      return if target_project_gid.blank?
+
+      asana_task["memberships"]&.find { |membership| membership.dig("project", "gid") == target_project_gid }
+    end
+
+    def fallback_project_name(asana_task)
+      synced_project = asana_task["projects"]&.find { |project| project["gid"] == synced_project_gid } if synced_project_gid.present?
+      synced_project&.dig("name") || asana_task["projects"]&.first&.dig("name")
     end
 
     def serialized_project_gids
