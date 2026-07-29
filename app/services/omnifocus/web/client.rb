@@ -479,7 +479,7 @@ module Omnifocus
           raise ConnectionError, "OmniFocus Web websocket URL must not include query parameters" if uri.query.present?
           raise ConnectionError, "OmniFocus Web websocket URL must not include a fragment" if uri.fragment.present?
 
-          endpoint = validated_allowed_websocket_endpoint(uri)
+          endpoint = canonical_websocket_endpoint(uri)
           raise ConnectionError, "OmniFocus Web websocket URL is not allowed" if endpoint.nil?
 
           resolved_address = validated_public_websocket_address(endpoint.fetch(:host))
@@ -490,18 +490,17 @@ module Omnifocus
           raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
         end
 
-        def validated_allowed_websocket_endpoint(uri)
-          endpoint = allowlisted_websocket_endpoint(normalized_websocket_host(uri.host))
-          return if endpoint.nil?
-
-          return if normalized_websocket_port(uri.port) != endpoint.fetch(:port)
-          return if normalized_websocket_path(uri.path) != endpoint.fetch(:path)
-
-          endpoint
-        end
-
-        def allowlisted_websocket_endpoint(host)
-          ALLOWED_WEBSOCKET_ENDPOINTS.find { |endpoint| endpoint.fetch(:host) == host }
+        def canonical_websocket_endpoint(uri)
+          case [
+            normalized_websocket_host(uri.host),
+            normalized_websocket_port(uri.port),
+            normalized_websocket_path(uri.path)
+          ]
+          when [SYNC_WEBSOCKET_ENDPOINT.fetch(:host), SYNC_WEBSOCKET_ENDPOINT.fetch(:port), SYNC_WEBSOCKET_ENDPOINT.fetch(:path)]
+            SYNC_WEBSOCKET_ENDPOINT
+          when [WEB_WEBSOCKET_ENDPOINT.fetch(:host), WEB_WEBSOCKET_ENDPOINT.fetch(:port), WEB_WEBSOCKET_ENDPOINT.fetch(:path)]
+            WEB_WEBSOCKET_ENDPOINT
+          end
         end
 
         def normalized_websocket_host(host)
