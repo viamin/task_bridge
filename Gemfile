@@ -60,6 +60,9 @@ gem "googleauth", "~> 1.17"
 # https://github.com/googleapis/google-api-ruby-client/tree/main/google-api-client/generated/google/apis/tasks_v1
 gem "google-apis-tasks_v1", "~> 0.32"
 
+# https://github.com/googleapis/google-api-ruby-client/tree/main/google-api-client/generated/google/apis/keep_v1
+gem "google-apis-keep_v1", "~> 0.18"
+
 # https://github.com/jnunemaker/httparty
 gem "httparty", "~> 0.21"
 

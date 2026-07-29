@@ -5,6 +5,7 @@ default: &default
     all_supported_services:
       - Asana
       - Github
+      - GoogleKeep
       - GoogleTasks
       - Instapaper
       - Omnifocus
@@ -21,8 +22,10 @@ default: &default
       - Github
       - Instapaper
       - Asana
+      - GoogleKeep
     task_services:
       - Asana
+      - GoogleKeep
       - GoogleTasks
       - Omnifocus
       - Reclaim
