@@ -122,7 +122,7 @@ module Base
       raw_notes = self.class.read_external_attribute(external_data, external_attribute_map[:notes]) if raw_notes.nil?
       return if raw_notes.blank?
 
-      note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
+      note_components = parsed_notes(keys: sync_note_keys(raw_notes), notes: raw_notes)
       note_components.each do |key, value|
         next if has_attribute?(key)
 
@@ -157,6 +157,11 @@ module Base
       return @options if defined?(@options) && @options.present?
 
       super
+    end
+
+    def options=(options)
+      @options = options
+      @service_name = Base::Service.normalized_service_name(options[:service_name]) if options&.[](:service_name).present?
     end
 
     def service_key
@@ -374,6 +379,14 @@ module Base
         service_key = Base::Service.service_identifier_for(service)
         ["#{service_key}_id", "#{service_key}_url"]
       end
+    end
+
+    def sync_note_keys(raw_notes)
+      (all_service_keys + discovered_sync_note_keys(raw_notes)).uniq
+    end
+
+    def discovered_sync_note_keys(raw_notes)
+      raw_notes.to_s.scan(/^([a-z0-9_]+_(?:id|url)):\s/m).flatten
     end
 
     def set_tags

@@ -284,6 +284,7 @@ module Base
       service_identifier = service_identifier_for(service_name)
       existing_item.instance_variable_set(:"@#{service_identifier}_id", sync_id) if sync_id
       existing_item.instance_variable_set(:"@#{service_identifier}_url", sync_url) if sync_url
+      define_sync_note_accessors(existing_item, service_identifier)
       existing_item.patch_external_attributes(notes: existing_item.sync_notes)
     end
 
@@ -480,6 +481,13 @@ module Base
       return if item.new_record?
 
       item
+    end
+
+    def define_sync_note_accessors(item, service_identifier)
+      return unless item.is_a?(Base::SyncItem)
+
+      item.define_note_component_accessors("#{service_identifier}_id")
+      item.define_note_component_accessors("#{service_identifier}_url")
     end
 
     def sync_operation_successful?(result)

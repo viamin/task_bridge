@@ -651,6 +651,21 @@ RSpec.describe "Base::SyncItem", :full_options do
   end
 
   describe "multiple service instances" do
+    it "keeps item service identity local when thread-global options change later" do
+      item = asana_item_class.new(
+        options: options.merge(service_name: "Asana:work"),
+        title: "Buy milk",
+        external_id: "asana-456"
+      )
+
+      Thread.current[:global_options] = options.merge(service_name: "Asana:personal")
+
+      expect(item.service_name).to eq("Asana:work")
+      expect(item.service_key).to eq("asana_work")
+    ensure
+      Thread.current[:global_options] = nil
+    end
+
     it "matches against instance-qualified sync IDs" do
       source_item = omnifocus_item_class.new(
         sync_item: {
