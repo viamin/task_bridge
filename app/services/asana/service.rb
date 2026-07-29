@@ -133,9 +133,9 @@ module Asana
 
         section_gid = section_or_default_identifier_for(external_task)
         section_move_error = move_task_to_section(section_gid, asana_task.external_id) if section_gid.present?
-      elsif !matched_by_title && external_task.respond_to?(:tags)
+      elsif !matched_by_title && section_change_requested?(asana_task, external_task)
         section_gid = section_or_default_identifier_for(external_task)
-        section_move_error = move_task_to_section(section_gid, asana_task.external_id) if section_gid.present?
+        section_move_error = move_task_to_section(section_gid, asana_task.external_id) if section_gid.present? && current_section_gid_for(asana_task) != section_gid
       end
       handle_sub_items(asana_task, external_task)
       # Add sync ID so future syncs use ID matching instead of title matching
@@ -338,6 +338,31 @@ module Asana
 
     def default_section_gid_for(project_gid)
       section_hashes_for(project_gid).find { |section| section["name"] == "Untitled section" }&.dig("gid")
+    end
+
+    def current_section_gid_for(asana_task)
+      membership_for(asana_task)&.dig("section", "gid")
+    end
+
+    def section_change_requested?(asana_task, external_task)
+      return false if external_task.project.blank?
+
+      section_tags = external_task.respond_to?(:tags) ? Array(external_task.tags) : []
+      return false if asana_task.section.blank? && section_tags.blank?
+      return false if section_tags.include?(asana_task.section)
+
+      true
+    end
+
+    def membership_for(asana_task)
+      memberships = asana_task.asana_task["memberships"]
+      return if memberships.blank?
+
+      project_gid =
+        asana_task.synced_project_gid.presence ||
+        asana_task.asana_task["projects"]&.first&.dig("gid") ||
+        project_gid_from_name(project_name_for(asana_task.project))
+      memberships.find { |membership| membership.dig("project", "gid") == project_gid } || memberships.first
     end
 
     def project_name_for(project_string)

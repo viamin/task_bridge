@@ -46,7 +46,7 @@ RSpec.describe Asana::Service, :full_options do
 
     before do
       allow(HTTParty).to receive(:put).and_return(httparty_success_mock)
-      allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
+      allow(external_task).to receive(:respond_to?) { |method| %i[sub_item_count tags].include?(method) }
     end
 
     context "when the item was matched by title (external task has no sync ID)" do
@@ -68,6 +68,7 @@ RSpec.describe Asana::Service, :full_options do
 
       before do
         allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.external_id)
+        allow(external_task).to receive(:tags).and_return(["Bucky"])
       end
 
       it "does not update sync data since items are already linked" do
@@ -96,6 +97,7 @@ RSpec.describe Asana::Service, :full_options do
 
       before do
         allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.external_id)
+        allow(external_task).to receive(:tags).and_return(["Bucky"])
       end
 
       it "always updates sync data regardless of existing sync ID" do
@@ -249,6 +251,7 @@ RSpec.describe Asana::Service, :full_options do
       before do
         allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
         allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.external_id)
+        allow(external_task).to receive(:tags).and_return(["Bucky"])
       end
 
       it "does not attempt to change the project" do
@@ -276,8 +279,9 @@ RSpec.describe Asana::Service, :full_options do
       end
 
       before do
-        allow(external_task).to receive(:respond_to?) { |method| method == :sub_item_count }
+        allow(external_task).to receive(:respond_to?) { |method| %i[sub_item_count tags].include?(method) }
         allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.external_id)
+        allow(external_task).to receive(:tags).and_return(["Bucky"])
       end
 
       it "does not attempt to change the project" do
@@ -285,6 +289,21 @@ RSpec.describe Asana::Service, :full_options do
         expect(service).not_to receive(:move_task_to_section)
 
         service.update_item(asana_task, external_task)
+      end
+
+      context "when the task is already in the resolved section" do
+        let(:current_section_gid) { "1203152506994884" }
+
+        before do
+          allow(external_task).to receive(:tags).and_return(["Bucky"])
+          allow(service).to receive(:section_or_default_identifier_for).with(external_task).and_return(current_section_gid)
+        end
+
+        it "does not move the task again" do
+          expect(service).not_to receive(:move_task_to_section)
+
+          service.update_item(asana_task, external_task)
+        end
       end
 
       context "when the synced task no longer has a matching section tag" do
