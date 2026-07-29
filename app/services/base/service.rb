@@ -142,6 +142,7 @@ module Base
         elsif !service_item.completed?
           primary_service.add_item(service_item).tap do |added_item|
             track_sync_error!(sync_errors, added_item)
+            persist_created_sync_data_for(service_item.provider, service_item, primary_service, added_item)
             track_touched_collection!(touched_collection_ids, added_item) do
               persist_created_sync_collection_for(service_item, primary_service, added_item)&.id
             end
@@ -186,6 +187,7 @@ module Base
         elsif !primary_item.completed?
           add_item(primary_item).tap do |added_item|
             track_sync_error!(sync_errors, added_item)
+            persist_created_sync_data_for(primary_item.provider, primary_item, self, added_item)
             track_touched_collection!(touched_collection_ids, added_item) do
               persist_created_sync_collection_for(primary_item, self, added_item)&.id
             end
@@ -221,7 +223,11 @@ module Base
     end
 
     def update_sync_data(existing_item, sync_id, sync_url = nil)
-      service_name = service_identifier_for(friendly_name)
+      update_sync_data_for(friendly_name, existing_item, sync_id, sync_url)
+    end
+
+    def update_sync_data_for(service_name, existing_item, sync_id, sync_url = nil)
+      service_name = service_identifier_for(service_name)
       existing_item.instance_variable_set(:"@#{service_name}_id", sync_id) if sync_id
       existing_item.instance_variable_set(:"@#{service_name}_url", sync_url) if sync_url
       existing_item.patch_external_attributes(notes: existing_item.sync_notes)
@@ -327,6 +333,22 @@ module Base
       persist_sync_collection_for(source_item, target_item)
     end
 
+    def persist_created_sync_data_for(source_service_name, source_item, target_service, created_item)
+      return if options[:pretend] || !sync_operation_successful?(created_item) || source_item.external_id.blank?
+
+      target_item = persisted_sync_target_for(target_service, source_item, created_item)
+      return unless target_item.is_a?(Base::SyncItem)
+
+      prepare_target_item_for_sync_patch!(target_item, target_service, source_service_name)
+
+      source_service_key = service_identifier_for(source_service_name)
+      existing_sync_id = sync_note_value(target_item, :"#{source_service_key}_id")
+      existing_sync_url = sync_note_value(target_item, :"#{source_service_key}_url")
+      return if existing_sync_id == source_item.external_id && existing_sync_url == source_item.try(:url)
+
+      update_sync_data_for(source_service_name, target_item, source_item.external_id, source_item.try(:url))
+    end
+
     def persisted_sync_target_for(target_service, source_item, created_item)
       return created_item if created_item.is_a?(Base::SyncItem)
 
@@ -344,6 +366,14 @@ module Base
         target_item.url ||= sync_note_value(source_item, :"#{target_service_key}_url")
         target_item.save! if target_item.new_record? || target_item.changed?
       end
+    end
+
+    def prepare_target_item_for_sync_patch!(target_item, target_service, source_service_name)
+      target_item.options = target_item.options.merge(
+        primary: target_item.provider,
+        primary_service: target_service,
+        services: (Array(target_item.options[:services]) + Array(options[:services]) + [source_service_name]).uniq
+      )
     end
 
     def sync_note_value(item, key)

@@ -18,6 +18,11 @@ RSpec.describe Base::Service do
       def external_data
         {}
       end
+
+      def patch_external_attributes(attributes)
+        self.notes = attributes[:notes] if attributes.key?(:notes)
+        save! if changed?
+      end
     end)
   end
   let(:primary_sync_item_class) do
@@ -32,6 +37,11 @@ RSpec.describe Base::Service do
 
       def external_data
         {}
+      end
+
+      def patch_external_attributes(attributes)
+        self.notes = attributes[:notes] if attributes.key?(:notes)
+        save! if changed?
       end
     end)
   end
@@ -228,6 +238,7 @@ RSpec.describe Base::Service do
       created_primary_item = primary_sync_item_class.find_by!(external_id: "primary-create-123")
       expect(persisted_service_item.reload.sync_collection_id).to eq(created_primary_item.sync_collection_id)
       expect(created_primary_item.title).to eq(persisted_service_item.title)
+      expect(created_primary_item.test_service_id).to eq(persisted_service_item.external_id)
     end
 
     it "persists newly created primary items when sync IDs are stored as note instance variables" do
@@ -256,6 +267,7 @@ RSpec.describe Base::Service do
       created_primary_item = primary_sync_item_class.find_by!(external_id: "primary-create-ivar-123")
       expect(persisted_service_item.reload.sync_collection_id).to eq(created_primary_item.sync_collection_id)
       expect(created_primary_item.url).to eq("https://example.test/tasks/primary-create-ivar-123")
+      expect(created_primary_item.test_service_id).to eq(persisted_service_item.external_id)
     end
 
     it "does not mark a collection as touched when the provider update returns a failure message" do
@@ -368,6 +380,7 @@ RSpec.describe Base::Service do
       created_service_item = sync_item_class.find_by!(external_id: "service-create-456")
       expect(primary_item.reload.sync_collection_id).to eq(created_service_item.sync_collection_id)
       expect(created_service_item.title).to eq(primary_item.title)
+      expect(created_service_item.primary_service_id).to eq(primary_item.external_id)
     end
   end
 

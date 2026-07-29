@@ -149,6 +149,26 @@ RSpec.describe GoogleKeep::Service do
   end
 
   describe "#sync_to_primary" do
+    let(:primary_sync_item_class) do
+      stub_const("GoogleKeepPrimarySyncItem", Class.new(Base::SyncItem) do
+        def self.attribute_map
+          {}
+        end
+
+        def provider
+          "Omnifocus"
+        end
+
+        def external_data
+          {}
+        end
+
+        def patch_external_attributes(attributes)
+          self.notes = attributes[:notes] if attributes.key?(:notes)
+          save! if changed?
+        end
+      end)
+    end
     let(:root_item) do
       GoogleKeep::Item.new(
         keep_item: {
@@ -163,6 +183,20 @@ RSpec.describe GoogleKeep::Service do
         options:
       ).tap(&:read_original)
     end
+    let(:renamed_root_item) do
+      GoogleKeep::Item.new(
+        keep_item: {
+          note: Google::Apis::KeepV1::Note.new(title: options[:list], update_time: Time.current),
+          note_title: options[:list],
+          item: Google::Apis::KeepV1::ListItem.new(
+            text: Google::Apis::KeepV1::TextContent.new(text: GoogleKeep::Item.text_with_external_id("Buy oat milk", "keep-root-1")),
+            checked: false
+          ),
+          path: [0]
+        },
+        options:
+      ).tap(&:read_original)
+    end
     let(:primary_service) do
       instance_double(
         "Primary::Service",
@@ -170,7 +204,7 @@ RSpec.describe GoogleKeep::Service do
         items_to_sync: [],
         add_item: nil,
         update_item: nil,
-        item_class: nil
+        item_class: primary_sync_item_class
       )
     end
 
@@ -185,6 +219,20 @@ RSpec.describe GoogleKeep::Service do
       result = service.sync_to_primary(primary_service)
 
       expect(result["items_synced"]).to eq(1)
+    end
+
+    it "persists the Keep id onto newly created primary items so renamed notes still match" do
+      allow(primary_service).to receive(:add_item) do
+        root_item.instance_variable_set(:@omnifocus_id, "omnifocus-123")
+        root_item.instance_variable_set(:@omnifocus_url, "omnifocus:///task/omnifocus-123")
+        { id: "omnifocus-123" }
+      end
+
+      service.sync_to_primary(primary_service)
+
+      created_primary_item = primary_sync_item_class.find_by!(external_id: "omnifocus-123")
+      expect(created_primary_item.google_keep_id).to eq(root_item.external_id)
+      expect(renamed_root_item.find_matching_item_in([created_primary_item])).to eq(created_primary_item)
     end
   end
 end
