@@ -555,6 +555,7 @@ module Omnifocus
           ssl_socket.sync_close = true
           ssl_socket.hostname = @uri.host if ssl_socket.respond_to?(:hostname=)
           ssl_socket.connect
+          ssl_socket.post_connection_check(@uri.host)
           ssl_socket
         end
 
@@ -574,6 +575,7 @@ module Omnifocus
         def ssl_context
           @ssl_context ||= OpenSSL::SSL::SSLContext.new.tap do |context|
             context.verify_mode = OpenSSL::SSL::VERIFY_PEER
+            context.verify_hostname = true if context.respond_to?(:verify_hostname=)
           end
         end
       end

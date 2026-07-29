@@ -109,6 +109,37 @@ RSpec.describe Omnifocus::Web::Client do
     end
   end
 
+  describe Omnifocus::Web::Client::SocketConnection do
+    let(:uri) { URI("wss://sync.omnifocus.com/socket") }
+    let(:tcp_socket) { instance_double(TCPSocket, write: nil, readpartial: "") }
+    let(:ssl_context) { instance_double(OpenSSL::SSL::SSLContext) }
+    let(:ssl_socket) { instance_double(OpenSSL::SSL::SSLSocket, connect: nil, post_connection_check: nil, write: nil, readpartial: "") }
+    let(:handshake) { instance_double(WebSocket::Handshake::Client, to_s: "handshake", version: 13, finished?: true, valid?: true) }
+    let(:incoming) { instance_double(WebSocket::Frame::Incoming::Client) }
+
+    before do
+      allow(TCPSocket).to receive(:new).with("sync.omnifocus.com", 443).and_return(tcp_socket)
+      allow(OpenSSL::SSL::SSLContext).to receive(:new).and_return(ssl_context)
+      allow(OpenSSL::SSL::SSLSocket).to receive(:new).with(tcp_socket, ssl_context).and_return(ssl_socket)
+      allow(WebSocket::Handshake::Client).to receive(:new).and_return(handshake)
+      allow(WebSocket::Frame::Incoming::Client).to receive(:new).with(version: 13).and_return(incoming)
+      allow(ssl_context).to receive(:verify_mode=)
+      allow(ssl_context).to receive(:verify_hostname=)
+      allow(ssl_socket).to receive(:sync_close=)
+      allow(ssl_socket).to receive(:hostname=)
+    end
+
+    it "verifies the certificate hostname for secure websocket connections" do
+      described_class.new(uri, protocols: ["v1.omnifocus.omnigroup.com"])
+
+      expect(ssl_context).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+      expect(ssl_context).to have_received(:verify_hostname=).with(true)
+      expect(ssl_socket).to have_received(:hostname=).with("sync.omnifocus.com")
+      expect(ssl_socket).to have_received(:connect)
+      expect(ssl_socket).to have_received(:post_connection_check).with("sync.omnifocus.com")
+    end
+  end
+
   describe Omnifocus::Web::Client::Reference do
     let(:transport) { instance_double(Omnifocus::Web::Client::Transport) }
     let(:reference) do
