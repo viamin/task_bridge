@@ -88,6 +88,17 @@ RSpec.describe Asana::Service, :full_options do
       end
     end
 
+    context "when external task uses legacy Project:Section format" do
+      let(:external_task) do
+        double("ExternalTask", project: "Pets:Bucky", tags: [])
+      end
+
+      it "falls back to the project suffix when no section tag matches" do
+        result = service.send(:memberships_for_task, external_task, for_create: false)
+        expect(result).to eq({ project: pets_project_gid, section: bucky_section_gid })
+      end
+    end
+
     context "when external task has a section that does not exist" do
       let(:external_task) do
         double("ExternalTask", project: "Pets", tags: ["NonExistentSection"])
@@ -200,6 +211,13 @@ RSpec.describe Asana::Service, :full_options do
       allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
 
       expect(service.send(:section_change_requested?, asana_task, external_task)).to be(true)
+    end
+
+    it "does not clear a legacy Project:Section task just because tags are empty" do
+      external_task = double("ExternalTask", project: "Pets:Bucky", tags: [])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, asana_task, external_task)).to be(false)
     end
   end
 

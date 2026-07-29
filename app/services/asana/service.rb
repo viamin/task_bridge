@@ -341,14 +341,14 @@ module Asana
 
       return false unless external_task.respond_to?(:tags)
 
-      section_tags = Array(external_task.tags)
-      return asana_task.section.present? if section_tags.empty?
-
       project_gid = project_gid_from_name(project_name_for(external_task.project))
       matching_section = matching_section_hash_for(external_task, project_gid)
-      return false if matching_section.blank?
+      return matching_section["name"] != asana_task.section if matching_section.present?
 
-      matching_section["name"] != asana_task.section
+      return false unless Array(external_task.tags).empty?
+      return false if legacy_section_name_for(external_task.project).present?
+
+      asana_task.section.present?
     end
 
     def membership_for(asana_task)
@@ -365,13 +365,29 @@ module Asana
     def matching_section_hash_for(external_task, project_gid)
       return if project_gid.blank?
 
+      matching_section_hash_from_tags(external_task, project_gid) ||
+        matching_legacy_section_hash(external_task, project_gid)
+    end
+
+    def project_name_for(project_string)
+      project_string.to_s.split(":", 2).first
+    end
+
+    def matching_section_hash_from_tags(external_task, project_gid)
       section_hashes_for(project_gid).find do |section|
         Array(external_task.tags).include?(section["name"])
       end
     end
 
-    def project_name_for(project_string)
-      project_string.to_s.split(":", 2).first
+    def matching_legacy_section_hash(external_task, project_gid)
+      legacy_section_name = legacy_section_name_for(external_task.project)
+      return if legacy_section_name.blank?
+
+      section_hashes_for(project_gid).find { |section| section["name"] == legacy_section_name }
+    end
+
+    def legacy_section_name_for(project_string)
+      project_string.to_s.split(":", 2).second
     end
 
     def workspace_gids

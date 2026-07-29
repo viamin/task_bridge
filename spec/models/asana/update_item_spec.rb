@@ -362,8 +362,8 @@ RSpec.describe Asana::Service, :full_options do
           allow(service).to receive(:section_or_default_identifier_for).with(external_task).and_return(untitled_section_gid)
         end
 
-        it "moves the task back to the untitled section" do
-          expect(service).to receive(:move_task_to_section).with(untitled_section_gid, asana_task.external_id)
+        it "does not clear the legacy section" do
+          expect(service).not_to receive(:move_task_to_section)
 
           service.update_item(asana_task, external_task)
         end
@@ -376,6 +376,51 @@ RSpec.describe Asana::Service, :full_options do
 
         it "does not move the task back to the untitled section" do
           expect(service).not_to receive(:move_task_to_section)
+
+          service.update_item(asana_task, external_task)
+        end
+      end
+    end
+
+    context "when external task uses the tag-based project format" do
+      let(:external_task) do
+        double(
+          "ExternalTask",
+          completed?: false,
+          title: "Test Task",
+          project: "Pets",
+          sync_notes: "notes",
+          sub_item_count: 0,
+          due_at: nil,
+          due_date: nil,
+          flagged: false
+        )
+      end
+
+      before do
+        allow(external_task).to receive(:respond_to?) { |method| %i[sub_item_count tags].include?(method) }
+        allow(external_task).to receive(:try).with(:asana_id).and_return(asana_task.external_id)
+      end
+
+      it "does not attempt to change the project" do
+        expect(HTTParty).not_to receive(:post)
+        expect(service).not_to receive(:move_task_to_section)
+
+        allow(external_task).to receive(:tags).and_return(["Bucky"])
+
+        service.update_item(asana_task, external_task)
+      end
+
+      context "when the synced task no longer has a matching section tag" do
+        let(:untitled_section_gid) { "section-gid-untitled" }
+
+        before do
+          allow(external_task).to receive(:tags).and_return([])
+          allow(service).to receive(:section_or_default_identifier_for).with(external_task).and_return(untitled_section_gid)
+        end
+
+        it "moves the task back to the untitled section" do
+          expect(service).to receive(:move_task_to_section).with(untitled_section_gid, asana_task.external_id)
 
           service.update_item(asana_task, external_task)
         end
