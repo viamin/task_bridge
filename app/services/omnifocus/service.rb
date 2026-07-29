@@ -219,7 +219,7 @@ module Omnifocus
         return [external_data_for(task, only_modified_dates: true)].compact if task
       end
 
-      resolved_source_provider = service_item.try(:provider) || service_item.try(:provider_name) || source_provider
+      resolved_source_provider = service_item.try(:service_name) || service_item.try(:provider) || service_item.try(:provider_name) || source_provider
       yield.fetch(normalized_title_key(service_item.friendly_title), [])
            .filter_map { |task_summary| external_data_for_summary(task_summary, source_provider: resolved_source_provider) }
     end
@@ -247,7 +247,7 @@ module Omnifocus
 
     def sync_metadata_present?(task, source_provider)
       task.read_notes
-      task.try(:"#{source_provider.underscore}_id").present?
+      task.try(:"#{Base::Service.service_identifier_for(source_provider)}_id").present?
     end
 
     def matching_task_summaries(tag)

@@ -105,6 +105,13 @@ RSpec.describe Base::Service do
     primary_sync_item_class
   end
 
+  describe ".service_identifier_for" do
+    it "builds note-safe keys for named instances" do
+      expect(described_class.service_identifier_for("Asana:work")).to eq("asana_work")
+      expect(described_class.service_identifier_for("Asana.personal")).to eq("asana_personal")
+    end
+  end
+
   describe "#sync_to_primary" do
     before do
       allow(service).to receive(:items_to_sync).and_return([service_item])

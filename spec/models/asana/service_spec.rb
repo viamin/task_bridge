@@ -105,6 +105,18 @@ RSpec.describe "Asana::Service" do
     end
   end
 
+  describe "multiple service instances" do
+    it "loads credentials from the named Asana instance config" do
+      allow(Chamber).to receive(:dig).with(:asana, "work").and_return({ "personal_access_token" => "work-token" })
+
+      instance_service = Asana::Service.new(options: { quiet: true, service_name: "Asana:work", instance_name: "work" })
+
+      expect(instance_service.authorized).to be(true)
+      expect(instance_service.service_name).to eq("Asana:work")
+      expect(instance_service.send(:authenticated_options).dig(:headers, :Authorization)).to eq("Bearer work-token")
+    end
+  end
+
   describe "#list_projects" do
     let(:workspace_gids) { %w[workspace-1 workspace-2] }
     let(:workspace_1_projects) do

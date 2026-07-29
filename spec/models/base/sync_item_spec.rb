@@ -649,4 +649,50 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.service).to be_nil
     end
   end
+
+  describe "multiple service instances" do
+    it "matches against instance-qualified sync IDs" do
+      source_item = omnifocus_item_class.new(
+        sync_item: {
+          "id" => "of-123",
+          "title" => "Buy milk",
+          "completed" => false,
+          "notes" => "asana_work_id: asana-456"
+        },
+        options: options.merge(services: ["Asana:work"]),
+        title: "Buy milk",
+        external_id: "of-123",
+        notes: "asana_work_id: asana-456"
+      )
+      target_item = asana_item_class.new(
+        sync_item: {
+          "id" => "asana-456",
+          "title" => "Buy milk",
+          "completed" => false,
+          "notes" => ""
+        },
+        options: options,
+        service_name: "Asana:work",
+        title: "Buy milk",
+        external_id: "asana-456"
+      )
+
+      expect(source_item.find_matching_item_in([target_item])).to eq(target_item)
+    end
+
+    it "writes instance-qualified sync note keys" do
+      item = asana_item_class.new(
+        options: options,
+        service_name: "Asana:work",
+        title: "Buy milk",
+        external_id: "asana-456",
+        url: "https://app.asana.com/0/456",
+        notes: "body"
+      )
+
+      expect(item.external_sync_notes).to include("asana_work_id: asana-456")
+      expect(item.external_sync_notes).to include("asana_work_url: https://app.asana.com/0/456")
+      expect(item.external_sync_notes).not_to include("asana_id:")
+    end
+  end
 end

@@ -57,6 +57,21 @@ RSpec.describe "task_bridge:sync task" do
     expect(history_logger).to have_received(:print_logs)
   end
 
+  it "normalizes instance-qualified service names from CLI overrides" do
+    history_logger = instance_double(StructuredLogger, print_logs: nil)
+
+    stub_sync_defaults(services: %w[Primary Asana])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Asana])
+    allow(StructuredLogger).to receive(:new).with(
+      log_file: "log/task_bridge_test.json",
+      services: ["Asana:work", "Asana:personal"]
+    ).and_return(history_logger)
+
+    expect { invoke_task("--history", "--services", "Asana:work,Asana.personal") }.not_to raise_error
+
+    expect(history_logger).to have_received(:print_logs)
+  end
+
   it "rejects mutually exclusive direction flags" do
     stub_sync_defaults(services: ["Passing"])
     allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
