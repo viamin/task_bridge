@@ -48,9 +48,9 @@ RSpec.describe Asana::Service, :full_options do
         .and_return(pets_sections_list)
     end
 
-    context "when external task has 'Project:Section' format" do
+    context "when external task has a matching section tag" do
       let(:external_task) do
-        double("ExternalTask", project: "Pets:Bucky")
+        double("ExternalTask", project: "Pets", tags: ["Bucky"])
       end
 
       context "for creating a task (for_create: true)" do
@@ -68,9 +68,9 @@ RSpec.describe Asana::Service, :full_options do
       end
     end
 
-    context "when external task has just project name (from Untitled section)" do
+    context "when external task has just project name" do
       let(:external_task) do
-        double("ExternalTask", project: "Pets")
+        double("ExternalTask", project: "Pets", tags: [])
       end
 
       context "for creating a task (for_create: true)" do
@@ -90,7 +90,7 @@ RSpec.describe Asana::Service, :full_options do
 
     context "when external task has a section that does not exist" do
       let(:external_task) do
-        double("ExternalTask", project: "Pets:NonExistentSection")
+        double("ExternalTask", project: "Pets", tags: ["NonExistentSection"])
       end
 
       it "returns the project GID with no section" do
@@ -101,7 +101,7 @@ RSpec.describe Asana::Service, :full_options do
 
     context "when external task has a project that does not exist" do
       let(:external_task) do
-        double("ExternalTask", project: "NonExistentProject:SomeSection")
+        double("ExternalTask", project: "NonExistentProject", tags: ["SomeSection"])
       end
 
       it "returns an empty hash and warns once" do
@@ -115,7 +115,7 @@ RSpec.describe Asana::Service, :full_options do
 
     context "when external task has nil project" do
       let(:external_task) do
-        double("ExternalTask", project: nil)
+        double("ExternalTask", project: nil, tags: ["Bucky"])
       end
 
       it "returns an empty hash" do
@@ -126,7 +126,7 @@ RSpec.describe Asana::Service, :full_options do
 
     context "when external task has blank project" do
       let(:external_task) do
-        double("ExternalTask", project: "")
+        double("ExternalTask", project: "", tags: ["Bucky"])
       end
 
       it "returns an empty hash" do
@@ -135,7 +135,7 @@ RSpec.describe Asana::Service, :full_options do
       end
     end
 
-    context "when project name contains colon (edge case: 'Project:With:Colon:Section')" do
+    context "when section tag contains a colon" do
       let(:colon_project_gid) { "colon-project-123" }
       let(:projects_list_with_colon) do
         [
@@ -156,8 +156,7 @@ RSpec.describe Asana::Service, :full_options do
       end
 
       let(:external_task) do
-        # When parsed: project = "Project", section = "With:Colon:Section" (using split(":", 2))
-        double("ExternalTask", project: "Project:With:Colon:Section")
+        double("ExternalTask", project: "Project", tags: ["With:Colon:Section"])
       end
 
       it "correctly parses the project and section parts" do

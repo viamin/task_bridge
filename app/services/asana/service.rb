@@ -121,16 +121,21 @@ module Asana
       # Detect if this was a title match vs ID match
       # Title match: external_task doesn't have our sync ID
       matched_by_title = matched_by_title?(external_task, asana_task)
+      project_changed = project_name_for(asana_task.project) != project_name_for(external_task.project)
 
       # Only move projects/sections for ID-matched items (reliable link)
       # Title matches are not reliable enough to warrant moving tasks between projects
       section_move_error = nil
-      if !matched_by_title && external_task.project && (asana_task.project != external_task.project)
+      if !matched_by_title && external_task.project && project_changed
         request_body = { body: JSON.dump({ data: memberships_for_task(external_task) }) }
         project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.external_id}/addProject", authenticated_options.merge(request_body))
         return failure_message("update Asana task ##{asana_task.external_id}", project_response) unless project_response.success?
 
-        section_move_error = move_task_to_section(section_identifier_for(external_task), asana_task.external_id)
+        section_gid = section_identifier_for(external_task)
+        section_move_error = move_task_to_section(section_gid, asana_task.external_id) if section_gid.present?
+      elsif !matched_by_title && external_task.respond_to?(:tags) && external_task.tags.present?
+        section_gid = section_identifier_for(external_task)
+        section_move_error = move_task_to_section(section_gid, asana_task.external_id) if section_gid.present?
       end
       handle_sub_items(asana_task, external_task)
       # Add sync ID so future syncs use ID matching instead of title matching
@@ -276,7 +281,8 @@ module Asana
     end
 
     def section_identifier_for(external_task)
-      memberships_for_task(external_task)["section"]
+      project_gid = project_gid_from_name(project_name_for(external_task.project))
+      matching_section_gid_for(external_task, project_gid)
     end
 
     def matched_by_title?(external_task, asana_task)
@@ -284,52 +290,47 @@ module Asana
       current_sync_id.blank? || current_sync_id != asana_task.external_id
     end
 
-    # Makes some big assumptions about the layout we use in Asana...
-    # Namely that all Asana projects passed into TaskBridge
-    # will only have sections or top level tasks and sub_items,
-    # but only one level deep (meaning sub_items will not have
-    # sub_items of their own and sections will not have subsections)
-    # Also projects will not have sub-projects
     def memberships_for_task(external_task, for_create: false)
       project_string = external_task.project
       return {} if project_string.blank?
 
-      # Parse "Project:Section" format or just "Project"
-      # The format comes from project_from_memberships which builds "ProjectName:SectionName"
-      if project_string.include?(":")
-        parts = project_string.split(":", 2)
-        target_project_name = parts.first
-        target_section_name = parts.last
-      else
-        target_project_name = project_string
-        target_section_name = nil
-      end
-
       # Find the project GID by name
-      project_gid = project_gid_from_name(target_project_name)
+      project_gid = project_gid_from_name(project_name_for(project_string))
       if project_gid.blank?
-        unless @_unmatched_projects&.include?(target_project_name)
-          (@_unmatched_projects ||= Set.new) << target_project_name
-          warn "[Asana] No matching Asana project for #{target_project_name.inspect}"
+        project_name = project_name_for(project_string)
+        unless @_unmatched_projects&.include?(project_name)
+          (@_unmatched_projects ||= Set.new) << project_name
+          warn "[Asana] No matching Asana project for #{project_name.inspect}"
         end
         return {}
-      end
-
-      # Find the section within that specific project
-      matching_section = nil
-      if target_section_name.present?
-        sections = list_project_sections(project_gid, merge_project_gids: true)
-        matching_section = sections.find { |section| section["name"] == target_section_name }
       end
 
       if for_create
         { projects: [project_gid] }
       else
-        {
-          project: project_gid,
-          section: matching_section&.dig("gid")
-        }.compact
+        { project: project_gid, section: matching_section_gid_for(external_task, project_gid) }.compact
       end
+    end
+
+    def matching_section_gid_for(external_task, project_gid)
+      return if project_gid.blank?
+
+      section_hashes = section_hashes_for(project_gid)
+      section_name = Array(external_task.tags).find do |tag_name|
+        section_hashes.any? { |section| section["name"] == tag_name }
+      end
+      return if section_name.blank?
+
+      section_hashes.find { |section| section["name"] == section_name }&.dig("gid")
+    end
+
+    def section_hashes_for(project_gid)
+      @section_hashes_by_project_gid ||= {}
+      @section_hashes_by_project_gid[project_gid] ||= list_project_sections(project_gid, merge_project_gids: true)
+    end
+
+    def project_name_for(project_string)
+      project_string.to_s.split(":", 2).first
     end
 
     def workspace_gids

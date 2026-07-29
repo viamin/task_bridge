@@ -99,7 +99,9 @@ RSpec.describe Asana::Service, :full_options do
       tasks = service.items_to_sync
 
       expect(tasks.map(&:external_id)).to eq(["multi-project-gid"])
-      expect(tasks.first.project).to eq("Project B:Section B")
+      expect(tasks.first.project).to eq("Project B")
+      expect(tasks.first.section).to eq("Section B")
+      expect(tasks.first.tags).to include("Section B")
     end
   end
 
