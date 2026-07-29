@@ -10,4 +10,3 @@ Describe the change and the user-visible impact.
 ## Notes
 
 Add any context that helps reviewers understand the implementation or follow-up work.
-

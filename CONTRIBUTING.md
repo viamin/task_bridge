@@ -21,7 +21,7 @@ If you are changing JavaScript or styles, rebuild the assets locally as needed w
 
 ## Quality Checks
 
-Run the same checks that the project uses in CI and pre-commit hooks:
+Run the main local checks before opening a pull request:
 
 ```sh
 bundle exec rubocop
@@ -45,4 +45,3 @@ Use an issue to report bugs or request features. Include:
 - What actually happened
 - The steps to reproduce
 - Any relevant environment details
-
