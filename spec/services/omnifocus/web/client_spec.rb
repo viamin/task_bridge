@@ -103,6 +103,27 @@ RSpec.describe Omnifocus::Web::Client do
       )
     end
 
+    it "accepts allowlisted websocket hosts with a trailing dot" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://web.omnifocus.com./socket" })
+      allow(Addrinfo).to receive(:getaddrinfo).with("web.omnifocus.com", 443, nil, :STREAM).and_return([public_addrinfo])
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task=", rid: "request-id", items: [] }.to_json
+      )
+
+      transport.load_collection(container: "inbox")
+
+      expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
+        have_attributes(
+          connect_host: "34.120.0.1",
+          host: "web.omnifocus.com",
+          port: 443,
+          path: "/socket"
+        ),
+        protocols: ["v1.omnifocus.omnigroup.com"]
+      )
+    end
+
     it "accepts the default TLS port when it is explicit in the websocket URL" do
       allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com:443/socket" })
       allow(socket).to receive(:receive_json).and_return(
@@ -156,6 +177,16 @@ RSpec.describe Omnifocus::Web::Client do
       expect do
         transport.load_collection(container: "inbox")
       end.to raise_error(Omnifocus::Web::Client::ConnectionError, /URL is not allowed/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects websocket hosts with unexpected characters before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://web.omnifocus.com%0a.evil.test/socket" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /host is not allowed|Invalid OmniFocus Web websocket URL/)
 
       expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
     end
