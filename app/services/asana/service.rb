@@ -121,7 +121,7 @@ module Asana
       # Detect if this was a title match vs ID match
       # Title match: external_task doesn't have our sync ID
       matched_by_title = matched_by_title?(external_task, asana_task)
-      project_changed = project_name_for(asana_task.project) != project_name_for(external_task.project)
+      project_changed = project_gid_for(asana_task.project) != project_gid_for(external_task.project)
 
       # Only move projects/sections for ID-matched items (reliable link)
       # Title matches are not reliable enough to warrant moving tasks between projects
@@ -281,12 +281,12 @@ module Asana
     end
 
     def section_identifier_for(external_task)
-      project_gid = project_gid_from_name(project_name_for(external_task.project))
+      project_gid = project_gid_for(external_task.project)
       matching_section_gid_for(external_task, project_gid)
     end
 
     def section_or_default_identifier_for(external_task)
-      project_gid = project_gid_from_name(project_name_for(external_task.project))
+      project_gid = project_gid_for(external_task.project)
       return if project_gid.blank?
 
       matching_section_gid_for(external_task, project_gid) || default_section_gid_for(project_gid)
@@ -302,12 +302,11 @@ module Asana
       return {} if project_string.blank?
 
       # Find the project GID by name
-      project_gid = project_gid_from_name(project_name_for(project_string))
+      project_gid = project_gid_for(project_string)
       if project_gid.blank?
-        project_name = project_name_for(project_string)
-        unless @_unmatched_projects&.include?(project_name)
-          (@_unmatched_projects ||= Set.new) << project_name
-          warn "[Asana] No matching Asana project for #{project_name.inspect}"
+        unless @_unmatched_projects&.include?(project_string)
+          (@_unmatched_projects ||= Set.new) << project_string
+          warn "[Asana] No matching Asana project for #{project_string.inspect}"
         end
         return {}
       end
@@ -341,7 +340,7 @@ module Asana
 
       return false unless external_task.respond_to?(:tags)
 
-      project_gid = project_gid_from_name(project_name_for(external_task.project))
+      project_gid = project_gid_for(external_task.project)
       matching_section = matching_section_hash_for(external_task, project_gid)
       return matching_section["name"] != asana_task.section if matching_section.present?
 
@@ -358,7 +357,7 @@ module Asana
       project_gid =
         asana_task.synced_project_gid.presence ||
         asana_task.asana_task["projects"]&.first&.dig("gid") ||
-        project_gid_from_name(project_name_for(asana_task.project))
+        project_gid_for(asana_task.project)
       memberships.find { |membership| membership.dig("project", "gid") == project_gid } || memberships.first
     end
 
@@ -370,7 +369,12 @@ module Asana
     end
 
     def project_name_for(project_string)
-      project_string.to_s.split(":", 2).first
+      project_string.to_s
+    end
+
+    def project_gid_for(project_string)
+      project_name = project_name_for(project_string)
+      project_gid_from_name(project_name) || legacy_project_gid_for(project_string)
     end
 
     def matching_section_hash_from_tags(external_task, project_gid)
@@ -384,6 +388,17 @@ module Asana
       return if legacy_section_name.blank?
 
       section_hashes_for(project_gid).find { |section| section["name"] == legacy_section_name }
+    end
+
+    def legacy_project_gid_for(project_string)
+      legacy_project_name = legacy_project_name_for(project_string)
+      return if legacy_project_name.blank?
+
+      project_gid_from_name(legacy_project_name)
+    end
+
+    def legacy_project_name_for(project_string)
+      project_string.to_s.split(":", 2).first if legacy_section_name_for(project_string).present?
     end
 
     def legacy_section_name_for(project_string)
