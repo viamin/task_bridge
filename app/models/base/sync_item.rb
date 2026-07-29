@@ -122,7 +122,7 @@ module Base
       raw_notes = self.class.read_external_attribute(external_data, external_attribute_map[:notes]) if raw_notes.nil?
       return if raw_notes.blank?
 
-      note_components = parsed_notes(keys: all_service_keys, notes: raw_notes)
+      note_components = parsed_notes(keys: sync_note_keys(raw_notes), notes: raw_notes)
       note_components.each do |key, value|
         next if has_attribute?(key)
 
@@ -149,15 +149,34 @@ module Base
       raise "not implemented in #{self.class.name}"
     end
 
+    def service_name
+      Base::Service.normalized_service_name(@service_name.presence || options[:service_name].presence || provider)
+    end
+
+    def options
+      return @options if defined?(@options) && @options.present?
+
+      super
+    end
+
+    def options=(options)
+      @options = options
+      @service_name = Base::Service.normalized_service_name(options[:service_name]) if options&.[](:service_name).present?
+    end
+
+    def service_key
+      Base::Service.service_identifier_for(service_name)
+    end
+
     def service
       return @service if defined?(@service) && !@service.nil?
 
-      @service = if options[:primary] == provider
+      @service = if options[:primary] == service_name
         primary = options[:primary_service]
         primary.is_a?(Class) ? primary.new : primary
       else
-        service_class = "#{provider}::Service".safe_constantize
-        service_class&.new(options:)
+        service_class = Base::Service.resolve_service_class(service_name)
+        service_class&.new(options: Base::Service.build_options(options, service_name))
       end
     end
 
@@ -165,14 +184,14 @@ module Base
     def find_matching_item_in(collection)
       return if collection.blank?
 
-      target_id_field = :"#{collection.first.provider.underscore}_id"
-      source_id_field = :"#{provider.underscore}_id"
-      my_target_id = try(target_id_field)
+      target_id_field = :"#{collection.first.service_key}_id"
+      source_id_field = :"#{service_key}_id"
+      my_target_id = sync_note_value_for(target_id_field)
 
       # First, try to match by sync ID
       id_match = collection.find do |item|
         sync_ids_match?(item.external_id, my_target_id) ||
-          sync_ids_match?(item.try(source_id_field), external_id)
+          sync_ids_match?(item.sync_note_value_for(source_id_field), external_id)
       end
       return id_match if id_match
 
@@ -180,7 +199,7 @@ module Base
       # it's stale (the linked item was deleted). Allow title matching as fallback.
       # But only match items that don't already have our sync ID (aren't linked to other items).
       collection.find do |item|
-        friendly_title_matches(item) && item.try(source_id_field).blank?
+        friendly_title_matches(item) && item.sync_note_value_for(source_id_field).blank?
       end
     end
 
@@ -193,28 +212,30 @@ module Base
     end
 
     def external_sync_notes
-      notes_with_values(sync_notes, "#{provider.underscore}_id": external_id, "#{provider.underscore}_url": url)
+      notes_with_values(sync_notes, "#{service_key}_id": external_id, "#{service_key}_url": url)
     end
 
     def sync_notes
       service_values = {}
       all_services(remove_current: true).map do |service|
-        service_values["#{service.underscore}_id"] = instance_variable_get(:"@#{service.underscore}_id")
-        service_values["#{service.underscore}_url"] = instance_variable_get(:"@#{service.underscore}_url")
+        service_key = Base::Service.service_identifier_for(service)
+        service_values["#{service_key}_id"] = instance_variable_get(:"@#{service_key}_id")
+        service_values["#{service_key}_url"] = instance_variable_get(:"@#{service_key}_url")
       end
       notes_with_values(notes, service_values.compact)
     end
 
     def to_s
-      "#{provider}::#{self.class.name}: (#{external_id})#{friendly_title}"
+      "#{service_name}::#{self.class.name}: (#{external_id})#{friendly_title}"
     end
 
     # Converts the task to a format required by the primary service
     def to_primary
       task_services = Chamber.dig!(:task_bridge, :task_services)
-      raise "Unsupported service" unless task_services.include?(options[:primary])
+      primary_service_name = Base::Service.class_name_for(options[:primary])
+      raise "Unsupported service" unless task_services.include?(primary_service_name)
 
-      send("to_#{options[:primary]}".downcase.to_sym)
+      send("to_#{primary_service_name}".downcase.to_sym)
     end
 
     # Sync items that use an API to update attributes need to call the service's patch_item method.
@@ -223,6 +244,16 @@ module Base
     # ActiveRecord's own update_attributes/update semantics.
     def patch_external_attributes(attributes)
       service.patch_item(self, attributes) if service.respond_to?(:patch_item) && attributes_have_changed?(attributes)
+    end
+
+    def sync_note_value_for(key)
+      return public_send(key) if respond_to?(key)
+
+      instance_variable = :"@#{key}"
+      return instance_variable_get(instance_variable) if instance_variable_defined?(instance_variable)
+      return if notes.blank?
+
+      parsed_notes(notes:, keys: [key.to_s])[key.to_s]
     end
 
     def define_note_component_accessors(key)
@@ -336,13 +367,26 @@ module Base
     private
 
     def all_services(remove_current: false)
-      all_services = options[:services] + [options[:primary]]
-      all_services.delete(provider) if remove_current
+      all_services = (Array(options[:services]) + [options[:primary]]).map do |service|
+        Base::Service.normalized_service_name(service)
+      end
+      all_services.delete(service_name) if remove_current
       all_services
     end
 
     def all_service_keys
-      all_services(remove_current: true).map { |service| ["#{service.underscore}_id", "#{service.underscore}_url"] }.flatten
+      all_services(remove_current: true).flat_map do |service|
+        service_key = Base::Service.service_identifier_for(service)
+        ["#{service_key}_id", "#{service_key}_url"]
+      end
+    end
+
+    def sync_note_keys(raw_notes)
+      (all_service_keys + discovered_sync_note_keys(raw_notes)).uniq
+    end
+
+    def discovered_sync_note_keys(raw_notes)
+      raw_notes.to_s.scan(/^([a-z0-9_]+_(?:id|url)):\s/m).flatten
     end
 
     def set_tags
@@ -350,7 +394,7 @@ module Base
     end
 
     def default_tags
-      options[:tags] + [provider]
+      options[:tags] + [service_name]
     end
 
     def reset_note_component_values

@@ -105,6 +105,36 @@ RSpec.describe Base::Service do
     primary_sync_item_class
   end
 
+  describe ".service_identifier_for" do
+    it "builds note-safe keys for named instances" do
+      expect(described_class.service_identifier_for("Asana:work")).to eq("asana_work")
+      expect(described_class.service_identifier_for("Asana.personal")).to eq("asana_personal")
+    end
+  end
+
+  describe "#service_name" do
+    it "falls back to friendly_name before the module name" do
+      stub_const("GoogleKeep", Module.new)
+      google_keep_service_class = stub_const("GoogleKeep::Service", Class.new(described_class) do
+        def friendly_name
+          "Google Keep"
+        end
+
+        def item_class
+          BaseServiceSpecItem
+        end
+
+        def sync_strategies
+          []
+        end
+      end)
+
+      service = google_keep_service_class.new(options: { quiet: true })
+
+      expect(service.service_name).to eq("Google Keep")
+    end
+  end
+
   describe "#sync_to_primary" do
     before do
       allow(service).to receive(:items_to_sync).and_return([service_item])

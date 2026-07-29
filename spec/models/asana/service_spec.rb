@@ -32,6 +32,47 @@ RSpec.describe "Asana::Service" do
 
   describe "#items_to_sync" do
     subject { service.items_to_sync }
+
+    let(:service) { Asana::Service.new }
+    let(:workspaces_response) { instance_double(HTTParty::Response, success?: true, body: { data: [{ "gid" => "workspace-1" }] }.to_json) }
+    let(:projects_response) { instance_double(HTTParty::Response, success?: true, body: { data: [{ "gid" => "project-1", "name" => "Project One" }] }.to_json) }
+    let(:tasks_response) do
+      instance_double(HTTParty::Response, success?: true, body: { data: [task_payload] }.to_json)
+    end
+    let(:task_payload) do
+      {
+        "gid" => "asana-123",
+        "name" => "Persisted Task",
+        "completed" => false,
+        "completed_at" => nil,
+        "modified_at" => "2024-04-03T12:00:00Z",
+        "notes" => "",
+        "projects" => [{ "gid" => "project-1", "name" => "Project One" }],
+        "memberships" => [],
+        "num_subtasks" => 0
+      }
+    end
+
+    before do
+      allow(service).to receive(:service_name).and_return("Asana:work")
+      allow(HTTParty).to receive(:get).with("https://app.asana.com/api/1.0/workspaces", anything).and_return(workspaces_response)
+      allow(HTTParty).to receive(:get).with("https://app.asana.com/api/1.0/workspaces/workspace-1/projects", anything).and_return(projects_response)
+      allow(HTTParty).to receive(:get).with("https://app.asana.com/api/1.0/projects/project-1/tasks", anything).and_return(tasks_response)
+      allow(HTTParty).to receive(:get).with("https://app.asana.com/api/1.0/tasks/asana-123/subtasks", anything).and_return(
+        instance_double(HTTParty::Response, success?: true, body: { data: [] }.to_json)
+      )
+    end
+
+    it "stores instance-qualified service options on loaded items" do
+      item = subject.first
+
+      Thread.current[:global_options] = service.options.merge(service_name: "Asana:personal", instance_name: "personal")
+
+      expect(item.service_name).to eq("Asana:work")
+      expect(item.service_key).to eq("asana_work")
+    ensure
+      Thread.current[:global_options] = nil
+    end
   end
 
   describe "incremental fetch cursors" do
@@ -102,6 +143,18 @@ RSpec.describe "Asana::Service" do
       expect(service.send(:workspace_gids)).to eq(%w[workspace-1 workspace-2])
       expect(service.send(:workspace_gids)).to eq(%w[workspace-1 workspace-2])
       expect(HTTParty).to have_received(:get).once
+    end
+  end
+
+  describe "multiple service instances" do
+    it "loads credentials from the named Asana instance config" do
+      allow(Chamber).to receive(:dig).with(:asana, "work").and_return({ "personal_access_token" => "work-token" })
+
+      instance_service = Asana::Service.new(options: { quiet: true, service_name: "Asana:work", instance_name: "work" })
+
+      expect(instance_service.authorized).to be(true)
+      expect(instance_service.service_name).to eq("Asana:work")
+      expect(instance_service.send(:authenticated_options).dig(:headers, :Authorization)).to eq("Bearer work-token")
     end
   end
 

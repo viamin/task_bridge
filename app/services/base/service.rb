@@ -8,7 +8,52 @@ module Base
 
     def initialize(options: nil)
       self.options = options if options
-      @last_sync_data = sync_state&.to_log_hash || self.options[:logger]&.sync_data_for(friendly_name) || {}
+      @last_sync_data = sync_state&.to_log_hash || self.options[:logger]&.sync_data_for(service_name) || {}
+    end
+
+    class << self
+      def parse_service_name(service_name)
+        normalized_name = service_name.to_s.strip
+        class_name, instance_name = normalized_name.split(/[:.]/, 2)
+
+        {
+          class_name:,
+          instance_name: instance_name.presence,
+          service_name: [class_name, instance_name.presence].compact.join(":")
+        }
+      end
+
+      def class_name_for(service_name)
+        parse_service_name(service_name)[:class_name]
+      end
+
+      def instance_name_for(service_name)
+        parse_service_name(service_name)[:instance_name]
+      end
+
+      def normalized_service_name(service_name)
+        parse_service_name(service_name)[:service_name]
+      end
+
+      def service_identifier_for(service_name)
+        parsed_service = parse_service_name(service_name)
+
+        [
+          parsed_service[:class_name].underscore.tr(" ", "_"),
+          parsed_service[:instance_name]&.underscore&.tr(" ", "_")
+        ].compact.join("_")
+      end
+
+      def resolve_service_class(service_name)
+        "#{class_name_for(service_name)}::Service".safe_constantize
+      end
+
+      def build_options(options, service_name)
+        options.merge(
+          service_name: normalized_service_name(service_name),
+          instance_name: instance_name_for(service_name)
+        )
+      end
     end
 
     def item_class
@@ -17,6 +62,15 @@ module Base
 
     def friendly_name
       raise "not implemented in #{self.class.name}"
+    end
+
+    def service_name
+      default_service_name = friendly_name.presence || self.class.name&.deconstantize
+      self.class.normalized_service_name(options[:service_name].presence || default_service_name)
+    end
+
+    def instance_name
+      self.class.instance_name_for(service_name)
     end
 
     # This method returns a list of strategies that the service supports. There are 3 strategies:
@@ -50,7 +104,7 @@ module Base
         return sync_result(0, touched_collection_ids:, errors: [unavailable_error])
       end
 
-      primary_items = primary_service.items_to_sync(tags: [friendly_name])
+      primary_items = primary_service.items_to_sync(tags: [service_name])
       service_items ||= items_to_sync(tags: options[:tags])
 
       item_pairs = paired_items(primary_items, service_items)
@@ -61,7 +115,7 @@ module Base
         progressbar = ProgressBar.create(
           format: "%t: %c/%C |%w>%i| %e ",
           total: item_count,
-          title: "#{primary_service.class.name} syncing with #{friendly_name}"
+          title: "#{primary_service.class.name} syncing with #{service_name}"
         )
       end
       item_pairs.each do |pair|
@@ -98,7 +152,7 @@ module Base
         progressbar.increment unless options[:quiet]
       end
       warn_sync_errors(sync_errors)
-      puts "Synced #{item_count} #{options[:primary]} and #{friendly_name} items" unless options[:quiet]
+      puts "Synced #{item_count} #{options[:primary]} and #{service_name} items" unless options[:quiet]
       sync_result(item_count, touched_collection_ids:, errors: sync_errors)
     end
 
@@ -114,7 +168,7 @@ module Base
       end
       service_items ||= items_to_sync(tags: options[:tags], only_modified_dates: true)
       if service_items.empty?
-        puts "Synced 0 #{friendly_name} items to #{primary_service.friendly_name}" unless options[:quiet]
+        puts "Synced 0 #{service_name} items to #{service_display_name(primary_service)}" unless options[:quiet]
         return sync_result(0, touched_collection_ids:, errors: sync_errors)
       end
 
@@ -123,7 +177,7 @@ module Base
         progressbar = ProgressBar.create(
           format: "%t: %c/%C |%w>%i| %e ",
           total: service_items.length,
-          title: "#{friendly_name} syncing to #{primary_service.friendly_name}"
+          title: "#{service_name} syncing to #{service_display_name(primary_service)}"
         )
       end
       service_items.each do |service_item|
@@ -142,7 +196,7 @@ module Base
         elsif !service_item.completed?
           primary_service.add_item(service_item).tap do |added_item|
             track_sync_error!(sync_errors, added_item)
-            persist_created_sync_data_for(service_item.provider, service_item, primary_service, added_item)
+            persist_created_sync_data_for(service_item.service_name, service_item, primary_service, added_item)
             track_touched_collection!(touched_collection_ids, added_item) do
               persist_created_sync_collection_for(service_item, primary_service, added_item)&.id
             end
@@ -152,7 +206,7 @@ module Base
         progressbar.increment unless options[:quiet]
       end
       warn_sync_errors(sync_errors)
-      puts "Synced #{service_items.length} #{friendly_name} items to #{options[:primary]}" unless options[:quiet]
+      puts "Synced #{service_items.length} #{service_name} items to #{options[:primary]}" unless options[:quiet]
       sync_result(service_items.length, touched_collection_ids:, errors: sync_errors)
     end
 
@@ -167,13 +221,13 @@ module Base
         return sync_result(0, touched_collection_ids:, errors: [unavailable_error])
       end
 
-      primary_items = primary_service.items_to_sync(tags: [friendly_name])
+      primary_items = primary_service.items_to_sync(tags: [service_name])
       service_items ||= items_to_sync(tags: options[:tags])
       unless options[:quiet]
         progressbar = ProgressBar.create(
           format: "%t: %c/%C |%w>%i| %e ",
           total: primary_items.length,
-          title: "#{friendly_name} syncing from #{primary_service.friendly_name}"
+          title: "#{service_name} syncing from #{service_display_name(primary_service)}"
         )
       end
       primary_items.each do |primary_item|
@@ -187,7 +241,7 @@ module Base
         elsif !primary_item.completed?
           add_item(primary_item).tap do |added_item|
             track_sync_error!(sync_errors, added_item)
-            persist_created_sync_data_for(primary_item.provider, primary_item, self, added_item)
+            persist_created_sync_data_for(primary_item.service_name, primary_item, self, added_item)
             track_touched_collection!(touched_collection_ids, added_item) do
               persist_created_sync_collection_for(primary_item, self, added_item)&.id
             end
@@ -197,7 +251,7 @@ module Base
         progressbar.increment unless options[:quiet]
       end
       warn_sync_errors(sync_errors)
-      puts "Synced #{primary_items.length} #{options[:primary]} items to #{friendly_name}" unless options[:quiet]
+      puts "Synced #{primary_items.length} #{options[:primary]} items to #{service_name}" unless options[:quiet]
       sync_result(primary_items.length, touched_collection_ids:, errors: sync_errors)
     end
 
@@ -207,7 +261,7 @@ module Base
         return true if options[:force]
         return last_synced_before?(item_updated_at) if item_updated_at.present?
 
-        last_sync_interval = options[:logger]&.last_synced(friendly_name, interval: true)
+        last_sync_interval = options[:logger]&.last_synced(service_name, interval: true)
         return true if last_sync_interval.nil?
 
         return last_sync_interval > min_sync_interval
@@ -223,22 +277,23 @@ module Base
     end
 
     def update_sync_data(existing_item, sync_id, sync_url = nil)
-      update_sync_data_for(friendly_name, existing_item, sync_id, sync_url)
+      update_sync_data_for(service_name, existing_item, sync_id, sync_url)
     end
 
     def update_sync_data_for(service_name, existing_item, sync_id, sync_url = nil)
-      service_name = service_identifier_for(service_name)
-      existing_item.instance_variable_set(:"@#{service_name}_id", sync_id) if sync_id
-      existing_item.instance_variable_set(:"@#{service_name}_url", sync_url) if sync_url
+      service_identifier = service_identifier_for(service_name)
+      existing_item.instance_variable_set(:"@#{service_identifier}_id", sync_id) if sync_id
+      existing_item.instance_variable_set(:"@#{service_identifier}_url", sync_url) if sync_url
+      define_sync_note_accessors(existing_item, service_identifier)
       existing_item.patch_external_attributes(notes: existing_item.sync_notes)
     end
 
     def existing_items(service)
-      service.items_to_sync(tags: [friendly_name], inbox: true)
+      service.items_to_sync(tags: [service_name], inbox: true)
     end
 
     def existing_items_for(service, service_items)
-      return service.matching_items_for(service_items, tag: friendly_name) if service.respond_to?(:matching_items_for)
+      return service.matching_items_for(service_items, tag: service_name) if service.respond_to?(:matching_items_for)
 
       existing_items(service)
     end
@@ -259,18 +314,18 @@ module Base
     private
 
     def last_synced_before?(item_updated_at)
-      last_sync_time = options[:logger]&.last_synced(friendly_name)
+      last_sync_time = options[:logger]&.last_synced(service_name)
       return true if last_sync_time.nil?
 
       last_sync_time < item_updated_at
     end
 
     def last_successful_sync_at
-      sync_state&.last_successful_at || options[:logger]&.last_synced(friendly_name)
+      sync_state&.last_successful_at || options[:logger]&.last_synced(service_name)
     end
 
     def sync_state
-      SyncServiceState.find_by(service_name: friendly_name)
+      SyncServiceState.find_by(service_name:)
     rescue ActiveRecord::NoDatabaseError, ActiveRecord::StatementInvalid
       nil
     end
@@ -278,7 +333,7 @@ module Base
     def service_unavailable_error(service)
       return unless service.respond_to?(:authorized) && service.authorized == false
 
-      "Failed to sync with #{service.friendly_name}: service is not authorized"
+      "Failed to sync with #{service_display_name(service)}: service is not authorized"
     end
 
     # find all paired items
@@ -319,10 +374,12 @@ module Base
       return unless collection
 
       collection_items.each do |item|
-        next if item.sync_collection_id == collection.id
+        persisted_item = persisted_sync_item_for(item)
+        next if persisted_item.nil?
+        next if persisted_item.sync_collection_id == collection.id
 
-        item.sync_collection_id = collection.id
-        item.save! if item.respond_to?(:save!)
+        persisted_item.sync_collection_id = collection.id
+        persisted_item.save! if persisted_item.respond_to?(:save!)
       end
 
       collection
@@ -355,7 +412,7 @@ module Base
       item_class = target_service.item_class
       return unless item_class.is_a?(Class) && item_class <= Base::SyncItem
 
-      target_service_key = service_identifier_for(target_service.friendly_name)
+      target_service_key = service_identifier_for(service_display_name(target_service))
       external_id = sync_note_value(source_item, :"#{target_service_key}_id")
       return if external_id.blank?
 
@@ -364,19 +421,23 @@ module Base
         target_item.completed = source_item.completed? if source_item.respond_to?(:completed?)
         target_item.last_modified ||= sync_timestamp_for(source_item)
         target_item.url ||= sync_note_value(source_item, :"#{target_service_key}_url")
+        target_item.options = self.class.build_options(target_item.options, service_display_name(target_service))
         target_item.save! if target_item.new_record? || target_item.changed?
       end
     end
 
     def prepare_target_item_for_sync_patch!(target_item, target_service, source_service_name)
       target_item.options = target_item.options.merge(
-        primary: target_item.provider,
+        primary: target_item.service_name,
         primary_service: target_service,
-        services: (Array(target_item.options[:services]) + Array(options[:services]) + [source_service_name]).uniq
+        services: (Array(target_item.options[:services]) + Array(options[:services]) + [source_service_name]).map do |name|
+          self.class.normalized_service_name(name)
+        end.uniq
       )
     end
 
     def sync_note_value(item, key)
+      return item.sync_note_value_for(key) if item.respond_to?(:sync_note_value_for)
       return item.public_send(key) if item.respond_to?(key)
 
       instance_variable = :"@#{key}"
@@ -385,7 +446,7 @@ module Base
 
     def sync_result(items_synced, touched_collection_ids:, errors: [])
       result = {
-        service: friendly_name,
+        service: service_name,
         last_attempted: options[:sync_started_at],
         items_synced:,
         touched_collection_ids: touched_collection_ids.compact.uniq
@@ -406,7 +467,27 @@ module Base
     end
 
     def service_identifier_for(service_name)
-      service_name.to_s.underscore.tr(" ", "_")
+      self.class.service_identifier_for(service_name)
+    end
+
+    def service_display_name(service)
+      return service.service_name if service.respond_to?(:service_name)
+
+      service.friendly_name
+    end
+
+    def persisted_sync_item_for(item)
+      return item unless item.is_a?(Base::SyncItem)
+      return if item.new_record?
+
+      item
+    end
+
+    def define_sync_note_accessors(item, service_identifier)
+      return unless item.is_a?(Base::SyncItem)
+
+      item.define_note_component_accessors("#{service_identifier}_id")
+      item.define_note_component_accessors("#{service_identifier}_url")
     end
 
     def sync_operation_successful?(result)
@@ -424,7 +505,7 @@ module Base
     def warn_sync_errors(sync_errors)
       return if sync_errors.empty? || options[:quiet]
 
-      warn "[#{friendly_name}] #{sync_errors.length} sync errors:"
+      warn "[#{service_name}] #{sync_errors.length} sync errors:"
       sync_errors.uniq.each { |error| warn "  #{error}" }
     end
 

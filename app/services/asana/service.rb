@@ -7,7 +7,9 @@ module Asana
 
     def initialize(options: nil)
       super
-      @personal_access_token = Chamber.dig!(:asana, :personal_access_token)
+      @personal_access_token = asana_settings.fetch("personal_access_token") do
+        asana_settings.fetch(:personal_access_token)
+      end
       @authorized = true
     rescue StandardError => e
       # If configuration is missing, skip the service
@@ -40,6 +42,7 @@ module Asana
       tasks = task_list.map do |external_task|
         task_hash, synced_project_gid = external_task
         asana_task = Task.find_or_initialize_by(external_id: task_hash[Task.external_attribute_map[:external_id]])
+        asana_task.options = self.class.build_options(asana_task.options, service_name)
         asana_task.synced_project_gid = synced_project_gid
         asana_task.asana_task = task_hash
         asana_task.refresh_from_external!(only_modified_dates:)
@@ -51,6 +54,7 @@ module Asana
           sub_item_hashes = list_task_sub_items(parent_task.external_id, only_modified_dates:)
           sub_item_hashes.each do |sub_item_hash|
             sub_item = Task.find_or_initialize_by(external_id: sub_item_hash[Task.external_attribute_map[:external_id]])
+            sub_item.options = self.class.build_options(sub_item.options, service_name)
             sub_item.asana_task = sub_item_hash
             sub_item.refresh_from_external!(only_modified_dates:)
             parent_task.sub_items << sub_item
@@ -75,7 +79,10 @@ module Asana
       return failure_message("create an Asana task", response) unless response.success?
 
       response_body = JSON.parse(response.body)
-      new_task = Task.new(asana_task: response_body["data"]).tap(&:refresh_from_external!)
+      new_task = Task.new(
+        asana_task: response_body["data"],
+        options: self.class.build_options(options, service_name)
+      ).tap(&:refresh_from_external!)
       section_move_error = move_task_to_section(section_identifier_for(external_task), new_task.external_id)
       handle_sub_items(new_task, external_task)
       update_sync_data(external_task, new_task.external_id, new_task.url)
@@ -273,7 +280,7 @@ module Asana
     end
 
     def matched_by_title?(external_task, asana_task)
-      current_sync_id = external_task.try(:asana_id)
+      current_sync_id = external_task.try(:"#{service_identifier_for(service_name)}_id")
       current_sync_id.blank? || current_sync_id != asana_task.external_id
     end
 
@@ -367,6 +374,13 @@ module Asana
 
     def base_url
       "https://app.asana.com/api/1.0"
+    end
+
+    def asana_settings
+      return Chamber.dig!(:asana) if instance_name.blank?
+
+      Chamber.dig(:asana, instance_name) || Chamber.dig(:asana, instance_name.to_sym) ||
+        raise("Missing Asana config for instance #{instance_name}")
     end
 
     # Returns timestamp for 1 week ago, used to filter completed tasks

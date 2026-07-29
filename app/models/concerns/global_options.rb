@@ -9,7 +9,7 @@ module GlobalOptions
                                                                 uses_personal_tags: default_options[:work_tags].blank?,
                                                                 sync_started_at: Time.current.utc.iso8601(6),
                                                                 logger: StructuredLogger.new(default_options),
-                                                                primary_service: "#{default_options[:primary]}::Service".safe_constantize
+                                                                primary_service: Base::Service.resolve_service_class(default_options[:primary])
                                                               })
   end
 
@@ -20,12 +20,15 @@ module GlobalOptions
   private
 
   def default_options
+    primary_service_name = Base::Service.normalized_service_name(Chamber.dig!(:task_bridge, :primary_service))
+    service_names = Chamber.dig!(:task_bridge, :sync, :services).map { |service| Base::Service.normalized_service_name(service) }
+
     @default_options ||= {
-      primary: Chamber.dig!(:task_bridge, :primary_service),
+      primary: primary_service_name,
       tags: Chamber.dig!(:task_bridge, :sync, :tags),
       personal_tags: Chamber.dig(:task_bridge, :personal_tags),
       work_tags: Chamber.dig(:task_bridge, :work_tags),
-      services: Chamber.dig!(:task_bridge, :sync, :services),
+      services: service_names,
       list: Chamber.dig(:google, :tasks_list),
       repositories: Chamber.dig(:github, :repositories)&.split(","),
       reminders_mapping: Chamber.dig(:reminders, :list_mapping),

@@ -13,11 +13,13 @@ namespace :task_bridge do
     supported_services = Chamber.dig!(:task_bridge, :all_supported_services)
     o.banner = "Sync Tasks from one service to another\nSupported services: #{supported_services.join(', ')}\nBy default, tasks found with the tags in --tags will have a work context"
     o.on("-p", "--primary [PRIMARY]", "Primary task service") do |value|
-      overrides[:primary] = value
-      overrides[:primary_service] = "#{value}::Service".safe_constantize
+      overrides[:primary] = Base::Service.normalized_service_name(value)
+      overrides[:primary_service] = Base::Service.resolve_service_class(value)
     end
     o.on("-t", "--tags [TAGS]", "Tags (or labels) to sync") { |value| overrides[:tags] = value.split(",") }
-    o.on("-s", "--services [SERVICES]", String, "Services to sync tasks among") { |services| overrides[:services] = services.split(",") }
+    o.on("-s", "--services [SERVICES]", String, "Services to sync tasks among") do |services|
+      overrides[:services] = services.split(",").map { |service| Base::Service.normalized_service_name(service) }
+    end
     o.on("-e", "--personal-tags [TAGS]", "Tags (or labels) used for personal context") { |value| overrides[:personal_tags] = value.split(",") }
     o.on("-w", "--work-tags [TAGS]", "Tags (or labels) used for work context (overrides personal tags)") { |value| overrides[:work_tags] = value.split(",") }
     o.on("-l", "--list [LIST]", "Task list name to sync to") { |value| overrides[:list] = value }
@@ -48,7 +50,9 @@ namespace :task_bridge do
 
     raise OptionParser::InvalidOption, "--only-from-primary and --only-to-primary are mutually exclusive" if options[:only_from_primary] && options[:only_to_primary]
 
-    unsupported_services = options[:services] - supported_services
+    unsupported_services = options[:services].reject do |service_name|
+      supported_services.include?(Base::Service.class_name_for(service_name))
+    end
     raise "Supported services: #{supported_services.join(', ')}" if unsupported_services.any?
 
     if options[:history]
@@ -60,16 +64,21 @@ namespace :task_bridge do
     options[:uses_personal_tags] = options[:work_tags].blank?
     options[:sync_started_at] = Time.current.utc.iso8601(6)
     options[:logger] = StructuredLogger.new(options)
-    primary_service_reference = options[:primary_service] || "#{options[:primary]}::Service".safe_constantize
+    primary_service_reference = options[:primary_service] || Base::Service.resolve_service_class(options[:primary])
     raise "Unknown primary service: #{options[:primary]}" unless primary_service_reference
 
-    @primary_service = primary_service_reference.is_a?(Class) ? primary_service_reference.new : primary_service_reference
+    @primary_service = if primary_service_reference.is_a?(Class)
+      primary_service_reference.new(options: Base::Service.build_options(options, options[:primary]))
+    else
+      primary_service_reference
+    end
     options[:primary_service] = @primary_service
     @services = options[:services].to_h do |service_name|
-      service_class = "#{service_name}::Service".safe_constantize
+      service_class = Base::Service.resolve_service_class(service_name)
       raise "Unknown service: #{service_name}" unless service_class
 
-      [service_name, service_class.new]
+      service = service_class.new(options: Base::Service.build_options(options, service_name))
+      [service_name, service]
     end
     start_time = Time.current
     failed_services = false
@@ -80,11 +89,11 @@ namespace :task_bridge do
       @service_logs = []
       begin
         if service.respond_to?(:authorized) && service.authorized == false
-          @service_logs << { service: service.friendly_name, last_attempted: options[:sync_started_at] }.stringify_keys
+          @service_logs << { service: service.respond_to?(:service_name) ? service.service_name : service.friendly_name, last_attempted: options[:sync_started_at] }.stringify_keys
         elsif options[:delete]
           service.prune if service.respond_to?(:prune)
           @service_logs << {
-            service: service.friendly_name,
+            service: service.respond_to?(:service_name) ? service.service_name : service.friendly_name,
             last_attempted: options[:sync_started_at],
             last_successful: options[:sync_started_at],
             items_synced: 0,
@@ -127,7 +136,7 @@ namespace :task_bridge do
       rescue StandardError => e
         failed_services = true
         @service_logs << {
-          service: service.friendly_name,
+          service: service.respond_to?(:service_name) ? service.service_name : service.friendly_name,
           status: "failed",
           last_attempted: options[:sync_started_at],
           last_failed: Time.current.utc.iso8601(6),
@@ -135,12 +144,16 @@ namespace :task_bridge do
           error_class: e.class.name,
           error_message: e.message
         }.stringify_keys
-        warn "Sync failed for #{service.friendly_name}: #{e.class} #{e.message}" unless options[:quiet]
+        service_name = service.respond_to?(:service_name) ? service.service_name : service.friendly_name
+        warn "Sync failed for #{service_name}: #{e.class} #{e.message}" unless options[:quiet]
       end
       failed_services ||= @service_logs.any? { |log| log["status"] == "failed" }
       options[:logger].save_service_log!(@service_logs)
       SyncServiceState.record_summary!(
-        options[:logger].summarize_service_run(service_name: service.friendly_name, logs: @service_logs)
+        options[:logger].summarize_service_run(
+          service_name: service.respond_to?(:service_name) ? service.service_name : service.friendly_name,
+          logs: @service_logs
+        )
       )
       next if @service_logs.any? { |log| log["status"] == "failed" }
 
