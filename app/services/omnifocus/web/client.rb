@@ -317,10 +317,16 @@ module Omnifocus
       end
 
       class Transport
-        ALLOWED_WEBSOCKET_HOSTS = %w[
-          sync.omnifocus.com
-          web.omnifocus.com
-        ].freeze
+        ALLOWED_WEBSOCKET_ENDPOINTS = {
+          "sync.omnifocus.com" => {
+            host: "sync.omnifocus.com",
+            port: 443
+          },
+          "web.omnifocus.com" => {
+            host: "web.omnifocus.com",
+            port: 443
+          }
+        }.freeze
         BLOCKED_WEBSOCKET_NETWORKS = %w[
           0.0.0.0/8
           10.0.0.0/8
@@ -469,40 +475,33 @@ module Omnifocus
           raise ConnectionError, "OmniFocus Web websocket URL must not include query parameters" if uri.query.present?
           raise ConnectionError, "OmniFocus Web websocket URL must not include a fragment" if uri.fragment.present?
 
-          host = canonical_websocket_host(uri.host)
-          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if host.nil?
+          endpoint = allowed_websocket_endpoint(uri.host)
+          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if endpoint.nil?
           raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless allowed_websocket_port?(uri.port)
 
           WebsocketEndpoint.new(
-            host:,
-            port: 443,
+            host: endpoint.fetch(:host),
+            port: endpoint.fetch(:port),
             path: normalized_websocket_path(uri.path)
           )
         rescue URI::InvalidURIError => e
           raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
         end
 
-        def canonical_websocket_host(host)
+        def allowed_websocket_endpoint(host)
           normalized_host = host.to_s.strip.downcase
           return if normalized_host.blank? || !normalized_host.ascii_only?
           return if ip_literal?(normalized_host)
-          return unless allowed_websocket_host?(normalized_host)
-          return unless public_websocket_host?(normalized_host)
 
-          case normalized_host
-          when "sync.omnifocus.com"
-            "sync.omnifocus.com"
-          when "web.omnifocus.com"
-            "web.omnifocus.com"
-          end
+          endpoint = ALLOWED_WEBSOCKET_ENDPOINTS[normalized_host]
+          return if endpoint.nil?
+          return unless public_websocket_host?(endpoint.fetch(:host))
+
+          endpoint
         end
 
         def allowed_websocket_port?(port)
           port.nil? || port == 443
-        end
-
-        def allowed_websocket_host?(host)
-          ALLOWED_WEBSOCKET_HOSTS.include?(host)
         end
 
         def ip_literal?(host)
@@ -513,7 +512,8 @@ module Omnifocus
         end
 
         def public_websocket_host?(host)
-          resolved_ip_addresses(host).all? { |address| public_ip_address?(address) }
+          addresses = resolved_ip_addresses(host)
+          addresses.any? && addresses.all? { |address| public_ip_address?(address) }
         rescue SocketError
           false
         end
