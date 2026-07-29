@@ -3,6 +3,22 @@
 require "rails_helper"
 
 RSpec.describe Omnifocus::Web::Client do
+  describe Omnifocus::Web::Client::Document do
+    let(:transport) { instance_double(Omnifocus::Web::Client::Transport) }
+    let(:document) { described_class.new(transport:) }
+
+    it "memoizes flattened task lookups" do
+      allow(transport).to receive(:load_lookup).with(container: "tasks").and_return([{ id_: "task-1", name: "Task 1" }])
+
+      first_lookup = document.flattened_tasks
+      second_lookup = document.flattened_tasks
+
+      expect(first_lookup["task-1"].id_.get).to eq("task-1")
+      expect(second_lookup).to equal(first_lookup)
+      expect(transport).to have_received(:load_lookup).with(container: "tasks").once
+    end
+  end
+
   describe Omnifocus::Web::Client::Transport do
     let(:transport) { described_class.new(account: "account", password: "password") }
     let(:socket) { instance_double("SocketConnection", send_json: nil) }

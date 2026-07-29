@@ -211,4 +211,21 @@ RSpec.describe "Omnifocus::Task" do
       expect(transport).to have_received(:update_item).with(reference:, attributes: { defer_date: start_date })
     end
   end
+
+  describe "#original_task" do
+    let(:task_ref) { double("TaskRef", id_: double(get: id)) }
+    let(:task_service) { instance_double(Omnifocus::Service) }
+
+    before do
+      allow(task).to receive(:service).and_return(task_service)
+      allow(task).to receive(:options).and_return({ tags: ["TaskBridge"] })
+      task.instance_variable_set(:@tags, nil)
+    end
+
+    it "falls back to configured sync tags when persisted tags are not hydrated yet" do
+      expect(task_service).to receive(:tagged_tasks).with(["TaskBridge"]).and_return([task_ref])
+
+      expect(task.original_task).to eq(task_ref)
+    end
+  end
 end

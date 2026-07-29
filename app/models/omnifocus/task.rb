@@ -145,10 +145,11 @@ module Omnifocus
     end
 
     def original_task(include_inbox: false)
+      task_tags = tags.presence || options[:tags]
       search_tasks = if include_inbox
-        (service.inbox_tasks + service.tagged_tasks(tags))
+        service.inbox_tasks + service.tagged_tasks(task_tags)
       else
-        service.tagged_tasks(tags)
+        service.tagged_tasks(task_tags)
       end
       search_tasks.find { |task| task.id_.get == external_id }
     end

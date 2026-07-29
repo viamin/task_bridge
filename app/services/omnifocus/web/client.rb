@@ -40,23 +40,23 @@ module Omnifocus
         end
 
         def inbox_tasks
-          Collection.new(@transport.load_collection(container: "inbox"), transport: @transport)
+          @inbox_tasks ||= Collection.new(@transport.load_collection(container: "inbox"), transport: @transport)
         end
 
         def flattened_tags
-          Lookup.new(@transport.load_lookup(container: "tags"), key: :name, transport: @transport)
+          @flattened_tags ||= Lookup.new(@transport.load_lookup(container: "tags"), key: :name, transport: @transport)
         end
 
         def flattened_tasks
-          Lookup.new(@transport.load_lookup(container: "tasks"), transport: @transport)
+          @flattened_tasks ||= Lookup.new(@transport.load_lookup(container: "tasks"), transport: @transport)
         end
 
         def flattened_projects
-          Lookup.new(@transport.load_lookup(container: "projects"), transport: @transport)
+          @flattened_projects ||= Lookup.new(@transport.load_lookup(container: "projects"), transport: @transport)
         end
 
         def flattened_folders
-          Lookup.new(@transport.load_lookup(container: "folders"), transport: @transport)
+          @flattened_folders ||= Lookup.new(@transport.load_lookup(container: "folders"), transport: @transport)
         end
 
         def make(new:, with_properties:)
