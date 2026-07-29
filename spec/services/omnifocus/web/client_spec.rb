@@ -22,9 +22,10 @@ RSpec.describe Omnifocus::Web::Client do
   describe Omnifocus::Web::Client::Transport do
     let(:transport) { described_class.new(account: "account", password: "password") }
     let(:socket) { instance_double("SocketConnection", send_json: nil) }
+    let(:ws_url) { "wss://sync.omnifocus.com/socket" }
 
     before do
-      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://example.test/socket" })
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => ws_url })
       allow(Omnifocus::Web::Client::SocketConnection).to receive(:new).and_return(socket)
       allow(SecureRandom).to receive(:uuid).and_return("request-id")
     end
@@ -45,7 +46,7 @@ RSpec.describe Omnifocus::Web::Client do
       transport.load_collection(container: "inbox")
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
-        "wss://example.test/socket",
+        ws_url,
         protocols: ["v1.omnifocus.omnigroup.com"]
       )
     end
@@ -75,6 +76,26 @@ RSpec.describe Omnifocus::Web::Client do
       expect(socket).to have_received(:send_json).with(
         hash_including(op: "task", rid: "request-id", in: "project-1", name: "Task title")
       )
+    end
+
+    it "rejects non-Omni websocket hosts before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://attacker.test/socket" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /host is not allowed/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects insecure websocket schemes before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "ws://sync.omnifocus.com/socket" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /must use wss/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
     end
   end
 

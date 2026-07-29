@@ -316,6 +316,10 @@ module Omnifocus
       end
 
       class Transport
+        ALLOWED_WEBSOCKET_HOSTS = [
+          /\A(?:[\w-]+\.)*omnifocus\.com\z/i,
+          /\A(?:[\w-]+\.)*omnigroup\.com\z/i
+        ].freeze
         SOCKET_PROTOCOL = "v1.omnifocus.omnigroup.com"
         SUPPORTED_LOCALES = %w[de en es fr it ja ko nl pt-BR ru zh].freeze
         WEB_CLIENT_VERSION = "*"
@@ -393,7 +397,7 @@ module Omnifocus
         end
 
         def ws_url
-          @ws_url ||= resolve_instance.fetch("ws_url")
+          @ws_url ||= validate_ws_url!(resolve_instance.fetch("ws_url")).to_s
         end
 
         def resolve_instance
@@ -439,6 +443,26 @@ module Omnifocus
 
         def authentication_message?(response)
           %w[cookie error key? pw? session state version].include?(response["op"])
+        end
+
+        def validate_ws_url!(url)
+          uri = URI.parse(url)
+          raise ConnectionError, "OmniFocus Web websocket URL must use wss" unless uri.scheme == "wss"
+          raise ConnectionError, "OmniFocus Web websocket URL must include a host" if uri.host.blank?
+          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" unless allowed_websocket_host?(uri.host)
+          raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless allowed_websocket_port?(uri.port)
+
+          uri
+        rescue URI::InvalidURIError => e
+          raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
+        end
+
+        def allowed_websocket_host?(host)
+          ALLOWED_WEBSOCKET_HOSTS.any? { |pattern| pattern.match?(host) }
+        end
+
+        def allowed_websocket_port?(port)
+          port.nil? || port == 443
         end
 
         def handle_authentication_message!(socket, response)
