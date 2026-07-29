@@ -121,7 +121,7 @@ RSpec.describe GoogleKeep::Service do
     end
 
     it "rebuilds the note from the primary service" do
-      expect(primary_service).to receive(:items_to_sync).with(tags: [service.friendly_name]).and_return([primary_item])
+      expect(primary_service).to receive(:items_to_sync).with(tags: [service.service_name]).and_return([primary_item])
       created_note = Google::Apis::KeepV1::Note.new(name: "notes/replacement")
 
       expect(keep_service).to receive(:create_note).ordered do |note|
@@ -141,7 +141,7 @@ RSpec.describe GoogleKeep::Service do
     end
 
     it "does not delete the existing note when creating the replacement fails" do
-      allow(primary_service).to receive(:items_to_sync).with(tags: [service.friendly_name]).and_return([primary_item])
+      allow(primary_service).to receive(:items_to_sync).with(tags: [service.service_name]).and_return([primary_item])
       allow(keep_service).to receive(:create_note).and_raise(Google::Apis::TransmissionError, "timeout")
 
       expect(keep_service).not_to receive(:delete_note)
@@ -150,13 +150,32 @@ RSpec.describe GoogleKeep::Service do
     end
 
     it "deletes the Keep note when the primary list is empty" do
-      allow(primary_service).to receive(:items_to_sync).with(tags: [service.friendly_name]).and_return([])
+      allow(primary_service).to receive(:items_to_sync).with(tags: [service.service_name]).and_return([])
 
       expect(keep_service).to receive(:delete_note).with("notes/existing")
 
       result = service.sync_from_primary(primary_service)
 
       expect(result["items_synced"]).to eq(0)
+    end
+
+    it "uses the named Keep service when fetching primary items" do
+      named_service = described_class.new(
+        options: options.merge(service_name: "Google Keep:work"),
+        keep_service:,
+        authorization: {}
+      )
+
+      allow(named_service).to receive(:should_sync?).and_return(true)
+      allow(named_service).to receive(:keep_notes).and_return([existing_note])
+      allow(keep_service).to receive(:create_note).and_return(Google::Apis::KeepV1::Note.new(name: "notes/replacement"))
+      allow(keep_service).to receive(:delete_note)
+      allow(primary_item).to receive(:patch_external_attributes)
+      allow(sub_item).to receive(:patch_external_attributes)
+
+      expect(primary_service).to receive(:items_to_sync).with(tags: ["Google Keep:work"]).and_return([primary_item])
+
+      named_service.sync_from_primary(primary_service)
     end
   end
 

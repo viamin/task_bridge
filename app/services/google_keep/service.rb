@@ -73,11 +73,11 @@ module GoogleKeep
         return sync_result(0, touched_collection_ids:, errors: [unavailable_error])
       end
 
-      primary_items = primary_service.items_to_sync(tags: [friendly_name])
+      primary_items = primary_service.items_to_sync(tags: [service_name])
       return delete_keep_note! if primary_items.empty?
 
       rebuild_keep_note!(primary_items)
-      puts "Synced #{primary_items.length} #{options[:primary]} items to #{friendly_name}" unless options[:quiet]
+      puts "Synced #{primary_items.length} #{options[:primary]} items to #{service_name}" unless options[:quiet]
       sync_result(primary_items.length, touched_collection_ids:, errors: sync_errors)
     end
 
