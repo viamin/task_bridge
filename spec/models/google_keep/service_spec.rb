@@ -24,15 +24,17 @@ RSpec.describe GoogleKeep::Service do
   describe "#items_to_sync" do
     subject(:items_to_sync) { service.items_to_sync }
 
+    let(:root_keep_id) { "keep-root-1" }
+    let(:nested_keep_id) { "keep-child-1" }
     let(:nested_item) do
       Google::Apis::KeepV1::ListItem.new(
-        text: Google::Apis::KeepV1::TextContent.new(text: "Chives"),
+        text: Google::Apis::KeepV1::TextContent.new(text: GoogleKeep::Item.text_with_external_id("Chives", nested_keep_id)),
         checked: true
       )
     end
     let(:root_item) do
       Google::Apis::KeepV1::ListItem.new(
-        text: Google::Apis::KeepV1::TextContent.new(text: "Buy milk"),
+        text: Google::Apis::KeepV1::TextContent.new(text: GoogleKeep::Item.text_with_external_id("Buy milk", root_keep_id)),
         checked: false,
         child_list_items: [nested_item]
       )
@@ -49,7 +51,7 @@ RSpec.describe GoogleKeep::Service do
         body: note_body
       )
     end
-    let(:notes_response) { double("notes_response", notes: [note]) }
+    let(:notes_response) { double("notes_response", notes: [note], next_page_token: nil) }
 
     before do
       allow(keep_service).to receive(:list_notes).with(page_size: 100).and_return(notes_response)
@@ -57,10 +59,21 @@ RSpec.describe GoogleKeep::Service do
 
     it "wraps Keep list items in sync items with stable ids" do
       expect(items_to_sync.length).to eq(1)
-      expect(items_to_sync.first.external_id).to eq("My Tasks::0::Buy milk::open")
+      expect(items_to_sync.first.external_id).to eq(root_keep_id)
       expect(items_to_sync.first.title).to eq("Buy milk")
       expect(items_to_sync.first.completed?).to be(false)
+      expect(items_to_sync.first.sub_items.first.external_id).to eq(nested_keep_id)
       expect(items_to_sync.first.sub_items.first.title).to eq("Chives")
+    end
+
+    it "searches across every page for the configured note" do
+      second_page_response = double("notes_response_page_2", notes: [note], next_page_token: nil)
+      first_page_response = double("notes_response_page_1", notes: [], next_page_token: "page-2")
+
+      allow(keep_service).to receive(:list_notes).with(page_size: 100).and_return(first_page_response)
+      allow(keep_service).to receive(:list_notes).with(page_size: 100, page_token: "page-2").and_return(second_page_response)
+
+      expect(items_to_sync.first.title).to eq("Buy milk")
     end
   end
 
@@ -70,7 +83,9 @@ RSpec.describe GoogleKeep::Service do
         "PrimarySubItem",
         title: "Chives",
         completed?: true,
-        sub_items: []
+        sub_items: [],
+        sync_notes: "sub notes",
+        patch_external_attributes: true
       )
     end
     let(:primary_item) do
@@ -78,7 +93,9 @@ RSpec.describe GoogleKeep::Service do
         "PrimaryItem",
         title: "Buy milk",
         completed?: false,
-        sub_items: [sub_item]
+        sub_items: [sub_item],
+        sync_notes: "root notes",
+        patch_external_attributes: true
       )
     end
     let(:primary_service) do
@@ -108,9 +125,12 @@ RSpec.describe GoogleKeep::Service do
       expect(keep_service).to receive(:delete_note).with("notes/existing")
       expect(keep_service).to receive(:create_note) do |note|
         expect(note.title).to eq(options[:list])
-        expect(note.body.list.list_items.first.text.text).to eq("Buy milk")
-        expect(note.body.list.list_items.first.child_list_items.first.text.text).to eq("Chives")
+        expect(GoogleKeep::Item.visible_text(note.body.list.list_items.first.text.text)).to eq("Buy milk")
+        expect(GoogleKeep::Item.external_id_from_text(note.body.list.list_items.first.text.text)).to be_present
+        expect(GoogleKeep::Item.visible_text(note.body.list.list_items.first.child_list_items.first.text.text)).to eq("Chives")
       end
+      expect(primary_item).to receive(:patch_external_attributes).with(notes: "root notes")
+      expect(sub_item).to receive(:patch_external_attributes).with(notes: "sub notes")
 
       result = service.sync_from_primary(primary_service)
 
@@ -135,7 +155,7 @@ RSpec.describe GoogleKeep::Service do
           note: Google::Apis::KeepV1::Note.new(title: options[:list], update_time: Time.current),
           note_title: options[:list],
           item: Google::Apis::KeepV1::ListItem.new(
-            text: Google::Apis::KeepV1::TextContent.new(text: "Buy milk"),
+            text: Google::Apis::KeepV1::TextContent.new(text: GoogleKeep::Item.text_with_external_id("Buy milk", "keep-root-1")),
             checked: false
           ),
           path: [0]

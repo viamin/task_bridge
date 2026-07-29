@@ -49,10 +49,18 @@ module GoogleKeep
             note_title: note.title,
             path: [index]
           },
-          options:,
-          external_id: synthetic_external_id(note, list_item, [index])
+          options:
         ).tap { |item| item.read_original(only_modified_dates:) }
       end
+    end
+
+    def sync_to_primary(primary_service, service_items: nil)
+      return @last_sync_data unless should_sync?
+
+      service_items ||= items_to_sync(tags: options[:tags], only_modified_dates: true)
+      result = super
+      stamp_keep_ids!(service_items) if should_stamp_keep_ids?(result, service_items)
+      result
     end
 
     def sync_from_primary(primary_service, _service_items: nil)
@@ -86,7 +94,17 @@ module GoogleKeep
     def keep_notes
       return [] unless authorized
 
-      keep_service.list_notes(page_size: 100).notes || []
+      page_token = nil
+      notes = []
+
+      loop do
+        response = keep_notes_page(page_token:)
+        notes.concat(Array(response.notes))
+        page_token = response.next_page_token
+        break if page_token.blank?
+      end
+
+      notes
     end
 
     def list_items_for(note)
@@ -95,7 +113,9 @@ module GoogleKeep
 
     def rebuild_keep_note!(primary_items)
       delete_keep_note!
-      @keep_note = keep_service.create_note(build_note(primary_items))
+      note, keep_ids = build_note(primary_items)
+      @keep_note = keep_service.create_note(note)
+      persist_keep_ids!(keep_ids)
     end
 
     def delete_keep_note!
@@ -108,43 +128,67 @@ module GoogleKeep
     end
 
     def build_note(primary_items)
-      Google::Apis::KeepV1::Note.new(
+      keep_ids = {}
+      note = Google::Apis::KeepV1::Note.new(
         title: options[:list],
         body: Google::Apis::KeepV1::Section.new(
           list: Google::Apis::KeepV1::ListContent.new(
-            list_items: primary_items.filter_map { |item| build_list_item(item) }
+            list_items: primary_items.filter_map { |item| build_list_item(item, keep_ids) }
           )
         )
       )
+      [note, keep_ids]
     end
 
-    def build_list_item(item)
+    def build_list_item(item, keep_ids)
+      keep_id = keep_id_for(item)
+      keep_ids[item] = keep_id
       payload = {
         checked: item.completed?,
-        text: Google::Apis::KeepV1::TextContent.new(text: item.title.to_s)
+        text: Google::Apis::KeepV1::TextContent.new(text: Item.text_with_external_id(item.title.to_s, keep_id))
       }
-      child_list_items = Array(item.sub_items).filter_map { |sub_item| build_list_item(sub_item) }
+      child_list_items = Array(item.sub_items).filter_map { |sub_item| build_list_item(sub_item, keep_ids) }
       payload[:child_list_items] = child_list_items if child_list_items.any?
       Google::Apis::KeepV1::ListItem.new(**payload)
     end
 
-    def synthetic_external_id(note, list_item, path)
-      title = list_item_title(list_item)
-      checked = list_item_checked?(list_item) ? "completed" : "open"
-      [note.title, *path, title, checked].join("::")
+    def keep_notes_page(page_token:)
+      request_options = { page_size: 100 }
+      request_options[:page_token] = page_token if page_token.present?
+      keep_service.list_notes(**request_options)
     end
 
-    def list_item_title(list_item)
-      text_content = list_item.respond_to?(:text) ? list_item.text : list_item[:text]
-      return text_content[:text].to_s if text_content.is_a?(Hash)
-
-      text_content.respond_to?(:text) ? text_content.text.to_s : text_content.to_s
+    def keep_id_for(item)
+      sync_note_value(item, :google_keep_id).presence ||
+        (item.external_id if item.is_a?(Item) && item.external_id.present?) ||
+        SecureRandom.uuid
     end
 
-    def list_item_checked?(list_item)
-      return list_item.checked == true if list_item.respond_to?(:checked)
+    def persist_keep_ids!(keep_ids)
+      keep_ids.each do |item, keep_id|
+        next if item.is_a?(Item)
+        next if sync_note_value(item, :google_keep_id) == keep_id
 
-      list_item[:checked] == true
+        update_sync_data(item, keep_id)
+      end
+    end
+
+    def should_stamp_keep_ids?(result, service_items)
+      return false if options[:pretend]
+      return false if result["status"] == "failed"
+      return false if service_items.blank?
+
+      service_items.any? { |item| missing_embedded_keep_id?(item) }
+    end
+
+    def missing_embedded_keep_id?(item)
+      return true unless item.stable_external_id_embedded?
+
+      Array(item.sub_items).any? { |sub_item| missing_embedded_keep_id?(sub_item) }
+    end
+
+    def stamp_keep_ids!(service_items)
+      rebuild_keep_note!(service_items)
     end
   end
 end

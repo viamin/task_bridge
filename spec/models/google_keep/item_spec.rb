@@ -65,11 +65,34 @@ RSpec.describe GoogleKeep::Item do
       expect(metadata_item.sub_item_count).to eq(1)
       expect(metadata_item.sub_items.first.title).to eq("Oat milk")
     end
+
+    it "uses the embedded Keep id instead of mutable path or completion state" do
+      embedded_id = "keep-item-123"
+      embedded_text = described_class.text_with_external_id("Buy milk", embedded_id)
+      reordered_item = described_class.new(
+        keep_item: {
+          note:,
+          note_title: note.title,
+          item: OpenStruct.new(
+            text: OpenStruct.new(text: embedded_text),
+            checked: true,
+            child_list_items: []
+          ),
+          path: [7]
+        },
+        options:
+      )
+
+      reordered_item.read_original
+
+      expect(reordered_item.title).to eq("Buy milk")
+      expect(reordered_item.external_id).to eq(embedded_id)
+    end
   end
 
   describe "#external_sync_notes" do
     it "stores a stable Keep sync id" do
-      expect(item.external_sync_notes).to include("google_keep_id: Groceries::0::Buy milk::open")
+      expect(item.external_sync_notes).to include("google_keep_id: #{item.external_id}")
     end
   end
 end
