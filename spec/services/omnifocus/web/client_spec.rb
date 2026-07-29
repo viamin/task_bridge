@@ -49,7 +49,7 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
         have_attributes(
-          connect_host: "34.120.0.1",
+          connect_addrinfo: public_addrinfo,
           host: "sync.omnifocus.com",
           port: 443,
           path: "/socket",
@@ -71,7 +71,7 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
         have_attributes(
-          connect_host: "34.120.0.1",
+          connect_addrinfo: public_addrinfo,
           host: "web.omnifocus.com",
           port: 443,
           path: "/socket",
@@ -93,7 +93,7 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
         have_attributes(
-          connect_host: "34.120.0.1",
+          connect_addrinfo: public_addrinfo,
           host: "web.omnifocus.com",
           port: 443,
           path: "/socket",
@@ -115,7 +115,7 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
         have_attributes(
-          connect_host: "34.120.0.1",
+          connect_addrinfo: public_addrinfo,
           host: "web.omnifocus.com",
           port: 443,
           path: "/socket"
@@ -135,7 +135,7 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
         have_attributes(
-          connect_host: "34.120.0.1",
+          connect_addrinfo: public_addrinfo,
           host: "sync.omnifocus.com",
           port: 443,
           path: "/socket"
@@ -263,6 +263,18 @@ RSpec.describe Omnifocus::Web::Client do
       expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
     end
 
+    it "rejects allowed websocket hosts that resolve to documentation-only addresses" do
+      allow(Addrinfo).to receive(:getaddrinfo).with("sync.omnifocus.com", 443, nil, :STREAM).and_return(
+        [instance_double(Addrinfo, ip_address: "192.0.2.10")]
+      )
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /host is not allowed/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
     it "rejects websocket IP literals even when they use TLS" do
       allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://34.120.0.1/socket" })
 
@@ -275,9 +287,10 @@ RSpec.describe Omnifocus::Web::Client do
   end
 
   describe Omnifocus::Web::Client::SocketConnection do
+    let(:connect_addrinfo) { instance_double(Addrinfo, connect: tcp_socket) }
     let(:endpoint) do
       Omnifocus::Web::Client::Transport::WebsocketEndpoint.new(
-        connect_host: "34.120.0.1",
+        connect_addrinfo:,
         host: "sync.omnifocus.com",
         port: 443,
         path: "/socket"
@@ -290,7 +303,6 @@ RSpec.describe Omnifocus::Web::Client do
     let(:incoming) { instance_double(WebSocket::Frame::Incoming::Client) }
 
     before do
-      allow(TCPSocket).to receive(:new).with("34.120.0.1", 443).and_return(tcp_socket)
       allow(OpenSSL::SSL::SSLContext).to receive(:new).and_return(ssl_context)
       allow(OpenSSL::SSL::SSLSocket).to receive(:new).with(tcp_socket, ssl_context).and_return(ssl_socket)
       allow(WebSocket::Handshake::Client).to receive(:new).and_return(handshake)
@@ -304,7 +316,7 @@ RSpec.describe Omnifocus::Web::Client do
     it "verifies the certificate hostname for secure websocket connections" do
       described_class.new(endpoint, protocols: ["v1.omnifocus.omnigroup.com"])
 
-      expect(TCPSocket).to have_received(:new).with("34.120.0.1", 443)
+      expect(connect_addrinfo).to have_received(:connect)
       expect(ssl_context).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
       expect(ssl_context).to have_received(:verify_hostname=).with(true)
       expect(ssl_socket).to have_received(:hostname=).with("sync.omnifocus.com")

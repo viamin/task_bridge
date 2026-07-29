@@ -337,12 +337,19 @@ module Omnifocus
           10.0.0.0/8
           100.64.0.0/10
           127.0.0.0/8
+          192.0.0.0/24
+          192.0.2.0/24
           169.254.0.0/16
           172.16.0.0/12
+          198.18.0.0/15
+          198.51.100.0/24
           192.168.0.0/16
+          203.0.113.0/24
           224.0.0.0/4
+          240.0.0.0/4
           ::/128
           ::1/128
+          2001:db8::/32
           fc00::/7
           fe80::/10
           ff00::/8
@@ -426,10 +433,9 @@ module Omnifocus
         def websocket_endpoint
           @websocket_endpoint ||= begin
             endpoint = canonical_websocket_endpoint(resolve_instance.fetch("ws_url"))
-            resolved_address = validated_public_websocket_address(endpoint)
-            raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if resolved_address.nil?
+            connect_addrinfo = validated_public_websocket_addrinfo(endpoint)
 
-            WebsocketEndpoint.new(**endpoint, connect_host: resolved_address)
+            WebsocketEndpoint.new(**endpoint, connect_addrinfo:)
           end
         end
 
@@ -497,12 +503,7 @@ module Omnifocus
         end
 
         def websocket_endpoint_for(host)
-          case normalized_websocket_host(host)
-          when SYNC_WEBSOCKET_ENDPOINT.fetch(:host)
-            SYNC_WEBSOCKET_ENDPOINT
-          when WEB_WEBSOCKET_ENDPOINT.fetch(:host)
-            WEB_WEBSOCKET_ENDPOINT
-          end
+          ALLOWED_WEBSOCKET_ENDPOINTS_BY_HOST[normalized_websocket_host(host)]&.dup
         end
 
         def normalized_websocket_host(host)
@@ -528,18 +529,21 @@ module Omnifocus
           false
         end
 
-        def validated_public_websocket_address(endpoint)
-          addresses = resolved_ip_addresses(endpoint.fetch(:host), endpoint.fetch(:port))
-          return if addresses.empty?
-          return unless addresses.all? { |address| public_ip_address?(address) }
+        def validated_public_websocket_addrinfo(endpoint)
+          addrinfo = resolved_addrinfos(endpoint.fetch(:host), endpoint.fetch(:port)).find do |candidate|
+            public_ip_address?(candidate.ip_address)
+          end
+          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if addrinfo.nil?
 
-          addresses.first
+          addrinfo
         rescue SocketError
-          nil
+          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed"
         end
 
-        def resolved_ip_addresses(host, port)
-          Addrinfo.getaddrinfo(host, port, nil, :STREAM).filter_map(&:ip_address).uniq
+        def resolved_addrinfos(host, port)
+          Addrinfo.getaddrinfo(host, port, nil, :STREAM).uniq do |candidate|
+            [candidate.afamily, candidate.ip_address]
+          end
         end
 
         def public_ip_address?(address)
@@ -595,10 +599,10 @@ module Omnifocus
         end
 
         class WebsocketEndpoint
-          attr_reader :connect_host, :host, :path, :port
+          attr_reader :connect_addrinfo, :host, :path, :port
 
-          def initialize(host:, port:, path:, connect_host:)
-            @connect_host = connect_host
+          def initialize(host:, port:, path:, connect_addrinfo:)
+            @connect_addrinfo = connect_addrinfo
             @host = host
             @port = port
             @path = path
@@ -643,7 +647,7 @@ module Omnifocus
         private
 
         def connect_socket
-          tcp_socket = TCPSocket.new(@endpoint.connect_host, @endpoint.port)
+          tcp_socket = @endpoint.connect_addrinfo.connect
           ssl_socket = OpenSSL::SSL::SSLSocket.new(tcp_socket, ssl_context)
           ssl_socket.sync_close = true
           ssl_socket.hostname = @endpoint.host if ssl_socket.respond_to?(:hostname=)
