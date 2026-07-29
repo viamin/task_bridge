@@ -69,6 +69,38 @@ RSpec.describe Asana::Service, :full_options do
 
       service.items_to_sync(only_modified_dates: true)
     end
+
+    it "anchors multi-project tasks to the project they were fetched from" do
+      multi_project_task_data = parent_task_data.merge(
+        "gid" => "multi-project-gid",
+        "num_subtasks" => 0,
+        "projects" => [
+          { "gid" => "project-a", "name" => "Project A" },
+          { "gid" => "project-b", "name" => "Project B" }
+        ],
+        "memberships" => [
+          {
+            "project" => { "gid" => "project-a", "name" => "Project A" },
+            "section" => { "gid" => "section-a", "name" => "Section A" }
+          },
+          {
+            "project" => { "gid" => "project-b", "name" => "Project B" },
+            "section" => { "gid" => "section-b", "name" => "Section B" }
+          }
+        ]
+      )
+      multi_project_task = Asana::Task.new(asana_task: multi_project_task_data, options: options)
+
+      allow(service).to receive(:list_projects).and_return([{ "gid" => "project-b" }, { "gid" => "project-a" }])
+      allow(service).to receive(:list_project_tasks).with("project-b", only_modified_dates: false).and_return([multi_project_task_data])
+      allow(service).to receive(:list_project_tasks).with("project-a", only_modified_dates: false).and_return([multi_project_task_data])
+      allow(Asana::Task).to receive(:find_or_initialize_by).with(external_id: "multi-project-gid").and_return(multi_project_task)
+
+      tasks = service.items_to_sync
+
+      expect(tasks.map(&:external_id)).to eq(["multi-project-gid"])
+      expect(tasks.first.project).to eq("Project B:Section B")
+    end
   end
 
   describe "persisted hydration" do

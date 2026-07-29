@@ -30,10 +30,18 @@ module Asana
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
     def items_to_sync(*, only_modified_dates: false, **)
       visible_project_gids = list_projects.map { |project| project["gid"] }
-      task_list = visible_project_gids.map { |project_gid| list_project_tasks(project_gid, only_modified_dates:) }.flatten.uniq
+      task_list = visible_project_gids.each_with_object({}) do |project_gid, tasks_by_gid|
+        list_project_tasks(project_gid, only_modified_dates:).each do |external_task|
+          task_gid = external_task[Task.external_attribute_map[:external_id]]
+          tasks_by_gid[task_gid] ||= [external_task, project_gid]
+        end
+      end.values
+
       tasks = task_list.map do |external_task|
-        asana_task = Task.find_or_initialize_by(external_id: external_task[Task.external_attribute_map[:external_id]])
-        asana_task.asana_task = external_task
+        task_hash, synced_project_gid = external_task
+        asana_task = Task.find_or_initialize_by(external_id: task_hash[Task.external_attribute_map[:external_id]])
+        asana_task.synced_project_gid = synced_project_gid
+        asana_task.asana_task = task_hash
         asana_task.refresh_from_external!(only_modified_dates:)
       end
       sub_item_ids = Set.new

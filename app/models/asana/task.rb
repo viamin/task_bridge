@@ -42,7 +42,7 @@ module Asana
   class Task < Base::SyncItem
     include Collectible
 
-    attr_accessor :asana_task
+    attr_accessor :asana_task, :synced_project_gid
     attr_reader :project, :section, :sub_item_count, :sub_items, :assignee
 
     def read_original(only_modified_dates: false)
@@ -161,7 +161,7 @@ module Asana
     # If there isn't anything there, use the projects array
     def project_from_memberships(asana_task)
       membership = matching_membership(asana_task) || asana_task["memberships"]&.first
-      return asana_task["projects"]&.first&.dig("name") if membership.nil?
+      return fallback_project_name(asana_task) if membership.nil?
 
       project = membership.dig("project", "name")
       section = membership.dig("section", "name")
@@ -169,10 +169,15 @@ module Asana
     end
 
     def matching_membership(asana_task)
-      target_project_gid = asana_task["projects"]&.filter_map { |project| project["gid"] }&.first
+      target_project_gid = synced_project_gid.presence || asana_task["projects"]&.filter_map { |project| project["gid"] }&.first
       return if target_project_gid.blank?
 
       asana_task["memberships"]&.find { |membership| membership.dig("project", "gid") == target_project_gid }
+    end
+
+    def fallback_project_name(asana_task)
+      synced_project = asana_task["projects"]&.find { |project| project["gid"] == synced_project_gid } if synced_project_gid.present?
+      synced_project&.dig("name") || asana_task["projects"]&.first&.dig("name")
     end
 
     def serialized_project_gids
