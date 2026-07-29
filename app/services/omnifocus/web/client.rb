@@ -424,7 +424,13 @@ module Omnifocus
         end
 
         def websocket_endpoint
-          @websocket_endpoint ||= build_websocket_endpoint(resolve_instance.fetch("ws_url"))
+          @websocket_endpoint ||= begin
+            endpoint = canonical_websocket_endpoint(resolve_instance.fetch("ws_url"))
+            resolved_address = validated_public_websocket_address(endpoint)
+            raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if resolved_address.nil?
+
+            WebsocketEndpoint.new(**endpoint, connect_host: resolved_address)
+          end
         end
 
         def resolve_instance
@@ -472,7 +478,7 @@ module Omnifocus
           %w[cookie error key? pw? session state version].include?(response["op"])
         end
 
-        def build_websocket_endpoint(url)
+        def canonical_websocket_endpoint(url)
           uri = URI.parse(url)
           raise ConnectionError, "OmniFocus Web websocket URL must use wss" unless uri.scheme == "wss"
           raise ConnectionError, "OmniFocus Web websocket URL must include a host" if uri.host.blank?
@@ -480,24 +486,23 @@ module Omnifocus
           raise ConnectionError, "OmniFocus Web websocket URL must not include query parameters" if uri.query.present?
           raise ConnectionError, "OmniFocus Web websocket URL must not include a fragment" if uri.fragment.present?
 
-          endpoint = allowed_websocket_endpoint(uri)
+          endpoint = websocket_endpoint_for(uri.host)
           raise ConnectionError, "OmniFocus Web websocket URL is not allowed" if endpoint.nil?
-
-          resolved_address = validated_public_websocket_address(endpoint.fetch(:host))
-          raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if resolved_address.nil?
-
-          WebsocketEndpoint.new(**endpoint.slice(:host, :port, :path), connect_host: resolved_address)
-        rescue URI::InvalidURIError => e
-          raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
-        end
-
-        def allowed_websocket_endpoint(uri)
-          endpoint = ALLOWED_WEBSOCKET_ENDPOINTS_BY_HOST[normalized_websocket_host(uri.host)]
-          return if endpoint.nil?
 
           validate_websocket_port!(uri.port, endpoint.fetch(:port))
           validate_websocket_path!(uri.path, endpoint.fetch(:path))
           endpoint
+        rescue URI::InvalidURIError => e
+          raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
+        end
+
+        def websocket_endpoint_for(host)
+          case normalized_websocket_host(host)
+          when SYNC_WEBSOCKET_ENDPOINT.fetch(:host)
+            SYNC_WEBSOCKET_ENDPOINT
+          when WEB_WEBSOCKET_ENDPOINT.fetch(:host)
+            WEB_WEBSOCKET_ENDPOINT
+          end
         end
 
         def normalized_websocket_host(host)
@@ -523,8 +528,8 @@ module Omnifocus
           false
         end
 
-        def validated_public_websocket_address(host)
-          addresses = resolved_ip_addresses(host)
+        def validated_public_websocket_address(endpoint)
+          addresses = resolved_ip_addresses(endpoint.fetch(:host), endpoint.fetch(:port))
           return if addresses.empty?
           return unless addresses.all? { |address| public_ip_address?(address) }
 
@@ -533,8 +538,8 @@ module Omnifocus
           nil
         end
 
-        def resolved_ip_addresses(host)
-          Addrinfo.getaddrinfo(host, 443, nil, :STREAM).filter_map(&:ip_address).uniq
+        def resolved_ip_addresses(host, port)
+          Addrinfo.getaddrinfo(host, port, nil, :STREAM).filter_map(&:ip_address).uniq
         end
 
         def public_ip_address?(address)
