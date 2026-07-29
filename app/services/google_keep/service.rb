@@ -112,10 +112,11 @@ module GoogleKeep
     end
 
     def rebuild_keep_note!(primary_items)
-      delete_keep_note!
+      previous_note = keep_note
       note, keep_ids = build_note(primary_items)
       @keep_note = keep_service.create_note(note)
       persist_keep_ids!(keep_ids)
+      delete_replaced_keep_note!(previous_note, @keep_note)
     end
 
     def delete_keep_note!
@@ -125,6 +126,13 @@ module GoogleKeep
       keep_service.delete_note(note.name)
       @keep_note = nil
       sync_result(0, touched_collection_ids: [], errors: [])
+    end
+
+    def delete_replaced_keep_note!(previous_note, replacement_note)
+      return if previous_note.nil?
+      return if previous_note.name == replacement_note&.name
+
+      keep_service.delete_note(previous_note.name)
     end
 
     def build_note(primary_items)

@@ -122,19 +122,31 @@ RSpec.describe GoogleKeep::Service do
 
     it "rebuilds the note from the primary service" do
       expect(primary_service).to receive(:items_to_sync).with(tags: [service.friendly_name]).and_return([primary_item])
-      expect(keep_service).to receive(:delete_note).with("notes/existing")
-      expect(keep_service).to receive(:create_note) do |note|
+      created_note = Google::Apis::KeepV1::Note.new(name: "notes/replacement")
+
+      expect(keep_service).to receive(:create_note).ordered do |note|
         expect(note.title).to eq(options[:list])
         expect(GoogleKeep::Item.visible_text(note.body.list.list_items.first.text.text)).to eq("Buy milk")
         expect(GoogleKeep::Item.external_id_from_text(note.body.list.list_items.first.text.text)).to be_present
         expect(GoogleKeep::Item.visible_text(note.body.list.list_items.first.child_list_items.first.text.text)).to eq("Chives")
+        created_note
       end
+      expect(keep_service).to receive(:delete_note).with("notes/existing").ordered
       expect(primary_item).to receive(:patch_external_attributes).with(notes: "root notes")
       expect(sub_item).to receive(:patch_external_attributes).with(notes: "sub notes")
 
       result = service.sync_from_primary(primary_service)
 
       expect(result["items_synced"]).to eq(1)
+    end
+
+    it "does not delete the existing note when creating the replacement fails" do
+      allow(primary_service).to receive(:items_to_sync).with(tags: [service.friendly_name]).and_return([primary_item])
+      allow(keep_service).to receive(:create_note).and_raise(Google::Apis::TransmissionError, "timeout")
+
+      expect(keep_service).not_to receive(:delete_note)
+
+      expect { service.sync_from_primary(primary_service) }.to raise_error(Google::Apis::TransmissionError, "timeout")
     end
 
     it "deletes the Keep note when the primary list is empty" do
