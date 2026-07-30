@@ -258,6 +258,18 @@ RSpec.describe Asana::Service, :full_options do
 
       expect(service.send(:section_change_requested?, double("AsanaTask", section: "Doing"), external_task)).to be(false)
     end
+
+    it "clears sections for projects whose names contain colons when tags are empty" do
+      allow(service).to receive(:list_projects).and_return([{ "gid" => "ops-project-123", "name" => "Ops:Infra" }])
+      allow(service).to receive(:list_project_sections)
+        .with("ops-project-123", merge_project_gids: true)
+        .and_return([{ "gid" => "ops-section-456", "name" => "Doing", "project_gid" => "ops-project-123" }])
+
+      external_task = double("ExternalTask", project: "Ops:Infra", tags: [])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, double("AsanaTask", section: "Doing"), external_task)).to be(true)
+    end
   end
 
   describe "#membership_for" do

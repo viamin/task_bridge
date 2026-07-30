@@ -398,11 +398,23 @@ module Asana
     end
 
     def legacy_project_name_for(project_string)
-      project_string.to_s.split(":", 2).first if legacy_section_name_for(project_string).present?
+      legacy_project_and_section_for(project_string)&.first
     end
 
     def legacy_section_name_for(project_string)
-      project_string.to_s.split(":", 2).second
+      legacy_project_and_section_for(project_string)&.last
+    end
+
+    def legacy_project_and_section_for(project_string)
+      raw_project_name = project_string.to_s
+      return if raw_project_name.exclude?(":")
+      return if project_gid_from_name(raw_project_name).present?
+
+      legacy_project_name, legacy_section_name = raw_project_name.split(":", 2)
+      return if legacy_section_name.blank?
+      return if project_gid_from_name(legacy_project_name).blank?
+
+      [legacy_project_name, legacy_section_name]
     end
 
     def workspace_gids
