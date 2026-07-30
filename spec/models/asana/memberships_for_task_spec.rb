@@ -48,9 +48,9 @@ RSpec.describe Asana::Service, :full_options do
         .and_return(pets_sections_list)
     end
 
-    context "when external task has 'Project:Section' format" do
+    context "when external task has a matching section tag" do
       let(:external_task) do
-        double("ExternalTask", project: "Pets:Bucky")
+        double("ExternalTask", project: "Pets", tags: ["Bucky"])
       end
 
       context "for creating a task (for_create: true)" do
@@ -68,9 +68,9 @@ RSpec.describe Asana::Service, :full_options do
       end
     end
 
-    context "when external task has just project name (from Untitled section)" do
+    context "when external task has just project name" do
       let(:external_task) do
-        double("ExternalTask", project: "Pets")
+        double("ExternalTask", project: "Pets", tags: [])
       end
 
       context "for creating a task (for_create: true)" do
@@ -88,9 +88,47 @@ RSpec.describe Asana::Service, :full_options do
       end
     end
 
+    context "when external task uses legacy Project:Section format" do
+      let(:external_task) do
+        double("ExternalTask", project: "Pets:Bucky", tags: [])
+      end
+
+      it "falls back to the project suffix when no section tag matches" do
+        result = service.send(:memberships_for_task, external_task, for_create: false)
+        expect(result).to eq({ project: pets_project_gid, section: bucky_section_gid })
+      end
+    end
+
+    context "when the project name itself contains a colon" do
+      let(:ops_project_gid) { "ops-project-123" }
+      let(:ops_section_gid) { "ops-section-456" }
+      let(:projects_list) do
+        super() + [{ "gid" => ops_project_gid, "name" => "Ops:Infra" }]
+      end
+      let(:ops_sections_list) do
+        [
+          { "gid" => ops_section_gid, "name" => "Doing", "project_gid" => ops_project_gid }
+        ]
+      end
+      let(:external_task) do
+        double("ExternalTask", project: "Ops:Infra", tags: ["Doing"])
+      end
+
+      before do
+        allow(service).to receive(:list_project_sections)
+          .with(ops_project_gid, merge_project_gids: true)
+          .and_return(ops_sections_list)
+      end
+
+      it "preserves the full project name for project and section matching" do
+        result = service.send(:memberships_for_task, external_task, for_create: false)
+        expect(result).to eq({ project: ops_project_gid, section: ops_section_gid })
+      end
+    end
+
     context "when external task has a section that does not exist" do
       let(:external_task) do
-        double("ExternalTask", project: "Pets:NonExistentSection")
+        double("ExternalTask", project: "Pets", tags: ["NonExistentSection"])
       end
 
       it "returns the project GID with no section" do
@@ -101,7 +139,7 @@ RSpec.describe Asana::Service, :full_options do
 
     context "when external task has a project that does not exist" do
       let(:external_task) do
-        double("ExternalTask", project: "NonExistentProject:SomeSection")
+        double("ExternalTask", project: "NonExistentProject", tags: ["SomeSection"])
       end
 
       it "returns an empty hash and warns once" do
@@ -115,7 +153,7 @@ RSpec.describe Asana::Service, :full_options do
 
     context "when external task has nil project" do
       let(:external_task) do
-        double("ExternalTask", project: nil)
+        double("ExternalTask", project: nil, tags: ["Bucky"])
       end
 
       it "returns an empty hash" do
@@ -126,7 +164,7 @@ RSpec.describe Asana::Service, :full_options do
 
     context "when external task has blank project" do
       let(:external_task) do
-        double("ExternalTask", project: "")
+        double("ExternalTask", project: "", tags: ["Bucky"])
       end
 
       it "returns an empty hash" do
@@ -135,7 +173,7 @@ RSpec.describe Asana::Service, :full_options do
       end
     end
 
-    context "when project name contains colon (edge case: 'Project:With:Colon:Section')" do
+    context "when section tag contains a colon" do
       let(:colon_project_gid) { "colon-project-123" }
       let(:projects_list_with_colon) do
         [
@@ -156,14 +194,115 @@ RSpec.describe Asana::Service, :full_options do
       end
 
       let(:external_task) do
-        # When parsed: project = "Project", section = "With:Colon:Section" (using split(":", 2))
-        double("ExternalTask", project: "Project:With:Colon:Section")
+        double("ExternalTask", project: "Project", tags: ["With:Colon:Section"])
       end
 
       it "correctly parses the project and section parts" do
         result = service.send(:memberships_for_task, external_task, for_create: false)
         expect(result).to eq({ project: colon_project_gid, section: "section-with-colon" })
       end
+    end
+  end
+
+  describe "#section_change_requested?" do
+    let(:pets_project_gid) { "1203152506994879" }
+    let(:bucky_section_gid) { "1203152506994884" }
+    let(:projects_list) do
+      [
+        { "gid" => pets_project_gid, "name" => "Pets" }
+      ]
+    end
+    let(:pets_sections_list) do
+      [
+        { "gid" => bucky_section_gid, "name" => "Bucky", "project_gid" => pets_project_gid }
+      ]
+    end
+    let(:asana_task) { double("AsanaTask", section: "Bucky") }
+
+    before do
+      allow(service).to receive(:list_projects).and_return(projects_list)
+      allow(service).to receive(:list_project_sections)
+        .with(pets_project_gid, merge_project_gids: true)
+        .and_return(pets_sections_list)
+    end
+
+    it "returns true for unrelated tags when the task is still in an Asana section" do
+      external_task = double("ExternalTask", project: "Pets", tags: ["urgent"])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, asana_task, external_task)).to be(true)
+    end
+
+    it "returns true when tags are explicitly empty and the task has a section" do
+      external_task = double("ExternalTask", project: "Pets", tags: [])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, asana_task, external_task)).to be(true)
+    end
+
+    it "does not clear a legacy Project:Section task just because tags are empty" do
+      external_task = double("ExternalTask", project: "Pets:Bucky", tags: [])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, asana_task, external_task)).to be(false)
+    end
+
+    it "returns true when only default or system tags remain" do
+      external_task = double("ExternalTask", project: "Pets", tags: ["Github"])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, asana_task, external_task)).to be(true)
+    end
+
+    it "matches sections for projects whose names contain colons" do
+      allow(service).to receive(:list_projects).and_return([{ "gid" => "ops-project-123", "name" => "Ops:Infra" }])
+      allow(service).to receive(:list_project_sections)
+        .with("ops-project-123", merge_project_gids: true)
+        .and_return([{ "gid" => "ops-section-456", "name" => "Doing", "project_gid" => "ops-project-123" }])
+
+      external_task = double("ExternalTask", project: "Ops:Infra", tags: ["Doing"])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, double("AsanaTask", section: "Doing"), external_task)).to be(false)
+    end
+
+    it "clears sections for projects whose names contain colons when tags are empty" do
+      allow(service).to receive(:list_projects).and_return([{ "gid" => "ops-project-123", "name" => "Ops:Infra" }])
+      allow(service).to receive(:list_project_sections)
+        .with("ops-project-123", merge_project_gids: true)
+        .and_return([{ "gid" => "ops-section-456", "name" => "Doing", "project_gid" => "ops-project-123" }])
+
+      external_task = double("ExternalTask", project: "Ops:Infra", tags: [])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, double("AsanaTask", section: "Doing"), external_task)).to be(true)
+    end
+  end
+
+  describe "#membership_for" do
+    let(:ops_project_gid) { "ops-project-123" }
+    let(:asana_task) do
+      double(
+        "AsanaTask",
+        synced_project_gid: nil,
+        project: "Ops:Infra",
+        asana_task: {
+          "projects" => [],
+          "memberships" => [
+            { "project" => { "gid" => "fallback-project" }, "section" => { "gid" => "fallback-section" } },
+            { "project" => { "gid" => ops_project_gid }, "section" => { "gid" => "ops-section-456" } }
+          ]
+        }
+      )
+    end
+
+    before do
+      allow(service).to receive(:list_projects).and_return([{ "gid" => ops_project_gid, "name" => "Ops:Infra" }])
+    end
+
+    it "matches memberships against the full project name" do
+      result = service.send(:membership_for, asana_task)
+      expect(result.dig("section", "gid")).to eq("ops-section-456")
     end
   end
 

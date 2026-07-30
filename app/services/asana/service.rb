@@ -121,16 +121,21 @@ module Asana
       # Detect if this was a title match vs ID match
       # Title match: external_task doesn't have our sync ID
       matched_by_title = matched_by_title?(external_task, asana_task)
+      project_changed = project_gid_for(asana_task.project) != project_gid_for(external_task.project)
 
       # Only move projects/sections for ID-matched items (reliable link)
       # Title matches are not reliable enough to warrant moving tasks between projects
       section_move_error = nil
-      if !matched_by_title && external_task.project && (asana_task.project != external_task.project)
+      if !matched_by_title && external_task.project && project_changed
         request_body = { body: JSON.dump({ data: memberships_for_task(external_task) }) }
         project_response = HTTParty.post("#{base_url}/tasks/#{asana_task.external_id}/addProject", authenticated_options.merge(request_body))
         return failure_message("update Asana task ##{asana_task.external_id}", project_response) unless project_response.success?
 
-        section_move_error = move_task_to_section(section_identifier_for(external_task), asana_task.external_id)
+        section_gid = section_or_default_identifier_for(external_task)
+        section_move_error = move_task_to_section(section_gid, asana_task.external_id) if section_gid.present?
+      elsif !matched_by_title && section_change_requested?(asana_task, external_task)
+        section_gid = section_or_default_identifier_for(external_task)
+        section_move_error = move_task_to_section(section_gid, asana_task.external_id) if section_gid.present? && current_section_gid_for(asana_task) != section_gid
       end
       handle_sub_items(asana_task, external_task)
       # Add sync ID so future syncs use ID matching instead of title matching
@@ -276,7 +281,15 @@ module Asana
     end
 
     def section_identifier_for(external_task)
-      memberships_for_task(external_task)["section"]
+      project_gid = project_gid_for(external_task.project)
+      matching_section_gid_for(external_task, project_gid)
+    end
+
+    def section_or_default_identifier_for(external_task)
+      project_gid = project_gid_for(external_task.project)
+      return if project_gid.blank?
+
+      matching_section_gid_for(external_task, project_gid) || default_section_gid_for(project_gid)
     end
 
     def matched_by_title?(external_task, asana_task)
@@ -284,52 +297,125 @@ module Asana
       current_sync_id.blank? || current_sync_id != asana_task.external_id
     end
 
-    # Makes some big assumptions about the layout we use in Asana...
-    # Namely that all Asana projects passed into TaskBridge
-    # will only have sections or top level tasks and sub_items,
-    # but only one level deep (meaning sub_items will not have
-    # sub_items of their own and sections will not have subsections)
-    # Also projects will not have sub-projects
     def memberships_for_task(external_task, for_create: false)
       project_string = external_task.project
       return {} if project_string.blank?
 
-      # Parse "Project:Section" format or just "Project"
-      # The format comes from project_from_memberships which builds "ProjectName:SectionName"
-      if project_string.include?(":")
-        parts = project_string.split(":", 2)
-        target_project_name = parts.first
-        target_section_name = parts.last
-      else
-        target_project_name = project_string
-        target_section_name = nil
-      end
-
       # Find the project GID by name
-      project_gid = project_gid_from_name(target_project_name)
+      project_gid = project_gid_for(project_string)
       if project_gid.blank?
-        unless @_unmatched_projects&.include?(target_project_name)
-          (@_unmatched_projects ||= Set.new) << target_project_name
-          warn "[Asana] No matching Asana project for #{target_project_name.inspect}"
+        unless @_unmatched_projects&.include?(project_string)
+          (@_unmatched_projects ||= Set.new) << project_string
+          warn "[Asana] No matching Asana project for #{project_string.inspect}"
         end
         return {}
-      end
-
-      # Find the section within that specific project
-      matching_section = nil
-      if target_section_name.present?
-        sections = list_project_sections(project_gid, merge_project_gids: true)
-        matching_section = sections.find { |section| section["name"] == target_section_name }
       end
 
       if for_create
         { projects: [project_gid] }
       else
-        {
-          project: project_gid,
-          section: matching_section&.dig("gid")
-        }.compact
+        { project: project_gid, section: matching_section_gid_for(external_task, project_gid) }.compact
       end
+    end
+
+    def matching_section_gid_for(external_task, project_gid)
+      matching_section_hash_for(external_task, project_gid)&.dig("gid")
+    end
+
+    def section_hashes_for(project_gid)
+      @section_hashes_by_project_gid ||= {}
+      @section_hashes_by_project_gid[project_gid] ||= list_project_sections(project_gid, merge_project_gids: true)
+    end
+
+    def default_section_gid_for(project_gid)
+      section_hashes_for(project_gid).find { |section| section["name"] == "Untitled section" }&.dig("gid")
+    end
+
+    def current_section_gid_for(asana_task)
+      membership_for(asana_task)&.dig("section", "gid")
+    end
+
+    def section_change_requested?(asana_task, external_task)
+      return false if external_task.project.blank?
+
+      return false unless external_task.respond_to?(:tags)
+
+      project_gid = project_gid_for(external_task.project)
+      return false if project_gid.blank?
+
+      matching_section = matching_section_hash_for(external_task, project_gid)
+      return matching_section["name"] != asana_task.section if matching_section.present?
+
+      return false if legacy_section_name_for(external_task.project).present?
+
+      asana_task.section.present?
+    end
+
+    def membership_for(asana_task)
+      memberships = asana_task.asana_task["memberships"]
+      return if memberships.blank?
+
+      project_gid =
+        asana_task.synced_project_gid.presence ||
+        asana_task.asana_task["projects"]&.first&.dig("gid") ||
+        project_gid_for(asana_task.project)
+      memberships.find { |membership| membership.dig("project", "gid") == project_gid } || memberships.first
+    end
+
+    def matching_section_hash_for(external_task, project_gid)
+      return if project_gid.blank?
+
+      matching_section_hash_from_tags(external_task, project_gid) ||
+        matching_legacy_section_hash(external_task, project_gid)
+    end
+
+    def project_name_for(project_string)
+      project_string.to_s
+    end
+
+    def project_gid_for(project_string)
+      project_name = project_name_for(project_string)
+      project_gid_from_name(project_name) || legacy_project_gid_for(project_string)
+    end
+
+    def matching_section_hash_from_tags(external_task, project_gid)
+      section_hashes_for(project_gid).find do |section|
+        Array(external_task.tags).include?(section["name"])
+      end
+    end
+
+    def matching_legacy_section_hash(external_task, project_gid)
+      legacy_section_name = legacy_section_name_for(external_task.project)
+      return if legacy_section_name.blank?
+
+      section_hashes_for(project_gid).find { |section| section["name"] == legacy_section_name }
+    end
+
+    def legacy_project_gid_for(project_string)
+      legacy_project_name = legacy_project_name_for(project_string)
+      return if legacy_project_name.blank?
+
+      project_gid_from_name(legacy_project_name)
+    end
+
+    def legacy_project_name_for(project_string)
+      legacy_project_and_section_for(project_string)&.first
+    end
+
+    def legacy_section_name_for(project_string)
+      legacy_project_and_section_for(project_string)&.last
+    end
+
+    def legacy_project_and_section_for(project_string)
+      raw_project_name = project_string.to_s
+      return if raw_project_name.exclude?(":")
+      return if project_gid_from_name(raw_project_name).present?
+
+      legacy_project_name, legacy_section_name = raw_project_name.split(":", 2)
+      return if legacy_section_name.blank?
+      return if project_gid_from_name(legacy_project_name).blank?
+
+      [legacy_project_name, legacy_section_name]
     end
 
     def workspace_gids

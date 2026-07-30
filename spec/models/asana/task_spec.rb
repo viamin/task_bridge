@@ -67,7 +67,7 @@ RSpec.describe "Asana::Task" do
       expect(task.project).to eq("Project Name")
     end
 
-    it "matches the membership for the first project gid" do
+    it "returns the project name and section tag for the first project gid" do
       task = Asana::Task.new(
         asana_task: {
           "gid" => "123",
@@ -90,7 +90,9 @@ RSpec.describe "Asana::Task" do
       )
       task.read_original
 
-      expect(task.project).to eq("Pets:Bucky")
+      expect(task.project).to eq("Pets")
+      expect(task.section).to eq("Bucky")
+      expect(task.tags).to include("Bucky")
     end
 
     it "matches the membership for the synced project gid" do
@@ -118,7 +120,8 @@ RSpec.describe "Asana::Task" do
 
       task.read_original
 
-      expect(task.project).to eq("Shopping List:Groceries")
+      expect(task.project).to eq("Shopping List")
+      expect(task.section).to eq("Groceries")
     end
 
     it "falls back to the first membership when membership project gids are absent" do
@@ -144,7 +147,8 @@ RSpec.describe "Asana::Task" do
       )
       task.read_original
 
-      expect(task.project).to eq("Shopping List:Groceries")
+      expect(task.project).to eq("Shopping List")
+      expect(task.section).to eq("Groceries")
     end
 
     it "falls back to the synced project name when memberships are absent" do
@@ -164,6 +168,7 @@ RSpec.describe "Asana::Task" do
       task.read_original
 
       expect(task.project).to eq("Shopping List")
+      expect(task.section).to be_nil
     end
   end
 
@@ -247,7 +252,8 @@ RSpec.describe "Asana::Task" do
         "completed_at",
         "modified_at",
         "num_subtasks",
-        "memberships.project.gid"
+        "memberships.project.gid",
+        "memberships.section.gid"
       )
     end
   end

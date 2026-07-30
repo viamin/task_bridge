@@ -51,6 +51,8 @@ module Asana
       @sub_items = []
       unless only_modified_dates
         @project = project_from_memberships(asana_task)
+        @section = section_from_memberships(asana_task)
+        @tags = (@tags + Array(@section)).uniq
         @assignee = asana_task.dig("assignee", "gid")
       end
       self
@@ -132,6 +134,7 @@ module Asana
           start_at: false,
           num_subtasks: true,
           "memberships.project.gid": true,
+          "memberships.section.gid": true,
           "memberships.section.name": true,
           "memberships.project.name": true,
           subtasks_name: false,
@@ -163,9 +166,7 @@ module Asana
       membership = matching_membership(asana_task) || asana_task["memberships"]&.first
       return fallback_project_name(asana_task) if membership.nil?
 
-      project = membership.dig("project", "name")
-      section = membership.dig("section", "name")
-      section == "Untitled section" ? project : "#{project}:#{section}"
+      membership.dig("project", "name") || fallback_project_name(asana_task)
     end
 
     def matching_membership(asana_task)
@@ -178,6 +179,14 @@ module Asana
     def fallback_project_name(asana_task)
       synced_project = asana_task["projects"]&.find { |project| project["gid"] == synced_project_gid } if synced_project_gid.present?
       synced_project&.dig("name") || asana_task["projects"]&.first&.dig("name")
+    end
+
+    def section_from_memberships(asana_task)
+      membership = matching_membership(asana_task) || asana_task["memberships"]&.first
+      return if membership.nil?
+
+      section = membership.dig("section", "name")
+      section == "Untitled section" ? nil : section
     end
 
     def serialized_project_gids
