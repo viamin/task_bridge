@@ -327,13 +327,6 @@ module Omnifocus
           port: 443,
           path: "/socket"
         }.freeze
-        ALLOWED_WEBSOCKET_ENDPOINTS = [
-          SYNC_WEBSOCKET_ENDPOINT,
-          WEB_WEBSOCKET_ENDPOINT
-        ].freeze
-        ALLOWED_WEBSOCKET_ENDPOINTS_BY_HOST = ALLOWED_WEBSOCKET_ENDPOINTS.to_h do |endpoint|
-          [endpoint.fetch(:host), endpoint]
-        end.freeze
         BLOCKED_WEBSOCKET_NETWORKS = %w[
           0.0.0.0/8
           10.0.0.0/8
@@ -514,9 +507,14 @@ module Omnifocus
         end
 
         def allowlisted_endpoint_for_host(host)
-          ALLOWED_WEBSOCKET_ENDPOINTS_BY_HOST.fetch(host)
-        rescue KeyError
-          raise ConnectionError, "OmniFocus Web websocket URL is not allowed"
+          case host
+          when SYNC_WEBSOCKET_ENDPOINT.fetch(:host)
+            SYNC_WEBSOCKET_ENDPOINT
+          when WEB_WEBSOCKET_ENDPOINT.fetch(:host)
+            WEB_WEBSOCKET_ENDPOINT
+          else
+            raise ConnectionError, "OmniFocus Web websocket URL is not allowed"
+          end
         end
 
         def ip_literal?(host)
