@@ -286,6 +286,46 @@ RSpec.describe Omnifocus::Web::Client do
     end
   end
 
+  describe Omnifocus::Web::Client::Transport, "#resolve_instance" do
+    let(:transport) { described_class.new(account: "account", password: "password") }
+    let(:http) { instance_double(Net::HTTP) }
+    let(:response_body) { %({"ws_url":"wss://sync.omnifocus.com/socket"}) }
+    let(:response) { instance_double(Net::HTTPResponse, body: response_body) }
+
+    before do
+      allow(Net::HTTP).to receive(:new).and_return(http)
+      allow(http).to receive(:use_ssl=)
+      allow(http).to receive(:verify_mode=)
+      allow(http).to receive(:verify_hostname=)
+      allow(http).to receive(:request).and_return(response)
+    end
+
+    it "sends the instance lookup to the hardcoded OmniFocus endpoint over TLS" do
+      transport.send(:resolve_instance)
+
+      expect(Net::HTTP).to have_received(:new).with("c.omnifocus.com", 443)
+      expect(http).to have_received(:use_ssl=).with(true)
+      expect(http).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+      expect(http).to have_received(:request).with(
+        an_object_having_attributes(path: "/api/0/get-instance")
+      )
+    end
+
+    it "raises an AuthenticationError when the response omits ws_url" do
+      allow(response).to receive(:body).and_return(%({"error":"invalid credentials"}))
+
+      expect { transport.send(:resolve_instance) }
+        .to raise_error(Omnifocus::Web::Client::AuthenticationError, /invalid credentials/)
+    end
+
+    it "raises an AuthenticationError when ws_url is blank" do
+      allow(response).to receive(:body).and_return(%({"ws_url":""}))
+
+      expect { transport.send(:resolve_instance) }
+        .to raise_error(Omnifocus::Web::Client::AuthenticationError)
+    end
+  end
+
   describe Omnifocus::Web::Client::SocketConnection do
     let(:connect_addrinfo) { instance_double(Addrinfo, connect: tcp_socket) }
     let(:endpoint) do

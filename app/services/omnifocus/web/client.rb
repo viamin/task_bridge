@@ -352,6 +352,8 @@ module Omnifocus
         SOCKET_PROTOCOL = "v1.omnifocus.omnigroup.com"
         SUPPORTED_LOCALES = %w[de en es fr it ja ko nl pt-BR ru zh].freeze
         WEB_CLIENT_VERSION = "*"
+        INSTANCE_ENDPOINT_HOST = "c.omnifocus.com"
+        INSTANCE_ENDPOINT_PATH = "/api/0/get-instance"
 
         attr_reader :account, :password, :server_label, :locale
 
@@ -436,15 +438,19 @@ module Omnifocus
 
         def resolve_instance
           @response_cache[:instance] ||= begin
-            uri = URI("https://c.omnifocus.com/api/0/get-instance")
-            uri.query = URI.encode_www_form(
+            http = Net::HTTP.new(INSTANCE_ENDPOINT_HOST, 443)
+            http.use_ssl = true
+            http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+            http.verify_hostname = true if http.respond_to?(:verify_hostname=)
+            request = Net::HTTP::Get.new(INSTANCE_ENDPOINT_PATH)
+            request.set_form_data(
               account:,
               server: server_label,
               version: WEB_CLIENT_VERSION,
               locale: normalized_locale,
               timezone: Time.now.getlocal.zone
             )
-            response = Net::HTTP.get_response(uri)
+            response = http.request(request)
             parsed = JSON.parse(response.body)
             raise AuthenticationError, parsed["error"] || parsed["message"] if parsed["ws_url"].blank?
 
