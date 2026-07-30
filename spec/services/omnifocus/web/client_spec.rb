@@ -1,0 +1,456 @@
+# frozen_string_literal: true
+
+require "rails_helper"
+
+RSpec.describe Omnifocus::Web::Client do
+  describe Omnifocus::Web::Client::Document do
+    let(:transport) { instance_double(Omnifocus::Web::Client::Transport) }
+    let(:document) { described_class.new(transport:) }
+
+    it "memoizes flattened task lookups" do
+      allow(transport).to receive(:load_lookup).with(container: "tasks").and_return([{ id_: "task-1", name: "Task 1" }])
+
+      first_lookup = document.flattened_tasks
+      second_lookup = document.flattened_tasks
+
+      expect(first_lookup["task-1"].id_.get).to eq("task-1")
+      expect(second_lookup).to equal(first_lookup)
+      expect(transport).to have_received(:load_lookup).with(container: "tasks").once
+    end
+  end
+
+  describe Omnifocus::Web::Client::Transport do
+    let(:transport) { described_class.new(account: "account", password: "password") }
+    let(:socket) { instance_double("SocketConnection", send_json: nil) }
+    let(:ws_url) { "wss://sync.omnifocus.com/socket" }
+    let(:public_addrinfo) { instance_double(Addrinfo, ip_address: "34.120.0.1") }
+
+    before do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => ws_url })
+      allow(Omnifocus::Web::Client::SocketConnection).to receive(:new).and_return(socket)
+      allow(SecureRandom).to receive(:uuid).and_return("request-id")
+      allow(Addrinfo).to receive(:getaddrinfo).with("sync.omnifocus.com", 443, nil, :STREAM).and_return([public_addrinfo])
+    end
+
+    it "authenticates the websocket session before issuing requests" do
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "pw?", kind: "account" }.to_json,
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task=", rid: "request-id", items: [] }.to_json
+      )
+      expect(socket).to receive(:send_json).ordered.with(
+        hash_including(op: "pw", rid: "request-id", kind: "account", value: "password")
+      )
+      expect(socket).to receive(:send_json).ordered.with(
+        hash_including(op: "watch", rid: "request-id", in: "inbox", view: "all")
+      )
+
+      transport.load_collection(container: "inbox")
+
+      expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
+        have_attributes(
+          connect_addrinfo: public_addrinfo,
+          host: "sync.omnifocus.com",
+          port: 443,
+          path: "/socket",
+          uri: have_attributes(to_s: "wss://sync.omnifocus.com:443/socket")
+        ),
+        protocols: ["v1.omnifocus.omnigroup.com"]
+      )
+    end
+
+    it "supports the web.omnifocus.com websocket host" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://web.omnifocus.com/socket" })
+      allow(Addrinfo).to receive(:getaddrinfo).with("web.omnifocus.com", 443, nil, :STREAM).and_return([public_addrinfo])
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task=", rid: "request-id", items: [] }.to_json
+      )
+
+      transport.load_collection(container: "inbox")
+
+      expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
+        have_attributes(
+          connect_addrinfo: public_addrinfo,
+          host: "web.omnifocus.com",
+          port: 443,
+          path: "/socket",
+          uri: have_attributes(to_s: "wss://web.omnifocus.com:443/socket")
+        ),
+        protocols: ["v1.omnifocus.omnigroup.com"]
+      )
+    end
+
+    it "canonicalizes allowlisted websocket hosts before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://Web.OmniFocus.Com:443/socket" })
+      allow(Addrinfo).to receive(:getaddrinfo).with("web.omnifocus.com", 443, nil, :STREAM).and_return([public_addrinfo])
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task=", rid: "request-id", items: [] }.to_json
+      )
+
+      transport.load_collection(container: "inbox")
+
+      expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
+        have_attributes(
+          connect_addrinfo: public_addrinfo,
+          host: "web.omnifocus.com",
+          port: 443,
+          path: "/socket",
+          uri: have_attributes(to_s: "wss://web.omnifocus.com:443/socket")
+        ),
+        protocols: ["v1.omnifocus.omnigroup.com"]
+      )
+    end
+
+    it "accepts allowlisted websocket hosts with a trailing dot" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://web.omnifocus.com./socket" })
+      allow(Addrinfo).to receive(:getaddrinfo).with("web.omnifocus.com", 443, nil, :STREAM).and_return([public_addrinfo])
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task=", rid: "request-id", items: [] }.to_json
+      )
+
+      transport.load_collection(container: "inbox")
+
+      expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
+        have_attributes(
+          connect_addrinfo: public_addrinfo,
+          host: "web.omnifocus.com",
+          port: 443,
+          path: "/socket"
+        ),
+        protocols: ["v1.omnifocus.omnigroup.com"]
+      )
+    end
+
+    it "accepts the default TLS port when it is explicit in the websocket URL" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com:443/socket" })
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task=", rid: "request-id", items: [] }.to_json
+      )
+
+      transport.load_collection(container: "inbox")
+
+      expect(Omnifocus::Web::Client::SocketConnection).to have_received(:new).with(
+        have_attributes(
+          connect_addrinfo: public_addrinfo,
+          host: "sync.omnifocus.com",
+          port: 443,
+          path: "/socket"
+        ),
+        protocols: ["v1.omnifocus.omnigroup.com"]
+      )
+    end
+
+    it "creates inbox items as tasks targeted at the inbox container" do
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task", rid: "request-id", oid: "task-1", id_: "task-1", name: "Task title" }.to_json
+      )
+
+      transport.create_item(kind: :inbox_task, properties: { name: "Task title" })
+
+      expect(socket).to have_received(:send_json).with(
+        hash_including(op: "task", rid: "request-id", in: "inbox", name: "Task title")
+      )
+    end
+
+    it "creates child tasks inside the provided container" do
+      allow(socket).to receive(:receive_json).and_return(
+        { op: "session", key: "session-key" }.to_json,
+        { op: "task", rid: "request-id", oid: "task-1", id_: "task-1", name: "Task title" }.to_json
+      )
+      parent = Omnifocus::Web::Client::Reference.new({ id_: "project-1" }, transport:)
+
+      transport.create_item(kind: :task, properties: { name: "Task title" }, container: parent)
+
+      expect(socket).to have_received(:send_json).with(
+        hash_including(op: "task", rid: "request-id", in: "project-1", name: "Task title")
+      )
+    end
+
+    it "rejects non-Omni websocket hosts before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://attacker.test/socket" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /URL is not allowed/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects websocket hosts with unexpected characters before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://web.omnifocus.com%0a.evil.test/socket" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /host is not allowed|Invalid OmniFocus Web websocket URL/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects insecure websocket schemes before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "ws://sync.omnifocus.com/socket" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /must use wss/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects websocket URLs with query parameters before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com/socket?token=leak" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /must not include query parameters/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects websocket URLs with credentials before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://user:secret@sync.omnifocus.com/socket" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /must not include credentials/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects websocket URLs with unsafe paths before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com/socket\r\nx-test: injected" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /path is not allowed|Invalid OmniFocus Web websocket URL/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects websocket URLs with unexpected paths before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com/other-path" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /URL is not allowed/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects websocket URLs with fragments before opening a socket" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://sync.omnifocus.com/socket#fragment" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /must not include a fragment/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects allowed websocket hosts that resolve to private addresses" do
+      allow(Addrinfo).to receive(:getaddrinfo).with("sync.omnifocus.com", 443, nil, :STREAM).and_return(
+        [instance_double(Addrinfo, ip_address: "127.0.0.1")]
+      )
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /host is not allowed/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects allowed websocket hosts that resolve to documentation-only addresses" do
+      allow(Addrinfo).to receive(:getaddrinfo).with("sync.omnifocus.com", 443, nil, :STREAM).and_return(
+        [instance_double(Addrinfo, ip_address: "192.0.2.10")]
+      )
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /host is not allowed/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "rejects websocket IP literals even when they use TLS" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://34.120.0.1/socket" })
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /host is not allowed/)
+
+      expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
+    end
+
+    it "does not pass the websocket URL from the network response to URI.parse" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://attacker.test/socket" })
+      expect(URI).not_to receive(:parse)
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /URL is not allowed/)
+    end
+  end
+
+  describe Omnifocus::Web::Client::Transport, "#resolve_instance" do
+    let(:transport) { described_class.new(account: "account", password: "password") }
+    let(:http) { instance_double(Net::HTTP) }
+    let(:response_body) { %({"ws_url":"wss://sync.omnifocus.com/socket"}) }
+    let(:response) { instance_double(Net::HTTPResponse, body: response_body) }
+
+    before do
+      allow(Net::HTTP).to receive(:new).and_return(http)
+      allow(http).to receive(:use_ssl=)
+      allow(http).to receive(:verify_mode=)
+      allow(http).to receive(:verify_hostname=)
+      allow(http).to receive(:request).and_return(response)
+    end
+
+    it "sends the instance lookup to the hardcoded OmniFocus endpoint over TLS" do
+      transport.send(:resolve_instance)
+
+      expect(Net::HTTP).to have_received(:new).with("c.omnifocus.com", 443)
+      expect(http).to have_received(:use_ssl=).with(true)
+      expect(http).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+      expect(http).to have_received(:request).with(
+        an_object_having_attributes(path: "/api/0/get-instance")
+      )
+    end
+
+    it "raises an AuthenticationError when the response omits ws_url" do
+      allow(response).to receive(:body).and_return(%({"error":"invalid credentials"}))
+
+      expect { transport.send(:resolve_instance) }
+        .to raise_error(Omnifocus::Web::Client::AuthenticationError, /invalid credentials/)
+    end
+
+    it "raises an AuthenticationError when ws_url is blank" do
+      allow(response).to receive(:body).and_return(%({"ws_url":""}))
+
+      expect { transport.send(:resolve_instance) }
+        .to raise_error(Omnifocus::Web::Client::AuthenticationError)
+    end
+  end
+
+  describe Omnifocus::Web::Client::SocketConnection do
+    let(:connect_addrinfo) { instance_double(Addrinfo, connect: tcp_socket) }
+    let(:endpoint) do
+      Omnifocus::Web::Client::Transport::WebsocketEndpoint.new(
+        connect_addrinfo:,
+        host: "sync.omnifocus.com",
+        port: 443,
+        path: "/socket"
+      )
+    end
+    let(:tcp_socket) { instance_double(TCPSocket, write: nil, readpartial: "") }
+    let(:ssl_context) { instance_double(OpenSSL::SSL::SSLContext) }
+    let(:ssl_socket) { instance_double(OpenSSL::SSL::SSLSocket, connect: nil, post_connection_check: nil, write: nil, readpartial: "") }
+    let(:handshake) { instance_double(WebSocket::Handshake::Client, to_s: "handshake", version: 13, finished?: true, valid?: true) }
+    let(:incoming) { instance_double(WebSocket::Frame::Incoming::Client) }
+
+    before do
+      allow(OpenSSL::SSL::SSLContext).to receive(:new).and_return(ssl_context)
+      allow(OpenSSL::SSL::SSLSocket).to receive(:new).with(tcp_socket, ssl_context).and_return(ssl_socket)
+      allow(WebSocket::Handshake::Client).to receive(:new).and_return(handshake)
+      allow(WebSocket::Frame::Incoming::Client).to receive(:new).with(version: 13).and_return(incoming)
+      allow(ssl_context).to receive(:verify_mode=)
+      allow(ssl_context).to receive(:verify_hostname=)
+      allow(ssl_socket).to receive(:sync_close=)
+      allow(ssl_socket).to receive(:hostname=)
+    end
+
+    it "verifies the certificate hostname for secure websocket connections" do
+      described_class.new(endpoint, protocols: ["v1.omnifocus.omnigroup.com"])
+
+      expect(connect_addrinfo).to have_received(:connect)
+      expect(ssl_context).to have_received(:verify_mode=).with(OpenSSL::SSL::VERIFY_PEER)
+      expect(ssl_context).to have_received(:verify_hostname=).with(true)
+      expect(ssl_socket).to have_received(:hostname=).with("sync.omnifocus.com")
+      expect(ssl_socket).to have_received(:connect)
+      expect(ssl_socket).to have_received(:post_connection_check).with("sync.omnifocus.com")
+    end
+  end
+
+  describe Omnifocus::Web::Client::Reference do
+    let(:transport) { instance_double(Omnifocus::Web::Client::Transport) }
+    let(:reference) do
+      described_class.new(
+        {
+          id_: "task-1",
+          name: "Original title",
+          note: "Original note",
+          defer_date: Time.zone.parse("2026-07-29 10:00:00 UTC")
+        },
+        transport:
+      )
+    end
+
+    before do
+      allow(transport).to receive(:update_item)
+      allow(transport).to receive(:create_item).and_return({ id_: "child-1", name: "Child task" })
+    end
+
+    it "exposes transport-backed setters for syncable fields" do
+      new_start_date = Time.zone.parse("2026-07-30 12:00:00 UTC")
+
+      reference.note.set("Updated note")
+      reference.name.set("Updated title")
+      reference.defer_date.set(new_start_date)
+
+      expect(transport).to have_received(:update_item).with(reference:, attributes: { note: "Updated note" })
+      expect(transport).to have_received(:update_item).with(reference:, attributes: { name: "Updated title" })
+      expect(transport).to have_received(:update_item).with(reference:, attributes: { defer_date: new_start_date })
+      expect(reference.note.get).to eq("Updated note")
+      expect(reference.name.get).to eq("Updated title")
+      expect(reference.defer_date.get).to eq(new_start_date)
+    end
+
+    it "creates child items through the transport" do
+      child = reference.make(new: :task, with_properties: { name: "Child task" })
+
+      expect(transport).to have_received(:create_item).with(
+        kind: :task,
+        properties: { name: "Child task" },
+        container: reference
+      )
+      expect(child).to be_a(described_class)
+      expect(child.id_.get).to eq("child-1")
+    end
+
+    it "supports folder project traversal with transport-backed nested references" do
+      allow(transport).to receive(:create_item).and_return({ id_: "child-2", name: "Nested child" })
+      folder = described_class.new(
+        {
+          id_: "folder-1",
+          name: "Work",
+          projects: [
+            {
+              id_: "project-1",
+              name: "Launch",
+              projects: [
+                { id_: "project-2", name: "Nested" }
+              ]
+            }
+          ]
+        },
+        transport:
+      )
+
+      direct_project = folder.projects["Launch"]
+      nested_project = folder.flattened_projects["Nested"]
+      child = nested_project.make(new: :task, with_properties: { name: "Nested child" })
+
+      expect(direct_project.id_.get).to eq("project-1")
+      expect(nested_project.id_.get).to eq("project-2")
+      expect(transport).to have_received(:create_item).with(
+        kind: :task,
+        properties: { name: "Nested child" },
+        container: nested_project
+      )
+      expect(child.id_.get).to eq("child-2")
+    end
+  end
+end

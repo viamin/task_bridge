@@ -14,7 +14,7 @@ The command line option will take precedence over the settings in the configurat
 
 ## OmniFocus Setup
 
-This script uses AppleScript on your Mac to talk to OmniFocus. OmniFocus needs to be installed on the computer you're running this script on to work.
+TaskBridge supports both the local Mac app and OmniFocus for the Web. If you run the hosted/web path, set the `omnifocus_web_*` settings in `config/settings.yml` or via your environment. Otherwise, OmniFocus needs to be installed on the computer you're running this script on so AppleScript can talk to it.
 
 You'll need to create a "TaskBridge" tag in OmniFocus for sync to work. Additionally, each service you want to sync with OmniFocus requires a matching tag to be created. TaskBridge will not create the tags for you.
 
@@ -28,6 +28,8 @@ Supported services and their tags:
 | Instapaper | Instapaper
 | Reclaim.ai | Reclaim
 | Apple Reminders | Reminders
+
+For OmniFocus for the Web, use the same `TaskBridge` tag setup in the web-backed OmniFocus database. The backend will use your Omni account credentials to connect to the OmniFocus web service.
 
 If you forget to add a task for a service, strange things might happen, like duplicate tasks being created. Make sure you have the tags created before you run the script.
 

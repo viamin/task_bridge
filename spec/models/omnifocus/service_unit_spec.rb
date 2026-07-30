@@ -45,6 +45,62 @@ RSpec.describe Omnifocus::Service, :full_options do
         expect(service.omnifocus_app).to be_nil
       end
     end
+
+    context "when OmniFocus for the Web is configured" do
+      let(:web_document) { instance_double("OmnifocusWebDocument") }
+      let(:web_client) { instance_double("OmnifocusWebClient", document: web_document) }
+
+      before do
+        allow(Omnifocus::Web::Client).to receive(:new).and_return(web_client)
+      end
+
+      it "uses the web document instead of Appscript" do
+        service = described_class.new(
+          options: options.merge(
+            web_account: "test-account",
+            web_password: "test-password",
+            quiet: true
+          )
+        )
+
+        expect(service.authorized).to be true
+        expect(service.omnifocus_app).to eq(web_document)
+      end
+
+      it "reads the password from Chamber when not provided in options" do
+        allow(Chamber).to receive(:dig).with(:task_bridge, :omnifocus_web_password).and_return("chamber-password")
+        service = described_class.new(
+          options: options.merge(web_account: "test-account", quiet: true)
+        )
+
+        expect(service.authorized).to be true
+        expect(Omnifocus::Web::Client).to have_received(:new).with(
+          hash_including(credentials: hash_including(password: "chamber-password"))
+        )
+      end
+
+      it "prefers the password passed in options over Chamber" do
+        allow(Chamber).to receive(:dig).with(:task_bridge, :omnifocus_web_password).and_return("chamber-password")
+        described_class.new(
+          options: options.merge(
+            web_account: "test-account",
+            web_password: "options-password",
+            quiet: true
+          )
+        )
+
+        expect(Omnifocus::Web::Client).to have_received(:new).with(
+          hash_including(credentials: hash_including(password: "options-password"))
+        )
+      end
+
+      it "does not store the omnifocus web password in the default options" do
+        default_options = Class.new { include GlobalOptions }.new.send(:default_options)
+
+        expect(default_options).not_to have_key(:omnifocus_web_password)
+        expect(default_options).not_to have_key(:web_password)
+      end
+    end
   end
 
   describe "#friendly_name" do
@@ -154,6 +210,54 @@ RSpec.describe Omnifocus::Service, :full_options do
       end
     end
 
+    context "when initialized against OmniFocus for the Web" do
+      let(:service) do
+        described_class.new(
+          options: options.merge(
+            web_account: "test-account",
+            web_password: "test-password"
+          )
+        )
+      end
+      let(:web_document) { instance_double("OmnifocusWebDocument") }
+      let(:flattened_tags) { double("FlattenedTags") }
+      let(:tag_ref) { instance_double("OmnifocusWebTagRef") }
+      let(:tag_tasks) do
+        double(
+          "OmnifocusWebTagTasks",
+          id_: double(get: ["task-1"]),
+          name: double(get: ["Task 1"]),
+          completed: double(get: [false]),
+          modification_date: double(get: [Time.current])
+        )
+      end
+      let(:inbox_tasks) do
+        double(
+          "OmnifocusWebInboxTasks",
+          id_: double(get: []),
+          name: double(get: []),
+          completed: double(get: []),
+          modification_date: double(get: [])
+        )
+      end
+
+      before do
+        allow(Omnifocus::Web::Client).to receive(:new).and_return(instance_double("OmnifocusWebClient", document: web_document))
+        allow(web_document).to receive(:flattened_tags).and_return(flattened_tags)
+        allow(flattened_tags).to receive(:[]).with("TaskBridge").and_return(tag_ref)
+        allow(tag_ref).to receive(:get).and_return(true)
+        allow(tag_ref).to receive(:tasks).and_return(tag_tasks)
+        allow(web_document).to receive(:inbox_tasks).and_return(inbox_tasks)
+      end
+
+      it "hydrates tasks from the web backend collections" do
+        tasks = service.items_to_sync(tags: ["TaskBridge"], inbox: false)
+
+        expect(tasks.length).to eq(1)
+        expect(tasks.first.title).to eq("Task 1")
+      end
+    end
+
     context "when a task reference goes stale while reading the id" do
       let(:stale_id) { double("StaleTaskId") }
       let(:stale_task) { double("StaleTask", id_: stale_id) }
@@ -235,6 +339,66 @@ RSpec.describe Omnifocus::Service, :full_options do
     it "returns empty array when no tags match" do
       tasks = service.tagged_tasks(["NonExistentTag"])
       expect(tasks).to eq([])
+    end
+
+    it "deduplicates the same web task returned from multiple tags by scalar id" do
+      task_data = {
+        id_: "task-1",
+        name: "Task 1",
+        completed: false,
+        note: "",
+        containing_project: nil,
+        tags: [],
+        tasks: [],
+        modification_date: Time.current
+      }
+      tag_one = Omnifocus::Web::Client::Reference.new({ id_: "tag-1", name: "TaskBridge", tasks: [task_data] })
+      tag_two = Omnifocus::Web::Client::Reference.new({ id_: "tag-2", name: "Github", tasks: [task_data.dup] })
+      flattened_tags = Omnifocus::Web::Client::Lookup.new([tag_one, tag_two], key: :name)
+
+      allow(mock_omnifocus_app).to receive(:flattened_tags).and_return(flattened_tags)
+
+      tasks = service.tagged_tasks(%w[TaskBridge Github])
+
+      expect(tasks.map { |task| task.id_.get }).to eq(["task-1"])
+    end
+  end
+
+  describe "#project" do
+    let(:web_document) { instance_double("OmnifocusWebDocument") }
+    let(:web_client) { instance_double("OmnifocusWebClient", document: web_document) }
+    let(:service) do
+      described_class.new(
+        options: options.merge(
+          web_account: "test-account",
+          web_password: "test-password",
+          quiet: true
+        )
+      )
+    end
+
+    before do
+      allow(Omnifocus::Web::Client).to receive(:new).and_return(web_client)
+    end
+
+    it "resolves folder-backed web projects through folder project traversal" do
+      folder = Omnifocus::Web::Client::Reference.new(
+        {
+          id_: "folder-1",
+          name: "Operations",
+          projects: [
+            { id_: "project-1", name: "Launch" }
+          ]
+        }
+      )
+      flattened_folders = Omnifocus::Web::Client::Lookup.new([folder], key: :name)
+
+      allow(web_document).to receive(:flattened_folders).and_return(flattened_folders)
+
+      project = service.send(:project, nil, "Operations:Launch")
+
+      expect(project.id_.get).to eq("project-1")
+      expect(project.name.get).to eq("Launch")
     end
   end
 
@@ -488,6 +652,27 @@ RSpec.describe Omnifocus::Service, :full_options do
       tasks = service.send(:inbox_tasks)
       expect(tasks).to include(mock_inbox_task)
     end
+
+    it "deduplicates web inbox tasks by scalar id" do
+      task_data = {
+        id_: "task-1",
+        name: "Task 1",
+        completed: false,
+        note: "",
+        containing_project: nil,
+        tags: [],
+        tasks: [],
+        modification_date: Time.current
+      }
+      task_one = Omnifocus::Web::Client::Reference.new(task_data)
+      task_two = Omnifocus::Web::Client::Reference.new(task_data.dup)
+
+      allow(mock_omnifocus_app).to receive(:inbox_tasks).and_return(double(get: [task_one, task_two]))
+
+      tasks = service.send(:inbox_tasks)
+
+      expect(tasks.map { |task| task.id_.get }).to eq(["task-1"])
+    end
   end
 
   describe "#skip_create?" do
@@ -563,6 +748,28 @@ RSpec.describe Omnifocus::Service, :full_options do
       expect(service).to receive(:handle_sub_items).with(wrapped_task, external_task).ordered
 
       service.add_item(external_task)
+    end
+
+    it "creates project tasks through the web reference transport" do
+      web_transport = instance_double(Omnifocus::Web::Client::Transport)
+      parent_reference = Omnifocus::Web::Client::Reference.new({ id_: "project-1", name: "Project" }, transport: web_transport)
+      created_reference = Omnifocus::Web::Client::Reference.new({ id_: "task-1", name: "Task with sub-items" }, transport: web_transport)
+
+      allow(service).to receive(:project).with(external_task).and_return(parent_reference)
+      allow(service).to receive(:tags).with(external_task).and_return([])
+      allow(service).to receive(:update_sync_data).and_return(nil)
+      allow(service).to receive(:handle_sub_items).with(wrapped_task, external_task)
+      allow(Omnifocus::Task).to receive(:new).with(omnifocus_task: created_reference).and_return(wrapped_task)
+      allow(wrapped_task).to receive(:refresh_from_external!)
+      allow(web_transport).to receive(:create_item).and_return(created_reference.data)
+
+      service.add_item(external_task)
+
+      expect(web_transport).to have_received(:create_item).with(
+        kind: :task,
+        properties: Omnifocus::Task.from_external(external_task),
+        container: parent_reference
+      )
     end
   end
 end
