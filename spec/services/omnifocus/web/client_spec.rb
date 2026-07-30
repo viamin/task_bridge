@@ -284,6 +284,15 @@ RSpec.describe Omnifocus::Web::Client do
 
       expect(Omnifocus::Web::Client::SocketConnection).not_to have_received(:new)
     end
+
+    it "does not pass the websocket URL from the network response to URI.parse" do
+      allow(transport).to receive(:resolve_instance).and_return({ "ws_url" => "wss://attacker.test/socket" })
+      expect(URI).not_to receive(:parse)
+
+      expect do
+        transport.load_collection(container: "inbox")
+      end.to raise_error(Omnifocus::Web::Client::ConnectionError, /URL is not allowed/)
+    end
   end
 
   describe Omnifocus::Web::Client::Transport, "#resolve_instance" do

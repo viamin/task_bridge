@@ -327,6 +327,8 @@ module Omnifocus
           port: 443,
           path: "/socket"
         }.freeze
+        SYNC_WEBSOCKET_URL = "wss://sync.omnifocus.com:443/socket"
+        WEB_WEBSOCKET_URL = "wss://web.omnifocus.com:443/socket"
         BLOCKED_WEBSOCKET_NETWORKS = %w[
           0.0.0.0/8
           10.0.0.0/8
@@ -486,41 +488,54 @@ module Omnifocus
         end
 
         def allowlisted_websocket_endpoint(url)
-          uri = URI.parse(url)
-          raise ConnectionError, "OmniFocus Web websocket URL must use wss" unless uri.scheme == "wss"
-          raise ConnectionError, "OmniFocus Web websocket URL must include a host" if uri.host.blank?
-          raise ConnectionError, "OmniFocus Web websocket URL must not include credentials" if uri.userinfo.present?
-          raise ConnectionError, "OmniFocus Web websocket URL must not include query parameters" if uri.query.present?
-          raise ConnectionError, "OmniFocus Web websocket URL must not include a fragment" if uri.fragment.present?
-
-          host = normalized_websocket_host(uri.host)
-          endpoint = allowlisted_endpoint_for_host(host)
-          validate_websocket_port!(uri.port, endpoint.fetch(:port))
-          validate_websocket_path!(uri.path, endpoint.fetch(:path))
-          endpoint.dup
-        rescue URI::InvalidURIError => e
-          raise ConnectionError, "Invalid OmniFocus Web websocket URL: #{e.message}"
+          # Validate the websocket URL using string operations only, then match
+          # the canonical form against an explicit allowlist of literals. We
+          # intentionally do NOT call URI.parse on the input, because the input
+          # originates from an external service response and CodeQL flags any
+          # URL parser receiving tainted data as a server-side request forgery
+          # sink. Matching against string literals in a `case` statement is a
+          # recognized CodeQL sanitizer, which breaks the taint flow on the
+          # matching branches so the returned endpoint constants are safe.
+          case canonicalize_websocket_url(url)
+          when SYNC_WEBSOCKET_URL
+            SYNC_WEBSOCKET_ENDPOINT
+          when WEB_WEBSOCKET_URL
+            WEB_WEBSOCKET_ENDPOINT
+          else
+            raise ConnectionError, "OmniFocus Web websocket URL is not allowed"
+          end
         end
 
-        def normalized_websocket_host(host)
+        def canonicalize_websocket_url(url)
+          raise ConnectionError, "Invalid OmniFocus Web websocket URL" unless url.is_a?(String)
+          raise ConnectionError, "OmniFocus Web websocket URL must use wss" unless url.match?(%r{\Awss://}i)
+          raise ConnectionError, "OmniFocus Web websocket URL must not include credentials" if url.include?("@")
+          raise ConnectionError, "OmniFocus Web websocket URL must not include query parameters" if url.include?("?")
+          raise ConnectionError, "OmniFocus Web websocket URL must not include a fragment" if url.include?("#")
+          raise ConnectionError, "Invalid OmniFocus Web websocket URL" if url.match?(/[\r\n\0\\]/)
+
+          body = url.sub(%r{\Awss://}i, "")
+          authority, path = body.split("/", 2)
+          raise ConnectionError, "OmniFocus Web websocket URL must include a host" if authority.nil? || authority.empty?
+          raise ConnectionError, "Invalid OmniFocus Web websocket URL" if path.nil?
+
+          host, port = authority.include?(":") ? authority.split(":", 2) : [authority, nil]
+
           normalized_host = host.to_s.strip.downcase.delete_suffix(".")
           raise ConnectionError, "OmniFocus Web websocket URL must include a host" if normalized_host.blank?
           raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" unless normalized_host.ascii_only?
           raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" if ip_literal?(normalized_host)
           raise ConnectionError, "OmniFocus Web websocket URL host is not allowed" unless normalized_host.match?(/\A[a-z0-9.-]+\z/)
 
-          normalized_host
-        end
+          raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless port.nil? || port == "443"
 
-        def allowlisted_endpoint_for_host(host)
-          case host
-          when SYNC_WEBSOCKET_ENDPOINT.fetch(:host)
-            SYNC_WEBSOCKET_ENDPOINT
-          when WEB_WEBSOCKET_ENDPOINT.fetch(:host)
-            WEB_WEBSOCKET_ENDPOINT
-          else
-            raise ConnectionError, "OmniFocus Web websocket URL is not allowed"
-          end
+          normalized_path = path.to_s
+          normalized_path = "/#{normalized_path}" unless normalized_path.start_with?("/")
+          normalized_path = normalized_path.presence || "/"
+          raise ConnectionError, "OmniFocus Web websocket URL path is not allowed" unless normalized_path.match?(%r{\A/[A-Za-z0-9\-._~/]*\z})
+          raise ConnectionError, "OmniFocus Web websocket URL is not allowed" unless normalized_path == "/socket"
+
+          "wss://#{normalized_host}:443#{normalized_path}"
         end
 
         def ip_literal?(host)
@@ -552,18 +567,6 @@ module Omnifocus
           BLOCKED_WEBSOCKET_NETWORKS.none? { |network| network.include?(ip_address) }
         rescue IPAddr::InvalidAddressError
           false
-        end
-
-        def validate_websocket_port!(port, expected_port)
-          raise ConnectionError, "OmniFocus Web websocket URL port is not allowed" unless port.nil? || port == expected_port
-        end
-
-        def validate_websocket_path!(path, expected_path)
-          normalized_path = path.to_s
-          normalized_path = "/#{normalized_path}" unless normalized_path.start_with?("/")
-          normalized_path = normalized_path.presence || "/"
-          raise ConnectionError, "OmniFocus Web websocket URL path is not allowed" unless normalized_path.match?(%r{\A/[A-Za-z0-9\-._~/]*\z})
-          raise ConnectionError, "OmniFocus Web websocket URL is not allowed" unless normalized_path == expected_path
         end
 
         def handle_authentication_message!(socket, response)
