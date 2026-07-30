@@ -210,10 +210,14 @@ module Omnifocus
     def web_backend_config
       @web_backend_config ||= {
         account: options[:omnifocus_web_account] || options[:web_account],
-        password: options[:omnifocus_web_password] || options[:web_password],
+        password: web_backend_password,
         server_label: options[:omnifocus_web_server_label] || options[:web_server_label],
         locale: options[:omnifocus_web_locale] || options[:web_locale]
       }.compact
+    end
+
+    def web_backend_password
+      options[:web_password].presence || Chamber.dig(:task_bridge, :omnifocus_web_password).presence
     end
 
     def min_sync_interval

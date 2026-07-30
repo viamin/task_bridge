@@ -32,7 +32,6 @@ module GlobalOptions
       list: Chamber.dig(:google, :tasks_list),
       omnifocus_web_account: Chamber.dig(:task_bridge, :omnifocus_web_account),
       omnifocus_web_locale: Chamber.dig(:task_bridge, :omnifocus_web_locale),
-      omnifocus_web_password: Chamber.dig(:task_bridge, :omnifocus_web_password),
       omnifocus_web_server_label: Chamber.dig(:task_bridge, :omnifocus_web_server_label),
       repositories: Chamber.dig(:github, :repositories)&.split(","),
       reminders_mapping: Chamber.dig(:reminders, :list_mapping),

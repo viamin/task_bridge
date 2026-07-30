@@ -66,6 +66,40 @@ RSpec.describe Omnifocus::Service, :full_options do
         expect(service.authorized).to be true
         expect(service.omnifocus_app).to eq(web_document)
       end
+
+      it "reads the password from Chamber when not provided in options" do
+        allow(Chamber).to receive(:dig).with(:task_bridge, :omnifocus_web_password).and_return("chamber-password")
+        service = described_class.new(
+          options: options.merge(web_account: "test-account", quiet: true)
+        )
+
+        expect(service.authorized).to be true
+        expect(Omnifocus::Web::Client).to have_received(:new).with(
+          hash_including(credentials: hash_including(password: "chamber-password"))
+        )
+      end
+
+      it "prefers the password passed in options over Chamber" do
+        allow(Chamber).to receive(:dig).with(:task_bridge, :omnifocus_web_password).and_return("chamber-password")
+        described_class.new(
+          options: options.merge(
+            web_account: "test-account",
+            web_password: "options-password",
+            quiet: true
+          )
+        )
+
+        expect(Omnifocus::Web::Client).to have_received(:new).with(
+          hash_including(credentials: hash_including(password: "options-password"))
+        )
+      end
+
+      it "does not store the omnifocus web password in the default options" do
+        default_options = Class.new { include GlobalOptions }.new.send(:default_options)
+
+        expect(default_options).not_to have_key(:omnifocus_web_password)
+        expect(default_options).not_to have_key(:web_password)
+      end
     end
   end
 
