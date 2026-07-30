@@ -226,11 +226,11 @@ RSpec.describe Asana::Service, :full_options do
         .and_return(pets_sections_list)
     end
 
-    it "returns false for unrelated tags that do not map to an Asana section" do
+    it "returns true for unrelated tags when the task is still in an Asana section" do
       external_task = double("ExternalTask", project: "Pets", tags: ["urgent"])
       allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
 
-      expect(service.send(:section_change_requested?, asana_task, external_task)).to be(false)
+      expect(service.send(:section_change_requested?, asana_task, external_task)).to be(true)
     end
 
     it "returns true when tags are explicitly empty and the task has a section" do
@@ -245,6 +245,13 @@ RSpec.describe Asana::Service, :full_options do
       allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
 
       expect(service.send(:section_change_requested?, asana_task, external_task)).to be(false)
+    end
+
+    it "returns true when only default or system tags remain" do
+      external_task = double("ExternalTask", project: "Pets", tags: ["Github"])
+      allow(external_task).to receive(:respond_to?).with(:tags).and_return(true)
+
+      expect(service.send(:section_change_requested?, asana_task, external_task)).to be(true)
     end
 
     it "matches sections for projects whose names contain colons" do

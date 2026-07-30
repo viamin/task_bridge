@@ -415,11 +415,11 @@ RSpec.describe Asana::Service, :full_options do
         let(:untitled_section_gid) { "section-gid-untitled" }
 
         before do
-          allow(external_task).to receive(:tags).and_return([])
+          allow(external_task).to receive(:tags).and_return(["Github"])
           allow(service).to receive(:section_or_default_identifier_for).with(external_task).and_return(untitled_section_gid)
         end
 
-        it "moves the task back to the untitled section" do
+        it "moves the task back to the untitled section when only system tags remain" do
           expect(service).to receive(:move_task_to_section).with(untitled_section_gid, asana_task.external_id)
 
           service.update_item(asana_task, external_task)

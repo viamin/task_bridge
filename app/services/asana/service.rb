@@ -341,10 +341,11 @@ module Asana
       return false unless external_task.respond_to?(:tags)
 
       project_gid = project_gid_for(external_task.project)
+      return false if project_gid.blank?
+
       matching_section = matching_section_hash_for(external_task, project_gid)
       return matching_section["name"] != asana_task.section if matching_section.present?
 
-      return false unless Array(external_task.tags).empty?
       return false if legacy_section_name_for(external_task.project).present?
 
       asana_task.section.present?
