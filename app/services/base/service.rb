@@ -423,6 +423,10 @@ module Base
         target_item.completed = source_item.completed? if source_item.respond_to?(:completed?)
         target_item.last_modified ||= sync_timestamp_for(source_item)
         target_item.url ||= sync_note_value(source_item, :"#{target_service_key}_url")
+        # Seed notes from the source content so a later `update_sync_data_for`
+        # patch (which only carries IDs and URLs) does not clobber the
+        # human-readable content that the provider's `add_item` just stored.
+        target_item.notes ||= source_item.notes_content if source_item.respond_to?(:notes_content)
         target_item.options = self.class.build_options(target_item.options, service_display_name(target_service))
         target_item.save! if target_item.new_record? || target_item.changed?
       end

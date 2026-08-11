@@ -489,6 +489,64 @@ RSpec.describe Base::Service do
       created_primary = primary_sync_item_class.find_by!(external_id: "primary-tw-456")
       expect(created_primary.notes).to include("test_service_id: service-tw-456")
     end
+
+    it "preserves the source content in the new primary task when add_item returns a non-sync item" do
+      service_item = sync_item_class.create!(
+        title: "Two-way service task with notes",
+        external_id: "service-tw-789",
+        completed: false,
+        last_modified: Time.current - 1.minute,
+        notes: "Buy milk\nasana_id: asana-789"
+      )
+
+      two_way_service_class = Class.new(described_class) do
+        def friendly_name
+          "Test Service"
+        end
+
+        def item_class
+          BaseServiceSpecItem
+        end
+
+        def sync_strategies
+          [:two_way]
+        end
+
+        def items_to_sync(*, **)
+          []
+        end
+
+        def add_item(*)
+          nil
+        end
+
+        def min_sync_interval
+          60
+        end
+      end
+      two_way_service = two_way_service_class.new(options: options)
+      allow(two_way_service).to receive(:items_to_sync).and_return([service_item])
+      allow(two_way_service).to receive(:skip_create?).and_return(false)
+      allow(service_item).to receive(:find_matching_item_in).with([]).and_return(nil)
+
+      allow(primary_service).to receive(:items_to_sync).with(tags: ["Test Service"]).and_return([])
+      allow(primary_service).to receive(:skip_create?).and_return(false)
+      allow(primary_service).to receive(:item_class).and_return(primary_sync_item_class)
+
+      # add_item returns a raw Hash (mirroring how Google Tasks / OmniFocus
+      # services return the API response) so persisted_sync_target_for
+      # falls through to the find_or_initialize_by branch.
+      allow(primary_service).to receive(:add_item) do
+        service_item.instance_variable_set(:@primary_service_id, "primary-tw-789")
+        { id: "primary-tw-789" }
+      end
+
+      two_way_service.sync_with_primary(primary_service)
+
+      created_primary = primary_sync_item_class.find_by!(external_id: "primary-tw-789")
+      expect(created_primary.notes).to include("Buy milk")
+      expect(created_primary.notes).to include("test_service_id: service-tw-789")
+    end
   end
 
   describe "#sync_from_primary" do
