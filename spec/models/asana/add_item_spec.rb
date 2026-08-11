@@ -32,7 +32,7 @@ RSpec.describe Asana::Service, :full_options do
         due_date: nil,
         flagged: false,
         project: "Pets:Bucky",
-        sync_notes: "notes",
+        sync_notes: "notes", notes_content: "notes",
         patch_external_attributes: true
       )
     end

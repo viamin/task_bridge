@@ -710,4 +710,58 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.external_sync_notes).not_to include("asana_id:")
     end
   end
+
+  describe "#notes_content" do
+    it "strips all sync metadata lines, keeping only human-readable content" do
+      item = omnifocus_item_class.new(
+        options: options,
+        title: "Buy milk",
+        external_id: "of-123",
+        notes: "Buy milk\nasana_id: asana-456\nasana_url: https://app.asana.com/0/456"
+      )
+
+      expect(item.notes_content).to eq("Buy milk")
+    end
+
+    it "returns the full notes when no sync metadata is present" do
+      item = omnifocus_item_class.new(
+        options: options,
+        title: "Buy milk",
+        external_id: "of-123",
+        notes: "Just a plain note"
+      )
+
+      expect(item.notes_content).to eq("Just a plain note")
+    end
+  end
+
+  describe "#sync_notes_from" do
+    it "combines source content with this item's own sync IDs" do
+      target = asana_item_class.new(
+        options: options,
+        service_name: "Asana",
+        title: "Buy milk",
+        external_id: "asana-456",
+        url: "https://app.asana.com/0/456",
+        notes: "old content"
+      )
+      target.instance_variable_set(:@omnifocus_id, "of-123")
+      target.instance_variable_set(:@omnifocus_url, "omnifocus:///task/of-123")
+
+      source = omnifocus_item_class.new(
+        options: options,
+        title: "Buy milk",
+        external_id: "of-123",
+        notes: "Buy milk\nasana_id: asana-456\nasana_url: https://app.asana.com/0/456"
+      )
+
+      result = target.sync_notes_from(source)
+
+      expect(result).to include("Buy milk")
+      expect(result).to include("omnifocus_id: of-123")
+      expect(result).to include("omnifocus_url: omnifocus:///task/of-123")
+      expect(result).not_to include("asana_id:")
+      expect(result).not_to include("asana_url:")
+    end
+  end
 end

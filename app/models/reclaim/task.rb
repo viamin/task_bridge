@@ -119,7 +119,7 @@ module Reclaim
           eventColor: nil,
           maxChunkSize: 4, # 1 hour
           minChunkSize: 1, # 15 minites
-          notes: external_task.sync_notes,
+          notes: external_task.notes_content,
           priority: "DEFAULT",
           snoozeUntil: external_task.start_date&.iso8601,
           timeChunksRequired: time_chunks_required,

@@ -245,7 +245,7 @@ RSpec.describe "Asana::Service" do
                       due_at: nil,
                       due_date: nil,
                       flagged: false,
-                      sync_notes: "",
+                      sync_notes: "", notes_content: "",
                       project: "Project One",
                       sub_item_count: 0)
     end

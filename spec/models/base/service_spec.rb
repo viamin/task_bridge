@@ -376,6 +376,121 @@ RSpec.describe Base::Service do
     end
   end
 
+  describe "#sync_with_primary" do
+    it "writes the primary item's sync ID onto newly created service items" do
+      primary_item = primary_sync_item_class.create!(
+        title: "Two-way primary task",
+        external_id: "primary-tw-123",
+        completed: false,
+        last_modified: Time.current - 1.minute
+      )
+
+      two_way_service_class = Class.new(described_class) do
+        def friendly_name
+          "Test Service"
+        end
+
+        def item_class
+          BaseServiceSpecItem
+        end
+
+        def sync_strategies
+          [:two_way]
+        end
+
+        def items_to_sync(*, **)
+          []
+        end
+
+        def add_item(*)
+          nil
+        end
+
+        def min_sync_interval
+          60
+        end
+      end
+      two_way_service = two_way_service_class.new(options: options)
+
+      allow(primary_service).to receive(:items_to_sync).with(tags: ["Test Service"]).and_return([primary_item])
+      allow(primary_service).to receive(:skip_create?).and_return(false)
+      allow(primary_service).to receive(:item_class).and_return(primary_sync_item_class)
+      allow(primary_item).to receive(:find_matching_item_in).with([]).and_return(nil)
+
+      created_item = nil
+      allow(two_way_service).to receive(:add_item) do
+        created_item = sync_item_class.create!(
+          title: primary_item.title,
+          external_id: "service-tw-123",
+          completed: false
+        )
+        created_item
+      end
+
+      two_way_service.sync_with_primary(primary_service)
+
+      expect(created_item.notes).to include("primary_service_id: primary-tw-123")
+    end
+
+    it "writes the service item's sync ID onto newly created primary items" do
+      service_item = sync_item_class.create!(
+        title: "Two-way service task",
+        external_id: "service-tw-456",
+        completed: false,
+        last_modified: Time.current - 1.minute
+      )
+
+      two_way_service_class = Class.new(described_class) do
+        def friendly_name
+          "Test Service"
+        end
+
+        def item_class
+          BaseServiceSpecItem
+        end
+
+        def sync_strategies
+          [:two_way]
+        end
+
+        def items_to_sync(*, **)
+          []
+        end
+
+        def add_item(*)
+          nil
+        end
+
+        def min_sync_interval
+          60
+        end
+      end
+      two_way_service = two_way_service_class.new(options: options)
+      allow(two_way_service).to receive(:items_to_sync).and_return([service_item])
+      allow(two_way_service).to receive(:skip_create?).and_return(false)
+      allow(service_item).to receive(:find_matching_item_in).with([]).and_return(nil)
+
+      allow(primary_service).to receive(:items_to_sync).with(tags: ["Test Service"]).and_return([])
+      allow(primary_service).to receive(:skip_create?).and_return(false)
+      allow(primary_service).to receive(:item_class).and_return(primary_sync_item_class)
+
+      allow(primary_service).to receive(:add_item) do
+        created = primary_sync_item_class.create!(
+          title: service_item.title,
+          external_id: "primary-tw-456",
+          completed: false
+        )
+        service_item.instance_variable_set(:@primary_service_id, "primary-tw-456")
+        created
+      end
+
+      two_way_service.sync_with_primary(primary_service)
+
+      created_primary = primary_sync_item_class.find_by!(external_id: "primary-tw-456")
+      expect(created_primary.notes).to include("test_service_id: service-tw-456")
+    end
+  end
+
   describe "#sync_from_primary" do
     it "fails before reading primary items when the primary service is unavailable" do
       unavailable_primary = double("UnavailablePrimary", friendly_name: "Primary Service", authorized: false)

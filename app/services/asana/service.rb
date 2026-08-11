@@ -115,9 +115,11 @@ module Asana
 
     def update_item(asana_task, external_task)
       debug("asana_task: #{asana_task.title}", options[:debug])
+      task_data = Task.from_external(external_task)
+      task_data[:notes] = asana_task.sync_notes_from(external_task)
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
-        body: { data: Task.from_external(external_task) }.to_json
+        body: { data: task_data }.to_json
       }
       return "Would have updated task #{external_task.title} in Asana" if options[:pretend]
 

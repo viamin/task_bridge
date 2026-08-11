@@ -90,6 +90,7 @@ module GoogleTasks
 
       debug("existing_task: #{google_task.pretty_inspect}", options[:debug])
       updated_task_json = GoogleTasks::Task.from_external(external_task)
+      updated_task_json[:notes] = google_task.sync_notes_from(external_task) if google_task.respond_to?(:sync_notes_from)
       updated_task = Google::Apis::TasksV1::Task.new(**updated_task_json)
       debug("updated_task: #{updated_task.pretty_inspect}", options[:debug])
       # https://github.com/googleapis/google-api-ruby-client/blob/main/google-api-client/generated/google/apis/tasks_v1/service.rb#L510

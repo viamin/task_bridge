@@ -200,7 +200,7 @@ RSpec.describe "Asana::Task" do
         due_date: nil,
         flagged: false,
         title: "Timed task",
-        sync_notes: "notes"
+        sync_notes: "notes", notes_content: "notes"
       )
 
       expect(Asana::Task.from_external(external_task)).to include(
@@ -218,7 +218,7 @@ RSpec.describe "Asana::Task" do
         due_date: due_date,
         flagged: false,
         title: "Date-only task",
-        sync_notes: "notes"
+        sync_notes: "notes", notes_content: "notes"
       )
 
       expect(Asana::Task.from_external(external_task)).to include(

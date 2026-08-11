@@ -135,6 +135,7 @@ module Base
         unless primary_service.skip_create?(primary_item)
           added_item = add_item(primary_item)
           track_sync_error!(sync_errors, added_item)
+          persist_created_sync_data_for(primary_item.service_name, primary_item, self, added_item)
           track_touched_collection!(touched_collection_ids, added_item) do
             persist_created_sync_collection_for(primary_item, self, added_item)&.id
           end
@@ -145,6 +146,7 @@ module Base
         unless skip_create?(service_item)
           added_item = primary_service.add_item(service_item)
           track_sync_error!(sync_errors, added_item)
+          persist_created_sync_data_for(service_item.service_name, service_item, primary_service, added_item)
           track_touched_collection!(touched_collection_ids, added_item) do
             persist_created_sync_collection_for(service_item, primary_service, added_item)&.id
           end
