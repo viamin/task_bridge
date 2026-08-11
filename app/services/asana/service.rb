@@ -67,9 +67,15 @@ module Asana
 
     def add_item(external_task, parent_task_gid = nil)
       debug("external_task: #{external_task}, parent_task_gid: #{parent_task_gid}", options[:debug])
+      # Subtasks inherit project placement from their parent. Adding a project
+      # membership to a subtask would surface it as a top-level task in the
+      # project list instead of keeping it nested under the parent.
+      creating_subtask = parent_task_gid.present?
+      task_data = Task.from_external(external_task)
+      task_data = task_data.merge(memberships_for_task(external_task, for_create: true)) unless creating_subtask
       request_body = {
         query: { opt_fields: Task.requested_fields.join(",") },
-        body: { data: Task.from_external(external_task).merge(memberships_for_task(external_task, for_create: true)) }.to_json
+        body: { data: task_data }.to_json
       }
       return "Would have added #{external_task.title} to Asana" if options[:pretend]
 
@@ -83,7 +89,7 @@ module Asana
         asana_task: response_body["data"],
         options: self.class.build_options(options, service_name)
       ).tap(&:refresh_from_external!)
-      section_move_error = move_task_to_section(section_identifier_for(external_task), new_task.external_id)
+      section_move_error = creating_subtask ? nil : move_task_to_section(section_identifier_for(external_task), new_task.external_id)
       handle_sub_items(new_task, external_task)
       update_sync_data(external_task, new_task.external_id, new_task.url)
       return section_move_error if section_move_error.present?
