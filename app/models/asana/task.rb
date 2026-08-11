@@ -109,7 +109,7 @@ module Asana
           due_on: external_item.due_date&.to_date&.iso8601,
           liked: external_item.flagged,
           name: external_item.title,
-          notes: external_item.sync_notes
+          notes: external_item.notes_content
           # start_at is a "premium" feature, apparently
           # start_at: external_item.start_date&.iso8601
         }.compact

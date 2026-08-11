@@ -216,13 +216,18 @@ module Base
     end
 
     def sync_notes
-      service_values = {}
-      all_services(remove_current: true).map do |service|
-        service_key = Base::Service.service_identifier_for(service)
-        service_values["#{service_key}_id"] = instance_variable_get(:"@#{service_key}_id")
-        service_values["#{service_key}_url"] = instance_variable_get(:"@#{service_key}_url")
-      end
-      notes_with_values(notes, service_values.compact)
+      notes_with_values(notes, sync_id_values)
+    end
+
+    # Human-readable notes content with all sync metadata (service ID/URL lines) stripped
+    def notes_content
+      notes.to_s.gsub(/^[a-z0-9_]+_(?:id|url):\s.*$\R?/, "").strip
+    end
+
+    # Notes combining content from source_item with this item's own known sync IDs.
+    # Used when syncing content from another item while preserving this item's metadata.
+    def sync_notes_from(source_item)
+      notes_with_values(source_item.notes_content, sync_id_values)
     end
 
     def to_s
@@ -379,6 +384,16 @@ module Base
         service_key = Base::Service.service_identifier_for(service)
         ["#{service_key}_id", "#{service_key}_url"]
       end
+    end
+
+    def sync_id_values
+      values = {}
+      all_services(remove_current: true).each do |service|
+        service_key = Base::Service.service_identifier_for(service)
+        values["#{service_key}_id"] = instance_variable_get(:"@#{service_key}_id")
+        values["#{service_key}_url"] = instance_variable_get(:"@#{service_key}_url")
+      end
+      values.compact
     end
 
     def sync_note_keys(raw_notes)

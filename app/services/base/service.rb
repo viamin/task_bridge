@@ -135,6 +135,7 @@ module Base
         unless primary_service.skip_create?(primary_item)
           added_item = add_item(primary_item)
           track_sync_error!(sync_errors, added_item)
+          persist_created_sync_data_for(primary_item.service_name, primary_item, self, added_item)
           track_touched_collection!(touched_collection_ids, added_item) do
             persist_created_sync_collection_for(primary_item, self, added_item)&.id
           end
@@ -145,6 +146,7 @@ module Base
         unless skip_create?(service_item)
           added_item = primary_service.add_item(service_item)
           track_sync_error!(sync_errors, added_item)
+          persist_created_sync_data_for(service_item.service_name, service_item, primary_service, added_item)
           track_touched_collection!(touched_collection_ids, added_item) do
             persist_created_sync_collection_for(service_item, primary_service, added_item)&.id
           end
@@ -421,6 +423,10 @@ module Base
         target_item.completed = source_item.completed? if source_item.respond_to?(:completed?)
         target_item.last_modified ||= sync_timestamp_for(source_item)
         target_item.url ||= sync_note_value(source_item, :"#{target_service_key}_url")
+        # Seed notes from the source content so a later `update_sync_data_for`
+        # patch (which only carries IDs and URLs) does not clobber the
+        # human-readable content that the provider's `add_item` just stored.
+        target_item.notes ||= source_item.notes_content if source_item.respond_to?(:notes_content)
         target_item.options = self.class.build_options(target_item.options, service_display_name(target_service))
         target_item.save! if target_item.new_record? || target_item.changed?
       end

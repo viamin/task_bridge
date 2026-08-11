@@ -62,7 +62,9 @@ module Reclaim
 
     def update_item(reclaim_task, external_task)
       debug("reclaim_task: #{reclaim_task.title}", options[:debug])
-      request_body = { body: Task.from_external(external_task).to_json }
+      task_data = Reclaim::Task.from_external(external_task)
+      task_data[:notes] = reclaim_task.sync_notes_from(external_task)
+      request_body = { body: task_data.to_json }
       if options[:pretend]
         "Would have updated task #{external_task.title} in Reclaim"
       else

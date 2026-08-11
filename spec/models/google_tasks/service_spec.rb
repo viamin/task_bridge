@@ -158,7 +158,7 @@ RSpec.describe "GoogleTasks::Service" do
     subject { service.update_item(google_task, external_task) }
 
     let(:tasklist) { instance_double(Google::Apis::TasksV1::TaskList, id: "task-list-id") }
-    let(:google_task) { instance_double(Google::Apis::TasksV1::Task, id: "google-task-id", pretty_inspect: "existing task") }
+    let(:google_task) { GoogleTasks::Task.new(external_id: "google-task-id", pretty_inspect: "existing task") }
     let(:external_task) { instance_double(Asana::Task) }
     let(:updated_task_payload) { { title: "Updated title" } }
     let(:updated_google_task) { instance_double(Google::Apis::TasksV1::Task, to_h: updated_task_payload) }
@@ -166,7 +166,8 @@ RSpec.describe "GoogleTasks::Service" do
     before do
       allow(service).to receive(:tasklist).and_return(tasklist)
       allow(GoogleTasks::Task).to receive(:from_external).with(external_task).and_return(updated_task_payload)
-      allow(Google::Apis::TasksV1::Task).to receive(:new).with(**updated_task_payload).and_return(updated_google_task)
+      allow(google_task).to receive(:sync_notes_from).with(external_task).and_return("Updated notes")
+      allow(Google::Apis::TasksV1::Task).to receive(:new).with(**updated_task_payload, notes: "Updated notes").and_return(updated_google_task)
       allow(tasks_service).to receive(:patch_task).with("task-list-id", "google-task-id", updated_google_task)
     end
 
@@ -174,8 +175,17 @@ RSpec.describe "GoogleTasks::Service" do
       expect(subject).to eq(updated_task_payload)
     end
 
+    it "merges source notes with this task's sync IDs into the updated payload" do
+      allow(google_task).to receive(:sync_notes_from).with(external_task).and_return("body\ngoogle_tasks_id: google-task-id")
+      allow(Google::Apis::TasksV1::Task).to receive(:new).with(**updated_task_payload, notes: "body\ngoogle_tasks_id: google-task-id").and_return(updated_google_task)
+
+      service.update_item(google_task, external_task)
+
+      expect(google_task).to have_received(:sync_notes_from).with(external_task)
+    end
+
     context "when the remote task id is missing" do
-      let(:google_task) { instance_double(Google::Apis::TasksV1::Task, id: nil, pretty_inspect: "existing task") }
+      let(:google_task) { GoogleTasks::Task.new(external_id: nil, pretty_inspect: "existing task") }
 
       it "raises a clear error before calling the API" do
         expect(tasks_service).not_to receive(:patch_task)

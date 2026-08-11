@@ -70,7 +70,7 @@ RSpec.describe GoogleTasks::Task do
         completed?: true,
         completed_at: Time.zone.parse("2024-04-03 10:00:00 UTC"),
         due_date: Time.zone.parse("2024-04-04 10:00:00 UTC"),
-        sync_notes: "sync notes",
+        sync_notes: "sync notes", notes_content: "sync notes",
         title: "Review PR"
       )
     end
