@@ -733,6 +733,17 @@ RSpec.describe "Base::SyncItem", :full_options do
 
       expect(item.notes_content).to eq("Just a plain note")
     end
+
+    it "preserves content that appears after metadata lines" do
+      item = omnifocus_item_class.new(
+        options: options,
+        title: "Buy milk and eggs",
+        external_id: "of-123",
+        notes: "Buy milk and eggs\nasana_id: asana-456\nasana_url: https://app.asana.com/0/456\n\nP.S. also get bread"
+      )
+
+      expect(item.notes_content).to eq("Buy milk and eggs\n\nP.S. also get bread")
+    end
   end
 
   describe "#sync_notes_from" do

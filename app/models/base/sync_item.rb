@@ -221,7 +221,7 @@ module Base
 
     # Human-readable notes content with all sync metadata (service ID/URL lines) stripped
     def notes_content
-      notes.to_s.gsub(/^[a-z0-9_]+_(?:id|url):\s.*$\R?/m, "").strip
+      notes.to_s.gsub(/^[a-z0-9_]+_(?:id|url):\s.*$\R?/, "").strip
     end
 
     # Notes combining content from source_item with this item's own known sync IDs.
