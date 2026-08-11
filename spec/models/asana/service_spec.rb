@@ -238,18 +238,80 @@ RSpec.describe "Asana::Service" do
   end
 
   describe "#add_item" do
-    subject { service.add_item(external_task, parent_task_gid) }
-
-    let(:external_task) { nil }
-    let(:parent_task_gid) { nil }
-    let(:title) { "Test" }
+    let(:external_task) do
+      instance_double(Asana::Task,
+                      title: "Test Task",
+                      completed?: false,
+                      due_at: nil,
+                      due_date: nil,
+                      flagged: false,
+                      sync_notes: "",
+                      project: "Project One",
+                      sub_item_count: 0)
+    end
+    let(:created_payload) do
+      { "gid" => "new-task-1", "name" => "Test Task", "completed" => false,
+        "num_subtasks" => 0, "memberships" => [], "projects" => [] }
+    end
+    let(:create_response) do
+      instance_double(HTTParty::Response, success?: true, body: { data: created_payload }.to_json)
+    end
+    let(:captured_posts) { [] }
 
     before do
-      allow(HTTParty).to receive(:post).and_return(httparty_success_mock)
+      allow(service).to receive(:memberships_for_task).and_return(projects: ["project-1"])
+      allow(service).to receive(:section_identifier_for).and_return("section-1")
+      allow(service).to receive(:move_task_to_section).and_return(nil)
+      allow(service).to receive(:update_sync_data).and_return(nil)
+      allow(HTTParty).to receive(:post) do |url, opts|
+        captured_posts << { url:, body: opts[:body] }
+        create_response
+      end
     end
 
-    it "raises an error" do
-      expect { subject }.to raise_error NoMethodError
+    def first_post_data
+      JSON.parse(captured_posts.first[:body])["data"]
+    end
+
+    context "when creating a top-level task" do
+      it "posts to the tasks endpoint with project memberships" do
+        service.add_item(external_task)
+
+        expect(captured_posts.first[:url]).to end_with("/tasks")
+        expect(first_post_data).to include("projects" => ["project-1"])
+      end
+
+      it "moves the task into the matching section" do
+        service.add_item(external_task)
+
+        expect(service).to have_received(:move_task_to_section).with("section-1", "new-task-1")
+      end
+    end
+
+    context "when creating a subtask (parent_task_gid present)" do
+      it "posts to the parent task's subtasks endpoint" do
+        service.add_item(external_task, "parent-task-1")
+
+        expect(captured_posts.first[:url]).to end_with("/tasks/parent-task-1/subtasks")
+      end
+
+      it "does not include project memberships in the request body" do
+        service.add_item(external_task, "parent-task-1")
+
+        expect(first_post_data).not_to have_key("projects")
+      end
+
+      it "does not resolve project memberships for the subtask" do
+        service.add_item(external_task, "parent-task-1")
+
+        expect(service).not_to have_received(:memberships_for_task)
+      end
+
+      it "does not move the subtask into a section" do
+        service.add_item(external_task, "parent-task-1")
+
+        expect(service).not_to have_received(:move_task_to_section)
+      end
     end
   end
 
