@@ -58,6 +58,12 @@ Every request is versioned and batch-oriented.
 
 TaskBridge Web must accept partial batches and return per-entry results keyed by idempotency key.
 
+Additional batch rules:
+
+- `items`, `observations`, `mappings`, and `sync_runs` are independent top-level arrays; if present, each must be an array.
+- A batch must contain at least one record across those arrays. TaskBridge must not send empty batches.
+- Row processing order is not semantically significant. TaskBridge Web must evaluate each row independently.
+
 ## Versioning Rules
 
 - `contract_version` is required on every batch and on every record; the payload examples below assume `1`.
@@ -246,9 +252,8 @@ Supported v1 `event_type` values:
 - `source_changed`
 - `mapping_changed`
 - `deleted`
-- `sync_run_finished`
 
-`item_key` is required but may be `null` for run-scoped event types such as `sync_run_finished`; item-scoped fields are only meaningful when `item_key` is present.
+Run-scoped operational facts belong in `sync_runs`, not `observations`. In v1, every observation is item-scoped, so `item_key` must be present.
 
 ## Idempotency Keys
 
@@ -263,9 +268,11 @@ Rules:
 - Prefix all keys with `tb:v1`.
 - Keys must be deterministic for the same published fact.
 - If TaskBridge retries the same outbox row, it must reuse the same idempotency key.
+- TaskBridge must keep the canonical record payload immutable across retries. The only fields allowed to vary between retries are transport metadata such as batch headers, `batch.batch_id`, `batch.sent_at`, and record-level `published_at`.
 - Different facts about the same item must use different keys.
 - Mapping keys carry two identity segments: the collection scope (`sync_collection:<id>`) with the membership kind, followed by the member's `service_instance` and `external_id`.
 - Batch IDs are transport identifiers only and do not replace record-level idempotency keys.
+- If the same `idempotency_key` is submitted again with different non-transport field values, TaskBridge Web must reject that row as a non-retryable conflict.
 
 Examples:
 
@@ -299,7 +306,7 @@ Rules:
 
 - All timestamps must be ISO 8601 UTC with microseconds when available.
 - Unknown source timestamps may be `null`.
-- `published_at` is transport metadata and may differ across retries; the idempotency key must not change.
+- `published_at` is transport metadata and may differ across retries; the idempotency key must not change, and TaskBridge Web may retain the first accepted `published_at` value.
 
 ## Deletes and Tombstones
 
@@ -450,11 +457,13 @@ Minimum behavior:
 
 - authenticate by API key;
 - validate `contract_version`;
+- reject empty batches;
 - process `items`, `observations`, `mappings`, and `sync_runs` independently;
 - enforce idempotency per record using `idempotency_key`;
 - persist accepted records durably before responding success;
 - support partial success;
-- return retry guidance per failed row.
+- return retry guidance per failed row;
+- reject duplicate keys whose non-transport payload differs from the originally accepted row.
 
 Recommended response:
 
@@ -486,6 +495,7 @@ HTTP status guidance:
 - `401 Unauthorized`: invalid API key; terminal until secrets are fixed
 - `413 Payload Too Large`: retryable after smaller batches
 - `422 Unprocessable Entity`: contract or row validation failure; usually terminal for listed rows
+- `409 Conflict`: optional whole-batch response when the request cannot be processed because of duplicate-key payload mismatch
 - `429 Too Many Requests`: retryable with backoff
 - `5xx`: retryable
 
@@ -507,6 +517,7 @@ TaskBridge Web rules:
 - Return `retryable: true` only for transient errors.
 - Never require clients to guess whether a row was persisted.
 - Treat duplicate `idempotency_key` submissions as success if the original payload was already accepted.
+- Treat duplicate `idempotency_key` submissions with different non-transport fields as terminal conflicts and return an explicit validation or conflict error for that row.
 
 ## Security and Privacy Constraints
 
