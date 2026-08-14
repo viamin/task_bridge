@@ -78,7 +78,7 @@ Every item or observation must identify the source record with:
 - `external_id`: provider-native item identifier
 - `source_url`: canonical provider URL when available
 - `source_collection_keys`: provider collection identifiers such as project/list/section IDs
-- `source_timestamps`: provider-native created/updated/completed/deleted timestamps when available
+- provenance timestamps: provider-native created/updated/completed/deleted timestamps when available, carried at the record level as `source_created_at`, `source_updated_at`, and `completed_at` (see Timestamps)
 
 `service_instance` must distinguish two configured accounts of the same provider. The minimum shape is:
 
@@ -264,6 +264,7 @@ Rules:
 - Keys must be deterministic for the same published fact.
 - If TaskBridge retries the same outbox row, it must reuse the same idempotency key.
 - Different facts about the same item must use different keys.
+- Mapping keys carry two identity segments: the collection scope (`sync_collection:<id>`) with the membership kind, followed by the member's `service_instance` and `external_id`.
 - Batch IDs are transport identifiers only and do not replace record-level idempotency keys.
 
 Examples:
@@ -469,7 +470,7 @@ Recommended response:
       "status": "accepted"
     },
     {
-      "idempotency_key": "tb:v1:obs:omnifocus:default:task-77:deleted:2026-08-14T19:30:00.000000Z",
+      "idempotency_key": "tb:v1:obs:omnifocus:default:task-78:source_changed:2026-08-14T19:32:00.000000Z",
       "status": "rejected",
       "retryable": false,
       "error_code": "validation_error",
