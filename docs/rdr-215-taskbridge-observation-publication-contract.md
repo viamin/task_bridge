@@ -517,7 +517,24 @@ Failure example:
       }
     }
   ],
-  "observations": [],
+  "observations": [
+    {
+      "contract_version": 1,
+      "idempotency_key": "tb:v1:obs:omnifocus:default:task-78:source_changed:2026-08-14T19:32:00.000000Z",
+      "event_type": "source_changed",
+      "observed_at": "2026-08-14T19:32:00.000000Z",
+      "item_key": "omnifocus:default:task-78",
+      "source": {
+        "service_type": "omnifocus",
+        "external_id": "task-78"
+      },
+      "change": {
+        "field": "status",
+        "from": "open",
+        "to": "completed"
+      }
+    }
+  ],
   "mappings": [],
   "sync_runs": []
 }
@@ -544,7 +561,7 @@ Minimum behavior:
 - return one result per submitted row after parsing succeeds;
 - reject duplicate keys whose non-transport payload differs from the originally accepted row.
 
-Recommended response:
+Recommended response for the batch request example above:
 
 ```json
 {
