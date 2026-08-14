@@ -60,7 +60,7 @@ TaskBridge Web must accept partial batches and return per-entry results keyed by
 
 ## Versioning Rules
 
-- `contract_version` is required on every batch and every record payload example below assumes `1`.
+- `contract_version` is required on every batch and on every record; the payload examples below assume `1`.
 - Version `1` consumers must ignore unknown fields.
 - New optional fields are backward-compatible within the same version.
 - Removing fields, changing semantics, or changing required enum values requires a new major contract version.
@@ -111,6 +111,7 @@ An item snapshot is the minimum current-state document TaskBridge can publish fo
 Required fields:
 
 - `contract_version`
+- `idempotency_key`
 - `item_key`
 - `entity_type`
 - `observed_at`
@@ -137,6 +138,7 @@ Schema:
 ```json
 {
   "contract_version": 1,
+  "idempotency_key": "tb:v1:item:asana:workspace-12345:default:1201234567890:snapshot:2026-08-14T19:20:31.123456Z",
   "item_key": "asana:workspace-12345:default:1201234567890",
   "entity_type": "task",
   "observed_at": "2026-08-14T19:20:31.123456Z",
@@ -245,6 +247,8 @@ Supported v1 `event_type` values:
 - `mapping_changed`
 - `deleted`
 - `sync_run_finished`
+
+`item_key` is required but may be `null` for run-scoped event types such as `sync_run_finished`; item-scoped fields are only meaningful when `item_key` is present.
 
 ## Idempotency Keys
 
@@ -457,7 +461,7 @@ Recommended response:
 {
   "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
   "contract_version": 1,
-  "accepted": 4,
+  "accepted": 1,
   "rejected": 1,
   "results": [
     {
