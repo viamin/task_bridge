@@ -77,7 +77,7 @@ Additional batch rules:
 - `contract_version` is required on every batch and on every record; the payload examples below assume `1`.
 - Version `1` consumers must ignore unknown fields.
 - New optional fields are backward-compatible within the same version.
-- Removing fields, changing semantics, or changing required enum values requires a new major contract version.
+- Removing fields, changing semantics, or changing the set of allowed enum values requires a new major contract version.
 - TaskBridge must not silently send `contract_version: 2` payloads to a `v1` endpoint.
 - TaskBridge Web should keep at least one prior major contract version available during rollout windows.
 
@@ -115,7 +115,7 @@ For v1 item and observation records, `source.service_type`, `source.service_inst
 Cross-system identity is represented separately from the source item snapshot.
 
 - `sync_collection_id`: TaskBridge’s internal representation group when one exists
-- `membership_role`: optional role within the representation, usually `canonical` or `member`
+- `membership_role`: optional role within the representation; v1 values are `canonical` and `member`
 - `mapping_confidence`: `confirmed`, `inferred`, or `tentative`
 - `mapping_source`: how the mapping was established, such as `sync_id_note`, `direct_external_reference`, `title_match`, `manual`
 - `provenance`: structured explanation of the evidence TaskBridge used
@@ -150,6 +150,12 @@ Recommended minimum optional fields:
 - `parent`
 - `sync_collection`
 - `source_metadata`
+
+Field rules:
+
+- `status` must be one of `open`, `completed`, or `dropped`. `dropped` covers providers such as OmniFocus that model explicitly abandoned items.
+- `entity_type` must be `task` in v1. Other entity kinds require a new major contract version.
+- `notes_preview` must be omitted unless the source is explicitly allowlisted for note export (see Security and Privacy Constraints).
 
 Schema:
 
@@ -266,6 +272,12 @@ Supported v1 `event_type` values:
 
 Mapping facts belong in `mappings`, not `observations`. Run-scoped operational facts belong in `sync_runs`, not `observations`. In v1, every observation is item-scoped, so `item_key` must be present.
 
+Field rules:
+
+- `change` is optional and describes a single field transition as `field`, `from`, and `to`.
+- When one observation yields several field transitions, TaskBridge must emit one row per transition with distinct idempotency keys, using the sequence segment from the key format when observed timestamps collide.
+- `event_type: snapshot_seen` rows normally carry no `change`; `deleted` rows may carry `last_known` and `is_deleted: true` as shown in Deletes and Tombstones.
+
 ## Idempotency Keys
 
 TaskBridge must create deterministic record-level idempotency keys.
@@ -283,6 +295,7 @@ Rules:
 - Duplicate-key comparisons must be based on the canonical row payload after removing transport-only fields. JSON object key order must not affect equivalence.
 - Different facts about the same item must use different keys.
 - Mapping keys carry two identity segments: the collection scope (`sync_collection:<id>`) with the membership kind, followed by the member's `service_instance` and `external_id`.
+- Sync-run keys use the run scope in place of item identity: `tb:v1:sync_run:<service_instance>:<sync_run_id>`.
 - Batch IDs are transport identifiers only and do not replace record-level idempotency keys.
 - If the same `idempotency_key` is submitted again with different non-transport field values, TaskBridge Web must reject that row as a non-retryable conflict.
 
@@ -425,6 +438,7 @@ Required fields:
 Additional rules:
 
 - `status` must be one of `success`, `failed`, or `partial`.
+- TaskBridge currently records `success` and `failed` runs; `partial` is reserved for runs that finish while some items fail. Skipped or idle services should not publish a sync-run summary.
 - `detail` and `error.message` must be sanitized operational text and must not include secrets, tokens, cookies, raw authorization headers, or raw provider payloads.
 - `error.retryable` must match the retry policy TaskBridge used for the run outcome.
 
@@ -521,7 +535,7 @@ Minimum behavior:
 - validate `contract_version`;
 - reject empty batches;
 - reject header/body contract mismatches before row processing;
-- reject duplicate `idempotency_key` values that appear more than once in the same request;
+- reject requests that repeat an `idempotency_key` across arrays, before row processing;
 - process `items`, `observations`, `mappings`, and `sync_runs` independently;
 - enforce idempotency per record using `idempotency_key`;
 - persist accepted records durably before responding success;
@@ -537,6 +551,7 @@ Recommended response:
   "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
   "contract_version": 1,
   "accepted": 1,
+  "replayed": 0,
   "rejected": 1,
   "results": [
     {
@@ -555,6 +570,8 @@ Recommended response:
   ]
 }
 ```
+
+The count fields must satisfy `accepted + replayed + rejected == results.length` so TaskBridge can reconcile its outbox from this response alone. Each result entry's `record_kind` is one of `item`, `observation`, `mapping`, or `sync_run`, mirroring the top-level array the row was submitted in.
 
 HTTP status guidance:
 
