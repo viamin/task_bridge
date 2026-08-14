@@ -64,6 +64,7 @@ Additional batch rules:
 - A batch must contain at least one record across those arrays. TaskBridge must not send empty batches.
 - `X-TaskBridge-Contract-Version` and `body.contract_version` must match exactly; if they differ, TaskBridge Web must reject the whole request before row processing.
 - `X-TaskBridge-Batch-Id` must match `batch.batch_id` when both are present.
+- `X-TaskBridge-Sent-At` must match `batch.sent_at` when both are present.
 - A batch must not contain the same `idempotency_key` more than once across any top-level arrays.
 - Row processing order is not semantically significant. TaskBridge Web must evaluate each row independently.
 - After successful request parsing, TaskBridge Web must return exactly one result entry for every submitted row so TaskBridge can reconcile its outbox without ambiguity.
@@ -103,6 +104,8 @@ Every item or observation must identify the source record with:
 TaskBridge owns the `service_instance` format. It must be stable for the life of that configuration and unique within one TaskBridge deployment.
 
 For v1 item and observation records, `source.service_type`, `source.service_instance`, and `source.external_id` are required. `source_url` and `source_collection_keys` remain optional because some providers cannot supply them reliably.
+
+`service_instance` and `item_key` are opaque identifiers. Consumers must not parse them by splitting on `:` because provider- or deployment-defined segments may themselves contain colons.
 
 ### Cross-system identity
 
@@ -399,6 +402,7 @@ Required fields:
 TaskBridge should publish one sync-run summary per service run so TaskBridge Web can correlate item observations with operational health.
 
 This schema should align with facts already produced by `StructuredLogger` and service `sync_result`.
+The timestamp fields are normalized to explicit `*_at` names even where current TaskBridge internals use shorter keys such as `last_attempted`; the values map directly.
 
 Required fields:
 
@@ -433,7 +437,7 @@ Additional rules:
   "last_failed_at": null,
   "status": "success",
   "items_synced": 12,
-  "touched_sync_collection_ids": [84, 91],
+  "touched_collection_ids": [84, 91],
   "detail": "12 items processed",
   "error": null
 }
@@ -455,7 +459,7 @@ Failure example:
   "last_failed_at": "2026-08-14T19:30:02.000000Z",
   "status": "failed",
   "items_synced": 0,
-  "touched_sync_collection_ids": [],
+  "touched_collection_ids": [],
   "detail": "ProviderError: 401 unauthorized",
   "error": {
     "class": "ProviderError",
