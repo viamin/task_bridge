@@ -60,14 +60,17 @@ TaskBridge Web must accept partial batches and return per-entry results keyed by
 
 Additional batch rules:
 
+- `batch` is required and must include `batch_id` and `sent_at`.
 - `items`, `observations`, `mappings`, and `sync_runs` are independent top-level arrays; if present, each must be an array.
+- Omitted top-level arrays are equivalent to empty arrays. Consumers must not infer a different meaning from omission versus `[]`.
 - A batch must contain at least one record across those arrays. TaskBridge must not send empty batches.
 - `X-TaskBridge-Contract-Version` and `body.contract_version` must match exactly; if they differ, TaskBridge Web must reject the whole request before row processing.
 - `X-TaskBridge-Batch-Id` must match `batch.batch_id` when both are present.
 - `X-TaskBridge-Sent-At` must match `batch.sent_at` when both are present.
+- Every submitted row must carry `contract_version` equal to `body.contract_version`; a row-level mismatch is a row validation failure, not a signal to reinterpret the request.
 - A batch must not contain the same `idempotency_key` more than once across any top-level arrays.
 - Row processing order is not semantically significant. TaskBridge Web must evaluate each row independently.
-- After successful request parsing, TaskBridge Web must return exactly one result entry for every submitted row so TaskBridge can reconcile its outbox without ambiguity.
+- After successful request parsing, TaskBridge Web must return exactly one result entry for every submitted row in submission order so TaskBridge can reconcile its outbox without ambiguity.
 
 ## Versioning Rules
 
@@ -277,6 +280,7 @@ Rules:
 - Keys must be deterministic for the same published fact.
 - If TaskBridge retries the same outbox row, it must reuse the same idempotency key.
 - TaskBridge must keep the canonical record payload immutable across retries. The only fields allowed to vary between retries are transport metadata such as batch headers, `batch.batch_id`, `batch.sent_at`, and record-level `published_at`.
+- Duplicate-key comparisons must be based on the canonical row payload after removing transport-only fields. JSON object key order must not affect equivalence.
 - Different facts about the same item must use different keys.
 - Mapping keys carry two identity segments: the collection scope (`sync_collection:<id>`) with the membership kind, followed by the member's `service_instance` and `external_id`.
 - Batch IDs are transport identifiers only and do not replace record-level idempotency keys.
@@ -315,6 +319,7 @@ Rules:
 - All timestamps must be ISO 8601 UTC with microseconds when available.
 - Unknown source timestamps may be `null`.
 - `published_at` is transport metadata and may differ across retries; the idempotency key must not change, and TaskBridge Web may retain the first accepted `published_at` value.
+- Record-level `published_at` is optional. If omitted, TaskBridge Web should treat `batch.sent_at` as the publish timestamp for operational tracing.
 
 ## Deletes and Tombstones
 
@@ -535,10 +540,12 @@ Recommended response:
   "rejected": 1,
   "results": [
     {
+      "record_kind": "item",
       "idempotency_key": "tb:v1:item:asana:workspace-12345:default:1201234567890:snapshot:2026-08-14T19:20:31.123456Z",
       "status": "accepted"
     },
     {
+      "record_kind": "observation",
       "idempotency_key": "tb:v1:obs:omnifocus:default:task-78:source_changed:2026-08-14T19:32:00.000000Z",
       "status": "rejected",
       "retryable": false,
@@ -559,6 +566,12 @@ HTTP status guidance:
 - `429 Too Many Requests`: retryable with backoff
 - `5xx`: retryable
 
+Per-row result status guidance:
+
+- `accepted`: the row was durably persisted during this request
+- `replayed`: the row matches a previously accepted payload for the same `idempotency_key`; TaskBridge should mark it delivered
+- `rejected`: the row was not accepted; inspect `retryable` and `error_code`
+
 ## Failure Semantics
 
 Publication must be at-least-once with idempotent ingestion.
@@ -576,7 +589,7 @@ TaskBridge Web rules:
 - Evaluate each row independently.
 - Return `retryable: true` only for transient errors.
 - Never require clients to guess whether a row was persisted.
-- Treat duplicate `idempotency_key` submissions as success if the original payload was already accepted.
+- Treat duplicate `idempotency_key` submissions as success if the original payload was already accepted, preferably with `status: replayed`.
 - Treat duplicate `idempotency_key` submissions with different non-transport fields as terminal conflicts and return an explicit validation or conflict error for that row.
 
 ## Security and Privacy Constraints
