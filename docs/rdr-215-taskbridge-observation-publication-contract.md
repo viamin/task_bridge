@@ -83,8 +83,8 @@ Every item or observation must identify the source record with:
 - `service_instance`: stable identifier for the configured account/workspace/app instance inside TaskBridge
 - `external_id`: provider-native item identifier
 - `source_url`: canonical provider URL when available
-- `source_collection_keys`: provider collection identifiers such as project/list/section IDs
-- provenance timestamps: provider-native created/updated/completed/deleted timestamps when available, carried at the record level as `source_created_at`, `source_updated_at`, and `completed_at` (see Timestamps)
+- `source_collection_keys`: provider collection identifiers such as project/list/section IDs when they are available and relevant to the published record
+- provenance timestamps: provider-native created/updated/completed timestamps when available, carried at the record level as `source_created_at`, `source_updated_at`, and `completed_at` (see Timestamps)
 
 `service_instance` must distinguish two configured accounts of the same provider. The minimum shape is:
 
@@ -250,10 +250,9 @@ Supported v1 `event_type` values:
 
 - `snapshot_seen`
 - `source_changed`
-- `mapping_changed`
 - `deleted`
 
-Run-scoped operational facts belong in `sync_runs`, not `observations`. In v1, every observation is item-scoped, so `item_key` must be present.
+Mapping facts belong in `mappings`, not `observations`. Run-scoped operational facts belong in `sync_runs`, not `observations`. In v1, every observation is item-scoped, so `item_key` must be present.
 
 ## Idempotency Keys
 
@@ -440,7 +439,24 @@ Failure example:
     "publisher": "task_bridge",
     "publisher_instance": "task-bridge-macbook-pro"
   },
-  "items": [],
+  "items": [
+    {
+      "contract_version": 1,
+      "idempotency_key": "tb:v1:item:asana:workspace-12345:default:1201234567890:snapshot:2026-08-14T19:20:31.123456Z",
+      "item_key": "asana:workspace-12345:default:1201234567890",
+      "entity_type": "task",
+      "observed_at": "2026-08-14T19:20:31.123456Z",
+      "published_at": "2026-08-14T19:21:10.000000Z",
+      "title": "Buy milk",
+      "status": "open",
+      "is_deleted": false,
+      "source": {
+        "service_type": "asana",
+        "service_instance": "asana:workspace-12345:default",
+        "external_id": "1201234567890"
+      }
+    }
+  ],
   "observations": [],
   "mappings": [],
   "sync_runs": []
