@@ -62,7 +62,11 @@ Additional batch rules:
 
 - `items`, `observations`, `mappings`, and `sync_runs` are independent top-level arrays; if present, each must be an array.
 - A batch must contain at least one record across those arrays. TaskBridge must not send empty batches.
+- `X-TaskBridge-Contract-Version` and `body.contract_version` must match exactly; if they differ, TaskBridge Web must reject the whole request before row processing.
+- `X-TaskBridge-Batch-Id` must match `batch.batch_id` when both are present.
+- A batch must not contain the same `idempotency_key` more than once across any top-level arrays.
 - Row processing order is not semantically significant. TaskBridge Web must evaluate each row independently.
+- After successful request parsing, TaskBridge Web must return exactly one result entry for every submitted row so TaskBridge can reconcile its outbox without ambiguity.
 
 ## Versioning Rules
 
@@ -97,6 +101,8 @@ Every item or observation must identify the source record with:
 ```
 
 TaskBridge owns the `service_instance` format. It must be stable for the life of that configuration and unique within one TaskBridge deployment.
+
+For v1 item and observation records, `source.service_type`, `source.service_instance`, and `source.external_id` are required. `source_url` and `source_collection_keys` remain optional because some providers cannot supply them reliably.
 
 ### Cross-system identity
 
@@ -350,6 +356,18 @@ Example tombstone observation:
 
 Mappings are separate events so TaskBridge Web can track representation changes without diffing snapshots.
 
+Required fields:
+
+- `contract_version`
+- `idempotency_key`
+- `mapping_type`
+- `observed_at`
+- `sync_collection.sync_collection_id`
+- `member.item_key`
+- `member.service_type`
+- `member.service_instance`
+- `member.external_id`
+
 ```json
 {
   "contract_version": 1,
@@ -381,6 +399,25 @@ Mappings are separate events so TaskBridge Web can track representation changes 
 TaskBridge should publish one sync-run summary per service run so TaskBridge Web can correlate item observations with operational health.
 
 This schema should align with facts already produced by `StructuredLogger` and service `sync_result`.
+
+Required fields:
+
+- `contract_version`
+- `idempotency_key`
+- `sync_run_id`
+- `service_type`
+- `service_instance`
+- `started_at`
+- `finished_at`
+- `last_attempted_at`
+- `status`
+- `items_synced`
+
+Additional rules:
+
+- `status` must be one of `success`, `failed`, or `partial`.
+- `detail` and `error.message` must be sanitized operational text and must not include secrets, tokens, cookies, raw authorization headers, or raw provider payloads.
+- `error.retryable` must match the retry policy TaskBridge used for the run outcome.
 
 ```json
 {
@@ -474,11 +511,14 @@ Minimum behavior:
 - authenticate by API key;
 - validate `contract_version`;
 - reject empty batches;
+- reject header/body contract mismatches before row processing;
+- reject duplicate `idempotency_key` values that appear more than once in the same request;
 - process `items`, `observations`, `mappings`, and `sync_runs` independently;
 - enforce idempotency per record using `idempotency_key`;
 - persist accepted records durably before responding success;
 - support partial success;
 - return retry guidance per failed row;
+- return one result per submitted row after parsing succeeds;
 - reject duplicate keys whose non-transport payload differs from the originally accepted row.
 
 Recommended response:
