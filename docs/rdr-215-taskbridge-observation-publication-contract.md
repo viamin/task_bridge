@@ -294,7 +294,7 @@ Rules:
 - TaskBridge must keep the canonical record payload immutable across retries. The only fields allowed to vary between retries are transport metadata such as batch headers, `batch.batch_id`, `batch.sent_at`, and record-level `published_at`.
 - Duplicate-key comparisons must be based on the canonical row payload after removing transport-only fields. JSON object key order must not affect equivalence.
 - Different facts about the same item must use different keys.
-- Mapping keys carry two identity segments: the collection scope (`sync_collection:<id>`) with the membership kind, followed by the member's `service_instance` and `external_id`.
+- Mapping keys carry two identity segments — the collection scope (`sync_collection:<id>`) with the membership kind, followed by the member's `service_instance` and `external_id` — and end with the mapping's `observed_at` timestamp or a sequence. Successive facts about the same membership (for example `mapping_confidence` moving from `tentative` to `confirmed`) must therefore use distinct keys instead of conflicting with the originally accepted row.
 - Sync-run keys use the run scope in place of item identity: `tb:v1:sync_run:<service_instance>:<sync_run_id>`.
 - Batch IDs are transport identifiers only and do not replace record-level idempotency keys.
 - If the same `idempotency_key` is submitted again with different non-transport field values, TaskBridge Web must reject that row as a non-retryable conflict.
@@ -306,7 +306,7 @@ Examples:
 - observation:
   - `tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-08-14T19:20:31.123456Z`
 - mapping update:
-  - `tb:v1:map:sync_collection:84:membership:asana:workspace-12345:default:1201234567890`
+  - `tb:v1:map:sync_collection:84:membership:asana:workspace-12345:default:1201234567890:2026-08-14T19:21:00.000000Z`
 - sync run summary:
   - `tb:v1:sync_run:asana:workspace-12345:default:sync-run-20260814T192000Z-asana`
 
@@ -392,7 +392,7 @@ Required fields:
 ```json
 {
   "contract_version": 1,
-  "idempotency_key": "tb:v1:map:sync_collection:84:membership:github:repo-1:issue-42",
+  "idempotency_key": "tb:v1:map:sync_collection:84:membership:github:repo-1:issue-42:2026-08-14T19:21:00.000000Z",
   "mapping_type": "representation_membership",
   "observed_at": "2026-08-14T19:21:00.000000Z",
   "sync_collection": {
