@@ -204,6 +204,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.record_kind).to eq("sync_run")
       expect(entry.service_type).to eq("asana")
       expect(entry.service_instance).to eq("asana:workspace-12345:default")
+      expect(entry.observed_at).to eq(Time.utc(2026, 8, 14, 19, 0, 0))
     end
 
     it "extracts service_type and service_instance from member for mapping records" do
@@ -224,6 +225,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.record_kind).to eq("mapping")
       expect(entry.service_type).to eq("github")
       expect(entry.service_instance).to eq("github:repo-1")
+      expect(entry.observed_at).to eq(Time.utc(2026, 8, 14, 19, 21, 0))
     end
 
     it "extracts service_type and service_instance from source for observation records" do

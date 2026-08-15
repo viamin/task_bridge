@@ -127,6 +127,15 @@ RSpec.describe Publication::BatchPublisher do
       expect { publisher.publish([]) }.to raise_error(ArgumentError, /must not be empty/)
     end
 
+    it "wraps a single entry argument into a one-entry batch" do
+      captured = stub_success_and_capture_request([entry])
+      results = publisher.publish(entry)
+      expect(results.length).to eq(1)
+      expect(results.first).to be_accepted
+      body = JSON.parse(captured[:request][:body], symbolize_names: true)
+      expect(body[:items].length).to eq(1)
+    end
+
     it "raises ArgumentError when an entry has an unknown record_kind" do
       bogus = make_entry(key: "tb:v1:bogus:1", kind: "bogus")
       expect { publisher.publish([bogus]) }.to raise_error(ArgumentError, /unknown record_kind/)
