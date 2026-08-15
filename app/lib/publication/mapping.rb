@@ -13,9 +13,8 @@ module Publication
   class Mapping
     VALID_MAPPING_TYPES = %w[representation_membership].freeze
     VALID_CONFIDENCE_LEVELS = %w[confirmed inferred tentative].freeze
+    VALID_MEMBERSHIP_ROLES = %w[canonical member].freeze
     RECORD_KIND = "mapping"
-
-    TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%6NZ"
 
     attr_reader :idempotency_key, :mapping_type, :observed_at, :sync_collection,
                 :member, :membership_role, :mapping_confidence, :mapping_source, :provenance
@@ -31,8 +30,6 @@ module Publication
       mapping_source: nil,
       provenance: nil
     )
-      validate!(idempotency_key:, mapping_type:, observed_at:, sync_collection:, member:, mapping_confidence:)
-
       @idempotency_key = idempotency_key
       @mapping_type = mapping_type
       @observed_at = observed_at
@@ -42,6 +39,8 @@ module Publication
       @mapping_confidence = mapping_confidence
       @mapping_source = mapping_source
       @provenance = provenance
+
+      validate!
     end
 
     def to_payload
@@ -49,7 +48,7 @@ module Publication
         contract_version: 1,
         idempotency_key:,
         mapping_type:,
-        observed_at: format_timestamp(observed_at),
+        observed_at: Timestamp.format(observed_at),
         sync_collection:,
         member:,
         membership_role:,
@@ -61,17 +60,16 @@ module Publication
 
     private
 
-    def validate!(idempotency_key:, mapping_type:, observed_at:, sync_collection:, member:, mapping_confidence:)
+    def validate!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "mapping_type must be one of: #{VALID_MAPPING_TYPES.join(', ')}" unless VALID_MAPPING_TYPES.include?(mapping_type)
       raise ArgumentError, "observed_at is required" if observed_at.blank?
 
       validate_sync_collection!(sync_collection)
       validate_member!(member)
-
-      return unless mapping_confidence && !VALID_CONFIDENCE_LEVELS.include?(mapping_confidence)
-
-      raise ArgumentError, "mapping_confidence must be one of: #{VALID_CONFIDENCE_LEVELS.join(', ')}"
+      validate_enum!(membership_role, VALID_MEMBERSHIP_ROLES, :membership_role)
+      validate_enum!(mapping_confidence, VALID_CONFIDENCE_LEVELS, :mapping_confidence)
+      Timestamp.validate!(observed_at)
     end
 
     def validate_sync_collection!(sync_collection)
@@ -86,11 +84,10 @@ module Publication
       raise ArgumentError, "member is missing required fields: #{missing.join(', ')}" if missing.any?
     end
 
-    def format_timestamp(value)
-      return nil if value.nil?
-      return value if value.is_a?(String)
+    def validate_enum!(value, allowed, field)
+      return if value.nil? || allowed.include?(value)
 
-      value.utc.strftime(TIMESTAMP_FORMAT)
+      raise ArgumentError, "#{field} must be one of: #{allowed.join(', ')}"
     end
   end
 end

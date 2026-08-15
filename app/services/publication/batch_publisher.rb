@@ -43,8 +43,10 @@ module Publication
       unknown = rows.map(&:record_kind).uniq - RECORD_KINDS
       raise ArgumentError, "unknown record_kind(s): #{unknown.join(', ')}" if unknown.any?
 
+      check_duplicate_idempotency_keys!(rows)
+
       batch_id  = SecureRandom.uuid
-      sent_at   = Time.current.utc.strftime("%Y-%m-%dT%H:%M:%S.%6NZ")
+      sent_at   = Timestamp.format(Time.current)
       body      = build_body(rows, batch_id:, sent_at:)
       headers   = build_headers(batch_id:, sent_at:)
 
@@ -53,6 +55,16 @@ module Publication
     end
 
     private
+
+    # The contract forbids repeating an idempotency_key within a batch. The
+    # outbox unique index normally prevents this, but the publisher guards any
+    # caller-supplied entry collection.
+    def check_duplicate_idempotency_keys!(rows)
+      duplicates = rows.map(&:idempotency_key).tally.select { |_, count| count > 1 }.keys
+      return if duplicates.empty?
+
+      raise ArgumentError, "duplicate idempotency_key(s) in batch: #{duplicates.join(', ')}"
+    end
 
     def build_body(rows, batch_id:, sent_at:)
       grouped = rows.group_by(&:record_kind)
@@ -68,7 +80,7 @@ module Publication
     end
 
     def serialize_group(entries)
-      Array(entries).map { |e| e.parsed_payload.merge(published_at: Time.current.utc.strftime("%Y-%m-%dT%H:%M:%S.%6NZ")) }
+      Array(entries).map { |e| e.parsed_payload.merge(published_at: Timestamp.format(Time.current)) }
     end
 
     def build_headers(batch_id:, sent_at:)
@@ -118,7 +130,9 @@ module Publication
 
       verify_batch_echo!(parsed, batch_id)
 
-      results_by_key = Array(parsed[:results]).index_by { |r| r[:idempotency_key] }
+      results = extract_results(parsed)
+      verify_result_counts!(parsed, results)
+      results_by_key = results.index_by { |r| r[:idempotency_key] }
 
       rows.map do |entry|
         row = results_by_key[entry.idempotency_key]
@@ -146,6 +160,26 @@ module Publication
       return if echoed.nil? || echoed == batch_id
 
       raise DeliveryError.new("response batch_id mismatch: expected #{batch_id}, got #{echoed}", retryable: true)
+    end
+
+    def extract_results(parsed)
+      results = parsed[:results]
+      raise DeliveryError.new("unexpected response body: results must be an array of objects", retryable: true) unless results.is_a?(Array) && results.all?(Hash)
+
+      results
+    end
+
+    # The contract guarantees accepted + replayed + rejected == results.length so
+    # the outbox can be reconciled from the response alone; a 200 body that breaks
+    # that invariant must not be trusted to update outbox state.
+    def verify_result_counts!(parsed, results)
+      counts = parsed.values_at(:accepted, :replayed, :rejected)
+      return if counts.all?(Integer) && counts.sum == results.length
+
+      raise DeliveryError.new(
+        "unreconcilable response: counts #{counts.inspect} do not match #{results.length} result(s)",
+        retryable: true
+      )
     end
   end
 

@@ -43,6 +43,42 @@ RSpec.describe Publication::Observation do
         described_class.new(**valid_attrs, source: { service_type: "asana" })
       end.to raise_error(ArgumentError, /source/)
     end
+
+    it "raises when observed_at is not parseable as ISO 8601" do
+      expect { described_class.new(**valid_attrs, observed_at: "Aug 14 2026") }
+        .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
+    end
+  end
+
+  describe "optional field validation" do
+    it "raises when change is not a hash" do
+      expect { described_class.new(**valid_attrs, change: "status") }
+        .to raise_error(ArgumentError, /change/)
+    end
+
+    it "raises when change has no field name" do
+      expect { described_class.new(**valid_attrs, change: { from: "open", to: "completed" }) }
+        .to raise_error(ArgumentError, /change/)
+    end
+
+    it "raises when change has a blank field name" do
+      expect { described_class.new(**valid_attrs, change: { field: "" }) }
+        .to raise_error(ArgumentError, /change/)
+    end
+
+    it "raises when is_deleted is not a boolean" do
+      expect { described_class.new(**valid_attrs, is_deleted: "yes") }
+        .to raise_error(ArgumentError, /is_deleted/)
+    end
+
+    it "accepts is_deleted false" do
+      expect { described_class.new(**valid_attrs, is_deleted: false) }.not_to raise_error
+    end
+
+    it "raises when an optional timestamp is not parseable as ISO 8601" do
+      expect { described_class.new(**valid_attrs, completed_at: "yesterday") }
+        .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
+    end
   end
 
   describe "#to_payload" do

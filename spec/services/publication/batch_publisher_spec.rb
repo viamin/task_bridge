@@ -47,6 +47,18 @@ RSpec.describe Publication::BatchPublisher do
       expect(HTTParty).not_to have_received(:post)
     end
 
+    it "raises ArgumentError when two entries share an idempotency_key" do
+      duplicate = make_entry(key: entry.idempotency_key)
+      expect { publisher.publish([entry, duplicate]) }.to raise_error(ArgumentError, /duplicate idempotency_key/)
+    end
+
+    it "does not send an HTTP request when entries share an idempotency_key" do
+      allow(HTTParty).to receive(:post)
+      duplicate = make_entry(key: entry.idempotency_key)
+      expect { publisher.publish([entry, duplicate]) }.to raise_error(ArgumentError)
+      expect(HTTParty).not_to have_received(:post)
+    end
+
     context "when the server returns 200 with accepted results" do
       before do
         stub_http(
@@ -225,6 +237,70 @@ RSpec.describe Publication::BatchPublisher do
         result = publisher.publish([entry]).first
         expect(result).to be_rejected
         expect(result.error_code).to eq("missing_result")
+      end
+    end
+
+    context "when results is not an array" do
+      before do
+        stub_http(
+          status: 200,
+          body: { batch_id: "x", contract_version: 1, accepted: 1, replayed: 0, rejected: 0, results: { "0" => "accepted" } }
+        )
+      end
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /results must be an array/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when a results element is not an object" do
+      before do
+        stub_http(
+          status: 200,
+          body: { batch_id: "x", contract_version: 1, accepted: 1, replayed: 0, rejected: 0, results: ["accepted"] }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of a TypeError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /results must be an array/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the count fields do not match the number of results" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 2, replayed: 0, rejected: 0,
+            results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /unreconcilable response/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the count fields are missing" do
+      before do
+        stub_http(
+          status: 200,
+          body: { batch_id: "x", contract_version: 1, results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }] }
+        )
+      end
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /unreconcilable response/
+        ) { |e| expect(e.retryable).to be true }
       end
     end
   end

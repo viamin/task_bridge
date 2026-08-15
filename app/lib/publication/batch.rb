@@ -59,7 +59,7 @@ module Publication
     def batch_envelope
       envelope = {
         batch_id:,
-        sent_at: format_timestamp(sent_at),
+        sent_at: Timestamp.format(sent_at),
         publisher:
       }
       envelope[:publisher_instance] = publisher_instance if publisher_instance
@@ -71,6 +71,7 @@ module Publication
       raise ArgumentError, "sent_at is required" if sent_at.blank?
       raise ArgumentError, "batch must contain at least one record" if total_record_count.zero?
 
+      Timestamp.validate!(sent_at)
       check_duplicate_idempotency_keys!
     end
 
@@ -82,13 +83,6 @@ module Publication
       keys = all_records.map(&:idempotency_key)
       duplicates = keys.tally.select { |_, count| count > 1 }.keys
       raise ArgumentError, "duplicate idempotency_key(s) in batch: #{duplicates.join(', ')}" if duplicates.any?
-    end
-
-    def format_timestamp(value)
-      return nil if value.nil?
-      return value if value.is_a?(String)
-
-      value.utc.strftime("%Y-%m-%dT%H:%M:%S.%6NZ")
     end
   end
 end

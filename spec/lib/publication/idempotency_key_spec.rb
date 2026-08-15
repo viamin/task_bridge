@@ -39,6 +39,18 @@ RSpec.describe Publication::IdempotencyKey do
         described_class.for_item(service_instance:, external_id:, observed_at: nil)
       end.to raise_error(ArgumentError, /observed_at/)
     end
+
+    it "raises when observed_at is not parseable as ISO 8601" do
+      expect do
+        described_class.for_item(service_instance:, external_id:, observed_at: "whenever")
+      end.to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
+    end
+
+    it "normalizes a UTC-offset timestamp so equivalent instants share a key" do
+      utc = described_class.for_item(service_instance:, external_id:, observed_at: "2026-08-14T19:20:31Z")
+      offset = described_class.for_item(service_instance:, external_id:, observed_at: "2026-08-14T21:20:31+02:00")
+      expect(offset).to eq(utc)
+    end
   end
 
   describe ".for_observation" do

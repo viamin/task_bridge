@@ -61,6 +61,16 @@ RSpec.describe Publication::ItemSnapshot do
         described_class.new(**valid_attrs, source: { service_type: "asana", external_id: "1" })
       end.to raise_error(ArgumentError, /service_instance/)
     end
+
+    it "raises when observed_at is not parseable as ISO 8601" do
+      expect { described_class.new(**valid_attrs, observed_at: "14/08/2026") }
+        .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
+    end
+
+    it "raises when an optional timestamp is not parseable as ISO 8601" do
+      expect { described_class.new(**valid_attrs, due_at: "tomorrow") }
+        .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
+    end
   end
 
   describe "#to_payload" do
@@ -91,6 +101,11 @@ RSpec.describe Publication::ItemSnapshot do
       time = Time.utc(2026, 8, 14, 19, 20, 31, 123_456)
       snapshot = described_class.new(**valid_attrs, observed_at: time)
       expect(snapshot.to_payload[:observed_at]).to eq("2026-08-14T19:20:31.123456Z")
+    end
+
+    it "normalizes a UTC-offset observed_at string to canonical UTC" do
+      snapshot = described_class.new(**valid_attrs, observed_at: "2026-08-14T21:20:31+02:00")
+      expect(snapshot.to_payload[:observed_at]).to eq("2026-08-14T19:20:31.000000Z")
     end
 
     it "accepts all valid statuses" do

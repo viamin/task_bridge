@@ -12,8 +12,6 @@ module Publication
     VALID_EVENT_TYPES = %w[snapshot_seen source_changed deleted].freeze
     RECORD_KIND = "observation"
 
-    TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%6NZ"
-
     attr_reader :idempotency_key, :event_type, :observed_at, :item_key, :source,
                 :published_at, :change, :source_created_at, :source_updated_at,
                 :completed_at, :provenance, :last_known, :is_deleted
@@ -33,8 +31,6 @@ module Publication
       last_known: nil,
       is_deleted: nil
     )
-      validate!(idempotency_key:, event_type:, observed_at:, item_key:, source:)
-
       @idempotency_key = idempotency_key
       @event_type = event_type
       @observed_at = observed_at
@@ -48,6 +44,8 @@ module Publication
       @provenance = provenance
       @last_known = last_known
       @is_deleted = is_deleted
+
+      validate!
     end
 
     def to_payload
@@ -55,14 +53,14 @@ module Publication
         contract_version: 1,
         idempotency_key:,
         event_type:,
-        observed_at: format_timestamp(observed_at),
-        published_at: format_timestamp(published_at),
+        observed_at: Timestamp.format(observed_at),
+        published_at: Timestamp.format(published_at),
         item_key:,
         source:,
         change:,
-        source_created_at: format_timestamp(source_created_at),
-        source_updated_at: format_timestamp(source_updated_at),
-        completed_at: format_timestamp(completed_at),
+        source_created_at: Timestamp.format(source_created_at),
+        source_updated_at: Timestamp.format(source_updated_at),
+        completed_at: Timestamp.format(completed_at),
         provenance:,
         last_known:,
         is_deleted:
@@ -71,13 +69,16 @@ module Publication
 
     private
 
-    def validate!(idempotency_key:, event_type:, observed_at:, item_key:, source:)
+    def validate!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "event_type must be one of: #{VALID_EVENT_TYPES.join(', ')}" unless VALID_EVENT_TYPES.include?(event_type)
       raise ArgumentError, "observed_at is required" if observed_at.blank?
       raise ArgumentError, "item_key is required" if item_key.blank?
 
       validate_source!(source)
+      validate_change!(change)
+      validate_is_deleted!(is_deleted)
+      Timestamp.validate!(observed_at, published_at, source_created_at, source_updated_at, completed_at)
     end
 
     def validate_source!(source)
@@ -87,11 +88,18 @@ module Publication
       raise ArgumentError, "source is missing required fields: #{missing.join(', ')}" if missing.any?
     end
 
-    def format_timestamp(value)
-      return nil if value.nil?
-      return value if value.is_a?(String)
+    # change describes a single field transition and must name the field it covers.
+    def validate_change!(change)
+      return if change.nil?
+      return if change.is_a?(Hash) && change[:field].present?
 
-      value.utc.strftime(TIMESTAMP_FORMAT)
+      raise ArgumentError, "change must be a hash with a non-blank :field when provided"
+    end
+
+    def validate_is_deleted!(flag)
+      return if flag.nil? || [true, false].include?(flag)
+
+      raise ArgumentError, "is_deleted must be true or false when provided"
     end
   end
 end

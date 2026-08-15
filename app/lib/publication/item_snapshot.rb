@@ -13,8 +13,6 @@ module Publication
     ENTITY_TYPE = "task"
     RECORD_KIND = "item"
 
-    TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%6NZ"
-
     attr_reader :idempotency_key, :item_key, :observed_at, :title, :status,
                 :is_deleted, :source, :completed_at, :source_created_at, :source_updated_at,
                 :due_at, :started_at, :notes_preview, :tags, :parent,
@@ -39,8 +37,6 @@ module Publication
       sync_collection: nil,
       source_metadata: nil
     )
-      validate!(idempotency_key:, item_key:, observed_at:, title:, status:, is_deleted:, source:)
-
       @idempotency_key = idempotency_key
       @item_key = item_key
       @observed_at = observed_at
@@ -58,6 +54,8 @@ module Publication
       @parent = parent
       @sync_collection = sync_collection
       @source_metadata = source_metadata
+
+      validate!
     end
 
     def to_payload
@@ -66,15 +64,15 @@ module Publication
         idempotency_key:,
         item_key:,
         entity_type: ENTITY_TYPE,
-        observed_at: format_timestamp(observed_at),
+        observed_at: Timestamp.format(observed_at),
         title:,
         status:,
         is_deleted:,
-        completed_at: format_timestamp(completed_at),
-        source_created_at: format_timestamp(source_created_at),
-        source_updated_at: format_timestamp(source_updated_at),
-        due_at: format_timestamp(due_at),
-        started_at: format_timestamp(started_at),
+        completed_at: Timestamp.format(completed_at),
+        source_created_at: Timestamp.format(source_created_at),
+        source_updated_at: Timestamp.format(source_updated_at),
+        due_at: Timestamp.format(due_at),
+        started_at: Timestamp.format(started_at),
         tags:,
         parent:,
         source:,
@@ -87,7 +85,7 @@ module Publication
 
     private
 
-    def validate!(idempotency_key:, item_key:, observed_at:, title:, status:, is_deleted:, source:)
+    def validate!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "item_key is required" if item_key.blank?
       raise ArgumentError, "observed_at is required" if observed_at.blank?
@@ -96,6 +94,7 @@ module Publication
       raise ArgumentError, "is_deleted must be true or false" unless [true, false].include?(is_deleted)
 
       validate_source!(source)
+      Timestamp.validate!(observed_at, completed_at, source_created_at, source_updated_at, due_at, started_at)
     end
 
     def validate_source!(source)
@@ -103,13 +102,6 @@ module Publication
 
       missing = %i[service_type service_instance external_id].reject { |k| source[k].present? }
       raise ArgumentError, "source is missing required fields: #{missing.join(', ')}" if missing.any?
-    end
-
-    def format_timestamp(value)
-      return nil if value.nil?
-      return value if value.is_a?(String)
-
-      value.utc.strftime(TIMESTAMP_FORMAT)
     end
   end
 end

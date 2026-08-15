@@ -63,6 +63,12 @@ RSpec.describe Publication::Mapping do
         described_class.new(**valid_attrs, mapping_confidence: "unknown_confidence")
       end.to raise_error(ArgumentError, /mapping_confidence/)
     end
+
+    it "raises when membership_role is invalid" do
+      expect do
+        described_class.new(**valid_attrs, membership_role: "owner")
+      end.to raise_error(ArgumentError, /membership_role/)
+    end
   end
 
   describe "#to_payload" do
@@ -98,6 +104,12 @@ RSpec.describe Publication::Mapping do
     it "accepts all valid confidence levels" do
       %w[confirmed inferred tentative].each do |level|
         expect { described_class.new(**valid_attrs, mapping_confidence: level) }.not_to raise_error
+      end
+    end
+
+    it "accepts all valid membership roles" do
+      %w[canonical member].each do |role|
+        expect { described_class.new(**valid_attrs, membership_role: role) }.not_to raise_error
       end
     end
   end

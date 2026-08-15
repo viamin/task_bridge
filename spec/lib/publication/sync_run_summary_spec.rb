@@ -41,6 +41,37 @@ RSpec.describe Publication::SyncRunSummary do
     it "raises when items_synced is nil" do
       expect { described_class.new(**valid_attrs, items_synced: nil) }.to raise_error(ArgumentError, /items_synced/)
     end
+
+    it "raises when items_synced is negative" do
+      expect { described_class.new(**valid_attrs, items_synced: -1) }.to raise_error(ArgumentError, /items_synced/)
+    end
+
+    it "raises when items_synced is not an integer" do
+      expect { described_class.new(**valid_attrs, items_synced: "12") }.to raise_error(ArgumentError, /items_synced/)
+    end
+
+    it "raises when a required timestamp is not parseable as ISO 8601" do
+      expect { described_class.new(**valid_attrs, finished_at: "never") }
+        .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
+    end
+  end
+
+  describe "optional error validation" do
+    it "raises when error is not a hash" do
+      expect { described_class.new(**valid_attrs, error: "ProviderError") }
+        .to raise_error(ArgumentError, /error/)
+    end
+
+    it "raises when error is missing required keys" do
+      expect { described_class.new(**valid_attrs, error: { class: "ProviderError", message: "401" }) }
+        .to raise_error(ArgumentError, /error/)
+    end
+
+    it "accepts an error with class, message, and retryable" do
+      expect do
+        described_class.new(**valid_attrs, error: { class: "ProviderError", message: "401", retryable: false })
+      end.not_to raise_error
+    end
   end
 
   describe "#to_payload" do

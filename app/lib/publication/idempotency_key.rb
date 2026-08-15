@@ -9,7 +9,6 @@ module Publication
   # same key. Only transport metadata (batch headers, published_at) may change on retry.
   class IdempotencyKey
     PREFIX = "tb:v1"
-    TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S.%6NZ"
 
     # Returns the key for an item snapshot.
     def self.for_item(service_instance:, external_id:, observed_at:)
@@ -41,9 +40,8 @@ module Publication
 
     def self.format_timestamp(value)
       raise ArgumentError, "observed_at is required" if value.blank?
-      return value.to_s if value.is_a?(String)
 
-      value.utc.strftime(TIMESTAMP_FORMAT)
+      Timestamp.format(value)
     end
     private_class_method :format_timestamp
 
