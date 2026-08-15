@@ -123,6 +123,11 @@ RSpec.describe Publication::BatchPublisher do
       expect { publisher.publish([bogus]) }.to raise_error(ArgumentError, /unknown record_kind/)
     end
 
+    it "names the offending kind when an entry has a nil record_kind" do
+      nil_kind = make_entry(key: "tb:v1:bogus:1", kind: nil)
+      expect { publisher.publish([nil_kind]) }.to raise_error(ArgumentError, /unknown record_kind\(s\): nil/)
+    end
+
     it "raises ArgumentError when an entry does not implement the entry interface" do
       expect { publisher.publish(["not an entry"]) }.to raise_error(ArgumentError, /entries must respond/)
     end

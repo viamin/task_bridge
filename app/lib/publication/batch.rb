@@ -109,8 +109,12 @@ module Publication
 
     def check_duplicate_idempotency_keys!
       keys = all_records.map(&:idempotency_key)
+      # empty? (not any?) because a nil key element is not truthy and would
+      # otherwise slip past this guard; inspect names nil keys in the error.
       duplicates = keys.tally.select { |_, count| count > 1 }.keys
-      raise ArgumentError, "duplicate idempotency_key(s) in batch: #{duplicates.join(', ')}" if duplicates.any?
+      return if duplicates.empty?
+
+      raise ArgumentError, "duplicate idempotency_key(s) in batch: #{duplicates.map(&:inspect).join(', ')}"
     end
   end
 end

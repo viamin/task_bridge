@@ -34,6 +34,30 @@ RSpec.describe Publication::IdempotencyKey do
       end.to raise_error(ArgumentError, /blank key segment/)
     end
 
+    it "accepts a numeric external_id segment" do
+      key = described_class.for_item(service_instance:, external_id: 42, observed_at: observed_at_str)
+      expect(key).to end_with(":42:snapshot:2026-08-14T19:20:31.123456Z")
+    end
+
+    it "raises when a key segment is neither a string nor numeric" do
+      expect do
+        described_class.for_item(service_instance: { workspace: 1 }, external_id:, observed_at: observed_at_str)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or numeric: service_instance/)
+    end
+
+    it "raises when a key segment is an array" do
+      expect do
+        described_class.for_observation(service_instance:, external_id: ["1"], event_type: "source_changed",
+                                        observed_at: observed_at_str)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or numeric: external_id/)
+    end
+
+    it "raises when a key segment is a boolean" do
+      expect do
+        described_class.for_sync_run(service_instance:, sync_run_id: true)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or numeric: sync_run_id/)
+    end
+
     it "raises when a key segment contains invalid UTF-8 byte sequences" do
       expect do
         described_class.for_item(service_instance: (+"asana:\xff").force_encoding("UTF-8"), external_id:, observed_at: observed_at_str)

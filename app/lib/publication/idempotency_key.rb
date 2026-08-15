@@ -13,6 +13,13 @@ module Publication
   class IdempotencyKey
     PREFIX = "tb:v1"
 
+    # Segments are interpolated verbatim into the key, so anything but a
+    # string or numeric would be coerced by to_s into a nonsense segment —
+    # and for hashes and arrays, a memory-address-dependent and therefore
+    # non-deterministic one, violating the RDR's stable-key rule. The same
+    # restriction the sequence tail already enforces applies here.
+    VALID_SEGMENT_TYPES = [String, Numeric].freeze
+
     # Returns the key for an item snapshot.
     def self.for_item(service_instance:, external_id:, observed_at:)
       require_presence!(service_instance:, external_id:)
@@ -76,10 +83,15 @@ module Publication
     # once accepted by TaskBridge Web (or crash JSON generation later), so
     # encoding is verified before blank? — which itself raises on invalid
     # byte sequences — and blank segments are rejected at build time.
+    # Encoding and blankness first, then the segment type check, so nil
+    # keeps reporting as a blank segment rather than a wrong type.
     def self.require_presence!(**fields)
       Utf8.validate_fields!(fields)
       blank = fields.select { |_, value| value.blank? }
       raise ArgumentError, "blank key segment(s): #{blank.keys.join(', ')}" if blank.any?
+
+      invalid = fields.reject { |_, value| VALID_SEGMENT_TYPES.any? { |type| value.is_a?(type) } }
+      raise ArgumentError, "key segment(s) must be a string or numeric: #{invalid.keys.join(', ')}" if invalid.any?
     end
     private_class_method :require_presence!
   end

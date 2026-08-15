@@ -114,6 +114,18 @@ RSpec.describe Publication::Batch do
       end.to raise_error(ArgumentError, /duplicate idempotency_key/)
     end
 
+    it "raises when two records carry nil idempotency_keys instead of slipping past the duplicate guard" do
+      nil_key_record = Class.new do
+        def idempotency_key = nil
+
+        def to_payload = {}
+      end
+
+      expect do
+        described_class.new(batch_id:, sent_at:, items: [nil_key_record.new, nil_key_record.new])
+      end.to raise_error(ArgumentError, /duplicate idempotency_key\(s\) in batch: nil/)
+    end
+
     it "raises when publisher is not a string" do
       expect { described_class.new(batch_id:, sent_at:, items: [item], publisher: 42) }
         .to raise_error(ArgumentError, /publisher must be a non-blank string/)

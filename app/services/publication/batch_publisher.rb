@@ -74,8 +74,10 @@ module Publication
 
       check_entry_interface!(rows)
 
+      # empty? (not any?) because a nil record_kind element is not truthy and
+      # would otherwise slip past this guard into the group_by below.
       unknown = rows.map(&:record_kind).uniq - RECORD_KINDS
-      raise ArgumentError, "unknown record_kind(s): #{unknown.join(', ')}" if unknown.any?
+      raise ArgumentError, "unknown record_kind(s): #{unknown.map(&:inspect).join(', ')}" unless unknown.empty?
 
       check_duplicate_idempotency_keys!(rows)
       check_payload_contract_versions!(rows)
@@ -128,7 +130,7 @@ module Publication
       duplicates = rows.map(&:idempotency_key).tally.select { |_, count| count > 1 }.keys
       return if duplicates.empty?
 
-      raise ArgumentError, "duplicate idempotency_key(s) in batch: #{duplicates.join(', ')}"
+      raise ArgumentError, "duplicate idempotency_key(s) in batch: #{duplicates.map(&:inspect).join(', ')}"
     end
 
     # The contract requires every row's contract_version to equal the batch's,
