@@ -74,6 +74,28 @@ RSpec.describe PublicationOutboxEntry, type: :model do
   end
 
   describe ".from_record" do
+    it "raises a clear ArgumentError for a record that does not implement the record interface" do
+      expect { described_class.from_record(Struct.new(:ignored).new(nil)) }
+        .to raise_error(ArgumentError, /record must respond to to_payload/)
+    end
+
+    it "raises a clear ArgumentError for a record whose class does not define RECORD_KIND" do
+      keyless = Class.new do
+        def to_payload = {}
+      end
+      expect { described_class.from_record(keyless.new) }
+        .to raise_error(ArgumentError, /record class must define RECORD_KIND/)
+    end
+
+    it "raises a clear ArgumentError for a record kind outside the contract" do
+      bogus = Class.new do
+        def to_payload = {}
+      end
+      bogus::RECORD_KIND = "bogus"
+      expect { described_class.from_record(bogus.new) }
+        .to raise_error(ArgumentError, /unknown record_kind: bogus/)
+    end
+
     it "builds an entry from a Publication::ItemSnapshot" do
       snapshot = build_item_snapshot
       entry = described_class.from_record(snapshot)

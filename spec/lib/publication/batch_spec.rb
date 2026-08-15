@@ -61,6 +61,11 @@ RSpec.describe Publication::Batch do
       expect { described_class.new(batch_id: "", sent_at:, items: [item]) }.to raise_error(ArgumentError, /batch_id/)
     end
 
+    it "raises when batch_id is not a string" do
+      expect { described_class.new(batch_id: 42, sent_at:, items: [item]) }
+        .to raise_error(ArgumentError, /batch_id must be a string/)
+    end
+
     it "raises when sent_at is nil" do
       expect { described_class.new(batch_id:, sent_at: nil, items: [item]) }.to raise_error(ArgumentError, /sent_at/)
     end
@@ -107,6 +112,26 @@ RSpec.describe Publication::Batch do
       expect do
         described_class.new(batch_id:, sent_at:, items: [build_item(key: shared_key)], observations: [observation])
       end.to raise_error(ArgumentError, /duplicate idempotency_key/)
+    end
+
+    it "raises when publisher is not a string" do
+      expect { described_class.new(batch_id:, sent_at:, items: [item], publisher: 42) }
+        .to raise_error(ArgumentError, /publisher must be a non-blank string/)
+    end
+
+    it "raises when publisher is a blank string" do
+      expect { described_class.new(batch_id:, sent_at:, items: [item], publisher: "") }
+        .to raise_error(ArgumentError, /publisher must be a non-blank string/)
+    end
+
+    it "raises when publisher_instance is not a string" do
+      expect { described_class.new(batch_id:, sent_at:, items: [item], publisher_instance: 42) }
+        .to raise_error(ArgumentError, /publisher_instance must be a non-blank string/)
+    end
+
+    it "raises when publisher_instance is a blank string" do
+      expect { described_class.new(batch_id:, sent_at:, items: [item], publisher_instance: "") }
+        .to raise_error(ArgumentError, /publisher_instance must be a non-blank string/)
     end
   end
 

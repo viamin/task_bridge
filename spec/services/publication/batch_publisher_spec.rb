@@ -78,6 +78,16 @@ RSpec.describe Publication::BatchPublisher do
       expect { described_class.new(endpoint: "ftp://taskbridge-web.example.com", api_key:) }
         .to raise_error(ArgumentError, /valid http\(s\) URI/)
     end
+
+    it "raises ArgumentError when publisher_instance is not a string" do
+      expect { described_class.new(endpoint:, api_key:, publisher_instance: 42) }
+        .to raise_error(ArgumentError, /publisher_instance/)
+    end
+
+    it "raises ArgumentError when publisher_instance is a blank string" do
+      expect { described_class.new(endpoint:, api_key:, publisher_instance: "") }
+        .to raise_error(ArgumentError, /publisher_instance/)
+    end
   end
 
   describe "#publish" do

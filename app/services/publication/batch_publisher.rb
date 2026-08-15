@@ -45,6 +45,7 @@ module Publication
       raise ArgumentError, "endpoint is required" if endpoint.blank?
       raise ArgumentError, "endpoint must be a valid http(s) URI" unless valid_endpoint_uri?(endpoint)
       raise ArgumentError, "api_key is required" if api_key.blank?
+      raise ArgumentError, "publisher_instance must be a non-blank string when provided" if invalid_envelope_string?(publisher_instance)
       raise ArgumentError, "timeout must be a positive integer" unless timeout.is_a?(Integer) && timeout.positive?
 
       @endpoint           = endpoint
@@ -85,6 +86,12 @@ module Publication
     end
 
     private
+
+    # publisher_instance is envelope metadata; nil means omit, and any other
+    # type would publish a contract field with the wrong shape.
+    def invalid_envelope_string?(value)
+      !(value.nil? || (value.is_a?(String) && value.present?))
+    end
 
     # Fail fast on a misconfigured endpoint instead of surfacing an opaque
     # transport error (or an unhandled URI parse crash) at publish time.

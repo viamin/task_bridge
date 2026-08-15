@@ -65,10 +65,12 @@ module Publication
 
     def validate!
       raise ArgumentError, "batch_id is required" if batch_id.blank?
+      raise ArgumentError, "batch_id must be a string" unless batch_id.is_a?(String)
       raise ArgumentError, "sent_at is required" if sent_at.blank?
       raise ArgumentError, "batch must contain at least one record" if total_record_count.zero?
 
       check_record_interface!
+      check_envelope_strings!
       Timestamp.validate!(sent_at)
       check_duplicate_idempotency_keys!
     end
@@ -85,6 +87,20 @@ module Publication
       return if invalid.empty?
 
       raise ArgumentError, "batch entries must implement idempotency_key and to_payload"
+    end
+
+    # publisher and publisher_instance are envelope metadata strings; nil means
+    # omit, and any other type would publish a contract field with the wrong
+    # shape, so wrong-typed or blank values fail here like every other field.
+    def check_envelope_strings!
+      check_envelope_string!(publisher, :publisher)
+      check_envelope_string!(publisher_instance, :publisher_instance)
+    end
+
+    def check_envelope_string!(value, field)
+      return if value.nil? || (value.is_a?(String) && value.present?)
+
+      raise ArgumentError, "#{field} must be a non-blank string when provided"
     end
 
     def check_duplicate_idempotency_keys!

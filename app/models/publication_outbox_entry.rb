@@ -57,19 +57,35 @@ class PublicationOutboxEntry < ApplicationRecord
   # payload root for sync_run records, so replay-by-service filtering works for
   # every record kind.
   def self.from_record(record)
+    kind             = record_kind!(record)
     payload          = record.to_payload
     identity         = payload[:source] || payload[:member] || {}
     service_type     = identity[:service_type] || payload[:service_type]
     service_instance = identity[:service_instance] || payload[:service_instance]
     new(
       idempotency_key: payload[:idempotency_key],
-      record_kind: record.class::RECORD_KIND,
+      record_kind: kind,
       payload: payload_json(payload, payload[:idempotency_key]),
       service_type:,
       service_instance:,
       observed_at: payload[:observed_at] || payload[:started_at]
     )
   end
+
+  # A wrong-typed record (anything without to_payload/RECORD_KIND) would
+  # otherwise crash with an opaque NameError or NoMethodError; the batch and
+  # the publisher guard the same record interface, so the outbox does too.
+  def self.record_kind!(record)
+    raise ArgumentError, "record must respond to to_payload" unless record.respond_to?(:to_payload)
+
+    kind = record.class::RECORD_KIND
+    raise ArgumentError, "unknown record_kind: #{kind}" unless RECORD_KINDS.include?(kind)
+
+    kind
+  rescue NameError
+    raise ArgumentError, "record class must define RECORD_KIND"
+  end
+  private_class_method :record_kind!
 
   # The record-level UTF-8 guards cover the free-text fields most likely to
   # carry malformed provider bytes; nested values they do not cover (change
