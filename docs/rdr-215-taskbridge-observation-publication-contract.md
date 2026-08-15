@@ -599,7 +599,7 @@ HTTP status guidance:
 - `400 Bad Request`: request body is unparseable or not valid JSON; no rows are processed
 - `401 Unauthorized`: invalid API key; terminal until secrets are fixed
 - `413 Payload Too Large`: retryable after smaller batches
-- `422 Unprocessable Entity`: contract or row validation failure; usually terminal for listed rows
+- `422 Unprocessable Entity`: batch-level contract validation failure such as missing or unsupported `contract_version` or a malformed body; terminal — resend a corrected batch. Per-row validation failures are reported as rejected rows in the `200 OK` per-row results.
 - `409 Conflict`: optional whole-batch response when the request cannot be processed because of duplicate-key payload mismatch
 - `429 Too Many Requests`: retryable with backoff
 - `5xx`: retryable
