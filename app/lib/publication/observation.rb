@@ -83,6 +83,7 @@ module Publication
 
     def validate_source!(source)
       raise ArgumentError, "source is required" if source.nil?
+      raise ArgumentError, "source must be a hash" unless source.is_a?(Hash)
 
       missing = %i[service_type service_instance external_id].reject { |k| source[k].present? }
       raise ArgumentError, "source is missing required fields: #{missing.join(', ')}" if missing.any?

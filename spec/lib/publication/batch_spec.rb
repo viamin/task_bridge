@@ -82,6 +82,11 @@ RSpec.describe Publication::Batch do
       batch = described_class.new(batch_id:, sent_at:, items: [item], publisher_instance: "my-mac")
       expect(batch.to_payload[:batch][:publisher_instance]).to eq("my-mac")
     end
+
+    it "omits publisher when it is explicitly nil" do
+      batch = described_class.new(batch_id:, sent_at:, items: [item], publisher: nil)
+      expect(batch.to_payload[:batch].keys).not_to include(:publisher)
+    end
   end
 
   describe "#total_record_count" do

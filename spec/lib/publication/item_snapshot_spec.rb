@@ -56,6 +56,14 @@ RSpec.describe Publication::ItemSnapshot do
       expect { described_class.new(**valid_attrs, source: nil) }.to raise_error(ArgumentError, /source/)
     end
 
+    it "raises when source is not a hash" do
+      expect { described_class.new(**valid_attrs, source: "asana") }.to raise_error(ArgumentError, /source must be a hash/)
+    end
+
+    it "raises when tags is not an array" do
+      expect { described_class.new(**valid_attrs, tags: "Errands") }.to raise_error(ArgumentError, /tags/)
+    end
+
     it "raises when source is missing service_instance" do
       expect do
         described_class.new(**valid_attrs, source: { service_type: "asana", external_id: "1" })

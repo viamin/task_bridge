@@ -50,6 +50,11 @@ RSpec.describe Publication::SyncRunSummary do
       expect { described_class.new(**valid_attrs, items_synced: "12") }.to raise_error(ArgumentError, /items_synced/)
     end
 
+    it "raises when touched_collection_ids is not an array" do
+      expect { described_class.new(**valid_attrs, touched_collection_ids: 84) }
+        .to raise_error(ArgumentError, /touched_collection_ids/)
+    end
+
     it "raises when a required timestamp is not parseable as ISO 8601" do
       expect { described_class.new(**valid_attrs, finished_at: "never") }
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)

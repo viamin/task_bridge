@@ -17,6 +17,8 @@ module Publication
     DEFAULT_TIMEOUT  = 30 # seconds
     # Canonical record kinds the batch body can carry, mirroring the contract arrays.
     RECORD_KINDS = PublicationOutboxEntry::RECORD_KINDS.freeze
+    # Per-row statuses defined by the contract response format.
+    VALID_RESULT_STATUSES = %w[accepted replayed rejected].freeze
 
     EntryResult = Struct.new(:entry, :status, :retryable, :error_code, :message, keyword_init: true) do
       def accepted?  = status == "accepted"
@@ -27,8 +29,11 @@ module Publication
     attr_reader :endpoint, :api_key, :publisher_instance
 
     def initialize(endpoint:, api_key:, publisher_instance: nil)
-      @endpoint          = endpoint
-      @api_key           = api_key
+      raise ArgumentError, "endpoint is required" if endpoint.blank?
+      raise ArgumentError, "api_key is required" if api_key.blank?
+
+      @endpoint           = endpoint
+      @api_key            = api_key
       @publisher_instance = publisher_instance
     end
 
@@ -45,10 +50,11 @@ module Publication
 
       check_duplicate_idempotency_keys!(rows)
 
-      batch_id  = SecureRandom.uuid
-      sent_at   = Timestamp.format(Time.current)
-      body      = build_body(rows, batch_id:, sent_at:)
-      headers   = build_headers(batch_id:, sent_at:)
+      batch_id     = SecureRandom.uuid
+      sent_at      = Timestamp.format(Time.current)
+      published_at = Timestamp.format(Time.current)
+      body         = build_body(rows, batch_id:, sent_at:, published_at:)
+      headers      = build_headers(batch_id:, sent_at:)
 
       response = post_batch(body:, headers:)
       handle_response(response, rows, batch_id:)
@@ -66,21 +72,23 @@ module Publication
       raise ArgumentError, "duplicate idempotency_key(s) in batch: #{duplicates.join(', ')}"
     end
 
-    def build_body(rows, batch_id:, sent_at:)
+    def build_body(rows, batch_id:, sent_at:, published_at:)
       grouped = rows.group_by(&:record_kind)
 
       {
         contract_version: CONTRACT_VERSION,
         batch: { batch_id:, sent_at:, publisher: "task_bridge", publisher_instance: }.compact,
-        items: serialize_group(grouped["item"]),
-        observations: serialize_group(grouped["observation"]),
-        mappings: serialize_group(grouped["mapping"]),
-        sync_runs: serialize_group(grouped["sync_run"])
+        items: serialize_group(grouped["item"], published_at:),
+        observations: serialize_group(grouped["observation"], published_at:),
+        mappings: serialize_group(grouped["mapping"], published_at:),
+        sync_runs: serialize_group(grouped["sync_run"], published_at:)
       }.to_json
     end
 
-    def serialize_group(entries)
-      Array(entries).map { |e| e.parsed_payload.merge(published_at: Timestamp.format(Time.current)) }
+    # published_at is record-level transport metadata; every row in one publish
+    # attempt shares the same value so the batch describes a single attempt.
+    def serialize_group(entries, published_at:)
+      Array(entries).map { |e| e.parsed_payload.merge(published_at:) }
     end
 
     def build_headers(batch_id:, sent_at:)
@@ -129,26 +137,13 @@ module Publication
       raise DeliveryError.new("unexpected response body: expected a JSON object", retryable: true) unless parsed.is_a?(Hash)
 
       verify_batch_echo!(parsed, batch_id)
+      verify_contract_version!(parsed)
 
       results = extract_results(parsed)
-      verify_result_counts!(parsed, results)
+      verify_result_counts!(parsed, results, rows)
       results_by_key = results.index_by { |r| r[:idempotency_key] }
 
-      rows.map do |entry|
-        row = results_by_key[entry.idempotency_key]
-        if row
-          EntryResult.new(
-            entry: entry,
-            status: row[:status],
-            retryable: row[:retryable],
-            error_code: row[:error_code],
-            message: row[:message]
-          )
-        else
-          EntryResult.new(entry:, status: "rejected", retryable: false,
-                          error_code: "missing_result", message: "no result returned for this entry")
-        end
-      end
+      rows.map { |entry| build_entry_result(entry, results_by_key[entry.idempotency_key]) }
     rescue JSON::ParserError => e
       raise DeliveryError.new("unparseable response body: #{e.message}", retryable: true)
     end
@@ -162,6 +157,16 @@ module Publication
       raise DeliveryError.new("response batch_id mismatch: expected #{batch_id}, got #{echoed}", retryable: true)
     end
 
+    def verify_contract_version!(parsed)
+      echoed = parsed[:contract_version]
+      return if echoed.nil? || echoed == CONTRACT_VERSION
+
+      raise DeliveryError.new(
+        "response contract_version mismatch: expected #{CONTRACT_VERSION}, got #{echoed}",
+        retryable: true
+      )
+    end
+
     def extract_results(parsed)
       results = parsed[:results]
       raise DeliveryError.new("unexpected response body: results must be an array of objects", retryable: true) unless results.is_a?(Array) && results.all?(Hash)
@@ -169,17 +174,44 @@ module Publication
       results
     end
 
-    # The contract guarantees accepted + replayed + rejected == results.length so
-    # the outbox can be reconciled from the response alone; a 200 body that breaks
-    # that invariant must not be trusted to update outbox state.
-    def verify_result_counts!(parsed, results)
+    # The contract guarantees accepted + replayed + rejected == results.length and
+    # exactly one result per submitted row, so the outbox can be reconciled from
+    # the response alone; a 200 body that breaks either invariant must not be
+    # trusted to update outbox state.
+    def verify_result_counts!(parsed, results, rows)
       counts = parsed.values_at(:accepted, :replayed, :rejected)
-      return if counts.all?(Integer) && counts.sum == results.length
+      return if counts.all?(Integer) && counts.sum == results.length && results.length == rows.length
 
       raise DeliveryError.new(
-        "unreconcilable response: counts #{counts.inspect} do not match #{results.length} result(s)",
+        "unreconcilable response: counts #{counts.inspect} do not match #{results.length} result(s) for #{rows.length} submitted row(s)",
         retryable: true
       )
+    end
+
+    def build_entry_result(entry, row)
+      return missing_result(entry) if row.nil?
+
+      status = validated_result_status(row[:status])
+      EntryResult.new(
+        entry: entry,
+        status:,
+        retryable: row[:retryable],
+        error_code: row[:error_code],
+        message: row[:message]
+      )
+    end
+
+    # Delivery state for the row is ambiguous when the response omits its
+    # result, so it stays retryable; ingestion idempotency makes the retry safe.
+    def missing_result(entry)
+      EntryResult.new(entry:, status: "rejected", retryable: true,
+                      error_code: "missing_result", message: "no result returned for this entry")
+    end
+
+    def validated_result_status(status)
+      return status if VALID_RESULT_STATUSES.include?(status)
+
+      raise DeliveryError.new("unreconcilable response: unknown result status #{status.inspect}", retryable: true)
     end
   end
 

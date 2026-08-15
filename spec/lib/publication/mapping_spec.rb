@@ -44,12 +44,22 @@ RSpec.describe Publication::Mapping do
       expect { described_class.new(**valid_attrs, sync_collection: nil) }.to raise_error(ArgumentError, /sync_collection/)
     end
 
+    it "raises when sync_collection is not a hash" do
+      expect { described_class.new(**valid_attrs, sync_collection: "collection 84") }
+        .to raise_error(ArgumentError, /sync_collection must be a hash/)
+    end
+
     it "raises when sync_collection_id is missing" do
       expect { described_class.new(**valid_attrs, sync_collection: { title: "no id" }) }.to raise_error(ArgumentError, /sync_collection_id/)
     end
 
     it "raises when member is nil" do
       expect { described_class.new(**valid_attrs, member: nil) }.to raise_error(ArgumentError, /member/)
+    end
+
+    it "raises when member is not a hash" do
+      expect { described_class.new(**valid_attrs, member: "github:repo-1:issue-42") }
+        .to raise_error(ArgumentError, /member must be a hash/)
     end
 
     it "raises when member is missing required fields" do

@@ -44,6 +44,11 @@ RSpec.describe Publication::Observation do
       end.to raise_error(ArgumentError, /source/)
     end
 
+    it "raises when source is not a hash" do
+      expect { described_class.new(**valid_attrs, source: "asana") }
+        .to raise_error(ArgumentError, /source must be a hash/)
+    end
+
     it "raises when observed_at is not parseable as ISO 8601" do
       expect { described_class.new(**valid_attrs, observed_at: "Aug 14 2026") }
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)

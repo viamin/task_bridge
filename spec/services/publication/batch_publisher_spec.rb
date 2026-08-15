@@ -30,6 +30,16 @@ RSpec.describe Publication::BatchPublisher do
 
   let(:entry) { make_entry(key: "tb:v1:item:asana:default:1:snapshot:2026-08-14T19:00:00.000000Z") }
 
+  describe "#initialize" do
+    it "raises ArgumentError when endpoint is blank" do
+      expect { described_class.new(endpoint: "", api_key:) }.to raise_error(ArgumentError, /endpoint/)
+    end
+
+    it "raises ArgumentError when api_key is blank" do
+      expect { described_class.new(endpoint:, api_key: "") }.to raise_error(ArgumentError, /api_key/)
+    end
+  end
+
   describe "#publish" do
     it "raises ArgumentError when entries array is empty" do
       expect { publisher.publish([]) }.to raise_error(ArgumentError, /must not be empty/)
@@ -215,6 +225,30 @@ RSpec.describe Publication::BatchPublisher do
       )
     end
 
+    it "stamps every row in the batch with the same published_at" do
+      second = make_entry(key: "tb:v1:item:asana:default:2:snapshot:2026-08-14T19:00:00.000000Z")
+      captured = nil
+      allow(HTTParty).to receive(:post) do |_endpoint, options|
+        captured = options
+        instance_double(
+          HTTParty::Response,
+          code: 200,
+          body: {
+            batch_id: options[:headers]["X-TaskBridge-Batch-Id"], contract_version: 1,
+            accepted: 2, replayed: 0, rejected: 0,
+            results: [entry, second].map { |e| { idempotency_key: e.idempotency_key, status: "accepted" } }
+          }.to_json
+        )
+      end
+
+      publisher.publish([entry, second])
+
+      body = JSON.parse(captured[:body], symbolize_names: true)
+      timestamps = body[:items].map { |item| item[:published_at] }
+      expect(timestamps).to all(be_present)
+      expect(timestamps.uniq.length).to eq(1)
+    end
+
     context "when the response body is not valid JSON" do
       before { stub_http(status: 200, body: "not json") }
 
@@ -229,7 +263,11 @@ RSpec.describe Publication::BatchPublisher do
       before do
         stub_http(
           status: 200,
-          body: { batch_id: "x", contract_version: 1, accepted: 0, replayed: 0, rejected: 0, results: [] }
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ idempotency_key: "tb:v1:item:other:1", status: "accepted" }]
+          }
         )
       end
 
@@ -237,6 +275,86 @@ RSpec.describe Publication::BatchPublisher do
         result = publisher.publish([entry]).first
         expect(result).to be_rejected
         expect(result.error_code).to eq("missing_result")
+      end
+
+      it "flags the row as retryable because delivery state is ambiguous" do
+        result = publisher.publish([entry]).first
+        expect(result.retryable).to be true
+      end
+    end
+
+    context "when the response omits a result for a submitted row" do
+      before do
+        stub_http(
+          status: 200,
+          body: { batch_id: "x", contract_version: 1, accepted: 0, replayed: 0, rejected: 0, results: [] }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting the response" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /unreconcilable response/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the response returns more results than submitted rows" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 2, replayed: 0, rejected: 0,
+            results: [
+              { idempotency_key: entry.idempotency_key, status: "accepted" },
+              { idempotency_key: "tb:v1:item:other:1", status: "accepted" }
+            ]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /unreconcilable response/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when a result carries an unknown status" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ idempotency_key: entry.idempotency_key, status: "queued" }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of acting on the status" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /unknown result status/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the response echoes a different contract version" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 2,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /contract_version mismatch/
+        ) { |e| expect(e.retryable).to be true }
       end
     end
 

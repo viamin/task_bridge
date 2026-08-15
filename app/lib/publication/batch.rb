@@ -61,7 +61,7 @@ module Publication
         batch_id:,
         sent_at: Timestamp.format(sent_at),
         publisher:
-      }
+      }.compact
       envelope[:publisher_instance] = publisher_instance if publisher_instance
       envelope
     end

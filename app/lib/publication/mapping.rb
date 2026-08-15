@@ -74,11 +74,13 @@ module Publication
 
     def validate_sync_collection!(sync_collection)
       raise ArgumentError, "sync_collection is required" if sync_collection.nil?
+      raise ArgumentError, "sync_collection must be a hash" unless sync_collection.is_a?(Hash)
       raise ArgumentError, "sync_collection.sync_collection_id is required" if sync_collection[:sync_collection_id].nil?
     end
 
     def validate_member!(member)
       raise ArgumentError, "member is required" if member.nil?
+      raise ArgumentError, "member must be a hash" unless member.is_a?(Hash)
 
       missing = %i[item_key service_type service_instance external_id].reject { |k| member[k].present? }
       raise ArgumentError, "member is missing required fields: #{missing.join(', ')}" if missing.any?

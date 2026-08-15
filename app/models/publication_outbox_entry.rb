@@ -23,7 +23,7 @@
 #
 #  index_publication_outbox_entries_on_idempotency_key          (idempotency_key) UNIQUE
 #  index_publication_outbox_entries_on_status_and_created_at    (status, created_at)
-#  index_publication_outbox_entries_on_service_instance_status  (service_instance, status)
+#  idx_on_service_instance_status_16c8b627d1                    (service_instance, status)
 #
 class PublicationOutboxEntry < ApplicationRecord
   STATUSES = %w[pending delivering delivered failed terminal].freeze

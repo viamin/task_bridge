@@ -92,6 +92,7 @@ module Publication
       raise ArgumentError, "title is required" if title.blank?
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
       raise ArgumentError, "is_deleted must be true or false" unless [true, false].include?(is_deleted)
+      raise ArgumentError, "tags must be an array when provided" unless tags.nil? || tags.is_a?(Array)
 
       validate_source!(source)
       Timestamp.validate!(observed_at, completed_at, source_created_at, source_updated_at, due_at, started_at)
@@ -99,6 +100,7 @@ module Publication
 
     def validate_source!(source)
       raise ArgumentError, "source is required" if source.nil?
+      raise ArgumentError, "source must be a hash" unless source.is_a?(Hash)
 
       missing = %i[service_type service_instance external_id].reject { |k| source[k].present? }
       raise ArgumentError, "source is missing required fields: #{missing.join(', ')}" if missing.any?
