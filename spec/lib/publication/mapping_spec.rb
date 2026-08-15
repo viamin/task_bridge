@@ -85,6 +85,18 @@ RSpec.describe Publication::Mapping do
       end.to raise_error(ArgumentError, /membership_role/)
     end
 
+    it "raises when mapping_source is not a string" do
+      expect do
+        described_class.new(**valid_attrs, mapping_source: :title_match)
+      end.to raise_error(ArgumentError, /mapping_source must be a string/)
+    end
+
+    it "raises when sync_collection title is not a string" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, title: 84 })
+      end.to raise_error(ArgumentError, /sync_collection\.title must be a string/)
+    end
+
     it "raises when provenance is not a hash" do
       expect { described_class.new(**valid_attrs, provenance: "matched by title") }
         .to raise_error(ArgumentError, /provenance/)

@@ -69,6 +69,7 @@ module Publication
       validate_member!(member)
       validate_enum!(membership_role, VALID_MEMBERSHIP_ROLES, :membership_role)
       validate_enum!(mapping_confidence, VALID_CONFIDENCE_LEVELS, :mapping_confidence)
+      validate_mapping_source!(mapping_source)
       validate_provenance!(provenance)
       Timestamp.validate!(observed_at)
     end
@@ -77,6 +78,11 @@ module Publication
       raise ArgumentError, "sync_collection is required" if sync_collection.nil?
       raise ArgumentError, "sync_collection must be a hash" unless sync_collection.is_a?(Hash)
       raise ArgumentError, "sync_collection.sync_collection_id is required" if sync_collection[:sync_collection_id].blank?
+
+      title = sync_collection[:title]
+      return if title.nil? || title.is_a?(String)
+
+      raise ArgumentError, "sync_collection.title must be a string when provided"
     end
 
     def validate_member!(member)
@@ -91,6 +97,15 @@ module Publication
       return if value.nil? || allowed.include?(value)
 
       raise ArgumentError, "#{field} must be one of: #{allowed.join(', ')}"
+    end
+
+    # mapping_source is free-form provenance text per RDR 215 ("sync_id_note",
+    # "title_match", ...), so it has no closed enum, but a non-string value
+    # must fail here rather than as a remote non-retryable row rejection.
+    def validate_mapping_source!(value)
+      return if value.nil? || value.is_a?(String)
+
+      raise ArgumentError, "mapping_source must be a string when provided"
     end
 
     # provenance is the structured mapping evidence; a non-hash value must be

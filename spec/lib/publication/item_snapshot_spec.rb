@@ -100,6 +100,12 @@ RSpec.describe Publication::ItemSnapshot do
       end.to raise_error(ArgumentError, /sync_collection.mapping_confidence/)
     end
 
+    it "raises when sync_collection mapping_source is not a string" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, mapping_source: :sync_id_note })
+      end.to raise_error(ArgumentError, /sync_collection\.mapping_source must be a string/)
+    end
+
     it "accepts a sync_collection with valid mapping fields" do
       snapshot = described_class.new(
         **valid_attrs,

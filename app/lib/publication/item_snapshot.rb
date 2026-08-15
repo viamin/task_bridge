@@ -127,6 +127,11 @@ module Publication
 
       validate_enum!(collection[:membership_role], Mapping::VALID_MEMBERSHIP_ROLES, "sync_collection.membership_role")
       validate_enum!(collection[:mapping_confidence], Mapping::VALID_CONFIDENCE_LEVELS, "sync_collection.mapping_confidence")
+
+      mapping_source = collection[:mapping_source]
+      return if mapping_source.nil? || mapping_source.is_a?(String)
+
+      raise ArgumentError, "sync_collection.mapping_source must be a string when provided"
     end
 
     def validate_enum!(value, allowed, field)
