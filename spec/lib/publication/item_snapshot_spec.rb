@@ -64,6 +64,36 @@ RSpec.describe Publication::ItemSnapshot do
       expect { described_class.new(**valid_attrs, tags: "Errands") }.to raise_error(ArgumentError, /tags/)
     end
 
+    it "raises when sync_collection is not a hash" do
+      expect { described_class.new(**valid_attrs, sync_collection: "collection 84") }
+        .to raise_error(ArgumentError, /sync_collection must be a hash/)
+    end
+
+    it "raises when sync_collection is missing sync_collection_id" do
+      expect { described_class.new(**valid_attrs, sync_collection: { membership_role: "member" }) }
+        .to raise_error(ArgumentError, /sync_collection_id/)
+    end
+
+    it "raises when sync_collection membership_role is invalid" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, membership_role: "owner" })
+      end.to raise_error(ArgumentError, /sync_collection.membership_role/)
+    end
+
+    it "raises when sync_collection mapping_confidence is invalid" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, mapping_confidence: "unknown" })
+      end.to raise_error(ArgumentError, /sync_collection.mapping_confidence/)
+    end
+
+    it "accepts a sync_collection with valid mapping fields" do
+      snapshot = described_class.new(
+        **valid_attrs,
+        sync_collection: { sync_collection_id: 84, membership_role: "member", mapping_confidence: "confirmed", mapping_source: "sync_id_note" }
+      )
+      expect(snapshot.to_payload[:sync_collection][:membership_role]).to eq("member")
+    end
+
     it "raises when source is missing service_instance" do
       expect do
         described_class.new(**valid_attrs, source: { service_type: "asana", external_id: "1" })

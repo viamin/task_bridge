@@ -77,6 +77,24 @@ RSpec.describe Publication::SyncRunSummary do
         described_class.new(**valid_attrs, error: { class: "ProviderError", message: "401", retryable: false })
       end.not_to raise_error
     end
+
+    it "raises when error.retryable is not a boolean" do
+      expect do
+        described_class.new(**valid_attrs, error: { class: "ProviderError", message: "401", retryable: "yes" })
+      end.to raise_error(ArgumentError, /retryable boolean/)
+    end
+
+    it "raises when error.class is blank" do
+      expect do
+        described_class.new(**valid_attrs, error: { class: "", message: "401", retryable: false })
+      end.to raise_error(ArgumentError, /error/)
+    end
+
+    it "raises when error.message is not a string" do
+      expect do
+        described_class.new(**valid_attrs, error: { class: "ProviderError", message: 401, retryable: false })
+      end.to raise_error(ArgumentError, /error/)
+    end
   end
 
   describe "#to_payload" do

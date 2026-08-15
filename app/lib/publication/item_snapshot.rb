@@ -95,7 +95,26 @@ module Publication
       raise ArgumentError, "tags must be an array when provided" unless tags.nil? || tags.is_a?(Array)
 
       validate_source!(source)
+      validate_sync_collection!(sync_collection)
       Timestamp.validate!(observed_at, completed_at, source_created_at, source_updated_at, due_at, started_at)
+    end
+
+    # sync_collection embeds the same cross-system mapping fields that mapping
+    # records carry, so the shared v1 enums apply here too: a snapshot must not
+    # be publishable with values TaskBridge Web would reject row-by-row.
+    def validate_sync_collection!(collection)
+      return if collection.nil?
+      raise ArgumentError, "sync_collection must be a hash when provided" unless collection.is_a?(Hash)
+      raise ArgumentError, "sync_collection.sync_collection_id is required" if collection[:sync_collection_id].blank?
+
+      validate_enum!(collection[:membership_role], Mapping::VALID_MEMBERSHIP_ROLES, "sync_collection.membership_role")
+      validate_enum!(collection[:mapping_confidence], Mapping::VALID_CONFIDENCE_LEVELS, "sync_collection.mapping_confidence")
+    end
+
+    def validate_enum!(value, allowed, field)
+      return if value.nil? || allowed.include?(value)
+
+      raise ArgumentError, "#{field} must be one of: #{allowed.join(', ')}"
     end
 
     def validate_source!(source)

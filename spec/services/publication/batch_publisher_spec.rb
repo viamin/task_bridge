@@ -449,6 +449,25 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when a result carries a mismatched record_kind" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ record_kind: "observation", idempotency_key: entry.idempotency_key, status: "accepted" }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting the result" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /record_kind mismatch/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when results is not an array" do
       before do
         stub_http(

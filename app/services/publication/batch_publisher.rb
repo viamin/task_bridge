@@ -217,12 +217,27 @@ module Publication
       return missing_result(entry) if row.nil?
 
       status = validated_result_status(row[:status])
+      verify_record_kind!(entry, row)
       EntryResult.new(
         entry: entry,
         status:,
         retryable: row[:retryable],
         error_code: row[:error_code],
         message: row[:message]
+      )
+    end
+
+    # Each result's record_kind mirrors the top-level array the row was
+    # submitted in; a mismatch means the response cannot be reconciled with
+    # this request's rows and must not drive outbox state changes.
+    def verify_record_kind!(entry, row)
+      kind = row[:record_kind]
+      return if kind.nil? || kind == entry.record_kind
+
+      raise DeliveryError.new(
+        "unreconcilable response: record_kind mismatch for #{entry.idempotency_key}: " \
+        "expected #{entry.record_kind.inspect}, got #{kind.inspect}",
+        retryable: true
       )
     end
 

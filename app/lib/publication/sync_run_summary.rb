@@ -92,11 +92,20 @@ module Publication
 
     # error carries the run's retry classification; a row without it cannot be
     # acted on downstream, so its shape is enforced when the field is present.
+    # retryable must be a real boolean because callers branch on it directly.
     def validate_error!(error)
       return if error.nil?
-      return if error.is_a?(Hash) && REQUIRED_ERROR_KEYS.all? { |key| error.key?(key) }
+      return if valid_error?(error)
 
-      raise ArgumentError, "error must be a hash with #{REQUIRED_ERROR_KEYS.join(', ')} when provided"
+      raise ArgumentError, "error must be a hash with #{REQUIRED_ERROR_KEYS.join(', ')} (class and message as non-blank strings, retryable boolean) when provided"
+    end
+
+    def valid_error?(error)
+      error.is_a?(Hash) &&
+        REQUIRED_ERROR_KEYS.all? { |key| error.key?(key) } &&
+        error[:class].is_a?(String) && error[:class].present? &&
+        error[:message].is_a?(String) && error[:message].present? &&
+        [true, false].include?(error[:retryable])
     end
   end
 end
