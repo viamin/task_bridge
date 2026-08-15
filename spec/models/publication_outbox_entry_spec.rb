@@ -71,6 +71,48 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry).not_to be_valid
       expect(entry.errors[:payload]).to include("must be valid UTF-8")
     end
+
+    it "requires record_kind to be present" do
+      entry = described_class.new(valid_entry_attrs.merge(record_kind: nil))
+      expect(entry).not_to be_valid
+      expect(entry.errors[:record_kind]).to be_present
+    end
+
+    it "requires status to be present" do
+      entry = described_class.new(valid_entry_attrs.merge(status: nil))
+      expect(entry).not_to be_valid
+      expect(entry.errors[:status]).to be_present
+    end
+
+    it "returns validation errors instead of raising when idempotency_key carries invalid UTF-8" do
+      entry = described_class.new(valid_entry_attrs.merge(idempotency_key: (+"tb:v1:\xff").force_encoding("UTF-8")))
+      expect(entry).not_to be_valid
+      expect(entry.errors[:idempotency_key]).to include("must be valid UTF-8")
+    end
+
+    it "returns validation errors instead of raising when record_kind or status carry invalid UTF-8" do
+      kind = described_class.new(valid_entry_attrs.merge(record_kind: (+"item\xff").force_encoding("UTF-8")))
+      expect(kind).not_to be_valid
+      expect(kind.errors[:record_kind]).to include("must be valid UTF-8")
+
+      status = described_class.new(valid_entry_attrs.merge(status: (+"pending\xff").force_encoding("UTF-8")))
+      expect(status).not_to be_valid
+      expect(status.errors[:status]).to include("must be valid UTF-8")
+    end
+
+    it "returns validation errors when an optional string column carries invalid UTF-8" do
+      entry = described_class.new(
+        valid_entry_attrs.merge(
+          service_type: (+"asana\xff").force_encoding("UTF-8"),
+          service_instance: (+"asana:workspace\xff").force_encoding("UTF-8"),
+          error_message: (+"boom \xff").force_encoding("UTF-8")
+        )
+      )
+      expect(entry).not_to be_valid
+      expect(entry.errors[:service_type]).to include("must be valid UTF-8")
+      expect(entry.errors[:service_instance]).to include("must be valid UTF-8")
+      expect(entry.errors[:error_message]).to include("must be valid UTF-8")
+    end
   end
 
   describe ".from_record" do
@@ -238,6 +280,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       entry = described_class.create!(valid_entry_attrs.merge(retry_count: described_class::MAX_RETRIES - 1))
       entry.mark_failed!(message: "permanent error")
       expect(entry.reload.status).to eq("terminal")
+    end
+
+    it "scrubs malformed bytes from the message so recording a failure cannot fail" do
+      entry = described_class.create!(valid_entry_attrs)
+      entry.mark_failed!(message: (+"boom \xff").force_encoding("UTF-8"))
+      expect(entry.reload.error_message).to be_present
+      expect(entry.error_message.valid_encoding?).to be true
     end
   end
 

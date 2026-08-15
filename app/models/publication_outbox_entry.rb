@@ -32,10 +32,22 @@ class PublicationOutboxEntry < ApplicationRecord
   # Maximum retries before a row is moved to terminal status.
   MAX_RETRIES = 10
 
-  validates :idempotency_key, presence: true, uniqueness: true
-  validates :record_kind, presence: true, inclusion: { in: RECORD_KINDS }
-  validates :status, presence: true, inclusion: { in: STATUSES }
+  # Presence for these columns is enforced by validate_string_fields instead of
+  # validates :presence because blank? raises on invalid byte sequences; the
+  # encoding check must run first or valid?/save crash with an opaque
+  # ArgumentError instead of returning validation errors.
+  REQUIRED_STRING_FIELDS = %i[idempotency_key record_kind status].freeze
+  OPTIONAL_STRING_FIELDS = %i[service_type service_instance error_message].freeze
+
+  # EachValidator short-circuits through value.blank? (and uniqueness and
+  # inclusion reach it before any custom validator can reject the value), so
+  # every built-in string validation is gated behind an encoding check that
+  # records the error itself.
+  validates :idempotency_key, uniqueness: true, if: -> { string_encoding_valid?(:idempotency_key) }
+  validates :record_kind, inclusion: { in: RECORD_KINDS }, if: -> { string_encoding_valid?(:record_kind) }
+  validates :status, inclusion: { in: STATUSES }, if: -> { string_encoding_valid?(:status) }
   validates :retry_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validate :validate_string_fields
   validate :payload_must_be_a_json_object
 
   scope :pending,    -> { where(status: "pending") }
@@ -110,7 +122,7 @@ class PublicationOutboxEntry < ApplicationRecord
       status: new_status,
       retry_count: new_count,
       failed_at: Time.current,
-      error_message: message.to_s.truncate(1000)
+      error_message: sanitized_message(message)
     )
   end
 
@@ -121,9 +133,17 @@ class PublicationOutboxEntry < ApplicationRecord
     update!(
       status: "terminal",
       failed_at: Time.current,
-      error_message: message.to_s.truncate(1000)
+      error_message: sanitized_message(message)
     )
   end
+
+  # Recording a failure must never fail itself: a message carrying malformed
+  # bytes (remote response text that slipped past sanitization) is scrubbed so
+  # it satisfies the UTF-8 validation instead of raising RecordInvalid.
+  def sanitized_message(message)
+    Publication::Utf8.sanitize(message.to_s).truncate(1000)
+  end
+  private :sanitized_message
 
   def mark_replayed!
     update!(status: "delivered", delivered_at: Time.current, error_message: nil)
@@ -134,6 +154,31 @@ class PublicationOutboxEntry < ApplicationRecord
   end
 
   private
+
+  # Encoding is verified for every string column first — blank? raises on
+  # invalid byte sequences, so presence runs only on values that passed the
+  # encoding check. This mirrors payload_must_be_a_json_object: a malformed
+  # value must produce a validation error, not an opaque ArgumentError crash
+  # from valid?/save.
+  def validate_string_fields
+    (REQUIRED_STRING_FIELDS + OPTIONAL_STRING_FIELDS).each do |field|
+      value = public_send(field)
+      errors.add(field, "must be valid UTF-8") if value.is_a?(String) && !value.valid_encoding?
+    end
+
+    REQUIRED_STRING_FIELDS.each do |field|
+      next if errors.key?(field)
+
+      errors.add(field, :blank) if public_send(field).blank?
+    end
+  end
+
+  def string_encoding_valid?(field)
+    value = public_send(field)
+    return true unless value.is_a?(String)
+
+    value.valid_encoding?
+  end
 
   # The publisher sends the stored payload verbatim, so a row that is not a
   # JSON object could never satisfy the batch contract and must be rejected at

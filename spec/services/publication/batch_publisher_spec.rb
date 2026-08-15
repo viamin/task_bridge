@@ -880,5 +880,91 @@ RSpec.describe Publication::BatchPublisher do
         ) { |e| expect(e.retryable).to be true }
       end
     end
+
+    context "when the declared counts contradict the per-row statuses" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{
+              idempotency_key: entry.idempotency_key,
+              status: "rejected",
+              retryable: false,
+              error_code: "validation_error",
+              message: "bad row"
+            }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting the response" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /unreconcilable response/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when a rejected result carries malformed UTF-8 in its message" do
+      before do
+        raw = (+"{\"contract_version\":1,\"accepted\":0,\"replayed\":0,\"rejected\":1,\"results\":[{") <<
+              %("idempotency_key":"#{entry.idempotency_key}","status":"rejected","retryable":false,) <<
+              %("error_code":"validation_error","message":"bad \xff"}]})
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
+        )
+      end
+
+      it "sanitizes the message so it is safe to log and persist" do
+        result = publisher.publish([entry]).first
+        expect(result).to be_rejected
+        expect(result.message.valid_encoding?).to be true
+        expect(result.message).to include("bad")
+      end
+
+      it "sanitizes the error_code the same way" do
+        raw = (+"{\"contract_version\":1,\"accepted\":0,\"replayed\":0,\"rejected\":1,\"results\":[{") <<
+              %("idempotency_key":"#{entry.idempotency_key}","status":"rejected","retryable":false,) <<
+              %("error_code":"boom \xff","message":"bad row"}]})
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
+        )
+
+        result = publisher.publish([entry]).first
+        expect(result.error_code.valid_encoding?).to be true
+      end
+    end
+
+    context "when a result's idempotency_key carries malformed UTF-8" do
+      before do
+        raw = (+"{\"contract_version\":1,\"accepted\":1,\"replayed\":0,\"rejected\":0,\"results\":[{") <<
+              %("idempotency_key":"tb:v1:key\xff","status":"accepted"}]})
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
+        )
+      end
+
+      it "reports the submitted row as an ambiguous rejection instead of raising" do
+        result = publisher.publish([entry]).first
+        expect(result).to be_rejected
+        expect(result.error_code).to eq("missing_result")
+        expect(result.retryable).to be true
+      end
+    end
+
+    context "when a non-200 response body contains malformed UTF-8" do
+      before do
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: 422, body: (+"err\xff").force_encoding("UTF-8"))
+        )
+      end
+
+      it "raises a DeliveryError whose message is valid UTF-8" do
+        expect { publisher.publish([entry]) }.to raise_error(Publication::DeliveryError) do |e|
+          expect(e.message.valid_encoding?).to be true
+        end
+      end
+    end
   end
 end

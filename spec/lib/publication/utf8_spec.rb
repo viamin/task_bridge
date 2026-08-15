@@ -25,4 +25,20 @@ RSpec.describe Publication::Utf8 do
       expect { described_class.validate_fields!({}) }.not_to raise_error
     end
   end
+
+  describe ".sanitize" do
+    it "replaces malformed byte sequences with the replacement character" do
+      expect(described_class.sanitize((+"milk \xff").force_encoding("UTF-8"))).to eq("milk \uFFFD")
+    end
+
+    it "leaves valid strings unchanged" do
+      expect(described_class.sanitize("Buy milk — ünïcode")).to eq("Buy milk — ünïcode")
+    end
+
+    it "passes non-string values through untouched" do
+      expect(described_class.sanitize(84)).to eq(84)
+      expect(described_class.sanitize(nil)).to be_nil
+      expect(described_class.sanitize(true)).to be true
+    end
+  end
 end

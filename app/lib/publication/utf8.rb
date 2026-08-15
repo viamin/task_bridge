@@ -21,5 +21,16 @@ module Publication
 
       raise ArgumentError, "#{invalid.keys.join(', ')} must be valid UTF-8"
     end
+
+    # Returns value with malformed byte sequences replaced by U+FFFD so remote
+    # text can never crash logging, validation, or JSON generation downstream.
+    # Non-string values pass through untouched. Use for external text that is
+    # informational (error messages, codes) rather than contract identity,
+    # which must be rejected, not repaired, via validate_fields!.
+    def sanitize(value)
+      return value unless value.is_a?(String)
+
+      value.scrub
+    end
   end
 end

@@ -235,7 +235,7 @@ module Publication
       when 200
         parse_row_results(response, rows, batch_id:)
       when 400, 422
-        raise DeliveryError.new("request rejected (#{response.code}): #{response.body}", retryable: false)
+        raise DeliveryError.new("request rejected (#{response.code}): #{response_excerpt(response)}", retryable: false)
       when 401
         raise DeliveryError.new("authentication failure (401): check API key", retryable: false)
       when 409
@@ -251,10 +251,17 @@ module Publication
         # duplicate. Other client errors stay terminal until the request or
         # configuration is fixed.
         raise DeliveryError.new(
-          "unexpected response (#{response.code}): #{response.body}",
+          "unexpected response (#{response.code}): #{response_excerpt(response)}",
           retryable: response.code < 400 || response.code >= 500
         )
       end
+    end
+
+    # Remote bodies (proxy error pages, misbehaving servers) can carry bytes
+    # that are not valid UTF-8; scrubbing keeps the embedded excerpt safe to
+    # log and to persist through the outbox error_message column.
+    def response_excerpt(response)
+      Utf8.sanitize(response.body.to_s)
     end
 
     def parse_row_results(response, rows, batch_id:)
@@ -273,7 +280,7 @@ module Publication
 
       rows.map { |entry| build_entry_result(entry, results_by_key[entry.idempotency_key]) }
     rescue JSON::ParserError => e
-      raise DeliveryError.new("unparseable response body: #{e.message}", retryable: true)
+      raise DeliveryError.new("unparseable response body: #{Utf8.sanitize(e.message)}", retryable: true)
     end
 
     # A response echoing a different batch_id cannot be reconciled with this
@@ -300,16 +307,38 @@ module Publication
       raise DeliveryError.new("unexpected response body: results must be an array of objects", retryable: true) unless results.is_a?(Array) && results.all?(Hash)
 
       verify_result_keys_present!(results)
+      verify_result_statuses!(results)
       results
     end
 
     # Each result must carry its idempotency_key so it can be matched back to
     # the submitted row; a result missing this field can never be reconciled
     # and would otherwise silently orphan the row it was meant to describe.
+    # present? itself raises on malformed UTF-8, and the response is remote
+    # data, so presence is checked without it.
     def verify_result_keys_present!(results)
-      return if results.all? { |result| result[:idempotency_key].present? }
+      return if results.all? { |result| result_key_present?(result[:idempotency_key]) }
 
       raise DeliveryError.new("unreconcilable response: result missing idempotency_key", retryable: true)
+    end
+
+    def result_key_present?(key)
+      return false if key.nil?
+      return true unless key.is_a?(String)
+
+      # strip raises on malformed UTF-8, so scrub first: the scrubbed form is
+      # only used for the presence test, never as the reconciliation key.
+      !key.scrub.strip.empty?
+    end
+
+    # Statuses are validated before the count cross-check so a response whose
+    # declared counts disagree with its own per-row statuses is detected as
+    # unreconcilable rather than passing the sum check alone.
+    def verify_result_statuses!(results)
+      invalid = results.map { |result| result[:status] }.reject { |status| VALID_RESULT_STATUSES.include?(status) }.uniq
+      return if invalid.empty?
+
+      raise DeliveryError.new("unreconcilable response: unknown result status #{invalid.first.inspect}", retryable: true)
     end
 
     # The contract returns exactly one result per submitted row; a response
@@ -328,11 +357,14 @@ module Publication
     # The contract guarantees accepted + replayed + rejected == results.length and
     # exactly one result per submitted row, so the outbox can be reconciled from
     # the response alone; a 200 body that breaks either invariant must not be
-    # trusted to update outbox state.
+    # trusted to update outbox state. Each declared count must also match the
+    # number of results carrying that status: counts that merely sum correctly
+    # while contradicting the per-row statuses are still unreconcilable.
     def verify_result_counts!(parsed, results, rows)
       counts = parsed.values_at(:accepted, :replayed, :rejected)
       return if counts.all? { |count| count.is_a?(Integer) && count >= 0 } &&
-                counts.sum == results.length && results.length == rows.length
+                counts.sum == results.length && results.length == rows.length &&
+                declared_counts_match?(counts, results)
 
       raise DeliveryError.new(
         "unreconcilable response: counts #{counts.inspect} do not match #{results.length} result(s) for #{rows.length} submitted row(s)",
@@ -340,17 +372,22 @@ module Publication
       )
     end
 
+    def declared_counts_match?(counts, results)
+      VALID_RESULT_STATUSES.zip(counts).all? do |status, declared|
+        results.count { |result| result[:status] == status } == declared
+      end
+    end
+
     def build_entry_result(entry, row)
       return missing_result(entry) if row.nil?
 
-      status = validated_result_status(row[:status])
       verify_record_kind!(entry, row)
       EntryResult.new(
         entry: entry,
-        status: status,
-        retryable: validated_retryable(row[:retryable], status:),
-        error_code: row[:error_code],
-        message: row[:message]
+        status: row[:status],
+        retryable: validated_retryable(row[:retryable], status: row[:status]),
+        error_code: Utf8.sanitize(row[:error_code]),
+        message: Utf8.sanitize(row[:message])
       )
     end
 
@@ -386,12 +423,6 @@ module Publication
     def missing_result(entry)
       EntryResult.new(entry:, status: "rejected", retryable: true,
                       error_code: "missing_result", message: "no result returned for this entry")
-    end
-
-    def validated_result_status(status)
-      return status if VALID_RESULT_STATUSES.include?(status)
-
-      raise DeliveryError.new("unreconcilable response: unknown result status #{status.inspect}", retryable: true)
     end
   end
 end
