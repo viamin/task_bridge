@@ -143,6 +143,8 @@ module Publication
       raise ArgumentError, "sync_collection must be a hash when provided" unless collection.is_a?(Hash)
       raise ArgumentError, "sync_collection.sync_collection_id is required" if collection[:sync_collection_id].blank?
 
+      validate_sync_collection_id!(collection[:sync_collection_id])
+
       title = collection[:title]
       raise ArgumentError, "sync_collection.title must be a string when provided" unless title.nil? || title.is_a?(String)
 
@@ -153,6 +155,16 @@ module Publication
       return if mapping_source.nil? || mapping_source.is_a?(String)
 
       raise ArgumentError, "sync_collection.mapping_source must be a string when provided"
+    end
+
+    # sync_collection_id feeds the mapping idempotency key's collection scope
+    # segment, so it follows the same string-or-numeric rule the key builder
+    # enforces; any other type would surface as a remote non-retryable row
+    # rejection instead of failing at this boundary.
+    def validate_sync_collection_id!(id)
+      return if id.is_a?(String) || id.is_a?(Numeric)
+
+      raise ArgumentError, "sync_collection.sync_collection_id must be a string or numeric"
     end
 
     # parent references another item by the same identity-string fields used

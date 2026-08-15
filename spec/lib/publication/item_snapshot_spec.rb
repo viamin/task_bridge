@@ -124,6 +124,13 @@ RSpec.describe Publication::ItemSnapshot do
         .to raise_error(ArgumentError, /sync_collection_id/)
     end
 
+    it "raises when sync_collection_id is not a string or numeric" do
+      expect { described_class.new(**valid_attrs, sync_collection: { sync_collection_id: true }) }
+        .to raise_error(ArgumentError, /sync_collection\.sync_collection_id must be a string or numeric/)
+      expect { described_class.new(**valid_attrs, sync_collection: { sync_collection_id: ["84"] }) }
+        .to raise_error(ArgumentError, /sync_collection\.sync_collection_id must be a string or numeric/)
+    end
+
     it "raises when sync_collection membership_role is invalid" do
       expect do
         described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, membership_role: "owner" })

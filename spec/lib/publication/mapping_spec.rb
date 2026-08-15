@@ -63,6 +63,18 @@ RSpec.describe Publication::Mapping do
         .to raise_error(ArgumentError, /sync_collection_id/)
     end
 
+    it "raises when sync_collection_id is not a string or numeric" do
+      expect { described_class.new(**valid_attrs, sync_collection: { sync_collection_id: true }) }
+        .to raise_error(ArgumentError, /sync_collection\.sync_collection_id must be a string or numeric/)
+      expect { described_class.new(**valid_attrs, sync_collection: { sync_collection_id: ["84"] }) }
+        .to raise_error(ArgumentError, /sync_collection\.sync_collection_id must be a string or numeric/)
+    end
+
+    it "accepts a string or numeric sync_collection_id" do
+      expect { described_class.new(**valid_attrs, sync_collection: valid_sync_collection.merge(sync_collection_id: "84")) }
+        .not_to raise_error
+    end
+
     it "raises when member is nil" do
       expect { described_class.new(**valid_attrs, member: nil) }.to raise_error(ArgumentError, /member/)
     end
