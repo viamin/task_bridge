@@ -117,6 +117,26 @@ RSpec.describe Publication::IdempotencyKey do
         described_class.for_observation(service_instance:, external_id:, event_type: "source_changed", sequence: "")
       end.to raise_error(ArgumentError, /sequence must not be blank/)
     end
+
+    it "raises when sequence is neither a string nor numeric" do
+      expect do
+        described_class.for_observation(service_instance:, external_id:, event_type: "source_changed", sequence: [])
+      end.to raise_error(ArgumentError, /sequence must be a string or numeric/)
+    end
+
+    it "raises when a boolean sequence is passed instead of a numeric" do
+      expect do
+        described_class.for_observation(service_instance:, external_id:, event_type: "source_changed", sequence: true)
+      end.to raise_error(ArgumentError, /sequence must be a string or numeric/)
+    end
+
+    it "raises when sequence contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.for_observation(
+          service_instance:, external_id:, event_type: "source_changed", sequence: (+"seq\xff").force_encoding("UTF-8")
+        )
+      end.to raise_error(ArgumentError, /sequence must be valid UTF-8/)
+    end
   end
 
   describe ".for_mapping" do
@@ -160,6 +180,12 @@ RSpec.describe Publication::IdempotencyKey do
       expect do
         described_class.for_mapping(sync_collection_id: 84, service_instance:, external_id:)
       end.to raise_error(ArgumentError, /observed_at or sequence is required/)
+    end
+
+    it "raises when sequence is neither a string nor numeric" do
+      expect do
+        described_class.for_mapping(sync_collection_id: 84, service_instance:, external_id:, sequence: { index: 1 })
+      end.to raise_error(ArgumentError, /sequence must be a string or numeric/)
     end
   end
 

@@ -52,13 +52,20 @@ module Publication
     private_class_method :format_timestamp
 
     # The key format ends with a single <observed_at_or_sequence> segment, so
-    # exactly one of the two may be provided. Numeric sequences are compared
-    # after to_s so a valid 0 is not swallowed by blank?.
+    # exactly one of the two may be provided. A sequence must be a string or
+    # numeric: anything else (arrays, hashes, booleans) would be coerced by
+    # to_s into a nonsense segment, and like every other key segment it must
+    # be valid UTF-8 so the key can never crash JSON generation later.
     def self.key_tail(observed_at:, sequence:)
       raise ArgumentError, "pass observed_at or sequence, not both" if observed_at && sequence
       return format_timestamp(observed_at) if observed_at
 
       raise ArgumentError, "observed_at or sequence is required" if sequence.nil?
+
+      valid_type = sequence.is_a?(String) || sequence.is_a?(Numeric)
+      raise ArgumentError, "sequence must be a string or numeric when provided" unless valid_type
+
+      Utf8.validate_fields!({ sequence: })
       raise ArgumentError, "sequence must not be blank" if sequence.to_s.empty?
 
       sequence.to_s
