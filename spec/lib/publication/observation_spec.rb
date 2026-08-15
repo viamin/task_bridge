@@ -75,6 +75,22 @@ RSpec.describe Publication::Observation do
         .to raise_error(ArgumentError, /change/)
     end
 
+    it "raises when change is missing the from key" do
+      expect { described_class.new(**valid_attrs, change: { field: "status", to: "completed" }) }
+        .to raise_error(ArgumentError, /change/)
+    end
+
+    it "raises when change is missing the to key" do
+      expect { described_class.new(**valid_attrs, change: { field: "status", from: "open" }) }
+        .to raise_error(ArgumentError, /change/)
+    end
+
+    it "accepts a change whose from or to value is nil" do
+      obs = described_class.new(**valid_attrs, change: { field: "due_at", from: nil, to: "2026-08-15T17:00:00Z" })
+      expect(obs.to_payload[:change][:from]).to be_nil
+      expect(obs.to_payload[:change][:to]).to eq("2026-08-15T17:00:00Z")
+    end
+
     it "raises when is_deleted is not a boolean" do
       expect { described_class.new(**valid_attrs, is_deleted: "yes") }
         .to raise_error(ArgumentError, /is_deleted/)

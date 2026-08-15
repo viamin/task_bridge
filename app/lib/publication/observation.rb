@@ -91,12 +91,18 @@ module Publication
       raise ArgumentError, "source is missing required fields: #{missing.join(', ')}" if missing.any?
     end
 
-    # change describes a single field transition and must name the field it covers.
+    # change describes a single field transition as field, from, and to. All
+    # three keys must be present; from/to values may be nil when a field is
+    # first observed or cleared, but a partial transition must not be published.
     def validate_change!(change)
       return if change.nil?
-      return if change.is_a?(Hash) && change[:field].present?
+      return if valid_change?(change)
 
-      raise ArgumentError, "change must be a hash with a non-blank :field when provided"
+      raise ArgumentError, "change must be a hash with a non-blank :field and :from/:to keys when provided"
+    end
+
+    def valid_change?(change)
+      change.is_a?(Hash) && change[:field].present? && change.key?(:from) && change.key?(:to)
     end
 
     # last_known preserves the pre-deletion state on tombstones as a structured
