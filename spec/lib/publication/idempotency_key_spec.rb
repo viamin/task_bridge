@@ -66,6 +66,38 @@ RSpec.describe Publication::IdempotencyKey do
       obs_key  = described_class.for_observation(service_instance:, external_id:, event_type: "snapshot_seen", observed_at: observed_at_str)
       expect(item_key).not_to eq(obs_key)
     end
+
+    it "ends the key with the sequence segment when timestamps collide" do
+      key = described_class.for_observation(
+        service_instance:, external_id:, event_type: "source_changed", sequence: 2
+      )
+      expect(key).to eq("tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2")
+    end
+
+    it "builds distinct sequence keys for transitions sharing an observed_at" do
+      args = { service_instance:, external_id:, event_type: "source_changed" }
+      expect(described_class.for_observation(**args, sequence: 1))
+        .not_to eq(described_class.for_observation(**args, sequence: 2))
+    end
+
+    it "raises when both observed_at and sequence are provided" do
+      expect do
+        described_class.for_observation(service_instance:, external_id:, event_type: "source_changed",
+                                        observed_at: observed_at_str, sequence: 1)
+      end.to raise_error(ArgumentError, /not both/)
+    end
+
+    it "raises when neither observed_at nor sequence is provided" do
+      expect do
+        described_class.for_observation(service_instance:, external_id:, event_type: "source_changed")
+      end.to raise_error(ArgumentError, /observed_at or sequence is required/)
+    end
+
+    it "raises when sequence is blank" do
+      expect do
+        described_class.for_observation(service_instance:, external_id:, event_type: "source_changed", sequence: "")
+      end.to raise_error(ArgumentError, /observed_at or sequence is required/)
+    end
   end
 
   describe ".for_mapping" do
@@ -86,6 +118,24 @@ RSpec.describe Publication::IdempotencyKey do
       key1 = described_class.for_mapping(**base_args, observed_at: "2026-08-14T19:21:00.000000Z")
       key2 = described_class.for_mapping(**base_args, observed_at: "2026-08-14T20:00:00.000000Z")
       expect(key1).not_to eq(key2)
+    end
+
+    it "ends the key with the sequence segment when timestamps collide" do
+      key = described_class.for_mapping(sync_collection_id: 84, service_instance:, external_id:, sequence: 3)
+      expect(key).to eq("tb:v1:map:sync_collection:84:membership:asana:workspace-12345:default:1201234567890:3")
+    end
+
+    it "raises when both observed_at and sequence are provided" do
+      expect do
+        described_class.for_mapping(sync_collection_id: 84, service_instance:, external_id:,
+                                    observed_at: observed_at_str, sequence: 1)
+      end.to raise_error(ArgumentError, /not both/)
+    end
+
+    it "raises when neither observed_at nor sequence is provided" do
+      expect do
+        described_class.for_mapping(sync_collection_id: 84, service_instance:, external_id:)
+      end.to raise_error(ArgumentError, /observed_at or sequence is required/)
     end
   end
 
