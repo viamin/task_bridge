@@ -28,6 +28,26 @@ RSpec.describe Publication::BatchPublisher do
     end
   end
 
+  # Stubs a successful per-row response for rows and returns a hash the stub
+  # fills with the captured request options, so tests can assert on the sent
+  # body and headers.
+  def stub_success_and_capture_request(rows)
+    captured = {}
+    allow(HTTParty).to receive(:post) do |_endpoint, options|
+      captured[:request] = options
+      instance_double(
+        HTTParty::Response,
+        code: 200,
+        body: {
+          batch_id: options[:headers]["X-TaskBridge-Batch-Id"], contract_version: 1,
+          accepted: rows.length, replayed: 0, rejected: 0,
+          results: rows.map { |row| { record_kind: row.record_kind, idempotency_key: row.idempotency_key, status: "accepted" } }
+        }.to_json
+      )
+    end
+    captured
+  end
+
   let(:entry) { make_entry(key: "tb:v1:item:asana:default:1:snapshot:2026-08-14T19:00:00.000000Z") }
 
   describe "#initialize" do
@@ -399,26 +419,46 @@ RSpec.describe Publication::BatchPublisher do
 
     it "stamps every row in the batch with the same published_at" do
       second = make_entry(key: "tb:v1:item:asana:default:2:snapshot:2026-08-14T19:00:00.000000Z")
-      captured = nil
-      allow(HTTParty).to receive(:post) do |_endpoint, options|
-        captured = options
-        instance_double(
-          HTTParty::Response,
-          code: 200,
-          body: {
-            batch_id: options[:headers]["X-TaskBridge-Batch-Id"], contract_version: 1,
-            accepted: 2, replayed: 0, rejected: 0,
-            results: [entry, second].map { |e| { idempotency_key: e.idempotency_key, status: "accepted" } }
-          }.to_json
-        )
-      end
+      rows = [entry, second]
+      captured = stub_success_and_capture_request(rows)
 
-      publisher.publish([entry, second])
+      publisher.publish(rows)
 
-      body = JSON.parse(captured[:body], symbolize_names: true)
+      body = JSON.parse(captured[:request][:body], symbolize_names: true)
       timestamps = body[:items].map { |item| item[:published_at] }
       expect(timestamps).to all(be_present)
       expect(timestamps.uniq.length).to eq(1)
+    end
+
+    it "routes each record kind into its contract array with published_at stamped" do
+      observation = make_entry(key: "tb:v1:obs:asana:default:1:source_changed:2026-08-14T19:00:00.000000Z", kind: "observation")
+      mapping = make_entry(key: "tb:v1:map:sync_collection:84:membership:asana:default:1:2026-08-14T19:00:00.000000Z", kind: "mapping")
+      sync_run = make_entry(key: "tb:v1:sync_run:asana:default:run-1", kind: "sync_run")
+      rows = [entry, observation, mapping, sync_run]
+      captured = stub_success_and_capture_request(rows)
+
+      publisher.publish(rows)
+
+      body = JSON.parse(captured[:request][:body], symbolize_names: true)
+      expect(body[:items].map { |r| r[:idempotency_key] }).to contain_exactly(entry.idempotency_key)
+      expect(body[:observations].map { |r| r[:idempotency_key] }).to contain_exactly(observation.idempotency_key)
+      expect(body[:mappings].map { |r| r[:idempotency_key] }).to contain_exactly(mapping.idempotency_key)
+      expect(body[:sync_runs].map { |r| r[:idempotency_key] }).to contain_exactly(sync_run.idempotency_key)
+      all_rows = body.values_at(:items, :observations, :mappings, :sync_runs).flatten
+      expect(all_rows.map { |r| r[:published_at] }).to all(be_present)
+    end
+
+    it "keeps batch headers consistent with the body envelope per the contract" do
+      captured = stub_success_and_capture_request([entry])
+
+      publisher.publish([entry])
+
+      request = captured[:request]
+      body = JSON.parse(request[:body], symbolize_names: true)
+      headers = request[:headers]
+      expect(headers["X-TaskBridge-Contract-Version"]).to eq(body[:contract_version].to_s)
+      expect(headers["X-TaskBridge-Batch-Id"]).to eq(body[:batch][:batch_id])
+      expect(headers["X-TaskBridge-Sent-At"]).to eq(body[:batch][:sent_at])
     end
 
     context "when the response body is not valid JSON" do
