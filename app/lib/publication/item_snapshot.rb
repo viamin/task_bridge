@@ -60,7 +60,7 @@ module Publication
 
     def to_payload
       payload = {
-        contract_version: 1,
+        contract_version: CONTRACT_VERSION,
         idempotency_key:,
         item_key:,
         entity_type: ENTITY_TYPE,

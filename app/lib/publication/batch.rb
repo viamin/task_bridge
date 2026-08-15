@@ -12,8 +12,6 @@ module Publication
   # - No idempotency_key may appear more than once across all arrays.
   # - At least one record must be present.
   class Batch
-    CONTRACT_VERSION = 1
-
     attr_reader :batch_id, :sent_at, :publisher, :publisher_instance,
                 :items, :observations, :mappings, :sync_runs
 

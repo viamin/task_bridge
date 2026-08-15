@@ -103,7 +103,7 @@ RSpec.describe Publication::Batch do
     subject(:payload) { described_class.new(batch_id:, sent_at:, items: [item]).to_payload }
 
     it "includes contract_version 1" do
-      expect(payload[:contract_version]).to eq(Publication::Batch::CONTRACT_VERSION)
+      expect(payload[:contract_version]).to eq(Publication::CONTRACT_VERSION)
     end
 
     it "includes the batch envelope with batch_id and sent_at" do

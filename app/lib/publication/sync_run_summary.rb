@@ -54,7 +54,7 @@ module Publication
 
     def to_payload
       {
-        contract_version: 1,
+        contract_version: CONTRACT_VERSION,
         idempotency_key:,
         sync_run_id:,
         service_type:,

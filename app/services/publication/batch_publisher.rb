@@ -27,8 +27,7 @@ module Publication
   # delivery boundary, and splitting them would pass the same request context
   # through several objects without reducing the complexity.
   class BatchPublisher
-    CONTRACT_VERSION = 1
-    DEFAULT_TIMEOUT  = 30 # seconds
+    DEFAULT_TIMEOUT = 30 # seconds
     # Canonical record kinds the batch body can carry, mirroring the contract arrays.
     RECORD_KINDS = PublicationOutboxEntry::RECORD_KINDS.freeze
     # Per-row statuses defined by the contract response format.
@@ -128,6 +127,10 @@ module Publication
       raise ArgumentError, "payload for #{row.idempotency_key} must be a JSON object" unless parsed.is_a?(Hash)
 
       parsed
+    rescue TypeError => e
+      # JSON.parse raises TypeError (not ParserError) when payload is nil or
+      # not a string, for example on an entry that was never persisted.
+      raise ArgumentError, "payload for #{row.idempotency_key} is missing or unreadable: #{e.message}"
     rescue JSON::ParserError => e
       raise ArgumentError, "unparseable payload for #{row.idempotency_key}: #{e.message}"
     end

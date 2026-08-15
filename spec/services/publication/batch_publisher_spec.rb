@@ -173,6 +173,12 @@ RSpec.describe Publication::BatchPublisher do
         expect { publisher.publish([array_payload]) }.to raise_error(ArgumentError, /must be a JSON object/)
       end
 
+      it "raises ArgumentError when the payload is missing so JSON.parse raises TypeError" do
+        missing = make_entry(key: "tb:v1:item:asana:default:7:snapshot:2026-08-14T19:00:00.000000Z")
+        allow(missing).to receive(:parsed_payload).and_raise(TypeError, "no implicit conversion of nil into String")
+        expect { publisher.publish([missing]) }.to raise_error(ArgumentError, /payload for .*asana:default:7.*is missing or unreadable/)
+      end
+
       it "does not send an HTTP request" do
         allow(HTTParty).to receive(:post)
         array_payload = make_entry(

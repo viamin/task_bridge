@@ -50,7 +50,7 @@ module Publication
 
     def to_payload
       {
-        contract_version: 1,
+        contract_version: CONTRACT_VERSION,
         idempotency_key:,
         event_type:,
         observed_at: Timestamp.format(observed_at),
