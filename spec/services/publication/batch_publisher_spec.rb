@@ -357,6 +357,26 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when the endpoint redirects too deeply" do
+      before { allow(HTTParty).to receive(:post).and_raise(HTTParty::RedirectionTooDeep.new("redirect too deep")) }
+
+      it "raises a retryable DeliveryError instead of leaking the raw exception" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /transport error/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the connection breaks while writing the request body" do
+      before { allow(HTTParty).to receive(:post).and_raise(Errno::EPIPE, "Broken pipe") }
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /transport error/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when the response echoes a different batch_id" do
       before do
         stub_http(

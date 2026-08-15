@@ -14,6 +14,11 @@ module Publication
   #     entry.mark_delivered! if entry_result.accepted?
   #     entry.mark_replayed! if entry_result.replayed?
   #   end
+  #
+  # Deliberately larger than the ~100-line class target: request building,
+  # transport error classification, and response reconciliation form one
+  # delivery boundary, and splitting them would pass the same request context
+  # through several objects without reducing the complexity.
   class BatchPublisher
     CONTRACT_VERSION = 1
     DEFAULT_TIMEOUT  = 30 # seconds
@@ -158,7 +163,11 @@ module Publication
       )
     rescue Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout, SocketError, EOFError,
            OpenSSL::SSL::SSLError,
-           Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EHOSTUNREACH, Errno::ETIMEDOUT => e
+           Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EHOSTUNREACH, Errno::ETIMEDOUT,
+           Errno::EPIPE,
+           HTTParty::Error => e
+      # HTTParty::Error covers httparty-specific failures such as
+      # RedirectionTooDeep (redirect loop at the endpoint).
       raise DeliveryError.new("transport error: #{e.message}", retryable: true)
     end
 
