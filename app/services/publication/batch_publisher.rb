@@ -299,14 +299,4 @@ module Publication
       raise DeliveryError.new("unreconcilable response: unknown result status #{status.inspect}", retryable: true)
     end
   end
-
-  # Raised when the HTTP layer fails in a way that prevents row-level result parsing.
-  class DeliveryError < StandardError
-    attr_reader :retryable
-
-    def initialize(message, retryable:)
-      super(message)
-      @retryable = retryable
-    end
-  end
 end

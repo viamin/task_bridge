@@ -36,7 +36,7 @@ class PublicationOutboxEntry < ApplicationRecord
   validates :record_kind, presence: true, inclusion: { in: RECORD_KINDS }
   validates :payload, presence: true
   validates :status, presence: true, inclusion: { in: STATUSES }
-  validates :retry_count, numericality: { greater_than_or_equal_to: 0 }
+  validates :retry_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :payload_must_be_a_json_object
 
   scope :pending,    -> { where(status: "pending") }

@@ -637,15 +637,4 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
   end
-
-  describe Publication::DeliveryError do
-    it "exposes retryable" do
-      err = described_class.new("oops", retryable: true)
-      expect(err.retryable).to be true
-    end
-
-    it "is a StandardError" do
-      expect(described_class.new("x", retryable: false)).to be_a(StandardError)
-    end
-  end
 end
