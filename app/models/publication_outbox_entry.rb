@@ -1,0 +1,94 @@
+# frozen_string_literal: true
+
+# == Schema Information
+#
+# Table name: publication_outbox_entries
+#
+#  id               :integer          not null, primary key
+#  idempotency_key  :string           not null
+#  record_kind      :string           not null
+#  payload          :text             not null
+#  status           :string           not null, default: "pending"
+#  retry_count      :integer          not null, default: 0
+#  error_message    :text
+#  service_type     :string
+#  service_instance :string
+#  observed_at      :datetime
+#  delivered_at     :datetime
+#  failed_at        :datetime
+#  created_at       :datetime         not null
+#  updated_at       :datetime         not null
+#
+# Indexes
+#
+#  index_publication_outbox_entries_on_idempotency_key          (idempotency_key) UNIQUE
+#  index_publication_outbox_entries_on_status_and_created_at    (status, created_at)
+#  index_publication_outbox_entries_on_service_instance_status  (service_instance, status)
+#
+class PublicationOutboxEntry < ApplicationRecord
+  STATUSES = %w[pending delivering delivered failed terminal].freeze
+  RECORD_KINDS = %w[item observation mapping sync_run].freeze
+
+  # Maximum retries before a row is moved to terminal status.
+  MAX_RETRIES = 10
+
+  validates :idempotency_key, presence: true, uniqueness: true
+  validates :record_kind, presence: true, inclusion: { in: RECORD_KINDS }
+  validates :payload, presence: true
+  validates :status, presence: true, inclusion: { in: STATUSES }
+  validates :retry_count, numericality: { greater_than_or_equal_to: 0 }
+
+  scope :pending,    -> { where(status: "pending") }
+  scope :delivering, -> { where(status: "delivering") }
+  scope :delivered,  -> { where(status: "delivered") }
+  scope :failed,     -> { where(status: "failed") }
+  scope :terminal,   -> { where(status: "terminal") }
+
+  # Rows eligible for retry: failed rows that have not exceeded MAX_RETRIES.
+  scope :retryable, -> { where(status: "failed").where("retry_count < ?", MAX_RETRIES) }
+
+  # Returns rows ready for the next publish attempt, oldest-first.
+  scope :publishable, -> { where(status: %w[pending failed]).where("retry_count < ?", MAX_RETRIES).order(:created_at) }
+
+  # Builds an entry from a Publication value object without saving.
+  #
+  # service_type and service_instance are sourced from payload[:source] for item,
+  # observation, and mapping records, and from the payload root for sync_run records.
+  def self.from_record(record)
+    payload       = record.to_payload
+    source        = payload[:source] || {}
+    service_type  = source[:service_type] || payload[:service_type]
+    svc_instance  = source[:service_instance] || payload[:service_instance]
+    new(
+      idempotency_key: payload[:idempotency_key],
+      record_kind: record.class::RECORD_KIND,
+      payload: payload.to_json,
+      service_type:,
+      service_instance: svc_instance,
+      observed_at: payload[:observed_at] || payload[:started_at]
+    )
+  end
+
+  def mark_delivered!
+    update!(status: "delivered", delivered_at: Time.current, error_message: nil)
+  end
+
+  def mark_failed!(message:)
+    new_count = retry_count + 1
+    new_status = new_count >= MAX_RETRIES ? "terminal" : "failed"
+    update!(
+      status: new_status,
+      retry_count: new_count,
+      failed_at: Time.current,
+      error_message: message.to_s.truncate(1000)
+    )
+  end
+
+  def mark_replayed!
+    update!(status: "delivered", delivered_at: Time.current, error_message: nil)
+  end
+
+  def parsed_payload
+    @parsed_payload ||= JSON.parse(payload, symbolize_names: true)
+  end
+end
