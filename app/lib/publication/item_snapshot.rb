@@ -201,9 +201,20 @@ module Publication
     end
 
     def validate_source_collection_keys!(keys)
-      return if keys.nil? || (keys.is_a?(Array) && keys.all?(Hash))
+      return if keys.nil? || (keys.is_a?(Array) && keys.all? { |key| valid_source_collection_key?(key) })
 
-      raise ArgumentError, "source.source_collection_keys must be an array of objects when provided"
+      raise ArgumentError, "source.source_collection_keys must be an array of objects with non-blank string kind and id when provided"
+    end
+
+    # Each entry identifies one provider collection as { kind:, id: }; an entry
+    # missing either half, or carrying a wrong-typed or blank value, is not a
+    # usable identifier. valid_encoding? precedes present? because present?
+    # itself raises on invalid byte sequences.
+    def valid_source_collection_key?(key)
+      key.is_a?(Hash) && %i[kind id].all? do |field|
+        value = key[field]
+        value.is_a?(String) && value.valid_encoding? && value.present?
+      end
     end
   end
 end

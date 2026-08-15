@@ -28,6 +28,11 @@ module Publication
   # through several objects without reducing the complexity.
   class BatchPublisher
     DEFAULT_TIMEOUT = 30 # seconds
+    # Remote bodies are embedded in DeliveryError messages (and later persisted
+    # through the outbox error_message column, which truncates at 1000); a
+    # smaller bound here keeps the full message well under that limit no matter
+    # how large the remote error page is.
+    RESPONSE_EXCERPT_MAX = 500
     # Canonical record kinds the batch body can carry, mirroring the contract arrays.
     RECORD_KINDS = PublicationOutboxEntry::RECORD_KINDS.freeze
     # Per-row statuses defined by the contract response format.
@@ -290,10 +295,12 @@ module Publication
     end
 
     # Remote bodies (proxy error pages, misbehaving servers) can carry bytes
-    # that are not valid UTF-8; scrubbing keeps the embedded excerpt safe to
-    # log and to persist through the outbox error_message column.
+    # that are not valid UTF-8 and can be arbitrarily large; scrubbing keeps
+    # the embedded excerpt safe to log and to persist through the outbox
+    # error_message column, and truncation bounds the message regardless of
+    # what the remote sent back.
     def response_excerpt(response)
-      Utf8.sanitize(response.body.to_s)
+      Utf8.sanitize(response.body.to_s).truncate(RESPONSE_EXCERPT_MAX)
     end
 
     def parse_row_results(response, rows, batch_id:)

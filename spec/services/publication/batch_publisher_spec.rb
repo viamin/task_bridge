@@ -1047,5 +1047,19 @@ RSpec.describe Publication::BatchPublisher do
         end
       end
     end
+
+    context "when a non-200 response body is huge" do
+      before do
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: 422, body: "x" * 100_000)
+        )
+      end
+
+      it "bounds the embedded excerpt so the error message stays loggable" do
+        expect { publisher.publish([entry]) }.to raise_error(Publication::DeliveryError) do |e|
+          expect(e.message.length).to be < 600
+        end
+      end
+    end
   end
 end

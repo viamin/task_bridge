@@ -187,6 +187,30 @@ RSpec.describe Publication::ItemSnapshot do
       end.to raise_error(ArgumentError, /source\.source_collection_keys must be an array of objects/)
     end
 
+    it "raises when a source_collection_keys entry is missing kind or id" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(source_collection_keys: [{ id: "project-9" }]))
+      end.to raise_error(ArgumentError, /source\.source_collection_keys/)
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(source_collection_keys: [{ kind: "project" }]))
+      end.to raise_error(ArgumentError, /source\.source_collection_keys/)
+    end
+
+    it "raises when a source_collection_keys entry has wrong-typed or blank values" do
+      [{ kind: 42, id: "project-9" }, { kind: "project", id: 42 },
+       { kind: "", id: "project-9" }, { kind: "project", id: "" }].each do |entry|
+        expect do
+          described_class.new(**valid_attrs, source: valid_source.merge(source_collection_keys: [entry]))
+        end.to raise_error(ArgumentError, /source\.source_collection_keys/)
+      end
+    end
+
+    it "raises when a source_collection_keys entry carries invalid UTF-8 instead of crashing on presence" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(source_collection_keys: [{ kind: (+"proj\xff").force_encoding("UTF-8"), id: "project-9" }]))
+      end.to raise_error(ArgumentError, /source\.source_collection_keys/)
+    end
+
     it "accepts source_url and source_collection_keys in their documented shapes" do
       snapshot = described_class.new(
         **valid_attrs,

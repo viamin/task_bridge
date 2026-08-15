@@ -124,23 +124,37 @@ module Publication
     end
 
     def validate_source_collection_keys!(keys)
-      return if keys.nil? || (keys.is_a?(Array) && keys.all?(Hash))
+      return if keys.nil? || (keys.is_a?(Array) && keys.all? { |key| valid_source_collection_key?(key) })
 
-      raise ArgumentError, "source.source_collection_keys must be an array of objects when provided"
+      raise ArgumentError, "source.source_collection_keys must be an array of objects with non-blank string kind and id when provided"
+    end
+
+    # Each entry identifies one provider collection as { kind:, id: }; an entry
+    # missing either half, or carrying a wrong-typed or blank value, is not a
+    # usable identifier. valid_encoding? precedes present? because present?
+    # itself raises on invalid byte sequences.
+    def valid_source_collection_key?(key)
+      key.is_a?(Hash) && %i[kind id].all? do |field|
+        value = key[field]
+        value.is_a?(String) && value.valid_encoding? && value.present?
+      end
     end
 
     # change describes a single field transition as field, from, and to. All
     # three keys must be present; from/to values may be nil when a field is
     # first observed or cleared, but a partial transition must not be published.
+    # field names a contract field, so anything but a string would surface as a
+    # remote non-retryable row rejection and must fail here instead.
     def validate_change!(change)
       return if change.nil?
       return if valid_change?(change)
 
-      raise ArgumentError, "change must be a hash with a non-blank :field and :from/:to keys when provided"
+      raise ArgumentError, "change must be a hash with a non-blank string :field and :from/:to keys when provided"
     end
 
     def valid_change?(change)
-      change.is_a?(Hash) && change[:field].present? && change.key?(:from) && change.key?(:to)
+      change.is_a?(Hash) && change[:field].is_a?(String) && change[:field].present? &&
+        change.key?(:from) && change.key?(:to)
     end
 
     # last_known preserves the pre-deletion state on tombstones as a structured
