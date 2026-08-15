@@ -355,6 +355,12 @@ RSpec.describe Publication::BatchPublisher do
       it "attaches the entry to the result" do
         expect(publisher.publish([entry]).first.entry).to eq(entry)
       end
+
+      it "leaves error_code and message nil for accepted rows instead of empty strings" do
+        result = publisher.publish([entry]).first
+        expect(result.error_code).to be_nil
+        expect(result.message).to be_nil
+      end
     end
 
     context "when the server returns 200 with a replayed result" do

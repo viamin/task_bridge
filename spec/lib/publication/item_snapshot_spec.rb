@@ -328,6 +328,18 @@ RSpec.describe Publication::ItemSnapshot do
       end.to raise_error(ArgumentError, /sync_collection\.title must be valid UTF-8/)
     end
 
+    it "raises when sync_collection mapping_source contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, mapping_source: (+"sync_id_\xff").force_encoding("UTF-8") })
+      end.to raise_error(ArgumentError, /sync_collection\.mapping_source must be valid UTF-8/)
+    end
+
+    it "raises when a sync_collection extra key carries invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, extra_note: (+"note \xff").force_encoding("UTF-8") })
+      end.to raise_error(ArgumentError, /sync_collection\.extra_note must be valid UTF-8/)
+    end
+
     it "raises when sync_collection_id contains invalid UTF-8 byte sequences" do
       expect do
         described_class.new(**valid_attrs, sync_collection: { sync_collection_id: (+"8\xff").force_encoding("UTF-8") })

@@ -83,10 +83,7 @@ module Publication
     # sequences. Non-string values are left to the type checks that follow.
     def validate_text_encoding!
       fields = { idempotency_key:, mapping_source: }
-      if sync_collection.is_a?(Hash)
-        fields[:"sync_collection.sync_collection_id"] = sync_collection[:sync_collection_id]
-        fields[:"sync_collection.title"] = sync_collection[:title]
-      end
+      sync_collection.each { |key, value| fields[:"sync_collection.#{key}"] = value } if sync_collection.is_a?(Hash)
       member.each { |key, value| fields[:"member.#{key}"] = value } if member.is_a?(Hash)
       Utf8.validate_fields!(fields)
     end

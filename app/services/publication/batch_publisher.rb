@@ -331,8 +331,11 @@ module Publication
     # debugging proxy) can reflect the request's own Authorization value back
     # in a body or row message, so the credential is redacted wherever remote
     # text crosses that boundary. gsub with a String pattern is a literal
-    # match, so key bytes with regex meaning are safe.
+    # match, so key bytes with regex meaning are safe. nil passes through so
+    # accepted rows keep absent error fields rather than empty strings.
     def redact_credentials(text)
+      return if text.nil?
+
       text.to_s.gsub(api_key, "[REDACTED]")
     end
 

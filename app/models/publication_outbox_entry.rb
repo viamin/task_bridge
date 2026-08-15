@@ -101,7 +101,7 @@ class PublicationOutboxEntry < ApplicationRecord
 
   # The record-level UTF-8 guards cover the string fields most likely to
   # carry malformed provider bytes; nested values they do not cover
-  # (provenance, parent, change from/to transitions, source_metadata) fail
+  # (provenance, change from/to transitions, source_metadata) fail
   # JSON generation here. Reject at write time with the offending key
   # instead of surfacing an opaque GeneratorError from deep in serialization.
   # NestingError (a ParserError subclass) is rescued too: a deeply nested

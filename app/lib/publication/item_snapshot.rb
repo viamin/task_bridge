@@ -128,10 +128,7 @@ module Publication
                  due_at:, started_at: }
       source.each { |key, value| fields[:"source.#{key}"] = value } if source.is_a?(Hash)
       parent.each { |key, value| fields[:"parent.#{key}"] = value } if parent.is_a?(Hash)
-      if sync_collection.is_a?(Hash)
-        fields[:"sync_collection.sync_collection_id"] = sync_collection[:sync_collection_id]
-        fields[:"sync_collection.title"] = sync_collection[:title]
-      end
+      sync_collection.each { |key, value| fields[:"sync_collection.#{key}"] = value } if sync_collection.is_a?(Hash)
       Utf8.validate_fields!(fields)
     end
 
