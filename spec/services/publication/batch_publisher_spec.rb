@@ -69,6 +69,33 @@ RSpec.describe Publication::BatchPublisher do
       expect(HTTParty).not_to have_received(:post)
     end
 
+    context "when a stored payload carries a different contract_version" do
+      let(:v2_entry) do
+        make_entry(
+          key: "tb:v1:item:asana:default:2:snapshot:2026-08-14T19:00:00.000000Z",
+          payload: { contract_version: 2, idempotency_key: "tb:v1:item:asana:default:2:snapshot:2026-08-14T19:00:00.000000Z" }.to_json
+        )
+      end
+
+      it "raises ArgumentError instead of silently sending a v2 row in a v1 batch" do
+        expect { publisher.publish([v2_entry]) }.to raise_error(ArgumentError, /payload contract_version/)
+      end
+
+      it "does not send an HTTP request" do
+        allow(HTTParty).to receive(:post)
+        expect { publisher.publish([v2_entry]) }.to raise_error(ArgumentError)
+        expect(HTTParty).not_to have_received(:post)
+      end
+    end
+
+    it "raises ArgumentError when a stored payload omits contract_version" do
+      bare = make_entry(
+        key: "tb:v1:item:asana:default:3:snapshot:2026-08-14T19:00:00.000000Z",
+        payload: { idempotency_key: "tb:v1:item:asana:default:3:snapshot:2026-08-14T19:00:00.000000Z" }.to_json
+      )
+      expect { publisher.publish([bare]) }.to raise_error(ArgumentError, /payload contract_version/)
+    end
+
     context "when the server returns 200 with accepted results" do
       before do
         stub_http(

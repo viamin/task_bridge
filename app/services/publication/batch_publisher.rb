@@ -49,6 +49,7 @@ module Publication
       raise ArgumentError, "unknown record_kind(s): #{unknown.join(', ')}" if unknown.any?
 
       check_duplicate_idempotency_keys!(rows)
+      check_payload_contract_versions!(rows)
 
       batch_id     = SecureRandom.uuid
       sent_at      = Timestamp.format(Time.current)
@@ -70,6 +71,17 @@ module Publication
       return if duplicates.empty?
 
       raise ArgumentError, "duplicate idempotency_key(s) in batch: #{duplicates.join(', ')}"
+    end
+
+    # The contract requires every row's contract_version to equal the batch's,
+    # so a row persisted under a different major version must never be silently
+    # sent through a v1 batch.
+    def check_payload_contract_versions!(rows)
+      mismatched = rows.reject { |row| row.parsed_payload[:contract_version] == CONTRACT_VERSION }
+      return if mismatched.empty?
+
+      keys = mismatched.map(&:idempotency_key).join(", ")
+      raise ArgumentError, "payload contract_version must be #{CONTRACT_VERSION} for idempotency_key(s): #{keys}"
     end
 
     def build_body(rows, batch_id:, sent_at:, published_at:)
