@@ -53,6 +53,11 @@ RSpec.describe Publication::Mapping do
       expect { described_class.new(**valid_attrs, sync_collection: { title: "no id" }) }.to raise_error(ArgumentError, /sync_collection_id/)
     end
 
+    it "raises when sync_collection_id is blank" do
+      expect { described_class.new(**valid_attrs, sync_collection: { sync_collection_id: "" }) }
+        .to raise_error(ArgumentError, /sync_collection_id/)
+    end
+
     it "raises when member is nil" do
       expect { described_class.new(**valid_attrs, member: nil) }.to raise_error(ArgumentError, /member/)
     end

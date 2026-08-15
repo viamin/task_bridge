@@ -37,6 +37,7 @@ class PublicationOutboxEntry < ApplicationRecord
   validates :payload, presence: true
   validates :status, presence: true, inclusion: { in: STATUSES }
   validates :retry_count, numericality: { greater_than_or_equal_to: 0 }
+  validate :payload_must_be_a_json_object
 
   scope :pending,    -> { where(status: "pending") }
   scope :delivering, -> { where(status: "delivering") }
@@ -92,5 +93,19 @@ class PublicationOutboxEntry < ApplicationRecord
 
   def parsed_payload
     @parsed_payload ||= JSON.parse(payload, symbolize_names: true)
+  end
+
+  private
+
+  # The publisher sends the stored payload verbatim, so a row that is not a
+  # JSON object could never satisfy the batch contract and must be rejected at
+  # write time instead of failing (or crashing) a later publish attempt.
+  def payload_must_be_a_json_object
+    return if payload.blank?
+
+    parsed = JSON.parse(payload)
+    errors.add(:payload, "must be a JSON object") unless parsed.is_a?(Hash)
+  rescue JSON::ParserError
+    errors.add(:payload, "must be valid JSON")
   end
 end

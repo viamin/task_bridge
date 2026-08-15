@@ -26,15 +26,17 @@ module Publication
       def rejected?  = status == "rejected"
     end
 
-    attr_reader :endpoint, :api_key, :publisher_instance
+    attr_reader :endpoint, :api_key, :publisher_instance, :timeout
 
-    def initialize(endpoint:, api_key:, publisher_instance: nil)
+    def initialize(endpoint:, api_key:, publisher_instance: nil, timeout: DEFAULT_TIMEOUT)
       raise ArgumentError, "endpoint is required" if endpoint.blank?
       raise ArgumentError, "api_key is required" if api_key.blank?
+      raise ArgumentError, "timeout must be a positive integer" unless timeout.is_a?(Integer) && timeout.positive?
 
       @endpoint           = endpoint
       @api_key            = api_key
       @publisher_instance = publisher_instance
+      @timeout            = timeout
     end
 
     # Publishes outbox entries as a single HTTP batch.
@@ -75,13 +77,23 @@ module Publication
 
     # The contract requires every row's contract_version to equal the batch's,
     # so a row persisted under a different major version must never be silently
-    # sent through a v1 batch.
+    # sent through a v1 batch. Corrupt payloads fail here with a clear error
+    # naming the offending row instead of a raw JSON or type error later.
     def check_payload_contract_versions!(rows)
-      mismatched = rows.reject { |row| row.parsed_payload[:contract_version] == CONTRACT_VERSION }
+      mismatched = rows.reject { |row| payload_contract_version(row) == CONTRACT_VERSION }
       return if mismatched.empty?
 
       keys = mismatched.map(&:idempotency_key).join(", ")
       raise ArgumentError, "payload contract_version must be #{CONTRACT_VERSION} for idempotency_key(s): #{keys}"
+    end
+
+    def payload_contract_version(row)
+      parsed = row.parsed_payload
+      raise ArgumentError, "payload for #{row.idempotency_key} must be a JSON object" unless parsed.is_a?(Hash)
+
+      parsed[:contract_version]
+    rescue JSON::ParserError => e
+      raise ArgumentError, "unparseable payload for #{row.idempotency_key}: #{e.message}"
     end
 
     def build_body(rows, batch_id:, sent_at:, published_at:)
@@ -118,9 +130,10 @@ module Publication
         endpoint,
         body:,
         headers:,
-        timeout: DEFAULT_TIMEOUT
+        timeout:
       )
-    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, EOFError,
+    rescue Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout, SocketError, EOFError,
+           OpenSSL::SSL::SSLError,
            Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EHOSTUNREACH, Errno::ETIMEDOUT => e
       raise DeliveryError.new("transport error: #{e.message}", retryable: true)
     end

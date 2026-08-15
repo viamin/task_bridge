@@ -75,7 +75,7 @@ module Publication
     def validate_sync_collection!(sync_collection)
       raise ArgumentError, "sync_collection is required" if sync_collection.nil?
       raise ArgumentError, "sync_collection must be a hash" unless sync_collection.is_a?(Hash)
-      raise ArgumentError, "sync_collection.sync_collection_id is required" if sync_collection[:sync_collection_id].nil?
+      raise ArgumentError, "sync_collection.sync_collection_id is required" if sync_collection[:sync_collection_id].blank?
     end
 
     def validate_member!(member)

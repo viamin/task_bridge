@@ -38,6 +38,11 @@ RSpec.describe Publication::BatchPublisher do
     it "raises ArgumentError when api_key is blank" do
       expect { described_class.new(endpoint:, api_key: "") }.to raise_error(ArgumentError, /api_key/)
     end
+
+    it "raises ArgumentError when timeout is not a positive integer" do
+      expect { described_class.new(endpoint:, api_key:, timeout: 0) }.to raise_error(ArgumentError, /timeout/)
+      expect { described_class.new(endpoint:, api_key:, timeout: "30") }.to raise_error(ArgumentError, /timeout/)
+    end
   end
 
   describe "#publish" do
@@ -94,6 +99,32 @@ RSpec.describe Publication::BatchPublisher do
         payload: { idempotency_key: "tb:v1:item:asana:default:3:snapshot:2026-08-14T19:00:00.000000Z" }.to_json
       )
       expect { publisher.publish([bare]) }.to raise_error(ArgumentError, /payload contract_version/)
+    end
+
+    context "when a stored payload is corrupt" do
+      it "raises ArgumentError naming the row instead of leaking a JSON error" do
+        corrupt = make_entry(key: "tb:v1:item:asana:default:4:snapshot:2026-08-14T19:00:00.000000Z")
+        allow(corrupt).to receive(:parsed_payload).and_raise(JSON::ParserError, "unexpected token")
+        expect { publisher.publish([corrupt]) }.to raise_error(ArgumentError, /unparseable payload .*asana:default:4/)
+      end
+
+      it "raises ArgumentError when the payload parses to a non-object" do
+        array_payload = make_entry(
+          key: "tb:v1:item:asana:default:5:snapshot:2026-08-14T19:00:00.000000Z",
+          payload: "[1, 2]"
+        )
+        expect { publisher.publish([array_payload]) }.to raise_error(ArgumentError, /must be a JSON object/)
+      end
+
+      it "does not send an HTTP request" do
+        allow(HTTParty).to receive(:post)
+        array_payload = make_entry(
+          key: "tb:v1:item:asana:default:5:snapshot:2026-08-14T19:00:00.000000Z",
+          payload: "[1, 2]"
+        )
+        expect { publisher.publish([array_payload]) }.to raise_error(ArgumentError)
+        expect(HTTParty).not_to have_received(:post)
+      end
     end
 
     context "when the server returns 200 with accepted results" do
@@ -205,6 +236,26 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when the connection times out during write" do
+      before { allow(HTTParty).to receive(:post).and_raise(Net::WriteTimeout) }
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /transport error/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the TLS handshake fails" do
+      before { allow(HTTParty).to receive(:post).and_raise(OpenSSL::SSL::SSLError, "certificate verify failed") }
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /transport error/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when the response echoes a different batch_id" do
       before do
         stub_http(
@@ -250,6 +301,19 @@ RSpec.describe Publication::BatchPublisher do
           )
         )
       )
+    end
+
+    it "sends the configured timeout with the request" do
+      stub_http(
+        status: 200,
+        body: {
+          batch_id: "x", contract_version: 1,
+          accepted: 1, replayed: 0, rejected: 0,
+          results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+        }
+      )
+      described_class.new(endpoint:, api_key:, timeout: 5).publish([entry])
+      expect(HTTParty).to have_received(:post).with(endpoint, hash_including(timeout: 5))
     end
 
     it "stamps every row in the batch with the same published_at" do

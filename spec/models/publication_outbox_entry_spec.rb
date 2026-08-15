@@ -52,6 +52,18 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       entry = described_class.new(valid_entry_attrs.merge(payload: ""))
       expect(entry).not_to be_valid
     end
+
+    it "rejects a payload that is not valid JSON" do
+      entry = described_class.new(valid_entry_attrs.merge(payload: "not json"))
+      expect(entry).not_to be_valid
+      expect(entry.errors[:payload]).to be_present
+    end
+
+    it "rejects a payload that is valid JSON but not an object" do
+      entry = described_class.new(valid_entry_attrs.merge(payload: "[1, 2]"))
+      expect(entry).not_to be_valid
+      expect(entry.errors[:payload]).to include("must be a JSON object")
+    end
   end
 
   describe ".from_record" do
