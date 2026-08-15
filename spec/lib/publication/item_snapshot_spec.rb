@@ -93,6 +93,18 @@ RSpec.describe Publication::ItemSnapshot do
         .to raise_error(ArgumentError, /parent/)
     end
 
+    it "raises when a parent identity field is not a string" do
+      expect { described_class.new(**valid_attrs, parent: { item_key: 42 }) }
+        .to raise_error(ArgumentError, /parent\.item_key must be a string/)
+      expect { described_class.new(**valid_attrs, parent: { external_id: 120_123_456_789 }) }
+        .to raise_error(ArgumentError, /parent\.external_id must be a string/)
+    end
+
+    it "accepts a parent with nil identity fields per the v1 schema" do
+      snapshot = described_class.new(**valid_attrs, parent: { external_id: nil, item_key: nil })
+      expect(snapshot.to_payload[:parent]).to eq(external_id: nil, item_key: nil)
+    end
+
     it "raises when source_metadata is not a hash" do
       expect { described_class.new(**valid_attrs, source_metadata: "item_type=task") }
         .to raise_error(ArgumentError, /source_metadata/)
@@ -268,6 +280,11 @@ RSpec.describe Publication::ItemSnapshot do
     it "raises when a source identity field contains invalid UTF-8 byte sequences" do
       expect { described_class.new(**valid_attrs, source: valid_source.merge(external_id: (+"1201\xff").force_encoding("UTF-8"))) }
         .to raise_error(ArgumentError, /source\.external_id must be valid UTF-8/)
+    end
+
+    it "raises when a parent identity field contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, parent: { item_key: (+"asana:\xff").force_encoding("UTF-8") }) }
+        .to raise_error(ArgumentError, /parent\.item_key must be valid UTF-8/)
     end
 
     it "raises when sync_collection title contains invalid UTF-8 byte sequences" do

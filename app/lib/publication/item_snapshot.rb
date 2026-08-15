@@ -99,11 +99,11 @@ module Publication
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
       raise ArgumentError, "is_deleted must be true or false" unless [true, false].include?(is_deleted)
       raise ArgumentError, "notes_preview must be a string when provided" unless notes_preview.nil? || notes_preview.is_a?(String)
-      raise ArgumentError, "parent must be a hash when provided" unless parent.nil? || parent.is_a?(Hash)
       raise ArgumentError, "source_metadata must be a hash when provided" unless source_metadata.nil? || source_metadata.is_a?(Hash)
 
       validate_tags!
       validate_source!(source)
+      validate_parent!(parent)
       validate_sync_collection!(sync_collection)
       Timestamp.validate!(observed_at, completed_at, source_created_at, source_updated_at, due_at, started_at)
     end
@@ -127,6 +127,7 @@ module Publication
                  observed_at:, completed_at:, source_created_at:, source_updated_at:,
                  due_at:, started_at: }
       source.each { |key, value| fields[:"source.#{key}"] = value } if source.is_a?(Hash)
+      parent.each { |key, value| fields[:"parent.#{key}"] = value } if parent.is_a?(Hash)
       if sync_collection.is_a?(Hash)
         fields[:"sync_collection.sync_collection_id"] = sync_collection[:sync_collection_id]
         fields[:"sync_collection.title"] = sync_collection[:title]
@@ -152,6 +153,21 @@ module Publication
       return if mapping_source.nil? || mapping_source.is_a?(String)
 
       raise ArgumentError, "sync_collection.mapping_source must be a string when provided"
+    end
+
+    # parent references another item by the same identity-string fields used
+    # everywhere else in the contract, so a wrong-typed value must fail here
+    # rather than as a remote non-retryable row rejection. Both fields may be
+    # nil when the source has no parent, per the v1 schema.
+    def validate_parent!(parent)
+      raise ArgumentError, "parent must be a hash when provided" unless parent.nil? || parent.is_a?(Hash)
+      return if parent.nil?
+
+      %i[external_id item_key].each do |field|
+        next if parent[field].nil? || parent[field].is_a?(String)
+
+        raise ArgumentError, "parent.#{field} must be a string when provided"
+      end
     end
 
     def validate_enum!(value, allowed, field)
