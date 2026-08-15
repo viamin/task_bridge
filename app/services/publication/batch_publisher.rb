@@ -84,6 +84,7 @@ module Publication
       unknown = rows.map(&:record_kind).uniq - RECORD_KINDS
       raise ArgumentError, "unknown record_kind(s): #{unknown.map(&:inspect).join(', ')}" unless unknown.empty?
 
+      check_idempotency_keys_present!(rows)
       check_duplicate_idempotency_keys!(rows)
       check_payload_contract_versions!(rows)
       check_payload_idempotency_keys!(rows)
@@ -126,6 +127,23 @@ module Publication
       return if rows.all? { |row| interface.all? { |method| row.respond_to?(method) } }
 
       raise ArgumentError, "entries must respond to #{interface.join(', ')}"
+    end
+
+    # A row without a non-blank string idempotency_key can never be reconciled:
+    # results echo the payload key, so a keyless row would fail the whole batch
+    # with an unreconcilable response (or retry forever as missing_result).
+    # A single nil or "" key is not a duplicate and nil == nil satisfies the
+    # payload-key match, so presence needs its own guard. present? raises on
+    # invalid UTF-8, so encoding is verified first.
+    def check_idempotency_keys_present!(rows)
+      blank = rows.reject { |row| present_idempotency_key?(row.idempotency_key) }
+      return if blank.empty?
+
+      raise ArgumentError, "entries must carry a non-blank string idempotency_key"
+    end
+
+    def present_idempotency_key?(key)
+      key.is_a?(String) && key.valid_encoding? && key.present?
     end
 
     # The contract forbids repeating an idempotency_key within a batch. The
@@ -281,6 +299,11 @@ module Publication
         raise DeliveryError.new("payload too large (413): reduce batch size", retryable: true)
       when 429
         raise DeliveryError.new("rate limited (429): back off and retry", retryable: true)
+      when 408
+        # 408 is the server giving up while waiting for the request: a
+        # transient condition like 429, and retry is safe under idempotent
+        # ingestion, so it must not park rows in terminal state.
+        raise DeliveryError.new("request timeout (408): retry", retryable: true)
       else
         # Unexpected statuses (for example a 204 or 3xx without the contract
         # result body) leave row delivery state ambiguous, and retrying is safe

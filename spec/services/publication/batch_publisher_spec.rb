@@ -175,6 +175,33 @@ RSpec.describe Publication::BatchPublisher do
       expect(HTTParty).not_to have_received(:post)
     end
 
+    context "when an entry carries no usable idempotency_key" do
+      it "raises ArgumentError when an entry's idempotency_key is nil" do
+        keyless = make_entry(key: nil)
+        expect { publisher.publish([keyless]) }.to raise_error(ArgumentError, /non-blank string idempotency_key/)
+      end
+
+      it "raises ArgumentError when an entry's idempotency_key is a blank string" do
+        blank = make_entry(key: "")
+        expect { publisher.publish([blank]) }.to raise_error(ArgumentError, /non-blank string idempotency_key/)
+      end
+
+      it "raises ArgumentError when an entry's idempotency_key carries invalid UTF-8" do
+        malformed = make_entry(
+          key: (+"tb:v1:item:\xff").force_encoding("UTF-8"),
+          payload: { contract_version: 1, source: {} }.to_json
+        )
+        expect { publisher.publish([malformed]) }.to raise_error(ArgumentError, /non-blank string idempotency_key/)
+      end
+
+      it "does not send an HTTP request" do
+        allow(HTTParty).to receive(:post)
+        keyless = make_entry(key: nil)
+        expect { publisher.publish([keyless]) }.to raise_error(ArgumentError)
+        expect(HTTParty).not_to have_received(:post)
+      end
+    end
+
     context "when a stored payload carries a different contract_version" do
       let(:v2_entry) do
         make_entry(
@@ -459,6 +486,7 @@ RSpec.describe Publication::BatchPublisher do
         302 => true,
         400 => false,
         404 => false,
+        408 => true,
         409 => false,
         413 => true,
         422 => false,
