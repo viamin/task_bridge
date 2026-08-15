@@ -38,6 +38,10 @@ RSpec.describe Publication::Observation do
       expect { described_class.new(**valid_attrs, item_key: "") }.to raise_error(ArgumentError, /item_key/)
     end
 
+    it "raises when source is nil" do
+      expect { described_class.new(**valid_attrs, source: nil) }.to raise_error(ArgumentError, /source is required/)
+    end
+
     it "raises when source is missing required fields" do
       expect do
         described_class.new(**valid_attrs, source: { service_type: "asana" })
