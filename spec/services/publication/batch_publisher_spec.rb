@@ -490,6 +490,15 @@ RSpec.describe Publication::BatchPublisher do
       expect(timestamps.uniq.length).to eq(1)
     end
 
+    it "describes one publish attempt with a single instant across envelope and rows" do
+      captured = stub_success_and_capture_request([entry])
+
+      publisher.publish([entry])
+
+      body = JSON.parse(captured[:request][:body], symbolize_names: true)
+      expect(body[:items].first[:published_at]).to eq(body[:batch][:sent_at])
+    end
+
     it "routes each record kind into its contract array with published_at stamped" do
       observation = make_entry(key: "tb:v1:obs:asana:default:1:source_changed:2026-08-14T19:00:00.000000Z", kind: "observation")
       mapping = make_entry(key: "tb:v1:map:sync_collection:84:membership:asana:default:1:2026-08-14T19:00:00.000000Z", kind: "mapping")

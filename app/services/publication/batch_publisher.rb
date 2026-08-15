@@ -68,9 +68,13 @@ module Publication
       check_payload_contract_versions!(rows)
       check_payload_idempotency_keys!(rows)
 
+      # One publish attempt is described by a single instant: deriving both
+      # stamps from the same Time.current keeps published_at from landing
+      # microsecond-before the envelope's sent_at across a clock tick.
+      attempt_time = Time.current
       batch_id     = SecureRandom.uuid
-      sent_at      = Timestamp.format(Time.current)
-      published_at = Timestamp.format(Time.current)
+      sent_at      = Timestamp.format(attempt_time)
+      published_at = Timestamp.format(attempt_time)
       body         = build_body(rows, batch_id:, sent_at:, published_at:)
       headers      = build_headers(batch_id:, sent_at:)
 

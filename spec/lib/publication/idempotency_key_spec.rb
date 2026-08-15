@@ -80,6 +80,13 @@ RSpec.describe Publication::IdempotencyKey do
         .not_to eq(described_class.for_observation(**args, sequence: 2))
     end
 
+    it "accepts a zero sequence so 0-based caller indices are not rejected" do
+      key = described_class.for_observation(
+        service_instance:, external_id:, event_type: "source_changed", sequence: 0
+      )
+      expect(key).to end_with(":source_changed:0")
+    end
+
     it "raises when both observed_at and sequence are provided" do
       expect do
         described_class.for_observation(service_instance:, external_id:, event_type: "source_changed",
@@ -93,10 +100,10 @@ RSpec.describe Publication::IdempotencyKey do
       end.to raise_error(ArgumentError, /observed_at or sequence is required/)
     end
 
-    it "raises when sequence is blank" do
+    it "raises when sequence is a blank string" do
       expect do
         described_class.for_observation(service_instance:, external_id:, event_type: "source_changed", sequence: "")
-      end.to raise_error(ArgumentError, /observed_at or sequence is required/)
+      end.to raise_error(ArgumentError, /sequence must not be blank/)
     end
   end
 
@@ -123,6 +130,11 @@ RSpec.describe Publication::IdempotencyKey do
     it "ends the key with the sequence segment when timestamps collide" do
       key = described_class.for_mapping(sync_collection_id: 84, service_instance:, external_id:, sequence: 3)
       expect(key).to eq("tb:v1:map:sync_collection:84:membership:asana:workspace-12345:default:1201234567890:3")
+    end
+
+    it "accepts a zero sequence so 0-based caller indices are not rejected" do
+      key = described_class.for_mapping(sync_collection_id: 84, service_instance:, external_id:, sequence: 0)
+      expect(key).to end_with(":0")
     end
 
     it "raises when both observed_at and sequence are provided" do

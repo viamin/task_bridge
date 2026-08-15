@@ -51,12 +51,14 @@ module Publication
     private_class_method :format_timestamp
 
     # The key format ends with a single <observed_at_or_sequence> segment, so
-    # exactly one of the two may be provided.
+    # exactly one of the two may be provided. Numeric sequences are compared
+    # after to_s so a valid 0 is not swallowed by blank?.
     def self.key_tail(observed_at:, sequence:)
       raise ArgumentError, "pass observed_at or sequence, not both" if observed_at && sequence
       return format_timestamp(observed_at) if observed_at
 
-      raise ArgumentError, "observed_at or sequence is required" if sequence.blank?
+      raise ArgumentError, "observed_at or sequence is required" if sequence.nil?
+      raise ArgumentError, "sequence must not be blank" if sequence.to_s.empty?
 
       sequence.to_s
     end
