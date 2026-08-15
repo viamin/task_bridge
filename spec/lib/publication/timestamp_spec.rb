@@ -42,6 +42,20 @@ RSpec.describe Publication::Timestamp do
       expect(described_class.format("2026-08-14T21:20:31+02:00")).to eq("2026-08-14T19:20:31.000000Z")
     end
 
+    it "normalizes a timestamp string with a basic-format UTC offset" do
+      expect(described_class.format("2026-08-14T21:20:31+0200")).to eq("2026-08-14T19:20:31.000000Z")
+    end
+
+    it "raises for a zone-less datetime string instead of guessing the local timezone" do
+      expect { described_class.format("2026-08-14T19:20:31") }
+        .to raise_error(ArgumentError, /missing timezone/)
+    end
+
+    it "raises for a date-only string because it carries no timezone" do
+      expect { described_class.format("2026-08-14") }
+        .to raise_error(ArgumentError, /missing timezone/)
+    end
+
     it "produces the same output for a Time and its equivalent string" do
       time = Time.utc(2026, 8, 14, 19, 20, 31, 123_456)
       expect(described_class.format(time)).to eq(described_class.format("2026-08-14T19:20:31.123456Z"))
@@ -70,6 +84,11 @@ RSpec.describe Publication::Timestamp do
     it "raises ArgumentError when any value is unparseable" do
       expect { described_class.validate!("2026-08-14T19:20:31Z", "garbage") }
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
+    end
+
+    it "raises ArgumentError when any value lacks a timezone" do
+      expect { described_class.validate!("2026-08-14T19:20:31Z", "2026-08-14T19:20:31") }
+        .to raise_error(ArgumentError, /missing timezone/)
     end
   end
 end

@@ -19,7 +19,7 @@ module Publication
     def format(value)
       return if value.nil?
 
-      time = value.is_a?(Time) ? value : Time.iso8601(value.to_s)
+      time = value.is_a?(Time) ? value : parse_string(value)
       time.utc.strftime(FORMAT)
     rescue ArgumentError => e
       raise ArgumentError, "invalid ISO 8601 timestamp #{value.inspect}: #{e.message}"
@@ -28,6 +28,19 @@ module Publication
     # Raises ArgumentError unless every provided value is nil or parseable.
     def validate!(*values)
       values.each { |value| format(value) }
+    end
+
+    # Zone-less strings would be interpreted in the system's local timezone,
+    # silently producing machine-dependent instants (and therefore unstable
+    # idempotency keys on hosts outside UTC). The contract requires a UTC
+    # designator or an explicit numeric offset, so ambiguous inputs are
+    # rejected instead of guessed.
+    def parse_string(value)
+      string = value.to_s
+      parts = Date._iso8601(string)
+      raise ArgumentError, "missing timezone: UTC 'Z' or a numeric offset is required" if parts.key?(:year) && parts[:zone].nil?
+
+      Time.iso8601(string)
     end
   end
 end
