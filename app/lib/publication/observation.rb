@@ -92,7 +92,8 @@ module Publication
     # on invalid byte sequences. Non-string values are left to the type
     # checks that follow.
     def validate_text_encoding!
-      fields = { idempotency_key:, item_key: }
+      fields = { idempotency_key:, item_key:, observed_at:, published_at:,
+                 source_created_at:, source_updated_at:, completed_at: }
       fields[:"change.field"] = change[:field] if change.is_a?(Hash)
       source.each { |key, value| fields[:"source.#{key}"] = value } if source.is_a?(Hash)
       Utf8.validate_fields!(fields)

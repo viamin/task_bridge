@@ -191,6 +191,16 @@ RSpec.describe Publication::ItemSnapshot do
       expect { described_class.new(**valid_attrs, due_at: "tomorrow") }
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
     end
+
+    it "raises when observed_at contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, observed_at: (+"2026-08-14T19:20:31Z\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /observed_at must be valid UTF-8/)
+    end
+
+    it "raises when an optional timestamp contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, due_at: (+"2026-08-15T17:00:00Z\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /due_at must be valid UTF-8/)
+    end
   end
 
   describe "#to_payload" do

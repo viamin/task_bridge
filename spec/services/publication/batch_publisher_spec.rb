@@ -184,6 +184,14 @@ RSpec.describe Publication::BatchPublisher do
       expect { publisher.publish([bare]) }.to raise_error(ArgumentError, /payload contract_version/)
     end
 
+    it "raises ArgumentError when a stored payload carries a non-integer contract_version" do
+      floaty = make_entry(
+        key: "tb:v1:item:asana:default:9:snapshot:2026-08-14T19:00:00.000000Z",
+        payload: { contract_version: 1.0, idempotency_key: "tb:v1:item:asana:default:9:snapshot:2026-08-14T19:00:00.000000Z" }.to_json
+      )
+      expect { publisher.publish([floaty]) }.to raise_error(ArgumentError, /payload contract_version/)
+    end
+
     context "when a stored payload carries a different idempotency_key than its outbox row" do
       let(:mismatched) do
         make_entry(

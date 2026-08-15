@@ -76,6 +76,16 @@ RSpec.describe Publication::SyncRunSummary do
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
     end
 
+    it "raises when a required timestamp contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, started_at: (+"2026-08-14T19:20:00Z\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /started_at must be valid UTF-8/)
+    end
+
+    it "raises when an optional completion timestamp contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, last_failed_at: (+"2026-08-14T19:21:05Z\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /last_failed_at must be valid UTF-8/)
+    end
+
     %i[idempotency_key sync_run_id service_type service_instance].each do |field|
       it "raises when #{field} contains invalid UTF-8 byte sequences" do
         expect { described_class.new(**valid_attrs, field => (+"bad \xff").force_encoding("UTF-8")) }

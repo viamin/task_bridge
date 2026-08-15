@@ -67,7 +67,7 @@ module Publication
       # Encoding is checked first because blank? itself raises on invalid
       # byte sequences, and malformed envelope strings would crash JSON
       # generation in the publisher.
-      Utf8.validate_fields!({ batch_id:, publisher:, publisher_instance: })
+      Utf8.validate_fields!({ batch_id:, sent_at:, publisher:, publisher_instance: })
       raise ArgumentError, "batch_id is required" if batch_id.blank?
       raise ArgumentError, "batch_id must be a string" unless batch_id.is_a?(String)
       raise ArgumentError, "sent_at is required" if sent_at.blank?

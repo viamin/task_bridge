@@ -147,7 +147,8 @@ module Publication
     # themselves raise on invalid byte sequences. Non-string values are left
     # to the type checks that follow.
     def validate_text_encoding!
-      fields = { idempotency_key:, sync_run_id:, service_type:, service_instance:, "detail" => detail }
+      fields = { idempotency_key:, sync_run_id:, service_type:, service_instance:, "detail" => detail,
+                 started_at:, finished_at:, last_attempted_at:, last_successful_at:, last_failed_at: }
       if error.is_a?(Hash)
         fields["error.class"] = error[:class]
         fields["error.message"] = error[:message]

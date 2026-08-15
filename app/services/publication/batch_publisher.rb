@@ -137,12 +137,18 @@ module Publication
     # so a row persisted under a different major version must never be silently
     # sent through a v1 batch. Corrupt payloads fail here with a clear error
     # naming the offending row instead of a raw JSON or type error later.
+    # The Integer check rejects JSON 1.0: Ruby numeric equality would let the
+    # Float through, only for the row to face a remote non-retryable rejection.
     def check_payload_contract_versions!(rows)
-      mismatched = rows.reject { |row| payload_hash(row)[:contract_version] == CONTRACT_VERSION }
+      mismatched = rows.reject { |row| canonical_contract_version?(payload_hash(row)[:contract_version]) }
       return if mismatched.empty?
 
       keys = mismatched.map(&:idempotency_key).join(", ")
       raise ArgumentError, "payload contract_version must be #{CONTRACT_VERSION} for idempotency_key(s): #{keys}"
+    end
+
+    def canonical_contract_version?(version)
+      version.is_a?(Integer) && version == CONTRACT_VERSION
     end
 
     # A row whose stored payload identity does not match its outbox column can

@@ -123,7 +123,9 @@ module Publication
     # because present?/blank? themselves raise on invalid byte sequences.
     # Non-string values are left to the type checks that follow.
     def validate_text_encoding!
-      fields = { idempotency_key:, item_key:, title:, notes_preview: }
+      fields = { idempotency_key:, item_key:, title:, notes_preview:,
+                 observed_at:, completed_at:, source_created_at:, source_updated_at:,
+                 due_at:, started_at: }
       source.each { |key, value| fields[:"source.#{key}"] = value } if source.is_a?(Hash)
       if sync_collection.is_a?(Hash)
         fields[:"sync_collection.sync_collection_id"] = sync_collection[:sync_collection_id]

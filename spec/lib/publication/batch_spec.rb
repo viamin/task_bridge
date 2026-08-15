@@ -70,6 +70,11 @@ RSpec.describe Publication::Batch do
       expect { described_class.new(batch_id:, sent_at: nil, items: [item]) }.to raise_error(ArgumentError, /sent_at/)
     end
 
+    it "raises when sent_at contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(batch_id:, sent_at: (+"2026-08-14T19:21:10Z\xff").force_encoding("UTF-8"), items: [item]) }
+        .to raise_error(ArgumentError, /sent_at must be valid UTF-8/)
+    end
+
     it "raises when sent_at is a blank string" do
       expect { described_class.new(batch_id:, sent_at: "", items: [item]) }.to raise_error(ArgumentError, /sent_at/)
     end
