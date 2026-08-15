@@ -187,7 +187,10 @@ module Publication
           mappings: serialize_group(grouped["mapping"], published_at:),
           sync_runs: serialize_group(grouped["sync_run"], published_at:)
         }.to_json
-      rescue JSON::GeneratorError => e
+      rescue JSON::GeneratorError, JSON::NestingError => e
+        # NestingError is a ParserError subclass, not a GeneratorError: a row
+        # nested exactly at the JSON parse limit is storable and parses fine,
+        # yet exceeds the generation limit once the envelope wraps it.
         raise_unserializable_rows!(rows, published_at:, cause: e)
       end
     end
@@ -204,9 +207,13 @@ module Publication
     end
 
     def serializable_payload?(row, published_at:)
-      JSON.generate(payload_hash(row).merge(published_at:))
+      # Rows are serialized inside a top-level batch array, so each row is
+      # probed at its embedded depth; every record group (items, observations,
+      # mappings, sync_runs) is a top-level array, so one wrapper key reproduces
+      # the depth of any group faithfully.
+      JSON.generate(items: [payload_hash(row).merge(published_at:)])
       true
-    rescue JSON::GeneratorError
+    rescue JSON::GeneratorError, JSON::NestingError
       false
     end
 

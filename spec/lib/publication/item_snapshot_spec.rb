@@ -50,6 +50,10 @@ RSpec.describe Publication::ItemSnapshot do
       expect { described_class.new(**valid_attrs, title: "") }.to raise_error(ArgumentError, /title/)
     end
 
+    it "raises when title is nil" do
+      expect { described_class.new(**valid_attrs, title: nil) }.to raise_error(ArgumentError, /title is required/)
+    end
+
     it "raises when title is not a string" do
       expect { described_class.new(**valid_attrs, title: 42) }.to raise_error(ArgumentError, /title must be a string/)
     end

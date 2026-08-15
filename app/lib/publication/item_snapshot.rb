@@ -94,8 +94,8 @@ module Publication
       raise ArgumentError, "item_key is required" if item_key.blank?
       raise ArgumentError, "item_key must be a string" unless item_key.is_a?(String)
       raise ArgumentError, "observed_at is required" if observed_at.blank?
-      raise ArgumentError, "title must be a string" unless title.is_a?(String)
       raise ArgumentError, "title is required" if title.blank?
+      raise ArgumentError, "title must be a string" unless title.is_a?(String)
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
       raise ArgumentError, "is_deleted must be true or false" unless [true, false].include?(is_deleted)
       raise ArgumentError, "notes_preview must be a string when provided" unless notes_preview.nil? || notes_preview.is_a?(String)

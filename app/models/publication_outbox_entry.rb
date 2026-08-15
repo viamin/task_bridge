@@ -104,9 +104,11 @@ class PublicationOutboxEntry < ApplicationRecord
   # (provenance, parent, change from/to transitions, source_metadata) fail
   # JSON generation here. Reject at write time with the offending key
   # instead of surfacing an opaque GeneratorError from deep in serialization.
+  # NestingError (a ParserError subclass) is rescued too: a deeply nested
+  # source_metadata exceeds the JSON generation depth limit.
   def self.payload_json(payload, idempotency_key)
     payload.to_json
-  rescue JSON::GeneratorError => e
+  rescue JSON::GeneratorError, JSON::NestingError => e
     raise ArgumentError, "payload for #{idempotency_key} is not serializable: #{e.message}"
   end
   private_class_method :payload_json

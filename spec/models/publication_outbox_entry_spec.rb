@@ -169,6 +169,23 @@ RSpec.describe PublicationOutboxEntry, type: :model do
         .to raise_error(ArgumentError, /payload for .*123:source_changed.* is not serializable/)
     end
 
+    it "raises a clear ArgumentError when source_metadata nests beyond the JSON generation limit" do
+      deep_metadata = { "v" => 1 }
+      150.times { deep_metadata = { "v" => deep_metadata } }
+      snapshot = Publication::ItemSnapshot.new(
+        idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+        item_key: "asana:workspace-12345:default:123",
+        observed_at: "2026-08-14T19:00:00.000000Z",
+        title: "Test task",
+        status: "open",
+        is_deleted: false,
+        source:,
+        source_metadata: deep_metadata
+      )
+      expect { described_class.from_record(snapshot) }
+        .to raise_error(ArgumentError, /payload for .*123:snapshot.* is not serializable/)
+    end
+
     it "extracts service_type and service_instance from the root for sync_run records" do
       run_summary = Publication::SyncRunSummary.new(
         idempotency_key: "tb:v1:sync_run:asana:workspace-12345:default:run-1",

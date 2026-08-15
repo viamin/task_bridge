@@ -48,6 +48,15 @@ RSpec.describe Publication::BatchPublisher do
     captured
   end
 
+  # A payload nested exactly at the JSON parse limit (99 levels): it parses
+  # and standalone-generates fine, but exceeds the generation limit once the
+  # batch envelope wraps it two levels deeper.
+  def deep_nested_payload(key)
+    opening = %({"v":) * 98
+    closing = "}" * 98
+    %({"contract_version":1,"idempotency_key":"#{key}","source_metadata":#{opening}1#{closing}})
+  end
+
   let(:entry) { make_entry(key: "tb:v1:item:asana:default:1:snapshot:2026-08-14T19:00:00.000000Z") }
 
   describe "#initialize" do
@@ -261,6 +270,27 @@ RSpec.describe Publication::BatchPublisher do
         binary = make_entry(key: key, payload: raw.force_encoding("UTF-8"))
 
         expect { publisher.publish([binary]) }.to raise_error(ArgumentError, /is not serializable/)
+        expect(HTTParty).not_to have_received(:post)
+      end
+
+      # A row nested exactly at the JSON parse limit is storable and parses
+      # fine, but exceeds the generation limit once the batch envelope wraps
+      # it two levels deeper; the resulting NestingError must be classified
+      # like any other unserializable row, not leak raw.
+      it "raises ArgumentError naming the row when a payload nests too deeply to embed in a batch body" do
+        key = "tb:v1:item:asana:default:10:snapshot:2026-08-14T19:00:00.000000Z"
+        deep = make_entry(key: key, payload: deep_nested_payload(key))
+
+        expect { publisher.publish([deep]) }
+          .to raise_error(ArgumentError, /payload for .*asana:default:10.* is not serializable/)
+      end
+
+      it "does not send an HTTP request when a payload nests too deeply" do
+        allow(HTTParty).to receive(:post)
+        key = "tb:v1:item:asana:default:10:snapshot:2026-08-14T19:00:00.000000Z"
+        deep = make_entry(key: key, payload: deep_nested_payload(key))
+
+        expect { publisher.publish([deep]) }.to raise_error(ArgumentError, /is not serializable/)
         expect(HTTParty).not_to have_received(:post)
       end
     end
