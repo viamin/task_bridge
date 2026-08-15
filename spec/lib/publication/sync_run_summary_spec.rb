@@ -56,6 +56,11 @@ RSpec.describe Publication::SyncRunSummary do
         .to raise_error(ArgumentError, /touched_collection_ids/)
     end
 
+    it "raises when a touched_collection_ids entry is not an integer" do
+      expect { described_class.new(**valid_attrs, touched_collection_ids: [84, "91"]) }
+        .to raise_error(ArgumentError, /touched_collection_ids must be an array of integers/)
+    end
+
     it "raises when detail is not a string" do
       expect { described_class.new(**valid_attrs, detail: 12) }
         .to raise_error(ArgumentError, /detail/)

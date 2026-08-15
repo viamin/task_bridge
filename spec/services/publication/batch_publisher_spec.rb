@@ -341,6 +341,8 @@ RSpec.describe Publication::BatchPublisher do
 
     describe "remaining HTTP status to retryability mapping" do
       {
+        204 => true,
+        302 => true,
         400 => false,
         404 => false,
         409 => false,

@@ -96,8 +96,8 @@ module Publication
 
     # source_url and source_collection_keys are optional because some providers
     # cannot supply them, but the contract shapes them (URL string, collection
-    # key list), so a wrong type must fail here rather than as a remote
-    # non-retryable row rejection.
+    # key list of {kind, id} objects), so a wrong type must fail here rather
+    # than as a remote non-retryable row rejection.
     def validate_source_url!(url)
       return if url.nil? || url.is_a?(String)
 
@@ -105,9 +105,9 @@ module Publication
     end
 
     def validate_source_collection_keys!(keys)
-      return if keys.nil? || keys.is_a?(Array)
+      return if keys.nil? || (keys.is_a?(Array) && keys.all?(Hash))
 
-      raise ArgumentError, "source.source_collection_keys must be an array when provided"
+      raise ArgumentError, "source.source_collection_keys must be an array of objects when provided"
     end
 
     # change describes a single field transition as field, from, and to. All

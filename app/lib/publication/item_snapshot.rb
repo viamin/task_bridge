@@ -96,14 +96,23 @@ module Publication
       raise ArgumentError, "title is required" if title.blank?
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
       raise ArgumentError, "is_deleted must be true or false" unless [true, false].include?(is_deleted)
-      raise ArgumentError, "tags must be an array when provided" unless tags.nil? || tags.is_a?(Array)
       raise ArgumentError, "notes_preview must be a string when provided" unless notes_preview.nil? || notes_preview.is_a?(String)
       raise ArgumentError, "parent must be a hash when provided" unless parent.nil? || parent.is_a?(Hash)
       raise ArgumentError, "source_metadata must be a hash when provided" unless source_metadata.nil? || source_metadata.is_a?(Hash)
 
+      validate_tags!
       validate_source!(source)
       validate_sync_collection!(sync_collection)
       Timestamp.validate!(observed_at, completed_at, source_created_at, source_updated_at, due_at, started_at)
+    end
+
+    # Tags are provider free text like title, so every entry must be a valid
+    # UTF-8 string: a wrong-typed or malformed entry would otherwise surface
+    # as a remote non-retryable row rejection, or crash JSON generation.
+    def validate_tags!
+      return if tags.nil? || (tags.is_a?(Array) && tags.all? { |tag| tag.is_a?(String) && tag.valid_encoding? })
+
+      raise ArgumentError, "tags must be an array of valid UTF-8 strings when provided"
     end
 
     # Provider text can carry malformed bytes (for example from AppleScript
@@ -153,8 +162,8 @@ module Publication
 
     # source_url and source_collection_keys are optional because some providers
     # cannot supply them, but the contract shapes them (URL string, collection
-    # key list), so a wrong type must fail here rather than as a remote
-    # non-retryable row rejection.
+    # key list of {kind, id} objects), so a wrong type must fail here rather
+    # than as a remote non-retryable row rejection.
     def validate_source_url!(url)
       return if url.nil? || url.is_a?(String)
 
@@ -162,9 +171,9 @@ module Publication
     end
 
     def validate_source_collection_keys!(keys)
-      return if keys.nil? || keys.is_a?(Array)
+      return if keys.nil? || (keys.is_a?(Array) && keys.all?(Hash))
 
-      raise ArgumentError, "source.source_collection_keys must be an array when provided"
+      raise ArgumentError, "source.source_collection_keys must be an array of objects when provided"
     end
   end
 end

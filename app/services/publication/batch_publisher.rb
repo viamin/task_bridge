@@ -201,7 +201,15 @@ module Publication
       when 429
         raise DeliveryError.new("rate limited (429): back off and retry", retryable: true)
       else
-        raise DeliveryError.new("unexpected response (#{response.code}): #{response.body}", retryable: response.code >= 500)
+        # Unexpected statuses (for example a 204 or 3xx without the contract
+        # result body) leave row delivery state ambiguous, and retrying is safe
+        # under idempotent ingestion: accepted rows replay rather than
+        # duplicate. Other client errors stay terminal until the request or
+        # configuration is fixed.
+        raise DeliveryError.new(
+          "unexpected response (#{response.code}): #{response.body}",
+          retryable: response.code < 400 || response.code >= 500
+        )
       end
     end
 

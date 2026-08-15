@@ -68,6 +68,16 @@ RSpec.describe Publication::ItemSnapshot do
       expect { described_class.new(**valid_attrs, tags: "Errands") }.to raise_error(ArgumentError, /tags/)
     end
 
+    it "raises when a tags entry is not a string" do
+      expect { described_class.new(**valid_attrs, tags: ["Errands", 42]) }
+        .to raise_error(ArgumentError, /tags must be an array of valid UTF-8 strings/)
+    end
+
+    it "raises when a tags entry contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, tags: [(+"Errands \xff").force_encoding("UTF-8")]) }
+        .to raise_error(ArgumentError, /tags must be an array of valid UTF-8 strings/)
+    end
+
     it "raises when parent is not a hash" do
       expect { described_class.new(**valid_attrs, parent: "asana:workspace-12345:default:7") }
         .to raise_error(ArgumentError, /parent/)
@@ -132,6 +142,12 @@ RSpec.describe Publication::ItemSnapshot do
       end.to raise_error(ArgumentError, /source\.source_collection_keys must be an array/)
     end
 
+    it "raises when a source_collection_keys entry is not an object" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(source_collection_keys: ["project-9"]))
+      end.to raise_error(ArgumentError, /source\.source_collection_keys must be an array of objects/)
+    end
+
     it "accepts source_url and source_collection_keys in their documented shapes" do
       snapshot = described_class.new(
         **valid_attrs,
@@ -176,6 +192,11 @@ RSpec.describe Publication::ItemSnapshot do
     it "includes notes_preview when provided" do
       snapshot = described_class.new(**valid_attrs, notes_preview: "2% and eggs")
       expect(snapshot.to_payload[:notes_preview]).to eq("2% and eggs")
+    end
+
+    it "includes tags when provided" do
+      snapshot = described_class.new(**valid_attrs, tags: %w[Errands Home])
+      expect(snapshot.to_payload[:tags]).to eq(%w[Errands Home])
     end
 
     it "omits a blank notes_preview" do

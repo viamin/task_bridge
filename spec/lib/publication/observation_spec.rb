@@ -65,6 +65,12 @@ RSpec.describe Publication::Observation do
       end.to raise_error(ArgumentError, /source\.source_collection_keys must be an array/)
     end
 
+    it "raises when a source_collection_keys entry is not an object" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(source_collection_keys: ["project-9"]))
+      end.to raise_error(ArgumentError, /source\.source_collection_keys must be an array of objects/)
+    end
+
     it "raises when observed_at is not parseable as ISO 8601" do
       expect { described_class.new(**valid_attrs, observed_at: "Aug 14 2026") }
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)

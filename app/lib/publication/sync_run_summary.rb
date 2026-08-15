@@ -85,12 +85,22 @@ module Publication
       raise ArgumentError, "last_attempted_at is required" if last_attempted_at.blank?
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
       raise ArgumentError, "items_synced must be a non-negative integer" unless items_synced.is_a?(Integer) && items_synced >= 0
-      raise ArgumentError, "touched_collection_ids must be an array when provided" unless touched_collection_ids.nil? || touched_collection_ids.is_a?(Array)
       raise ArgumentError, "detail must be a string when provided" unless detail.nil? || detail.is_a?(String)
 
+      validate_touched_collection_ids!
       validate_error!(error)
       validate_completion_timestamps!
       Timestamp.validate!(started_at, finished_at, last_attempted_at, last_successful_at, last_failed_at)
+    end
+
+    # touched_collection_ids reference TaskBridge sync_collection integer IDs;
+    # a wrong-typed entry would surface as a remote non-retryable row
+    # rejection, so it is rejected at this boundary instead.
+    def validate_touched_collection_ids!
+      ids = touched_collection_ids
+      return if ids.nil? || (ids.is_a?(Array) && ids.all?(Integer))
+
+      raise ArgumentError, "touched_collection_ids must be an array of integers when provided"
     end
 
     # error carries the run's retry classification; a row without it cannot be
