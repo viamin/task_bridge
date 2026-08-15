@@ -739,5 +739,24 @@ RSpec.describe Publication::BatchPublisher do
         ) { |e| expect(e.retryable).to be true }
       end
     end
+
+    context "when the count fields are negative but still sum to the result count" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: -1, replayed: 0, rejected: 2,
+            results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting the counts" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /unreconcilable response/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
   end
 end

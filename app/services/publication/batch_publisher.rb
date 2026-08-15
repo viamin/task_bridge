@@ -264,7 +264,8 @@ module Publication
     # trusted to update outbox state.
     def verify_result_counts!(parsed, results, rows)
       counts = parsed.values_at(:accepted, :replayed, :rejected)
-      return if counts.all?(Integer) && counts.sum == results.length && results.length == rows.length
+      return if counts.all? { |count| count.is_a?(Integer) && count >= 0 } &&
+                counts.sum == results.length && results.length == rows.length
 
       raise DeliveryError.new(
         "unreconcilable response: counts #{counts.inspect} do not match #{results.length} result(s) for #{rows.length} submitted row(s)",
