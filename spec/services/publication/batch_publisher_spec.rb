@@ -64,6 +64,14 @@ RSpec.describe Publication::BatchPublisher do
       expect { described_class.new(endpoint:, api_key:, timeout: "30") }.to raise_error(ArgumentError, /timeout/)
     end
 
+    it "raises ArgumentError when endpoint is not a string" do
+      expect { described_class.new(endpoint: 42, api_key:) }.to raise_error(ArgumentError, /endpoint must be a string/)
+    end
+
+    it "raises ArgumentError when api_key is not a string" do
+      expect { described_class.new(endpoint:, api_key: 42) }.to raise_error(ArgumentError, /api_key must be a string/)
+    end
+
     it "raises ArgumentError when endpoint is not a parseable URI" do
       expect { described_class.new(endpoint: "not a uri", api_key:) }.to raise_error(ArgumentError, /valid http\(s\) URI/)
     end

@@ -184,7 +184,7 @@ RSpec.describe Publication::Observation do
     end
 
     it "omits nil optional fields" do
-      expect(payload.keys).not_to include(:change, :provenance, :last_known)
+      expect(payload.keys).not_to include(:change, :provenance, :last_known, :is_deleted, :published_at)
     end
 
     it "includes change when provided" do

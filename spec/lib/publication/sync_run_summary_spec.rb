@@ -179,6 +179,10 @@ RSpec.describe Publication::SyncRunSummary do
       expect(payload[:touched_collection_ids]).to eq([])
     end
 
+    it "omits optional free-text fields when not provided" do
+      expect(payload.keys).not_to include(:detail, :error)
+    end
+
     it "includes touched_collection_ids when provided" do
       summary = described_class.new(**valid_attrs, touched_collection_ids: [84, 91])
       expect(summary.to_payload[:touched_collection_ids]).to eq([84, 91])

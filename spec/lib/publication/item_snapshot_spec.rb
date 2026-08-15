@@ -209,7 +209,10 @@ RSpec.describe Publication::ItemSnapshot do
     end
 
     it "omits nil optional fields" do
-      expect(payload.keys).not_to include(:completed_at, :due_at, :started_at, :notes_preview)
+      expect(payload.keys).not_to include(
+        :completed_at, :source_created_at, :source_updated_at, :due_at, :started_at,
+        :notes_preview, :parent, :sync_collection, :source_metadata
+      )
     end
 
     it "includes notes_preview when provided" do

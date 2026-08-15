@@ -47,8 +47,14 @@ module Publication
       # error instead of an opaque one at construction time.
       Utf8.validate_fields!({ endpoint:, api_key:, publisher_instance: })
       raise ArgumentError, "endpoint is required" if endpoint.blank?
+      # A wrong-typed endpoint must fail here with a clear error instead of
+      # reaching URI parsing, which only stringifies non-string values.
+      raise ArgumentError, "endpoint must be a string" unless endpoint.is_a?(String)
       raise ArgumentError, "endpoint must be a valid http(s) URI" unless valid_endpoint_uri?(endpoint)
       raise ArgumentError, "api_key is required" if api_key.blank?
+      # The key is interpolated into the Authorization header, so anything but
+      # a string would be silently coerced into a bogus credential.
+      raise ArgumentError, "api_key must be a string" unless api_key.is_a?(String)
       raise ArgumentError, "publisher_instance must be a non-blank string when provided" if invalid_envelope_string?(publisher_instance)
       raise ArgumentError, "timeout must be a positive integer" unless timeout.is_a?(Integer) && timeout.positive?
 
@@ -239,7 +245,12 @@ module Publication
       when 401
         raise DeliveryError.new("authentication failure (401): check API key", retryable: false)
       when 409
-        raise DeliveryError.new("batch conflict (409): duplicate idempotency key payload mismatch", retryable: false)
+        # The conflict body names the offending key, so the scrubbed excerpt is
+        # included for operator debugging like the other terminal rejections.
+        raise DeliveryError.new(
+          "batch conflict (409): duplicate idempotency key payload mismatch: #{response_excerpt(response)}",
+          retryable: false
+        )
       when 413
         raise DeliveryError.new("payload too large (413): reduce batch size", retryable: true)
       when 429
