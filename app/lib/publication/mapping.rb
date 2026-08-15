@@ -64,7 +64,7 @@ module Publication
     def validate!(idempotency_key:, mapping_type:, observed_at:, sync_collection:, member:, mapping_confidence:)
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "mapping_type must be one of: #{VALID_MAPPING_TYPES.join(', ')}" unless VALID_MAPPING_TYPES.include?(mapping_type)
-      raise ArgumentError, "observed_at is required" if observed_at.nil?
+      raise ArgumentError, "observed_at is required" if observed_at.blank?
 
       validate_sync_collection!(sync_collection)
       validate_member!(member)

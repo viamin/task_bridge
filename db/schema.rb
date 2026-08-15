@@ -12,71 +12,71 @@
 
 ActiveRecord::Schema[8.1].define(version: 2026_08_15_000000) do
   create_table "publication_outbox_entries", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.datetime "delivered_at"
-    t.text "error_message"
-    t.datetime "failed_at"
     t.string "idempotency_key", null: false
-    t.datetime "observed_at"
-    t.text "payload", null: false
     t.string "record_kind", null: false
-    t.integer "retry_count", default: 0, null: false
-    t.string "service_instance"
+    t.text "payload", null: false
+    t.string "status", null: false, default: "pending"
+    t.integer "retry_count", null: false, default: 0
+    t.text "error_message"
     t.string "service_type"
-    t.string "status", default: "pending", null: false
+    t.string "service_instance"
+    t.datetime "observed_at"
+    t.datetime "delivered_at"
+    t.datetime "failed_at"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["idempotency_key"], name: "index_publication_outbox_entries_on_idempotency_key", unique: true
-    t.index ["service_instance", "status"], name: "idx_on_service_instance_status_16c8b627d1"
     t.index ["status", "created_at"], name: "index_publication_outbox_entries_on_status_and_created_at"
+    t.index ["service_instance", "status"], name: "idx_on_service_instance_status_16c8b627d1"
   end
 
   create_table "sync_collections", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.datetime "last_synced"
     t.string "title"
+    t.datetime "last_synced"
+    t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "sync_service_states", force: :cascade do |t|
+    t.string "service_name", null: false
+    t.string "status"
+    t.integer "items_synced", default: 0, null: false
+    t.text "detail"
+    t.datetime "last_attempted_at"
+    t.datetime "last_successful_at"
+    t.datetime "last_failed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["last_successful_at"], name: "index_sync_service_states_on_last_successful_at"
+    t.index ["service_name"], name: "index_sync_service_states_on_service_name", unique: true
   end
 
   create_table "sync_items", force: :cascade do |t|
     t.boolean "completed"
     t.datetime "completed_at"
     t.datetime "completed_on"
-    t.datetime "created_at", null: false
     t.datetime "due_at"
     t.datetime "due_date"
-    t.string "external_id"
     t.boolean "flagged"
-    t.string "item_type"
-    t.datetime "last_modified"
     t.text "notes"
-    t.integer "parent_item_id"
     t.datetime "start_at"
     t.datetime "start_date"
     t.string "status"
-    t.integer "sync_collection_id"
     t.string "title"
+    t.string "item_type"
     t.string "type"
-    t.datetime "updated_at", null: false
     t.string "url"
-    t.index ["last_modified"], name: "index_sync_items_on_last_modified"
-    t.index ["parent_item_id"], name: "index_sync_items_on_parent_item_id"
-    t.index ["sync_collection_id", "type"], name: "index_sync_items_on_sync_collection_id_and_type", unique: true, where: "(sync_collection_id IS NOT NULL)"
-    t.index ["sync_collection_id"], name: "index_sync_items_on_sync_collection_id"
-    t.index ["type", "external_id"], name: "index_sync_items_on_type_and_external_id", unique: true
-  end
-
-  create_table "sync_service_states", force: :cascade do |t|
+    t.string "external_id"
+    t.datetime "last_modified"
+    t.integer "parent_item_id"
+    t.integer "sync_collection_id"
     t.datetime "created_at", null: false
-    t.text "detail"
-    t.integer "items_synced", default: 0, null: false
-    t.datetime "last_attempted_at"
-    t.datetime "last_failed_at"
-    t.datetime "last_successful_at"
-    t.string "service_name", null: false
-    t.string "status"
     t.datetime "updated_at", null: false
-    t.index ["last_successful_at"], name: "index_sync_service_states_on_last_successful_at"
-    t.index ["service_name"], name: "index_sync_service_states_on_service_name", unique: true
+    t.index ["parent_item_id"], name: "index_sync_items_on_parent_item_id"
+    t.index ["sync_collection_id"], name: "index_sync_items_on_sync_collection_id"
+    t.index ["sync_collection_id", "type"], name: "index_sync_items_on_sync_collection_id_and_type", unique: true, where: "(sync_collection_id IS NOT NULL)"
+    t.index ["last_modified"], name: "index_sync_items_on_last_modified"
+    t.index ["type", "external_id"], name: "index_sync_items_on_type_and_external_id", unique: true
   end
 
   add_foreign_key "sync_items", "sync_collections"

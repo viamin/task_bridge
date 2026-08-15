@@ -27,6 +27,18 @@ RSpec.describe Publication::IdempotencyKey do
       args = { service_instance:, external_id:, observed_at: observed_at_str }
       expect(described_class.for_item(**args)).to eq(described_class.for_item(**args))
     end
+
+    it "raises when a key segment is blank" do
+      expect do
+        described_class.for_item(service_instance: "", external_id:, observed_at: observed_at_str)
+      end.to raise_error(ArgumentError, /blank key segment/)
+    end
+
+    it "raises when observed_at is nil" do
+      expect do
+        described_class.for_item(service_instance:, external_id:, observed_at: nil)
+      end.to raise_error(ArgumentError, /observed_at/)
+    end
   end
 
   describe ".for_observation" do

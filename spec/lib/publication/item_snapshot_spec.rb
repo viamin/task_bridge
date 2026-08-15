@@ -32,12 +32,24 @@ RSpec.describe Publication::ItemSnapshot do
       expect { described_class.new(**valid_attrs, observed_at: nil) }.to raise_error(ArgumentError, /observed_at/)
     end
 
+    it "raises when observed_at is a blank string" do
+      expect { described_class.new(**valid_attrs, observed_at: "") }.to raise_error(ArgumentError, /observed_at/)
+    end
+
     it "raises when title is blank" do
       expect { described_class.new(**valid_attrs, title: "") }.to raise_error(ArgumentError, /title/)
     end
 
     it "raises when status is invalid" do
       expect { described_class.new(**valid_attrs, status: "unknown") }.to raise_error(ArgumentError, /status/)
+    end
+
+    it "raises when is_deleted is nil" do
+      expect { described_class.new(**valid_attrs, is_deleted: nil) }.to raise_error(ArgumentError, /is_deleted/)
+    end
+
+    it "raises when is_deleted is not a boolean" do
+      expect { described_class.new(**valid_attrs, is_deleted: "false") }.to raise_error(ArgumentError, /is_deleted/)
     end
 
     it "raises when source is nil" do

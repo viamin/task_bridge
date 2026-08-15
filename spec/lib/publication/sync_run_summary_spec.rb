@@ -28,6 +28,10 @@ RSpec.describe Publication::SyncRunSummary do
       it "raises when #{field} is nil" do
         expect { described_class.new(**valid_attrs, field => nil) }.to raise_error(ArgumentError, /#{field}/)
       end
+
+      it "raises when #{field} is a blank string" do
+        expect { described_class.new(**valid_attrs, field => "") }.to raise_error(ArgumentError, /#{field}/)
+      end
     end
 
     it "raises when status is invalid" do

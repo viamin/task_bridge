@@ -17,14 +17,15 @@ RSpec.describe Publication::BatchPublisher do
     )
   end
 
-  def stub_http(status:, body:)
-    response = instance_double(
-      HTTParty::Response,
-      code: status,
-      body: body.is_a?(Hash) ? body.to_json : body
-    )
-    allow(HTTParty).to receive(:post).and_return(response)
-    response
+  def stub_http(status:, body:, echo_batch_id: true)
+    allow(HTTParty).to receive(:post) do |_endpoint, opts|
+      payload = body.is_a?(Hash) && echo_batch_id ? body.merge(batch_id: opts[:headers]["X-TaskBridge-Batch-Id"]) : body
+      instance_double(
+        HTTParty::Response,
+        code: status,
+        body: payload.is_a?(String) ? payload : payload.to_json
+      )
+    end
   end
 
   let(:entry) { make_entry(key: "tb:v1:item:asana:default:1:snapshot:2026-08-14T19:00:00.000000Z") }
@@ -32,6 +33,18 @@ RSpec.describe Publication::BatchPublisher do
   describe "#publish" do
     it "raises ArgumentError when entries array is empty" do
       expect { publisher.publish([]) }.to raise_error(ArgumentError, /must not be empty/)
+    end
+
+    it "raises ArgumentError when an entry has an unknown record_kind" do
+      bogus = make_entry(key: "tb:v1:bogus:1", kind: "bogus")
+      expect { publisher.publish([bogus]) }.to raise_error(ArgumentError, /unknown record_kind/)
+    end
+
+    it "does not send an HTTP request when an entry has an unknown record_kind" do
+      allow(HTTParty).to receive(:post)
+      bogus = make_entry(key: "tb:v1:bogus:1", kind: "bogus")
+      expect { publisher.publish([bogus]) }.to raise_error(ArgumentError)
+      expect(HTTParty).not_to have_received(:post)
     end
 
     context "when the server returns 200 with accepted results" do
@@ -129,6 +142,42 @@ RSpec.describe Publication::BatchPublisher do
       it "raises a retryable DeliveryError" do
         expect { publisher.publish([entry]) }.to raise_error(
           Publication::DeliveryError
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the connection is refused" do
+      before { allow(HTTParty).to receive(:post).and_raise(Errno::ECONNREFUSED, "Connection refused") }
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /transport error/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the response echoes a different batch_id" do
+      before do
+        stub_http(
+          status: 200,
+          body: { batch_id: "a-different-batch-id", contract_version: 1, accepted: 0, replayed: 0, rejected: 0, results: [] },
+          echo_batch_id: false
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting the results" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /batch_id mismatch/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when a 200 response body is not a JSON object" do
+      before { stub_http(status: 200, body: '"ok"') }
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /expected a JSON object/
         ) { |e| expect(e.retryable).to be true }
       end
     end

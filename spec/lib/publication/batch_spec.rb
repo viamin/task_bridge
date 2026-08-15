@@ -30,6 +30,10 @@ RSpec.describe Publication::Batch do
       expect { described_class.new(batch_id:, sent_at: nil, items: [item]) }.to raise_error(ArgumentError, /sent_at/)
     end
 
+    it "raises when sent_at is a blank string" do
+      expect { described_class.new(batch_id:, sent_at: "", items: [item]) }.to raise_error(ArgumentError, /sent_at/)
+    end
+
     it "raises when all arrays are empty" do
       expect { described_class.new(batch_id:, sent_at:) }.to raise_error(ArgumentError, /at least one record/)
     end

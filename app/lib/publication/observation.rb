@@ -74,7 +74,7 @@ module Publication
     def validate!(idempotency_key:, event_type:, observed_at:, item_key:, source:)
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "event_type must be one of: #{VALID_EVENT_TYPES.join(', ')}" unless VALID_EVENT_TYPES.include?(event_type)
-      raise ArgumentError, "observed_at is required" if observed_at.nil?
+      raise ArgumentError, "observed_at is required" if observed_at.blank?
       raise ArgumentError, "item_key is required" if item_key.blank?
 
       validate_source!(source)

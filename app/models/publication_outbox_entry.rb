@@ -52,13 +52,15 @@ class PublicationOutboxEntry < ApplicationRecord
 
   # Builds an entry from a Publication value object without saving.
   #
-  # service_type and service_instance are sourced from payload[:source] for item,
-  # observation, and mapping records, and from the payload root for sync_run records.
+  # service_type and service_instance are sourced from payload[:source] for item and
+  # observation records, from payload[:member] for mapping records, and from the
+  # payload root for sync_run records, so replay-by-service filtering works for
+  # every record kind.
   def self.from_record(record)
     payload       = record.to_payload
-    source        = payload[:source] || {}
-    service_type  = source[:service_type] || payload[:service_type]
-    svc_instance  = source[:service_instance] || payload[:service_instance]
+    identity      = payload[:source] || payload[:member] || {}
+    service_type  = identity[:service_type] || payload[:service_type]
+    svc_instance  = identity[:service_instance] || payload[:service_instance]
     new(
       idempotency_key: payload[:idempotency_key],
       record_kind: record.class::RECORD_KIND,

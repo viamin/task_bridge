@@ -36,6 +36,10 @@ RSpec.describe Publication::Mapping do
       expect { described_class.new(**valid_attrs, observed_at: nil) }.to raise_error(ArgumentError, /observed_at/)
     end
 
+    it "raises when observed_at is a blank string" do
+      expect { described_class.new(**valid_attrs, observed_at: "") }.to raise_error(ArgumentError, /observed_at/)
+    end
+
     it "raises when sync_collection is nil" do
       expect { described_class.new(**valid_attrs, sync_collection: nil) }.to raise_error(ArgumentError, /sync_collection/)
     end

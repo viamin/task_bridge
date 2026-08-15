@@ -30,6 +30,10 @@ RSpec.describe Publication::Observation do
       expect { described_class.new(**valid_attrs, observed_at: nil) }.to raise_error(ArgumentError, /observed_at/)
     end
 
+    it "raises when observed_at is a blank string" do
+      expect { described_class.new(**valid_attrs, observed_at: "") }.to raise_error(ArgumentError, /observed_at/)
+    end
+
     it "raises when item_key is blank" do
       expect { described_class.new(**valid_attrs, item_key: "") }.to raise_error(ArgumentError, /item_key/)
     end

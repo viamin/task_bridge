@@ -39,7 +39,7 @@ module Publication
       sync_collection: nil,
       source_metadata: nil
     )
-      validate!(idempotency_key:, item_key:, observed_at:, title:, status:, source:)
+      validate!(idempotency_key:, item_key:, observed_at:, title:, status:, is_deleted:, source:)
 
       @idempotency_key = idempotency_key
       @item_key = item_key
@@ -87,12 +87,13 @@ module Publication
 
     private
 
-    def validate!(idempotency_key:, item_key:, observed_at:, title:, status:, source:)
+    def validate!(idempotency_key:, item_key:, observed_at:, title:, status:, is_deleted:, source:)
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "item_key is required" if item_key.blank?
-      raise ArgumentError, "observed_at is required" if observed_at.nil?
+      raise ArgumentError, "observed_at is required" if observed_at.blank?
       raise ArgumentError, "title is required" if title.blank?
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
+      raise ArgumentError, "is_deleted must be true or false" unless [true, false].include?(is_deleted)
 
       validate_source!(source)
     end

@@ -90,6 +90,26 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.service_type).to eq("asana")
       expect(entry.service_instance).to eq("asana:workspace-12345:default")
     end
+
+    it "extracts service_type and service_instance from member for mapping records" do
+      mapping = Publication::Mapping.new(
+        idempotency_key: "tb:v1:map:sync_collection:84:membership:github:repo-1:issue-42:2026-08-14T19:21:00.000000Z",
+        mapping_type: "representation_membership",
+        observed_at: "2026-08-14T19:21:00.000000Z",
+        sync_collection: { sync_collection_id: 84 },
+        member: {
+          item_key: "github:repo-1:issue-42",
+          service_type: "github",
+          service_instance: "github:repo-1",
+          external_id: "issue-42"
+        }
+      )
+      entry = described_class.from_record(mapping)
+
+      expect(entry.record_kind).to eq("mapping")
+      expect(entry.service_type).to eq("github")
+      expect(entry.service_instance).to eq("github:repo-1")
+    end
   end
 
   describe "scopes" do

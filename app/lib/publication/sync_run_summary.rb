@@ -82,9 +82,9 @@ module Publication
       raise ArgumentError, "sync_run_id is required" if sync_run_id.blank?
       raise ArgumentError, "service_type is required" if service_type.blank?
       raise ArgumentError, "service_instance is required" if service_instance.blank?
-      raise ArgumentError, "started_at is required" if started_at.nil?
-      raise ArgumentError, "finished_at is required" if finished_at.nil?
-      raise ArgumentError, "last_attempted_at is required" if last_attempted_at.nil?
+      raise ArgumentError, "started_at is required" if started_at.blank?
+      raise ArgumentError, "finished_at is required" if finished_at.blank?
+      raise ArgumentError, "last_attempted_at is required" if last_attempted_at.blank?
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
       raise ArgumentError, "items_synced is required" if items_synced.nil?
     end

@@ -15,6 +15,8 @@ module Publication
   class BatchPublisher
     CONTRACT_VERSION = 1
     DEFAULT_TIMEOUT  = 30 # seconds
+    # Canonical record kinds the batch body can carry, mirroring the contract arrays.
+    RECORD_KINDS = PublicationOutboxEntry::RECORD_KINDS.freeze
 
     EntryResult = Struct.new(:entry, :status, :retryable, :error_code, :message, keyword_init: true) do
       def accepted?  = status == "accepted"
@@ -38,13 +40,16 @@ module Publication
       rows = Array(entries)
       raise ArgumentError, "entries must not be empty" if rows.empty?
 
+      unknown = rows.map(&:record_kind).uniq - RECORD_KINDS
+      raise ArgumentError, "unknown record_kind(s): #{unknown.join(', ')}" if unknown.any?
+
       batch_id  = SecureRandom.uuid
       sent_at   = Time.current.utc.strftime("%Y-%m-%dT%H:%M:%S.%6NZ")
       body      = build_body(rows, batch_id:, sent_at:)
       headers   = build_headers(batch_id:, sent_at:)
 
       response = post_batch(body:, headers:)
-      handle_response(response, rows)
+      handle_response(response, rows, batch_id:)
     end
 
     private
@@ -83,14 +88,15 @@ module Publication
         headers:,
         timeout: DEFAULT_TIMEOUT
       )
-    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError => e
+    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, EOFError,
+           Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EHOSTUNREACH, Errno::ETIMEDOUT => e
       raise DeliveryError.new("transport error: #{e.message}", retryable: true)
     end
 
-    def handle_response(response, rows)
+    def handle_response(response, rows, batch_id:)
       case response.code
       when 200
-        parse_row_results(response, rows)
+        parse_row_results(response, rows, batch_id:)
       when 400, 422
         raise DeliveryError.new("request rejected (#{response.code}): #{response.body}", retryable: false)
       when 401
@@ -106,8 +112,12 @@ module Publication
       end
     end
 
-    def parse_row_results(response, rows)
+    def parse_row_results(response, rows, batch_id:)
       parsed = JSON.parse(response.body, symbolize_names: true)
+      raise DeliveryError.new("unexpected response body: expected a JSON object", retryable: true) unless parsed.is_a?(Hash)
+
+      verify_batch_echo!(parsed, batch_id)
+
       results_by_key = Array(parsed[:results]).index_by { |r| r[:idempotency_key] }
 
       rows.map do |entry|
@@ -127,6 +137,15 @@ module Publication
       end
     rescue JSON::ParserError => e
       raise DeliveryError.new("unparseable response body: #{e.message}", retryable: true)
+    end
+
+    # A response echoing a different batch_id cannot be reconciled with this
+    # request's rows, so its results must not be trusted.
+    def verify_batch_echo!(parsed, batch_id)
+      echoed = parsed[:batch_id]
+      return if echoed.nil? || echoed == batch_id
+
+      raise DeliveryError.new("response batch_id mismatch: expected #{batch_id}, got #{echoed}", retryable: true)
     end
   end
 

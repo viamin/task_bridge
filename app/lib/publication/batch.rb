@@ -68,7 +68,7 @@ module Publication
 
     def validate!
       raise ArgumentError, "batch_id is required" if batch_id.blank?
-      raise ArgumentError, "sent_at is required" if sent_at.nil?
+      raise ArgumentError, "sent_at is required" if sent_at.blank?
       raise ArgumentError, "batch must contain at least one record" if total_record_count.zero?
 
       check_duplicate_idempotency_keys!
