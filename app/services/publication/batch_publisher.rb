@@ -182,7 +182,10 @@ module Publication
     end
 
     def parse_row_results(response, rows, batch_id:)
-      parsed = JSON.parse(response.body, symbolize_names: true)
+      # to_s coerces a nil body (empty responses from proxies and load
+      # balancers) into "", which JSON.parse rejects with ParserError; a raw
+      # nil would raise TypeError and bypass the classification below.
+      parsed = JSON.parse(response.body.to_s, symbolize_names: true)
       raise DeliveryError.new("unexpected response body: expected a JSON object", retryable: true) unless parsed.is_a?(Hash)
 
       verify_batch_echo!(parsed, batch_id)

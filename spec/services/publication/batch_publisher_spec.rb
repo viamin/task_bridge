@@ -431,6 +431,30 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when a 200 response has a nil body" do
+      before do
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: 200, body: nil)
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of a TypeError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /unparseable response body/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when a 200 response has an empty body" do
+      before { stub_http(status: 200, body: "") }
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /unparseable response body/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when an entry has no matching result in the response" do
       before do
         stub_http(
