@@ -18,6 +18,18 @@ RSpec.describe Publication::Timestamp do
       expect(described_class.format(local)).to eq("2026-08-14T19:20:31.000000Z")
     end
 
+    it "formats an ActiveSupport::TimeWithZone to UTC" do
+      zone = ActiveSupport::TimeZone.new("Kathmandu") # UTC+05:45
+      zoned = zone.local(2026, 8, 15, 1, 5, 31, 123_456) # 2026-08-14T19:20:31.123456Z
+      expect(described_class.format(zoned)).to eq("2026-08-14T19:20:31.123456Z")
+    end
+
+    it "produces the same output for a zoned time and its equivalent Time" do
+      zone = ActiveSupport::TimeZone.new("Kathmandu")
+      zoned = zone.local(2026, 8, 15, 1, 5, 31)
+      expect(described_class.format(zoned)).to eq(described_class.format(Time.utc(2026, 8, 14, 19, 20, 31)))
+    end
+
     it "passes through a canonical timestamp string unchanged" do
       expect(described_class.format("2026-08-14T19:20:31.123456Z")).to eq("2026-08-14T19:20:31.123456Z")
     end

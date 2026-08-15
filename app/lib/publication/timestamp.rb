@@ -14,6 +14,8 @@ module Publication
     module_function
 
     # Returns the canonical UTC serialization of value, or nil when value is nil.
+    # ActiveSupport::TimeWithZone subclasses Time on Rails 7.1+, so zoned times
+    # (for example Time.current with Time.zone set) take the direct path.
     def format(value)
       return if value.nil?
 
