@@ -723,6 +723,23 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when a result omits record_kind" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+          }
+        )
+      end
+
+      it "accepts the result without requiring record_kind to be echoed" do
+        expect(publisher.publish([entry]).first).to be_accepted
+      end
+    end
+
     context "when a result carries a mismatched record_kind" do
       before do
         stub_http(
