@@ -87,6 +87,15 @@ RSpec.describe Publication::Batch do
         described_class.new(batch_id:, sent_at:, items: [item, build_item])
       end.to raise_error(ArgumentError, /duplicate idempotency_key/)
     end
+
+    it "raises when the same idempotency_key appears across different arrays" do
+      shared_key = "tb:v1:item:asana:workspace-12345:default:1:snapshot:2026-08-14T19:20:00.000000Z"
+      observation = build_observation(key: shared_key)
+
+      expect do
+        described_class.new(batch_id:, sent_at:, items: [build_item(key: shared_key)], observations: [observation])
+      end.to raise_error(ArgumentError, /duplicate idempotency_key/)
+    end
   end
 
   describe "#to_payload" do
