@@ -22,6 +22,11 @@ RSpec.describe Publication::Observation do
       expect { described_class.new(**valid_attrs, idempotency_key: "") }.to raise_error(ArgumentError, /idempotency_key/)
     end
 
+    it "raises when idempotency_key is not a string" do
+      expect { described_class.new(**valid_attrs, idempotency_key: 42) }
+        .to raise_error(ArgumentError, /idempotency_key must be a string/)
+    end
+
     it "raises when event_type is invalid" do
       expect { described_class.new(**valid_attrs, event_type: "bad_type") }.to raise_error(ArgumentError, /event_type/)
     end
@@ -38,6 +43,11 @@ RSpec.describe Publication::Observation do
       expect { described_class.new(**valid_attrs, item_key: "") }.to raise_error(ArgumentError, /item_key/)
     end
 
+    it "raises when item_key is not a string" do
+      expect { described_class.new(**valid_attrs, item_key: 42) }
+        .to raise_error(ArgumentError, /item_key must be a string/)
+    end
+
     it "raises when source is nil" do
       expect { described_class.new(**valid_attrs, source: nil) }.to raise_error(ArgumentError, /source is required/)
     end
@@ -51,6 +61,12 @@ RSpec.describe Publication::Observation do
     it "raises when source is not a hash" do
       expect { described_class.new(**valid_attrs, source: "asana") }
         .to raise_error(ArgumentError, /source must be a hash/)
+    end
+
+    it "raises when a source identity field is not a string" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(service_type: :asana))
+      end.to raise_error(ArgumentError, /source required fields must be strings: service_type/)
     end
 
     it "raises when source_url is not a string" do

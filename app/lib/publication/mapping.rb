@@ -62,6 +62,7 @@ module Publication
 
     def validate!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
+      raise ArgumentError, "idempotency_key must be a string" unless idempotency_key.is_a?(String)
       raise ArgumentError, "mapping_type must be one of: #{VALID_MAPPING_TYPES.join(', ')}" unless VALID_MAPPING_TYPES.include?(mapping_type)
       raise ArgumentError, "observed_at is required" if observed_at.blank?
 
@@ -91,6 +92,9 @@ module Publication
 
       missing = %i[item_key service_type service_instance external_id].reject { |k| member[k].present? }
       raise ArgumentError, "member is missing required fields: #{missing.join(', ')}" if missing.any?
+
+      non_strings = %i[item_key service_type service_instance external_id].reject { |k| member[k].is_a?(String) }
+      raise ArgumentError, "member required fields must be strings: #{non_strings.join(', ')}" if non_strings.any?
     end
 
     def validate_enum!(value, allowed, field)

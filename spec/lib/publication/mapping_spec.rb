@@ -28,6 +28,11 @@ RSpec.describe Publication::Mapping do
       expect { described_class.new(**valid_attrs, idempotency_key: "") }.to raise_error(ArgumentError, /idempotency_key/)
     end
 
+    it "raises when idempotency_key is not a string" do
+      expect { described_class.new(**valid_attrs, idempotency_key: 42) }
+        .to raise_error(ArgumentError, /idempotency_key must be a string/)
+    end
+
     it "raises when mapping_type is invalid" do
       expect { described_class.new(**valid_attrs, mapping_type: "unknown") }.to raise_error(ArgumentError, /mapping_type/)
     end
@@ -71,6 +76,12 @@ RSpec.describe Publication::Mapping do
       expect do
         described_class.new(**valid_attrs, member: { item_key: "x" })
       end.to raise_error(ArgumentError, /member/)
+    end
+
+    it "raises when a member identity field is not a string" do
+      expect do
+        described_class.new(**valid_attrs, member: valid_member.merge(external_id: 42))
+      end.to raise_error(ArgumentError, /member required fields must be strings: external_id/)
     end
 
     it "raises when mapping_confidence is invalid" do

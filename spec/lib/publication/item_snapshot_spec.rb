@@ -24,8 +24,18 @@ RSpec.describe Publication::ItemSnapshot do
       expect { described_class.new(**valid_attrs, idempotency_key: "") }.to raise_error(ArgumentError, /idempotency_key/)
     end
 
+    it "raises when idempotency_key is not a string" do
+      expect { described_class.new(**valid_attrs, idempotency_key: 42) }
+        .to raise_error(ArgumentError, /idempotency_key must be a string/)
+    end
+
     it "raises when item_key is blank" do
       expect { described_class.new(**valid_attrs, item_key: nil) }.to raise_error(ArgumentError, /item_key/)
+    end
+
+    it "raises when item_key is not a string" do
+      expect { described_class.new(**valid_attrs, item_key: 42) }
+        .to raise_error(ArgumentError, /item_key must be a string/)
     end
 
     it "raises when observed_at is nil" do
@@ -116,18 +126,31 @@ RSpec.describe Publication::ItemSnapshot do
       end.to raise_error(ArgumentError, /sync_collection\.mapping_source must be a string/)
     end
 
+    it "raises when sync_collection title is not a string" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, title: 84 })
+      end.to raise_error(ArgumentError, /sync_collection\.title must be a string/)
+    end
+
     it "accepts a sync_collection with valid mapping fields" do
       snapshot = described_class.new(
         **valid_attrs,
-        sync_collection: { sync_collection_id: 84, membership_role: "member", mapping_confidence: "confirmed", mapping_source: "sync_id_note" }
+        sync_collection: { sync_collection_id: 84, title: "Release checklist", membership_role: "member", mapping_confidence: "confirmed", mapping_source: "sync_id_note" }
       )
       expect(snapshot.to_payload[:sync_collection][:membership_role]).to eq("member")
+      expect(snapshot.to_payload[:sync_collection][:title]).to eq("Release checklist")
     end
 
     it "raises when source is missing service_instance" do
       expect do
         described_class.new(**valid_attrs, source: { service_type: "asana", external_id: "1" })
       end.to raise_error(ArgumentError, /service_instance/)
+    end
+
+    it "raises when a source identity field is not a string" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(external_id: 120_123_456_789))
+      end.to raise_error(ArgumentError, /source required fields must be strings: external_id/)
     end
 
     it "raises when source_url is not a string" do

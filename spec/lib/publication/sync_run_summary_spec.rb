@@ -23,6 +23,11 @@ RSpec.describe Publication::SyncRunSummary do
       it "raises when #{field} is blank" do
         expect { described_class.new(**valid_attrs, field => "") }.to raise_error(ArgumentError, /#{field}/)
       end
+
+      it "raises when #{field} is not a string" do
+        expect { described_class.new(**valid_attrs, field => 42) }
+          .to raise_error(ArgumentError, /#{field} must be a string/)
+      end
     end
 
     %i[started_at finished_at last_attempted_at last_successful_at].each do |field|

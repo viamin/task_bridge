@@ -71,9 +71,11 @@ module Publication
 
     def validate!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
+      raise ArgumentError, "idempotency_key must be a string" unless idempotency_key.is_a?(String)
       raise ArgumentError, "event_type must be one of: #{VALID_EVENT_TYPES.join(', ')}" unless VALID_EVENT_TYPES.include?(event_type)
       raise ArgumentError, "observed_at is required" if observed_at.blank?
       raise ArgumentError, "item_key is required" if item_key.blank?
+      raise ArgumentError, "item_key must be a string" unless item_key.is_a?(String)
 
       validate_source!(source)
       validate_change!(change)
@@ -89,6 +91,9 @@ module Publication
 
       missing = %i[service_type service_instance external_id].reject { |k| source[k].present? }
       raise ArgumentError, "source is missing required fields: #{missing.join(', ')}" if missing.any?
+
+      non_strings = %i[service_type service_instance external_id].reject { |k| source[k].is_a?(String) }
+      raise ArgumentError, "source required fields must be strings: #{non_strings.join(', ')}" if non_strings.any?
 
       validate_source_url!(source[:source_url])
       validate_source_collection_keys!(source[:source_collection_keys])

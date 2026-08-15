@@ -90,7 +90,9 @@ module Publication
     def validate!
       validate_text_encoding!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
+      raise ArgumentError, "idempotency_key must be a string" unless idempotency_key.is_a?(String)
       raise ArgumentError, "item_key is required" if item_key.blank?
+      raise ArgumentError, "item_key must be a string" unless item_key.is_a?(String)
       raise ArgumentError, "observed_at is required" if observed_at.blank?
       raise ArgumentError, "title must be a string" unless title.is_a?(String)
       raise ArgumentError, "title is required" if title.blank?
@@ -134,6 +136,9 @@ module Publication
       raise ArgumentError, "sync_collection must be a hash when provided" unless collection.is_a?(Hash)
       raise ArgumentError, "sync_collection.sync_collection_id is required" if collection[:sync_collection_id].blank?
 
+      title = collection[:title]
+      raise ArgumentError, "sync_collection.title must be a string when provided" unless title.nil? || title.is_a?(String)
+
       validate_enum!(collection[:membership_role], Mapping::VALID_MEMBERSHIP_ROLES, "sync_collection.membership_role")
       validate_enum!(collection[:mapping_confidence], Mapping::VALID_CONFIDENCE_LEVELS, "sync_collection.mapping_confidence")
 
@@ -155,6 +160,9 @@ module Publication
 
       missing = %i[service_type service_instance external_id].reject { |k| source[k].present? }
       raise ArgumentError, "source is missing required fields: #{missing.join(', ')}" if missing.any?
+
+      non_strings = %i[service_type service_instance external_id].reject { |k| source[k].is_a?(String) }
+      raise ArgumentError, "source required fields must be strings: #{non_strings.join(', ')}" if non_strings.any?
 
       validate_source_url!(source[:source_url])
       validate_source_collection_keys!(source[:source_collection_keys])

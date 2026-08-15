@@ -77,9 +77,13 @@ module Publication
     def validate!
       validate_text_encoding!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
+      raise ArgumentError, "idempotency_key must be a string" unless idempotency_key.is_a?(String)
       raise ArgumentError, "sync_run_id is required" if sync_run_id.blank?
+      raise ArgumentError, "sync_run_id must be a string" unless sync_run_id.is_a?(String)
       raise ArgumentError, "service_type is required" if service_type.blank?
+      raise ArgumentError, "service_type must be a string" unless service_type.is_a?(String)
       raise ArgumentError, "service_instance is required" if service_instance.blank?
+      raise ArgumentError, "service_instance must be a string" unless service_instance.is_a?(String)
       raise ArgumentError, "started_at is required" if started_at.blank?
       raise ArgumentError, "finished_at is required" if finished_at.blank?
       raise ArgumentError, "last_attempted_at is required" if last_attempted_at.blank?
