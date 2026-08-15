@@ -53,6 +53,18 @@ RSpec.describe Publication::Observation do
         .to raise_error(ArgumentError, /source must be a hash/)
     end
 
+    it "raises when source_url is not a string" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(source_url: 42))
+      end.to raise_error(ArgumentError, /source\.source_url must be a string/)
+    end
+
+    it "raises when source_collection_keys is not an array" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(source_collection_keys: "project-9"))
+      end.to raise_error(ArgumentError, /source\.source_collection_keys must be an array/)
+    end
+
     it "raises when observed_at is not parseable as ISO 8601" do
       expect { described_class.new(**valid_attrs, observed_at: "Aug 14 2026") }
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)

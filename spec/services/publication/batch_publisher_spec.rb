@@ -274,7 +274,31 @@ RSpec.describe Publication::BatchPublisher do
 
       it "raises a retryable DeliveryError instead of trusting the value" do
         expect { publisher.publish([entry]) }.to raise_error(
-          Publication::DeliveryError, /retryable must be a boolean/
+          Publication::DeliveryError, /rejected result must carry a boolean retryable/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when a rejected result omits retryable" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 0, replayed: 0, rejected: 1,
+            results: [{
+              idempotency_key: entry.idempotency_key,
+              status: "rejected",
+              error_code: "validation_error",
+              message: "bad row"
+            }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of leaving retry policy undefined" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /rejected result must carry a boolean retryable/
         ) { |e| expect(e.retryable).to be true }
       end
     end

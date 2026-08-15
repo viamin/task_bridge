@@ -281,19 +281,24 @@ module Publication
       verify_record_kind!(entry, row)
       EntryResult.new(
         entry: entry,
-        status:,
-        retryable: validated_retryable(row[:retryable]),
+        status: status,
+        retryable: validated_retryable(row[:retryable], status:),
         error_code: row[:error_code],
         message: row[:message]
       )
     end
 
     # retryable drives outbox retry classification, so a non-boolean value from
-    # a misbehaving server must not silently flip that decision.
-    def validated_retryable(value)
-      return value if value.nil? || [true, false].include?(value)
+    # a misbehaving server must not silently flip that decision. The contract
+    # requires retry guidance per failed row, so rejected results must carry it.
+    def validated_retryable(value, status:)
+      return value if [true, false].include?(value)
+      return nil unless status == "rejected"
 
-      raise DeliveryError.new("unreconcilable response: retryable must be a boolean, got #{value.inspect}", retryable: true)
+      raise DeliveryError.new(
+        "unreconcilable response: rejected result must carry a boolean retryable, got #{value.inspect}",
+        retryable: true
+      )
     end
 
     # Each result's record_kind mirrors the top-level array the row was

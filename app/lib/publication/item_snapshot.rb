@@ -141,6 +141,25 @@ module Publication
 
       missing = %i[service_type service_instance external_id].reject { |k| source[k].present? }
       raise ArgumentError, "source is missing required fields: #{missing.join(', ')}" if missing.any?
+
+      validate_source_url!(source[:source_url])
+      validate_source_collection_keys!(source[:source_collection_keys])
+    end
+
+    # source_url and source_collection_keys are optional because some providers
+    # cannot supply them, but the contract shapes them (URL string, collection
+    # key list), so a wrong type must fail here rather than as a remote
+    # non-retryable row rejection.
+    def validate_source_url!(url)
+      return if url.nil? || url.is_a?(String)
+
+      raise ArgumentError, "source.source_url must be a string when provided"
+    end
+
+    def validate_source_collection_keys!(keys)
+      return if keys.nil? || keys.is_a?(Array)
+
+      raise ArgumentError, "source.source_collection_keys must be an array when provided"
     end
   end
 end

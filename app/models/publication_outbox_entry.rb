@@ -64,12 +64,24 @@ class PublicationOutboxEntry < ApplicationRecord
     new(
       idempotency_key: payload[:idempotency_key],
       record_kind: record.class::RECORD_KIND,
-      payload: payload.to_json,
+      payload: payload_json(payload, payload[:idempotency_key]),
       service_type:,
       service_instance: svc_instance,
       observed_at: payload[:observed_at] || payload[:started_at]
     )
   end
+
+  # The record-level UTF-8 guards cover the free-text fields most likely to
+  # carry malformed provider bytes; nested values they do not cover (change
+  # transitions, provenance, tags entries) fail JSON generation here. Reject
+  # at write time with the offending key instead of surfacing an opaque
+  # GeneratorError from deep in serialization.
+  def self.payload_json(payload, idempotency_key)
+    payload.to_json
+  rescue JSON::GeneratorError => e
+    raise ArgumentError, "payload for #{idempotency_key} is not serializable: #{e.message}"
+  end
+  private_class_method :payload_json
 
   def mark_delivered!
     update!(status: "delivered", delivered_at: Time.current, error_message: nil)

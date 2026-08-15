@@ -114,6 +114,29 @@ RSpec.describe Publication::ItemSnapshot do
       end.to raise_error(ArgumentError, /service_instance/)
     end
 
+    it "raises when source_url is not a string" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(source_url: 42))
+      end.to raise_error(ArgumentError, /source\.source_url must be a string/)
+    end
+
+    it "raises when source_collection_keys is not an array" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(source_collection_keys: "project-9"))
+      end.to raise_error(ArgumentError, /source\.source_collection_keys must be an array/)
+    end
+
+    it "accepts source_url and source_collection_keys in their documented shapes" do
+      snapshot = described_class.new(
+        **valid_attrs,
+        source: valid_source.merge(
+          source_url: "https://app.asana.com/0/12345/1201234567890",
+          source_collection_keys: [{ kind: "project", id: "project-9" }]
+        )
+      )
+      expect(snapshot.to_payload[:source][:source_collection_keys]).to be_an(Array)
+    end
+
     it "raises when observed_at is not parseable as ISO 8601" do
       expect { described_class.new(**valid_attrs, observed_at: "14/08/2026") }
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
