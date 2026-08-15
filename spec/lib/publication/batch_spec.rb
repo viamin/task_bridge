@@ -133,6 +133,21 @@ RSpec.describe Publication::Batch do
       expect { described_class.new(batch_id:, sent_at:, items: [item], publisher_instance: "") }
         .to raise_error(ArgumentError, /publisher_instance must be a non-blank string/)
     end
+
+    it "raises when batch_id contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(batch_id: (+"b\xff").force_encoding("UTF-8"), sent_at:, items: [item]) }
+        .to raise_error(ArgumentError, /batch_id must be valid UTF-8/)
+    end
+
+    it "raises when publisher contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(batch_id:, sent_at:, items: [item], publisher: (+"task_bridge\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /publisher must be valid UTF-8/)
+    end
+
+    it "raises when publisher_instance contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(batch_id:, sent_at:, items: [item], publisher_instance: (+"my-mac\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /publisher_instance must be valid UTF-8/)
+    end
   end
 
   describe "#to_payload" do

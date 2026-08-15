@@ -42,6 +42,10 @@ module Publication
     attr_reader :endpoint, :api_key, :publisher_instance, :timeout
 
     def initialize(endpoint:, api_key:, publisher_instance: nil, timeout: DEFAULT_TIMEOUT)
+      # Encoding is checked first because blank? itself raises on invalid
+      # byte sequences; a malformed endpoint or key must fail with a clear
+      # error instead of an opaque one at construction time.
+      Utf8.validate_fields!({ endpoint:, api_key:, publisher_instance: })
       raise ArgumentError, "endpoint is required" if endpoint.blank?
       raise ArgumentError, "endpoint must be a valid http(s) URI" unless valid_endpoint_uri?(endpoint)
       raise ArgumentError, "api_key is required" if api_key.blank?

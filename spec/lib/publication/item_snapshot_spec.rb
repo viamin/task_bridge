@@ -242,6 +242,33 @@ RSpec.describe Publication::ItemSnapshot do
         .to raise_error(ArgumentError, /notes_preview must be valid UTF-8/)
     end
 
+    it "raises when idempotency_key contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, idempotency_key: (+"tb:v1:\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /idempotency_key must be valid UTF-8/)
+    end
+
+    it "raises when item_key contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, item_key: (+"asana:\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /item_key must be valid UTF-8/)
+    end
+
+    it "raises when a source identity field contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, source: valid_source.merge(external_id: (+"1201\xff").force_encoding("UTF-8"))) }
+        .to raise_error(ArgumentError, /source\.external_id must be valid UTF-8/)
+    end
+
+    it "raises when sync_collection title contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, title: (+"Release \xff").force_encoding("UTF-8") })
+      end.to raise_error(ArgumentError, /sync_collection\.title must be valid UTF-8/)
+    end
+
+    it "raises when sync_collection_id contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: (+"8\xff").force_encoding("UTF-8") })
+      end.to raise_error(ArgumentError, /sync_collection\.sync_collection_id must be valid UTF-8/)
+    end
+
     it "includes parent and source_metadata when provided" do
       snapshot = described_class.new(
         **valid_attrs,

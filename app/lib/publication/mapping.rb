@@ -61,6 +61,7 @@ module Publication
     private
 
     def validate!
+      validate_text_encoding!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "idempotency_key must be a string" unless idempotency_key.is_a?(String)
       raise ArgumentError, "mapping_type must be one of: #{VALID_MAPPING_TYPES.join(', ')}" unless VALID_MAPPING_TYPES.include?(mapping_type)
@@ -73,6 +74,21 @@ module Publication
       validate_mapping_source!(mapping_source)
       validate_provenance!(provenance)
       Timestamp.validate!(observed_at)
+    end
+
+    # Provider text (member identity, collection titles, provenance text) can
+    # carry malformed bytes; invalid UTF-8 must fail at this boundary instead
+    # of crashing JSON generation deep in the publisher. Runs before the
+    # other checks because present?/blank? themselves raise on invalid byte
+    # sequences. Non-string values are left to the type checks that follow.
+    def validate_text_encoding!
+      fields = { idempotency_key:, mapping_source: }
+      if sync_collection.is_a?(Hash)
+        fields[:"sync_collection.sync_collection_id"] = sync_collection[:sync_collection_id]
+        fields[:"sync_collection.title"] = sync_collection[:title]
+      end
+      member.each { |key, value| fields[:"member.#{key}"] = value } if member.is_a?(Hash)
+      Utf8.validate_fields!(fields)
     end
 
     def validate_sync_collection!(sync_collection)

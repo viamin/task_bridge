@@ -87,11 +87,11 @@ class PublicationOutboxEntry < ApplicationRecord
   end
   private_class_method :record_kind!
 
-  # The record-level UTF-8 guards cover the free-text fields most likely to
-  # carry malformed provider bytes; nested values they do not cover (change
-  # transitions, provenance, tags entries) fail JSON generation here. Reject
-  # at write time with the offending key instead of surfacing an opaque
-  # GeneratorError from deep in serialization.
+  # The record-level UTF-8 guards cover the string fields most likely to
+  # carry malformed provider bytes; nested values they do not cover
+  # (provenance, parent, change from/to transitions, source_metadata) fail
+  # JSON generation here. Reject at write time with the offending key
+  # instead of surfacing an opaque GeneratorError from deep in serialization.
   def self.payload_json(payload, idempotency_key)
     payload.to_json
   rescue JSON::GeneratorError => e

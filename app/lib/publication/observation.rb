@@ -70,6 +70,7 @@ module Publication
     private
 
     def validate!
+      validate_text_encoding!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "idempotency_key must be a string" unless idempotency_key.is_a?(String)
       raise ArgumentError, "event_type must be one of: #{VALID_EVENT_TYPES.join(', ')}" unless VALID_EVENT_TYPES.include?(event_type)
@@ -83,6 +84,18 @@ module Publication
       validate_is_deleted!(is_deleted)
       validate_provenance!(provenance)
       Timestamp.validate!(observed_at, published_at, source_created_at, source_updated_at, completed_at)
+    end
+
+    # Provider text can carry malformed bytes; invalid UTF-8 must fail at
+    # this boundary instead of crashing JSON generation deep in the publisher.
+    # Runs before the other checks because present?/blank? themselves raise
+    # on invalid byte sequences. Non-string values are left to the type
+    # checks that follow.
+    def validate_text_encoding!
+      fields = { idempotency_key:, item_key: }
+      fields[:"change.field"] = change[:field] if change.is_a?(Hash)
+      source.each { |key, value| fields[:"source.#{key}"] = value } if source.is_a?(Hash)
+      Utf8.validate_fields!(fields)
     end
 
     def validate_source!(source)

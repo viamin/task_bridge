@@ -44,6 +44,7 @@ module Publication
     end
 
     def self.format_timestamp(value)
+      Utf8.validate_fields!({ observed_at: value })
       raise ArgumentError, "observed_at is required" if value.blank?
 
       Timestamp.format(value)
@@ -64,9 +65,12 @@ module Publication
     end
     private_class_method :key_tail
 
-    # Blank segments would produce malformed keys that cannot be recalled once
-    # accepted by TaskBridge Web, so they are rejected at build time.
+    # Blank or malformed segments would produce keys that cannot be recalled
+    # once accepted by TaskBridge Web (or crash JSON generation later), so
+    # encoding is verified before blank? — which itself raises on invalid
+    # byte sequences — and blank segments are rejected at build time.
     def self.require_presence!(**fields)
+      Utf8.validate_fields!(fields)
       blank = fields.select { |_, value| value.blank? }
       raise ArgumentError, "blank key segment(s): #{blank.keys.join(', ')}" if blank.any?
     end

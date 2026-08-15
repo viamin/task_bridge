@@ -91,6 +91,27 @@ RSpec.describe Publication::Observation do
       expect { described_class.new(**valid_attrs, observed_at: "Aug 14 2026") }
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)
     end
+
+    it "raises when idempotency_key contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, idempotency_key: (+"tb:v1:\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /idempotency_key must be valid UTF-8/)
+    end
+
+    it "raises when item_key contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, item_key: (+"asana:\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /item_key must be valid UTF-8/)
+    end
+
+    it "raises when a source identity field contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(service_instance: (+"asana:\xff").force_encoding("UTF-8")))
+      end.to raise_error(ArgumentError, /source\.service_instance must be valid UTF-8/)
+    end
+
+    it "raises when the change field name contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, change: { field: (+"stat\xff").force_encoding("UTF-8"), from: "open", to: "done" }) }
+        .to raise_error(ArgumentError, /change\.field must be valid UTF-8/)
+    end
   end
 
   describe "optional field validation" do

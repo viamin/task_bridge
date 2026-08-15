@@ -34,6 +34,18 @@ RSpec.describe Publication::IdempotencyKey do
       end.to raise_error(ArgumentError, /blank key segment/)
     end
 
+    it "raises when a key segment contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.for_item(service_instance: (+"asana:\xff").force_encoding("UTF-8"), external_id:, observed_at: observed_at_str)
+      end.to raise_error(ArgumentError, /service_instance must be valid UTF-8/)
+    end
+
+    it "raises when observed_at contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.for_item(service_instance:, external_id:, observed_at: (+"2026-08-14T19:20:31Z\xff").force_encoding("UTF-8"))
+      end.to raise_error(ArgumentError, /observed_at must be valid UTF-8/)
+    end
+
     it "raises when observed_at is nil" do
       expect do
         described_class.for_item(service_instance:, external_id:, observed_at: nil)

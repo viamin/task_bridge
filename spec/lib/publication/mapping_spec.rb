@@ -112,6 +112,34 @@ RSpec.describe Publication::Mapping do
       expect { described_class.new(**valid_attrs, provenance: "matched by title") }
         .to raise_error(ArgumentError, /provenance/)
     end
+
+    it "raises when idempotency_key contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, idempotency_key: (+"tb:v1:\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /idempotency_key must be valid UTF-8/)
+    end
+
+    it "raises when a member identity field contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(**valid_attrs, member: valid_member.merge(external_id: (+"issue-\xff").force_encoding("UTF-8")))
+      end.to raise_error(ArgumentError, /member\.external_id must be valid UTF-8/)
+    end
+
+    it "raises when sync_collection title contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: valid_sync_collection.merge(title: (+"Release \xff").force_encoding("UTF-8")))
+      end.to raise_error(ArgumentError, /sync_collection\.title must be valid UTF-8/)
+    end
+
+    it "raises when sync_collection_id contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: (+"8\xff").force_encoding("UTF-8") })
+      end.to raise_error(ArgumentError, /sync_collection\.sync_collection_id must be valid UTF-8/)
+    end
+
+    it "raises when mapping_source contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, mapping_source: (+"title_\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /mapping_source must be valid UTF-8/)
+    end
   end
 
   describe "#to_payload" do

@@ -147,13 +147,12 @@ module Publication
     # themselves raise on invalid byte sequences. Non-string values are left
     # to the type checks that follow.
     def validate_text_encoding!
-      fields = { "detail" => detail }
+      fields = { idempotency_key:, sync_run_id:, service_type:, service_instance:, "detail" => detail }
       if error.is_a?(Hash)
         fields["error.class"] = error[:class]
         fields["error.message"] = error[:message]
       end
-      invalid = fields.select { |_, value| value.is_a?(String) && !value.valid_encoding? }
-      raise ArgumentError, "#{invalid.keys.join(', ')} must be valid UTF-8" if invalid.any?
+      Utf8.validate_fields!(fields)
     end
   end
 end

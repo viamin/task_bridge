@@ -88,6 +88,21 @@ RSpec.describe Publication::BatchPublisher do
       expect { described_class.new(endpoint:, api_key:, publisher_instance: "") }
         .to raise_error(ArgumentError, /publisher_instance/)
     end
+
+    it "raises ArgumentError when endpoint contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(endpoint: (+"https://ex\xffample.com").force_encoding("UTF-8"), api_key:) }
+        .to raise_error(ArgumentError, /endpoint must be valid UTF-8/)
+    end
+
+    it "raises ArgumentError when api_key contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(endpoint:, api_key: (+"key\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /api_key must be valid UTF-8/)
+    end
+
+    it "raises ArgumentError when publisher_instance contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(endpoint:, api_key:, publisher_instance: (+"my-mac\xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /publisher_instance must be valid UTF-8/)
+    end
   end
 
   describe "#publish" do
