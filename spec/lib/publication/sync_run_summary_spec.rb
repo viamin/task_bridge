@@ -55,6 +55,11 @@ RSpec.describe Publication::SyncRunSummary do
         .to raise_error(ArgumentError, /touched_collection_ids/)
     end
 
+    it "raises when detail is not a string" do
+      expect { described_class.new(**valid_attrs, detail: 12) }
+        .to raise_error(ArgumentError, /detail/)
+    end
+
     it "raises when a required timestamp is not parseable as ISO 8601" do
       expect { described_class.new(**valid_attrs, finished_at: "never") }
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)

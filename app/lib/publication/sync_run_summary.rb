@@ -85,6 +85,7 @@ module Publication
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
       raise ArgumentError, "items_synced must be a non-negative integer" unless items_synced.is_a?(Integer) && items_synced >= 0
       raise ArgumentError, "touched_collection_ids must be an array when provided" unless touched_collection_ids.nil? || touched_collection_ids.is_a?(Array)
+      raise ArgumentError, "detail must be a string when provided" unless detail.nil? || detail.is_a?(String)
 
       validate_error!(error)
       Timestamp.validate!(started_at, finished_at, last_attempted_at, last_successful_at, last_failed_at)

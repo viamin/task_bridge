@@ -79,6 +79,7 @@ module Publication
       validate_change!(change)
       validate_last_known!(last_known)
       validate_is_deleted!(is_deleted)
+      validate_provenance!(provenance)
       Timestamp.validate!(observed_at, published_at, source_created_at, source_updated_at, completed_at)
     end
 
@@ -110,6 +111,14 @@ module Publication
       return if flag.nil? || [true, false].include?(flag)
 
       raise ArgumentError, "is_deleted must be true or false when provided"
+    end
+
+    # provenance is the structured evidence for the observation; a non-hash
+    # value must be rejected at the boundary like the other embedded objects.
+    def validate_provenance!(value)
+      return if value.nil? || value.is_a?(Hash)
+
+      raise ArgumentError, "provenance must be a hash when provided"
     end
   end
 end

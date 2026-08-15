@@ -43,6 +43,21 @@ RSpec.describe Publication::BatchPublisher do
       expect { described_class.new(endpoint:, api_key:, timeout: 0) }.to raise_error(ArgumentError, /timeout/)
       expect { described_class.new(endpoint:, api_key:, timeout: "30") }.to raise_error(ArgumentError, /timeout/)
     end
+
+    it "raises ArgumentError when endpoint is not a parseable URI" do
+      expect { described_class.new(endpoint: "not a uri", api_key:) }.to raise_error(ArgumentError, /valid http\(s\) URI/)
+    end
+
+    it "raises ArgumentError when endpoint lacks a scheme or host" do
+      expect { described_class.new(endpoint: "taskbridge-web.example.com/api", api_key:) }
+        .to raise_error(ArgumentError, /valid http\(s\) URI/)
+      expect { described_class.new(endpoint: "https://", api_key:) }.to raise_error(ArgumentError, /valid http\(s\) URI/)
+    end
+
+    it "raises ArgumentError when endpoint uses a non-http scheme" do
+      expect { described_class.new(endpoint: "ftp://taskbridge-web.example.com", api_key:) }
+        .to raise_error(ArgumentError, /valid http\(s\) URI/)
+    end
   end
 
   describe "#publish" do
@@ -99,6 +114,28 @@ RSpec.describe Publication::BatchPublisher do
         payload: { idempotency_key: "tb:v1:item:asana:default:3:snapshot:2026-08-14T19:00:00.000000Z" }.to_json
       )
       expect { publisher.publish([bare]) }.to raise_error(ArgumentError, /payload contract_version/)
+    end
+
+    context "when a stored payload carries a different idempotency_key than its outbox row" do
+      let(:mismatched) do
+        make_entry(
+          key: "tb:v1:item:asana:default:6:snapshot:2026-08-14T19:00:00.000000Z",
+          payload: {
+            contract_version: 1,
+            idempotency_key: "tb:v1:item:asana:default:different:snapshot:2026-08-14T19:00:00.000000Z"
+          }.to_json
+        )
+      end
+
+      it "raises ArgumentError because the row could never be reconciled from the response" do
+        expect { publisher.publish([mismatched]) }.to raise_error(ArgumentError, /payload idempotency_key must match/)
+      end
+
+      it "does not send an HTTP request" do
+        allow(HTTParty).to receive(:post)
+        expect { publisher.publish([mismatched]) }.to raise_error(ArgumentError)
+        expect(HTTParty).not_to have_received(:post)
+      end
     end
 
     context "when a stored payload is corrupt" do
@@ -494,6 +531,30 @@ RSpec.describe Publication::BatchPublisher do
       it "raises a retryable DeliveryError instead of a TypeError" do
         expect { publisher.publish([entry]) }.to raise_error(
           Publication::DeliveryError, /results must be an array/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the response repeats an idempotency_key in results" do
+      let(:second) { make_entry(key: "tb:v1:item:asana:default:2:snapshot:2026-08-14T19:00:00.000000Z") }
+
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 2, replayed: 0, rejected: 0,
+            results: [
+              { idempotency_key: entry.idempotency_key, status: "accepted" },
+              { idempotency_key: entry.idempotency_key, status: "accepted" }
+            ]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of reconciling against the wrong row" do
+        expect { publisher.publish([entry, second]) }.to raise_error(
+          Publication::DeliveryError, /duplicate idempotency_key/
         ) { |e| expect(e.retryable).to be true }
       end
     end

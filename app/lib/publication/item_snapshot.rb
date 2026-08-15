@@ -96,6 +96,8 @@ module Publication
       raise ArgumentError, "is_deleted must be true or false" unless [true, false].include?(is_deleted)
       raise ArgumentError, "tags must be an array when provided" unless tags.nil? || tags.is_a?(Array)
       raise ArgumentError, "notes_preview must be a string when provided" unless notes_preview.nil? || notes_preview.is_a?(String)
+      raise ArgumentError, "parent must be a hash when provided" unless parent.nil? || parent.is_a?(Hash)
+      raise ArgumentError, "source_metadata must be a hash when provided" unless source_metadata.nil? || source_metadata.is_a?(Hash)
 
       validate_source!(source)
       validate_sync_collection!(sync_collection)

@@ -10,7 +10,9 @@ module Publication
   #   entries = PublicationOutboxEntry.publishable.limit(100)
   #   result  = Publication::BatchPublisher.new(endpoint:, api_key:).publish(entries)
   #   result.each do |entry_result|
-  #     entry_result.entry.mark_delivered! if entry_result.accepted?
+  #     entry = entry_result.entry
+  #     entry.mark_delivered! if entry_result.accepted?
+  #     entry.mark_replayed! if entry_result.replayed?
   #   end
   class BatchPublisher
     CONTRACT_VERSION = 1
@@ -30,6 +32,7 @@ module Publication
 
     def initialize(endpoint:, api_key:, publisher_instance: nil, timeout: DEFAULT_TIMEOUT)
       raise ArgumentError, "endpoint is required" if endpoint.blank?
+      raise ArgumentError, "endpoint must be a valid http(s) URI" unless valid_endpoint_uri?(endpoint)
       raise ArgumentError, "api_key is required" if api_key.blank?
       raise ArgumentError, "timeout must be a positive integer" unless timeout.is_a?(Integer) && timeout.positive?
 
@@ -52,6 +55,7 @@ module Publication
 
       check_duplicate_idempotency_keys!(rows)
       check_payload_contract_versions!(rows)
+      check_payload_idempotency_keys!(rows)
 
       batch_id     = SecureRandom.uuid
       sent_at      = Timestamp.format(Time.current)
@@ -64,6 +68,15 @@ module Publication
     end
 
     private
+
+    # Fail fast on a misconfigured endpoint instead of surfacing an opaque
+    # transport error (or an unhandled URI parse crash) at publish time.
+    def valid_endpoint_uri?(value)
+      uri = URI.parse(value)
+      uri.is_a?(URI::HTTP) && uri.host.present?
+    rescue URI::Error
+      false
+    end
 
     # The contract forbids repeating an idempotency_key within a batch. The
     # outbox unique index normally prevents this, but the publisher guards any
@@ -80,18 +93,29 @@ module Publication
     # sent through a v1 batch. Corrupt payloads fail here with a clear error
     # naming the offending row instead of a raw JSON or type error later.
     def check_payload_contract_versions!(rows)
-      mismatched = rows.reject { |row| payload_contract_version(row) == CONTRACT_VERSION }
+      mismatched = rows.reject { |row| payload_hash(row)[:contract_version] == CONTRACT_VERSION }
       return if mismatched.empty?
 
       keys = mismatched.map(&:idempotency_key).join(", ")
       raise ArgumentError, "payload contract_version must be #{CONTRACT_VERSION} for idempotency_key(s): #{keys}"
     end
 
-    def payload_contract_version(row)
+    # A row whose stored payload identity does not match its outbox column can
+    # never be reconciled from the response (results echo the payload key) and
+    # would retry forever, so it is rejected before any bytes are sent.
+    def check_payload_idempotency_keys!(rows)
+      mismatched = rows.reject { |row| payload_hash(row)[:idempotency_key] == row.idempotency_key }
+      return if mismatched.empty?
+
+      keys = mismatched.map(&:idempotency_key).join(", ")
+      raise ArgumentError, "payload idempotency_key must match the outbox row for idempotency_key(s): #{keys}"
+    end
+
+    def payload_hash(row)
       parsed = row.parsed_payload
       raise ArgumentError, "payload for #{row.idempotency_key} must be a JSON object" unless parsed.is_a?(Hash)
 
-      parsed[:contract_version]
+      parsed
     rescue JSON::ParserError => e
       raise ArgumentError, "unparseable payload for #{row.idempotency_key}: #{e.message}"
     end
@@ -166,7 +190,7 @@ module Publication
 
       results = extract_results(parsed)
       verify_result_counts!(parsed, results, rows)
-      results_by_key = results.index_by { |r| r[:idempotency_key] }
+      results_by_key = index_results_by_key(results)
 
       rows.map { |entry| build_entry_result(entry, results_by_key[entry.idempotency_key]) }
     rescue JSON::ParserError => e
@@ -197,6 +221,19 @@ module Publication
       raise DeliveryError.new("unexpected response body: results must be an array of objects", retryable: true) unless results.is_a?(Array) && results.all?(Hash)
 
       results
+    end
+
+    # The contract returns exactly one result per submitted row; a response
+    # repeating an idempotency_key cannot be reconciled unambiguously, so it
+    # must not drive outbox state changes.
+    def index_results_by_key(results)
+      duplicates = results.map { |result| result[:idempotency_key] }.tally.select { |_, count| count > 1 }.keys
+      return results.index_by { |result| result[:idempotency_key] } if duplicates.empty?
+
+      raise DeliveryError.new(
+        "unreconcilable response: duplicate idempotency_key(s) in results: #{duplicates.inspect}",
+        retryable: true
+      )
     end
 
     # The contract guarantees accepted + replayed + rejected == results.length and

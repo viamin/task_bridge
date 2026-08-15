@@ -64,6 +64,16 @@ RSpec.describe Publication::ItemSnapshot do
       expect { described_class.new(**valid_attrs, tags: "Errands") }.to raise_error(ArgumentError, /tags/)
     end
 
+    it "raises when parent is not a hash" do
+      expect { described_class.new(**valid_attrs, parent: "asana:workspace-12345:default:7") }
+        .to raise_error(ArgumentError, /parent/)
+    end
+
+    it "raises when source_metadata is not a hash" do
+      expect { described_class.new(**valid_attrs, source_metadata: "item_type=task") }
+        .to raise_error(ArgumentError, /source_metadata/)
+    end
+
     it "raises when sync_collection is not a hash" do
       expect { described_class.new(**valid_attrs, sync_collection: "collection 84") }
         .to raise_error(ArgumentError, /sync_collection must be a hash/)
@@ -143,6 +153,17 @@ RSpec.describe Publication::ItemSnapshot do
     it "raises when notes_preview is not a string" do
       expect { described_class.new(**valid_attrs, notes_preview: { text: "2% and eggs" }) }
         .to raise_error(ArgumentError, /notes_preview/)
+    end
+
+    it "includes parent and source_metadata when provided" do
+      snapshot = described_class.new(
+        **valid_attrs,
+        parent: { item_key: "asana:workspace-12345:default:7" },
+        source_metadata: { item_type: "task" }
+      )
+      payload = snapshot.to_payload
+      expect(payload[:parent]).to eq(item_key: "asana:workspace-12345:default:7")
+      expect(payload[:source_metadata]).to eq(item_type: "task")
     end
 
     it "formats a Time observed_at as ISO 8601 UTC with microseconds" do

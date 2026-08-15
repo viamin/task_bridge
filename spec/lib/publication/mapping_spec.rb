@@ -84,6 +84,11 @@ RSpec.describe Publication::Mapping do
         described_class.new(**valid_attrs, membership_role: "owner")
       end.to raise_error(ArgumentError, /membership_role/)
     end
+
+    it "raises when provenance is not a hash" do
+      expect { described_class.new(**valid_attrs, provenance: "matched by title") }
+        .to raise_error(ArgumentError, /provenance/)
+    end
   end
 
   describe "#to_payload" do

@@ -69,6 +69,7 @@ module Publication
       validate_member!(member)
       validate_enum!(membership_role, VALID_MEMBERSHIP_ROLES, :membership_role)
       validate_enum!(mapping_confidence, VALID_CONFIDENCE_LEVELS, :mapping_confidence)
+      validate_provenance!(provenance)
       Timestamp.validate!(observed_at)
     end
 
@@ -90,6 +91,14 @@ module Publication
       return if value.nil? || allowed.include?(value)
 
       raise ArgumentError, "#{field} must be one of: #{allowed.join(', ')}"
+    end
+
+    # provenance is the structured mapping evidence; a non-hash value must be
+    # rejected at the boundary like the other embedded objects.
+    def validate_provenance!(value)
+      return if value.nil? || value.is_a?(Hash)
+
+      raise ArgumentError, "provenance must be a hash when provided"
     end
   end
 end

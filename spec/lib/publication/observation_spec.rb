@@ -81,6 +81,11 @@ RSpec.describe Publication::Observation do
         .to raise_error(ArgumentError, /last_known/)
     end
 
+    it "raises when provenance is not a hash" do
+      expect { described_class.new(**valid_attrs, provenance: "detected by sync_compare") }
+        .to raise_error(ArgumentError, /provenance/)
+    end
+
     it "accepts is_deleted false" do
       expect { described_class.new(**valid_attrs, is_deleted: false) }.not_to raise_error
     end
