@@ -236,11 +236,17 @@ module Publication
     rescue Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout, SocketError, EOFError,
            OpenSSL::SSL::SSLError,
            SystemCallError,
+           Net::ProtocolError, Net::HTTPBadResponse,
+           Zlib::Error,
            HTTParty::Error => e
       # SystemCallError covers every Errno::* network failure (ECONNREFUSED,
       # ECONNRESET, EHOSTUNREACH, ETIMEDOUT, EPIPE, ENETUNREACH, ...).
       # HTTParty::Error covers httparty-specific failures such as
       # RedirectionTooDeep (redirect loop at the endpoint).
+      # Net::ProtocolError (with its Proto* subclasses) and
+      # Net::HTTPBadResponse are raised by net/http itself when a proxy or
+      # misbehaving server answers with malformed HTTP; Zlib::Error escapes
+      # net/http's transparent gzip inflater on corrupt compressed bodies.
       raise DeliveryError.new("transport error: #{e.message}", retryable: true)
     end
 

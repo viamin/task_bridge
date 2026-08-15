@@ -494,6 +494,36 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when a compressed response body is corrupt" do
+      before { allow(HTTParty).to receive(:post).and_raise(Zlib::DataError, "invalid compressed data") }
+
+      it "classifies the Zlib failure as a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /transport error/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the endpoint answers with a malformed HTTP status line" do
+      before { allow(HTTParty).to receive(:post).and_raise(Net::HTTPBadResponse, "wrong status line") }
+
+      it "classifies the bad response as a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /transport error/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the endpoint violates the wire protocol mid-stream" do
+      before { allow(HTTParty).to receive(:post).and_raise(Net::ProtoRetriableError, "protocol error") }
+
+      it "classifies every Net::ProtocolError subclass as a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /transport error/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when the response echoes a different batch_id" do
       before do
         stub_http(
