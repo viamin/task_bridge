@@ -377,6 +377,16 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when the network is unreachable" do
+      before { allow(HTTParty).to receive(:post).and_raise(Errno::ENETUNREACH, "Network is unreachable") }
+
+      it "classifies any Errno syscall failure as a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /transport error/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when the response echoes a different batch_id" do
       before do
         stub_http(

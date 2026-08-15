@@ -163,9 +163,10 @@ module Publication
       )
     rescue Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout, SocketError, EOFError,
            OpenSSL::SSL::SSLError,
-           Errno::ECONNREFUSED, Errno::ECONNRESET, Errno::EHOSTUNREACH, Errno::ETIMEDOUT,
-           Errno::EPIPE,
+           SystemCallError,
            HTTParty::Error => e
+      # SystemCallError covers every Errno::* network failure (ECONNREFUSED,
+      # ECONNRESET, EHOSTUNREACH, ETIMEDOUT, EPIPE, ENETUNREACH, ...).
       # HTTParty::Error covers httparty-specific failures such as
       # RedirectionTooDeep (redirect loop at the endpoint).
       raise DeliveryError.new("transport error: #{e.message}", retryable: true)
