@@ -98,6 +98,17 @@ class PublicationOutboxEntry < ApplicationRecord
     )
   end
 
+  # Records a terminal failure without burning retries: used when the publisher
+  # classifies a row rejection as non-retryable (for example a validation
+  # error), so the row is kept for operator review and never rescheduled.
+  def mark_terminal!(message:)
+    update!(
+      status: "terminal",
+      failed_at: Time.current,
+      error_message: message.to_s.truncate(1000)
+    )
+  end
+
   def mark_replayed!
     update!(status: "delivered", delivered_at: Time.current, error_message: nil)
   end

@@ -218,6 +218,29 @@ RSpec.describe PublicationOutboxEntry, type: :model do
     end
   end
 
+  describe "#mark_terminal!" do
+    it "sets status to terminal and records failed_at without incrementing retry_count" do
+      entry = described_class.create!(valid_entry_attrs)
+      entry.mark_terminal!(message: "validation_error: source.service_instance is required")
+      expect(entry.reload.status).to eq("terminal")
+      expect(entry.failed_at).to be_present
+      expect(entry.retry_count).to eq(0)
+      expect(entry.error_message).to include("validation_error")
+    end
+
+    it "excludes the row from future publish attempts" do
+      entry = described_class.create!(valid_entry_attrs)
+      entry.mark_terminal!(message: "non-retryable rejection")
+      expect(described_class.publishable.map(&:idempotency_key)).not_to include(entry.idempotency_key)
+    end
+
+    it "truncates long error messages" do
+      entry = described_class.create!(valid_entry_attrs)
+      entry.mark_terminal!(message: "x" * 2000)
+      expect(entry.reload.error_message.length).to eq(1000)
+    end
+  end
+
   describe "#mark_replayed!" do
     it "sets status to delivered" do
       entry = described_class.create!(valid_entry_attrs)

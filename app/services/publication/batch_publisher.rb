@@ -13,6 +13,13 @@ module Publication
   #     entry = entry_result.entry
   #     entry.mark_delivered! if entry_result.accepted?
   #     entry.mark_replayed! if entry_result.replayed?
+  #     next unless entry_result.rejected?
+  #
+  #     if entry_result.retryable
+  #       entry.mark_failed!(message: entry_result.message)
+  #     else
+  #       entry.mark_terminal!(message: entry_result.message)
+  #     end
   #   end
   #
   # Deliberately larger than the ~100-line class target: request building,
