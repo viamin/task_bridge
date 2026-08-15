@@ -1061,5 +1061,62 @@ RSpec.describe Publication::BatchPublisher do
         end
       end
     end
+
+    context "when a non-200 response body echoes the API key back" do
+      before do
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: 422, body: %({"error":"echo Authorization: Bearer #{api_key}"}))
+        )
+      end
+
+      it "redacts the credential from the DeliveryError message" do
+        expect { publisher.publish([entry]) }.to raise_error(Publication::DeliveryError) do |e|
+          expect(e.message).not_to include(api_key)
+          expect(e.message).to include("[REDACTED]")
+        end
+      end
+    end
+
+    context "when a rejected row message echoes the API key back" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 0, replayed: 0, rejected: 1,
+            results: [{
+              record_kind: "item",
+              idempotency_key: entry.idempotency_key,
+              status: "rejected",
+              retryable: false,
+              error_code: "validation_error: #{api_key}",
+              message: "saw Bearer #{api_key} in your headers"
+            }]
+          }
+        )
+      end
+
+      it "redacts the credential from the result's message and error_code" do
+        result = publisher.publish([entry]).first
+        expect(result).to be_rejected
+        expect(result.message).not_to include(api_key)
+        expect(result.message).to include("[REDACTED]")
+        expect(result.error_code).not_to include(api_key)
+      end
+    end
+
+    context "when an unparseable response body echoes the API key back" do
+      before do
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: 200, body: %({#{api_key} not valid json}))
+        )
+      end
+
+      it "redacts the credential from the parser error excerpt" do
+        expect { publisher.publish([entry]) }.to raise_error(Publication::DeliveryError, /unparseable response body/) do |e|
+          expect(e.message).not_to include(api_key)
+        end
+      end
+    end
   end
 end

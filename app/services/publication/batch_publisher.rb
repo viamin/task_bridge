@@ -300,7 +300,17 @@ module Publication
     # error_message column, and truncation bounds the message regardless of
     # what the remote sent back.
     def response_excerpt(response)
-      Utf8.sanitize(response.body.to_s).truncate(RESPONSE_EXCERPT_MAX)
+      redact_credentials(Utf8.sanitize(response.body.to_s)).truncate(RESPONSE_EXCERPT_MAX)
+    end
+
+    # Remote text is embedded in DeliveryError messages and EntryResults that
+    # callers log and persist, and a misbehaving endpoint (echo handler,
+    # debugging proxy) can reflect the request's own Authorization value back
+    # in a body or row message, so the credential is redacted wherever remote
+    # text crosses that boundary. gsub with a String pattern is a literal
+    # match, so key bytes with regex meaning are safe.
+    def redact_credentials(text)
+      text.to_s.gsub(api_key, "[REDACTED]")
     end
 
     def parse_row_results(response, rows, batch_id:)
@@ -319,7 +329,7 @@ module Publication
 
       rows.map { |entry| build_entry_result(entry, results_by_key[entry.idempotency_key]) }
     rescue JSON::ParserError => e
-      raise DeliveryError.new("unparseable response body: #{Utf8.sanitize(e.message)}", retryable: true)
+      raise DeliveryError.new("unparseable response body: #{redact_credentials(Utf8.sanitize(e.message))}", retryable: true)
     end
 
     # A response echoing a different batch_id cannot be reconciled with this
@@ -425,8 +435,8 @@ module Publication
         entry: entry,
         status: row[:status],
         retryable: validated_retryable(row[:retryable], status: row[:status]),
-        error_code: Utf8.sanitize(row[:error_code]),
-        message: Utf8.sanitize(row[:message])
+        error_code: redact_credentials(Utf8.sanitize(row[:error_code])),
+        message: redact_credentials(Utf8.sanitize(row[:message]))
       )
     end
 
