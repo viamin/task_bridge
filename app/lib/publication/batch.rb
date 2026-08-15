@@ -68,12 +68,23 @@ module Publication
       raise ArgumentError, "sent_at is required" if sent_at.blank?
       raise ArgumentError, "batch must contain at least one record" if total_record_count.zero?
 
+      check_record_interface!
       Timestamp.validate!(sent_at)
       check_duplicate_idempotency_keys!
     end
 
     def all_records
       [*items, *observations, *mappings, *sync_runs]
+    end
+
+    # A wrong-typed entry (anything coerced by Array that is not a record)
+    # would otherwise crash the duplicate-key check with an opaque
+    # NoMethodError, so the record interface is verified up front.
+    def check_record_interface!
+      invalid = all_records.reject { |record| record.respond_to?(:idempotency_key) && record.respond_to?(:to_payload) }
+      return if invalid.empty?
+
+      raise ArgumentError, "batch entries must implement idempotency_key and to_payload"
     end
 
     def check_duplicate_idempotency_keys!

@@ -83,6 +83,17 @@ RSpec.describe Publication::Batch do
       expect { described_class.new(batch_id:, sent_at:) }.to raise_error(ArgumentError, /at least one record/)
     end
 
+    it "raises when an array entry is not a publication record" do
+      expect { described_class.new(batch_id:, sent_at:, items: ["not a record"]) }
+        .to raise_error(ArgumentError, /must implement idempotency_key and to_payload/)
+    end
+
+    it "wraps a single record argument into a one-record batch" do
+      batch = described_class.new(batch_id:, sent_at:, items: item)
+      expect(batch.total_record_count).to eq(1)
+      expect(batch.to_payload[:items].length).to eq(1)
+    end
+
     it "raises when two records share an idempotency_key" do
       expect do
         described_class.new(batch_id:, sent_at:, items: [item, build_item])

@@ -90,6 +90,16 @@ RSpec.describe Publication::BatchPublisher do
       expect { publisher.publish([bogus]) }.to raise_error(ArgumentError, /unknown record_kind/)
     end
 
+    it "raises ArgumentError when an entry does not implement the entry interface" do
+      expect { publisher.publish(["not an entry"]) }.to raise_error(ArgumentError, /entries must respond/)
+    end
+
+    it "does not send an HTTP request when an entry does not implement the entry interface" do
+      allow(HTTParty).to receive(:post)
+      expect { publisher.publish([Object.new]) }.to raise_error(ArgumentError, /entries must respond/)
+      expect(HTTParty).not_to have_received(:post)
+    end
+
     it "does not send an HTTP request when an entry has an unknown record_kind" do
       allow(HTTParty).to receive(:post)
       bogus = make_entry(key: "tb:v1:bogus:1", kind: "bogus")
@@ -186,6 +196,25 @@ RSpec.describe Publication::BatchPublisher do
           payload: "[1, 2]"
         )
         expect { publisher.publish([array_payload]) }.to raise_error(ArgumentError)
+        expect(HTTParty).not_to have_received(:post)
+      end
+
+      it "raises ArgumentError naming the row when a payload parses but cannot be JSON-generated" do
+        key = "tb:v1:item:asana:default:8:snapshot:2026-08-14T19:00:00.000000Z"
+        raw = %({"contract_version":1,"idempotency_key":"#{key}","title":"milk }) << 0xff.chr << %("})
+        binary = make_entry(key: key, payload: raw.force_encoding("UTF-8"))
+
+        expect { publisher.publish([binary]) }
+          .to raise_error(ArgumentError, /payload for .*asana:default:8.* is not serializable/)
+      end
+
+      it "does not send an HTTP request when a payload cannot be JSON-generated" do
+        allow(HTTParty).to receive(:post)
+        key = "tb:v1:item:asana:default:8:snapshot:2026-08-14T19:00:00.000000Z"
+        raw = %({"contract_version":1,"idempotency_key":"#{key}","title":"milk }) << 0xff.chr << %("})
+        binary = make_entry(key: key, payload: raw.force_encoding("UTF-8"))
+
+        expect { publisher.publish([binary]) }.to raise_error(ArgumentError, /is not serializable/)
         expect(HTTParty).not_to have_received(:post)
       end
     end

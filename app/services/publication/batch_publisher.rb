@@ -61,6 +61,8 @@ module Publication
       rows = Array(entries)
       raise ArgumentError, "entries must not be empty" if rows.empty?
 
+      check_entry_interface!(rows)
+
       unknown = rows.map(&:record_kind).uniq - RECORD_KINDS
       raise ArgumentError, "unknown record_kind(s): #{unknown.join(', ')}" if unknown.any?
 
@@ -91,6 +93,15 @@ module Publication
       uri.is_a?(URI::HTTP) && uri.host.present?
     rescue URI::Error
       false
+    end
+
+    # A wrong-typed entry would otherwise crash the record_kind check with an
+    # opaque NoMethodError instead of a clear error naming the problem.
+    def check_entry_interface!(rows)
+      interface = %i[record_kind idempotency_key parsed_payload]
+      return if rows.all? { |row| interface.all? { |method| row.respond_to?(method) } }
+
+      raise ArgumentError, "entries must respond to #{interface.join(', ')}"
     end
 
     # The contract forbids repeating an idempotency_key within a batch. The
@@ -142,14 +153,36 @@ module Publication
     def build_body(rows, batch_id:, sent_at:, published_at:)
       grouped = rows.group_by(&:record_kind)
 
-      {
-        contract_version: CONTRACT_VERSION,
-        batch: { batch_id:, sent_at:, publisher: "task_bridge", publisher_instance: }.compact,
-        items: serialize_group(grouped["item"], published_at:),
-        observations: serialize_group(grouped["observation"], published_at:),
-        mappings: serialize_group(grouped["mapping"], published_at:),
-        sync_runs: serialize_group(grouped["sync_run"], published_at:)
-      }.to_json
+      begin
+        {
+          contract_version: CONTRACT_VERSION,
+          batch: { batch_id:, sent_at:, publisher: "task_bridge", publisher_instance: }.compact,
+          items: serialize_group(grouped["item"], published_at:),
+          observations: serialize_group(grouped["observation"], published_at:),
+          mappings: serialize_group(grouped["mapping"], published_at:),
+          sync_runs: serialize_group(grouped["sync_run"], published_at:)
+        }.to_json
+      rescue JSON::GeneratorError => e
+        raise_unserializable_rows!(rows, published_at:, cause: e)
+      end
+    end
+
+    # JSON.parse accepts malformed UTF-8 byte sequences, so a row written past
+    # the model validation (raw SQL, update_column) can pass every pre-send
+    # check and still fail JSON generation when the body is assembled. The
+    # envelope itself is always ASCII-safe, so generation can only fail on a
+    # row payload: identify the offender(s) and raise the same error the model
+    # raises at write time instead of leaking a GeneratorError.
+    def raise_unserializable_rows!(rows, published_at:, cause:)
+      keys = rows.reject { |row| serializable_payload?(row, published_at:) }.map(&:idempotency_key)
+      raise ArgumentError, "payload for #{keys.join(', ')} is not serializable: #{cause.message}"
+    end
+
+    def serializable_payload?(row, published_at:)
+      JSON.generate(payload_hash(row).merge(published_at:))
+      true
+    rescue JSON::GeneratorError
+      false
     end
 
     # published_at is record-level transport metadata; every row in one publish
