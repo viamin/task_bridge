@@ -122,6 +122,22 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.service_type).to eq("github")
       expect(entry.service_instance).to eq("github:repo-1")
     end
+
+    it "extracts service_type and service_instance from source for observation records" do
+      observation = Publication::Observation.new(
+        idempotency_key: "tb:v1:obs:asana:workspace-12345:default:123:source_changed:2026-08-14T19:00:00.000000Z",
+        event_type: "source_changed",
+        observed_at: "2026-08-14T19:00:00.000000Z",
+        item_key: "asana:workspace-12345:default:123",
+        source:
+      )
+      entry = described_class.from_record(observation)
+
+      expect(entry.record_kind).to eq("observation")
+      expect(entry.service_type).to eq("asana")
+      expect(entry.service_instance).to eq("asana:workspace-12345:default")
+      expect(entry.observed_at).to be_present
+    end
   end
 
   describe "scopes" do

@@ -17,6 +17,40 @@ RSpec.describe Publication::Batch do
     )
   end
 
+  def build_observation(key: "tb:v1:obs:asana:workspace-12345:default:1:source_changed:2026-08-14T19:20:00.000000Z")
+    Publication::Observation.new(
+      idempotency_key: key,
+      event_type: "source_changed",
+      observed_at: "2026-08-14T19:20:00.000000Z",
+      item_key: "asana:workspace-12345:default:1",
+      source:
+    )
+  end
+
+  def build_mapping(key: "tb:v1:map:sync_collection:84:membership:asana:workspace-12345:default:1:2026-08-14T19:20:00.000000Z")
+    Publication::Mapping.new(
+      idempotency_key: key,
+      mapping_type: "representation_membership",
+      observed_at: "2026-08-14T19:20:00.000000Z",
+      sync_collection: { sync_collection_id: 84 },
+      member: { item_key: "asana:workspace-12345:default:1", service_type: "asana", service_instance: source[:service_instance], external_id: "1" }
+    )
+  end
+
+  def build_sync_run(key: "tb:v1:sync_run:asana:workspace-12345:default:run-1")
+    Publication::SyncRunSummary.new(
+      idempotency_key: key,
+      sync_run_id: "run-1",
+      service_type: "asana",
+      service_instance: source[:service_instance],
+      started_at: "2026-08-14T19:20:00.000000Z",
+      finished_at: "2026-08-14T19:21:00.000000Z",
+      last_attempted_at: "2026-08-14T19:20:00.000000Z",
+      status: "success",
+      items_synced: 1
+    )
+  end
+
   let(:batch_id)  { "2fd13f74-02ec-4dfd-b21c-3837a66a3768" }
   let(:sent_at)   { "2026-08-14T19:21:10.000000Z" }
   let(:item)      { build_item }
@@ -70,6 +104,20 @@ RSpec.describe Publication::Batch do
     it "includes the serialized item in the items array" do
       expect(payload[:items].length).to eq(1)
       expect(payload[:items].first[:idempotency_key]).to eq(item.idempotency_key)
+    end
+
+    it "serializes observations, mappings, and sync_runs into their own arrays" do
+      observation = build_observation
+      mapping = build_mapping
+      run = build_sync_run
+      batch = described_class.new(batch_id:, sent_at:, observations: [observation], mappings: [mapping], sync_runs: [run])
+
+      payload = batch.to_payload
+      expect(payload[:items]).to eq([])
+      expect(payload[:observations].first[:idempotency_key]).to eq(observation.idempotency_key)
+      expect(payload[:mappings].first[:idempotency_key]).to eq(mapping.idempotency_key)
+      expect(payload[:sync_runs].first[:idempotency_key]).to eq(run.idempotency_key)
+      expect(batch.total_record_count).to eq(3)
     end
 
     it "returns empty arrays for omitted record types" do

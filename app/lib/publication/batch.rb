@@ -57,13 +57,12 @@ module Publication
     private
 
     def batch_envelope
-      envelope = {
+      {
         batch_id:,
         sent_at: Timestamp.format(sent_at),
-        publisher:
+        publisher:,
+        publisher_instance:
       }.compact
-      envelope[:publisher_instance] = publisher_instance if publisher_instance
-      envelope
     end
 
     def validate!
