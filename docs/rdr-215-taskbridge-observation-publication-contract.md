@@ -56,7 +56,7 @@ Every request is versioned and batch-oriented.
   - `mappings`
   - `sync_runs`
 
-TaskBridge Web must accept partial batches and return per-entry results keyed by idempotency key.
+TaskBridge Web must accept partial batches and return one result entry per submitted row, each entry carrying its `idempotency_key`.
 
 Additional batch rules:
 
@@ -64,7 +64,7 @@ Additional batch rules:
 - `items`, `observations`, `mappings`, and `sync_runs` are independent top-level arrays; if present, each must be an array.
 - Omitted top-level arrays are equivalent to empty arrays. Consumers must not infer a different meaning from omission versus `[]`.
 - A batch must contain at least one record across those arrays. TaskBridge must not send empty batches.
-- `X-TaskBridge-Contract-Version` and `body.contract_version` must match exactly; if they differ, TaskBridge Web must reject the whole request before row processing.
+- `X-TaskBridge-Contract-Version` and `body.contract_version` must match exactly; if they differ, or if either is missing, TaskBridge Web must reject the whole request before row processing.
 - `X-TaskBridge-Batch-Id` must match `batch.batch_id` when both are present.
 - `X-TaskBridge-Sent-At` must match `batch.sent_at` when both are present.
 - Every submitted row must carry `contract_version` equal to `body.contract_version`; a row-level mismatch is a row validation failure, not a signal to reinterpret the request.
@@ -540,6 +540,8 @@ Failure example:
 }
 ```
 
+The observation row in this example omits `source.service_instance` deliberately to demonstrate partial-success handling; the response below accepts the item snapshot while rejecting that row.
+
 ## TaskBridge Web Endpoint Expectations
 
 The first compatible ingestion surface required under #214 is:
@@ -553,6 +555,7 @@ Minimum behavior:
 - reject empty batches;
 - reject header/body contract mismatches before row processing;
 - reject requests that repeat an `idempotency_key` across arrays, before row processing;
+- respond to pre-row rejections with a top-level error body and no `results` array; TaskBridge must treat every submitted row in such a response as not delivered;
 - process `items`, `observations`, `mappings`, and `sync_runs` independently;
 - enforce idempotency per record using `idempotency_key`;
 - persist accepted records durably before responding success;
@@ -593,6 +596,7 @@ The count fields must satisfy `accepted + replayed + rejected == results.length`
 HTTP status guidance:
 
 - `200 OK`: batch parsed; inspect per-row statuses
+- `400 Bad Request`: request body is unparseable or not valid JSON; no rows are processed
 - `401 Unauthorized`: invalid API key; terminal until secrets are fixed
 - `413 Payload Too Large`: retryable after smaller batches
 - `422 Unprocessable Entity`: contract or row validation failure; usually terminal for listed rows
