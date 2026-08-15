@@ -143,6 +143,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
   describe "scopes" do
     before do
       described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-pending", status: "pending"))
+      described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-delivering", status: "delivering"))
       described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-delivered", status: "delivered"))
       described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-failed", status: "failed", retry_count: 2))
       described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-terminal", status: "terminal", retry_count: 10))
@@ -150,6 +151,10 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
     it "pending returns only pending rows" do
       expect(described_class.pending.map(&:idempotency_key)).to eq(["key-pending"])
+    end
+
+    it "delivering returns only delivering rows" do
+      expect(described_class.delivering.map(&:idempotency_key)).to eq(["key-delivering"])
     end
 
     it "delivered returns only delivered rows" do

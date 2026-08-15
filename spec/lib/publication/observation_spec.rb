@@ -117,6 +117,11 @@ RSpec.describe Publication::Observation do
       expect(obs.to_payload[:change]).to eq({ field: "status", from: "open", to: "completed" })
     end
 
+    it "includes published_at in canonical form when provided" do
+      obs = described_class.new(**valid_attrs, published_at: "2026-08-14T19:20:33Z")
+      expect(obs.to_payload[:published_at]).to eq("2026-08-14T19:20:33.000000Z")
+    end
+
     it "includes is_deleted on tombstone observations" do
       obs = described_class.new(**valid_attrs, event_type: "deleted", is_deleted: true, last_known: { title: "Buy milk" })
       payload = obs.to_payload

@@ -148,6 +148,12 @@ RSpec.describe Publication::IdempotencyKey do
       expect(key).to eq("tb:v1:sync_run:asana:workspace-12345:default:sync-run-20260814T192000Z-asana")
     end
 
+    it "raises when a key segment is blank" do
+      expect do
+        described_class.for_sync_run(service_instance:, sync_run_id: "")
+      end.to raise_error(ArgumentError, /blank key segment/)
+    end
+
     it "does not include a timestamp segment" do
       key = described_class.for_sync_run(service_instance:, sync_run_id: "run-1")
       expect(key).not_to include("T")
