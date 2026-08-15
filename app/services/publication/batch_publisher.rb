@@ -258,10 +258,18 @@ module Publication
       EntryResult.new(
         entry: entry,
         status:,
-        retryable: row[:retryable],
+        retryable: validated_retryable(row[:retryable]),
         error_code: row[:error_code],
         message: row[:message]
       )
+    end
+
+    # retryable drives outbox retry classification, so a non-boolean value from
+    # a misbehaving server must not silently flip that decision.
+    def validated_retryable(value)
+      return value if value.nil? || [true, false].include?(value)
+
+      raise DeliveryError.new("unreconcilable response: retryable must be a boolean, got #{value.inspect}", retryable: true)
     end
 
     # Each result's record_kind mirrors the top-level array the row was
