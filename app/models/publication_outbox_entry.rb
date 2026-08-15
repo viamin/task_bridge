@@ -57,16 +57,16 @@ class PublicationOutboxEntry < ApplicationRecord
   # payload root for sync_run records, so replay-by-service filtering works for
   # every record kind.
   def self.from_record(record)
-    payload       = record.to_payload
-    identity      = payload[:source] || payload[:member] || {}
-    service_type  = identity[:service_type] || payload[:service_type]
-    svc_instance  = identity[:service_instance] || payload[:service_instance]
+    payload          = record.to_payload
+    identity         = payload[:source] || payload[:member] || {}
+    service_type     = identity[:service_type] || payload[:service_type]
+    service_instance = identity[:service_instance] || payload[:service_instance]
     new(
       idempotency_key: payload[:idempotency_key],
       record_kind: record.class::RECORD_KIND,
       payload: payload_json(payload, payload[:idempotency_key]),
       service_type:,
-      service_instance: svc_instance,
+      service_instance:,
       observed_at: payload[:observed_at] || payload[:started_at]
     )
   end

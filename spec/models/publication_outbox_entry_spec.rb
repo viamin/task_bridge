@@ -82,6 +82,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.record_kind).to eq("item")
       expect(entry.service_type).to eq("asana")
       expect(entry.service_instance).to eq("asana:workspace-12345:default")
+      expect(entry.observed_at).to eq(Time.utc(2026, 8, 14, 19, 0, 0))
       expect(entry.status).to eq("pending")
     end
 
