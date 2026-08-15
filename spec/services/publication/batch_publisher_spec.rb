@@ -534,6 +534,25 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when a result is missing its idempotency_key" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ status: "accepted" }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of orphaning the row" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /unreconcilable response: result missing idempotency_key/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when the response returns more results than submitted rows" do
       before do
         stub_http(

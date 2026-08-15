@@ -223,7 +223,17 @@ module Publication
       results = parsed[:results]
       raise DeliveryError.new("unexpected response body: results must be an array of objects", retryable: true) unless results.is_a?(Array) && results.all?(Hash)
 
+      verify_result_keys_present!(results)
       results
+    end
+
+    # Each result must carry its idempotency_key so it can be matched back to
+    # the submitted row; a result missing this field can never be reconciled
+    # and would otherwise silently orphan the row it was meant to describe.
+    def verify_result_keys_present!(results)
+      return if results.all? { |result| result[:idempotency_key].present? }
+
+      raise DeliveryError.new("unreconcilable response: result missing idempotency_key", retryable: true)
     end
 
     # The contract returns exactly one result per submitted row; a response
