@@ -12,6 +12,7 @@ RSpec.describe Publication::SyncRunSummary do
       started_at: "2026-08-14T19:20:00.000000Z",
       finished_at: "2026-08-14T19:21:05.000000Z",
       last_attempted_at: "2026-08-14T19:20:00.000000Z",
+      last_successful_at: "2026-08-14T19:21:05.000000Z",
       status: "success",
       items_synced: 12
     }
@@ -24,7 +25,7 @@ RSpec.describe Publication::SyncRunSummary do
       end
     end
 
-    %i[started_at finished_at last_attempted_at].each do |field|
+    %i[started_at finished_at last_attempted_at last_successful_at].each do |field|
       it "raises when #{field} is nil" do
         expect { described_class.new(**valid_attrs, field => nil) }.to raise_error(ArgumentError, /#{field}/)
       end
@@ -66,6 +67,35 @@ RSpec.describe Publication::SyncRunSummary do
     end
   end
 
+  describe "completion timestamp rules" do
+    it "raises when a success run omits last_successful_at" do
+      expect { described_class.new(**valid_attrs, last_successful_at: nil) }
+        .to raise_error(ArgumentError, /last_successful_at is required/)
+    end
+
+    it "raises when a failed run omits last_failed_at" do
+      expect { described_class.new(**valid_attrs, status: "failed", last_successful_at: nil) }
+        .to raise_error(ArgumentError, /last_failed_at is required/)
+    end
+
+    it "raises when a partial run omits both completion timestamps" do
+      expect { described_class.new(**valid_attrs, status: "partial", last_successful_at: nil) }
+        .to raise_error(ArgumentError, /last_successful_at or last_failed_at is required/)
+    end
+
+    it "accepts a failed run that carries last_failed_at" do
+      summary = described_class.new(
+        **valid_attrs, status: "failed", last_successful_at: nil,
+                       last_failed_at: "2026-08-14T19:30:02.000000Z"
+      )
+      expect(summary.to_payload[:last_failed_at]).to eq("2026-08-14T19:30:02.000000Z")
+    end
+
+    it "accepts a partial run that carries at least one completion timestamp" do
+      expect { described_class.new(**valid_attrs, status: "partial") }.not_to raise_error
+    end
+  end
+
   describe "optional error validation" do
     it "raises when error is not a hash" do
       expect { described_class.new(**valid_attrs, error: "ProviderError") }
@@ -99,6 +129,17 @@ RSpec.describe Publication::SyncRunSummary do
       expect do
         described_class.new(**valid_attrs, error: { class: "ProviderError", message: 401, retryable: false })
       end.to raise_error(ArgumentError, /error/)
+    end
+
+    it "raises when detail contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, detail: (+"12 items \xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /detail must be valid UTF-8/)
+    end
+
+    it "raises when error.message contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(**valid_attrs, error: { class: "ProviderError", message: (+"401 \xff").force_encoding("UTF-8"), retryable: false })
+      end.to raise_error(ArgumentError, /error\.message must be valid UTF-8/)
     end
   end
 
@@ -148,10 +189,13 @@ RSpec.describe Publication::SyncRunSummary do
       expect(p[:error][:message]).to eq("401 unauthorized")
     end
 
-    it "accepts all valid statuses" do
-      %w[success failed partial].each do |s|
-        expect { described_class.new(**valid_attrs, status: s) }.not_to raise_error
-      end
+    it "accepts all valid statuses when the applicable completion timestamp is present" do
+      expect { described_class.new(**valid_attrs, status: "success") }.not_to raise_error
+      expect do
+        described_class.new(**valid_attrs, status: "failed", last_successful_at: nil,
+                                           last_failed_at: "2026-08-14T19:30:02.000000Z")
+      end.not_to raise_error
+      expect { described_class.new(**valid_attrs, status: "partial") }.not_to raise_error
     end
   end
 

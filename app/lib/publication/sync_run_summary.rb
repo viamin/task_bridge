@@ -75,6 +75,7 @@ module Publication
     private
 
     def validate!
+      validate_text_encoding!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "sync_run_id is required" if sync_run_id.blank?
       raise ArgumentError, "service_type is required" if service_type.blank?
@@ -88,6 +89,7 @@ module Publication
       raise ArgumentError, "detail must be a string when provided" unless detail.nil? || detail.is_a?(String)
 
       validate_error!(error)
+      validate_completion_timestamps!
       Timestamp.validate!(started_at, finished_at, last_attempted_at, last_successful_at, last_failed_at)
     end
 
@@ -107,6 +109,37 @@ module Publication
         error[:class].is_a?(String) && error[:class].present? &&
         error[:message].is_a?(String) && error[:message].present? &&
         [true, false].include?(error[:retryable])
+    end
+
+    # RDR 215 lists last_successful_at or last_failed_at as required "as
+    # applicable": the summary must carry the completion timestamp matching
+    # its outcome so TaskBridge Web can correlate operational health.
+    def validate_completion_timestamps!
+      case status
+      when "success"
+        raise ArgumentError, "last_successful_at is required for a success run" if last_successful_at.blank?
+      when "failed"
+        raise ArgumentError, "last_failed_at is required for a failed run" if last_failed_at.blank?
+      else
+        return unless last_successful_at.blank? && last_failed_at.blank?
+
+        raise ArgumentError, "last_successful_at or last_failed_at is required for a partial run"
+      end
+    end
+
+    # detail and error text are operational free text; malformed UTF-8 bytes
+    # must fail at this boundary instead of crashing JSON generation deep in
+    # the publisher. Runs before the other checks because present?/blank?
+    # themselves raise on invalid byte sequences. Non-string values are left
+    # to the type checks that follow.
+    def validate_text_encoding!
+      fields = { "detail" => detail }
+      if error.is_a?(Hash)
+        fields["error.class"] = error[:class]
+        fields["error.message"] = error[:message]
+      end
+      invalid = fields.select { |_, value| value.is_a?(String) && !value.valid_encoding? }
+      raise ArgumentError, "#{invalid.keys.join(', ')} must be valid UTF-8" if invalid.any?
     end
   end
 end

@@ -64,6 +64,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry).not_to be_valid
       expect(entry.errors[:payload]).to include("must be a JSON object")
     end
+
+    it "rejects a payload that is not valid UTF-8 even though JSON.parse accepts it" do
+      payload = (+"{\"idempotency_key\": \"k\", \"title\": \"milk \xff\"}").force_encoding("UTF-8")
+      entry = described_class.new(valid_entry_attrs.merge(payload: payload))
+      expect(entry).not_to be_valid
+      expect(entry.errors[:payload]).to include("must be valid UTF-8")
+    end
   end
 
   describe ".from_record" do
@@ -93,6 +100,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
         started_at: "2026-08-14T19:00:00.000000Z",
         finished_at: "2026-08-14T19:01:00.000000Z",
         last_attempted_at: "2026-08-14T19:00:00.000000Z",
+        last_successful_at: "2026-08-14T19:01:00.000000Z",
         status: "success",
         items_synced: 5
       )

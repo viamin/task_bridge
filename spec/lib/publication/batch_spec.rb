@@ -46,6 +46,7 @@ RSpec.describe Publication::Batch do
       started_at: "2026-08-14T19:20:00.000000Z",
       finished_at: "2026-08-14T19:21:00.000000Z",
       last_attempted_at: "2026-08-14T19:20:00.000000Z",
+      last_successful_at: "2026-08-14T19:21:00.000000Z",
       status: "success",
       items_synced: 1
     )

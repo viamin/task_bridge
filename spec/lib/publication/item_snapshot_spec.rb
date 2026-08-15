@@ -159,6 +159,16 @@ RSpec.describe Publication::ItemSnapshot do
         .to raise_error(ArgumentError, /notes_preview/)
     end
 
+    it "raises when title contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, title: (+"Buy milk \xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /title must be valid UTF-8/)
+    end
+
+    it "raises when notes_preview contains invalid UTF-8 byte sequences" do
+      expect { described_class.new(**valid_attrs, notes_preview: (+"2% and eggs \xff").force_encoding("UTF-8")) }
+        .to raise_error(ArgumentError, /notes_preview must be valid UTF-8/)
+    end
+
     it "includes parent and source_metadata when provided" do
       snapshot = described_class.new(
         **valid_attrs,

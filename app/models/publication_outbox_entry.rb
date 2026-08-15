@@ -34,7 +34,6 @@ class PublicationOutboxEntry < ApplicationRecord
 
   validates :idempotency_key, presence: true, uniqueness: true
   validates :record_kind, presence: true, inclusion: { in: RECORD_KINDS }
-  validates :payload, presence: true
   validates :status, presence: true, inclusion: { in: STATUSES }
   validates :retry_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :payload_must_be_a_json_object
@@ -100,11 +99,18 @@ class PublicationOutboxEntry < ApplicationRecord
   # The publisher sends the stored payload verbatim, so a row that is not a
   # JSON object could never satisfy the batch contract and must be rejected at
   # write time instead of failing (or crashing) a later publish attempt.
+  # Presence is checked here too: JSON.parse accepts malformed UTF-8 byte
+  # sequences, and Rails' presence validation raises on them (blank? cannot
+  # match an invalid encoding), so encoding is checked before parsing.
   def payload_must_be_a_json_object
-    return if payload.blank?
-
-    parsed = JSON.parse(payload)
-    errors.add(:payload, "must be a JSON object") unless parsed.is_a?(Hash)
+    if payload.nil?
+      errors.add(:payload, :blank)
+    elsif !payload.valid_encoding?
+      errors.add(:payload, "must be valid UTF-8")
+    else
+      parsed = JSON.parse(payload)
+      errors.add(:payload, "must be a JSON object") unless parsed.is_a?(Hash)
+    end
   rescue JSON::ParserError
     errors.add(:payload, "must be valid JSON")
   end

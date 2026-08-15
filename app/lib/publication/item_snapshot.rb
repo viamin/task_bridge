@@ -88,6 +88,7 @@ module Publication
     private
 
     def validate!
+      validate_text_encoding!
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "item_key is required" if item_key.blank?
       raise ArgumentError, "observed_at is required" if observed_at.blank?
@@ -103,6 +104,17 @@ module Publication
       validate_source!(source)
       validate_sync_collection!(sync_collection)
       Timestamp.validate!(observed_at, completed_at, source_created_at, source_updated_at, due_at, started_at)
+    end
+
+    # Provider text can carry malformed bytes (for example from AppleScript
+    # adapters); invalid UTF-8 must fail at this boundary instead of crashing
+    # JSON generation deep in the publisher. Runs before the other checks
+    # because present?/blank? themselves raise on invalid byte sequences.
+    # Non-string values are left to the type checks that follow.
+    def validate_text_encoding!
+      fields = { title:, notes_preview: }
+      invalid = fields.select { |_, value| value.is_a?(String) && !value.valid_encoding? }
+      raise ArgumentError, "#{invalid.keys.join(', ')} must be valid UTF-8" if invalid.any?
     end
 
     # sync_collection embeds the same cross-system mapping fields that mapping
