@@ -79,7 +79,9 @@ module Publication
         sync_collection:,
         source_metadata:
       }
-      payload[:notes_preview] = notes_preview if notes_preview
+      # Included only when present: an allowlisted preview must never degrade
+      # to an empty string in the payload.
+      payload[:notes_preview] = notes_preview if notes_preview.present?
       payload.compact
     end
 
@@ -93,6 +95,7 @@ module Publication
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
       raise ArgumentError, "is_deleted must be true or false" unless [true, false].include?(is_deleted)
       raise ArgumentError, "tags must be an array when provided" unless tags.nil? || tags.is_a?(Array)
+      raise ArgumentError, "notes_preview must be a string when provided" unless notes_preview.nil? || notes_preview.is_a?(String)
 
       validate_source!(source)
       validate_sync_collection!(sync_collection)

@@ -135,6 +135,16 @@ RSpec.describe Publication::ItemSnapshot do
       expect(snapshot.to_payload[:notes_preview]).to eq("2% and eggs")
     end
 
+    it "omits a blank notes_preview" do
+      snapshot = described_class.new(**valid_attrs, notes_preview: "")
+      expect(snapshot.to_payload.keys).not_to include(:notes_preview)
+    end
+
+    it "raises when notes_preview is not a string" do
+      expect { described_class.new(**valid_attrs, notes_preview: { text: "2% and eggs" }) }
+        .to raise_error(ArgumentError, /notes_preview/)
+    end
+
     it "formats a Time observed_at as ISO 8601 UTC with microseconds" do
       time = Time.utc(2026, 8, 14, 19, 20, 31, 123_456)
       snapshot = described_class.new(**valid_attrs, observed_at: time)

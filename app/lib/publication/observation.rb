@@ -77,6 +77,7 @@ module Publication
 
       validate_source!(source)
       validate_change!(change)
+      validate_last_known!(last_known)
       validate_is_deleted!(is_deleted)
       Timestamp.validate!(observed_at, published_at, source_created_at, source_updated_at, completed_at)
     end
@@ -95,6 +96,14 @@ module Publication
       return if change.is_a?(Hash) && change[:field].present?
 
       raise ArgumentError, "change must be a hash with a non-blank :field when provided"
+    end
+
+    # last_known preserves the pre-deletion state on tombstones as a structured
+    # object, so a non-hash value must be rejected at the boundary.
+    def validate_last_known!(value)
+      return if value.nil? || value.is_a?(Hash)
+
+      raise ArgumentError, "last_known must be a hash when provided"
     end
 
     def validate_is_deleted!(flag)
