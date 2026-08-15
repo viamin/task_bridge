@@ -289,6 +289,24 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    describe "remaining HTTP status to retryability mapping" do
+      {
+        400 => false,
+        404 => false,
+        409 => false,
+        413 => true,
+        422 => false,
+        503 => true
+      }.each do |code, retryable|
+        it "maps #{code} to a #{retryable ? 'retryable' : 'non-retryable'} DeliveryError" do
+          stub_http(status: code, body: "error")
+          expect { publisher.publish([entry]) }.to raise_error(Publication::DeliveryError) do |e|
+            expect(e.retryable).to be retryable
+          end
+        end
+      end
+    end
+
     context "when the connection is refused" do
       before { allow(HTTParty).to receive(:post).and_raise(Errno::ECONNREFUSED, "Connection refused") }
 

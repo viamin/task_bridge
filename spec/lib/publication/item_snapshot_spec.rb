@@ -40,6 +40,10 @@ RSpec.describe Publication::ItemSnapshot do
       expect { described_class.new(**valid_attrs, title: "") }.to raise_error(ArgumentError, /title/)
     end
 
+    it "raises when title is not a string" do
+      expect { described_class.new(**valid_attrs, title: 42) }.to raise_error(ArgumentError, /title must be a string/)
+    end
+
     it "raises when status is invalid" do
       expect { described_class.new(**valid_attrs, status: "unknown") }.to raise_error(ArgumentError, /status/)
     end

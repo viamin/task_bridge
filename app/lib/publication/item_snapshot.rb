@@ -91,6 +91,7 @@ module Publication
       raise ArgumentError, "idempotency_key is required" if idempotency_key.blank?
       raise ArgumentError, "item_key is required" if item_key.blank?
       raise ArgumentError, "observed_at is required" if observed_at.blank?
+      raise ArgumentError, "title must be a string" unless title.is_a?(String)
       raise ArgumentError, "title is required" if title.blank?
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
       raise ArgumentError, "is_deleted must be true or false" unless [true, false].include?(is_deleted)
