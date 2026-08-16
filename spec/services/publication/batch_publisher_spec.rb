@@ -459,6 +459,83 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when a rejected result omits error_code" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 0, replayed: 0, rejected: 1,
+            results: [{
+              record_kind: "item",
+              idempotency_key: entry.idempotency_key,
+              status: "rejected",
+              retryable: false,
+              message: "bad row"
+            }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of leaving rejection classification undefined" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /rejected result must carry a non-blank string error_code/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when a rejected result carries a non-string error_code" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 0, replayed: 0, rejected: 1,
+            results: [{
+              record_kind: "item",
+              idempotency_key: entry.idempotency_key,
+              status: "rejected",
+              retryable: false,
+              error_code: 422,
+              message: "bad row"
+            }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of coercing the value" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /rejected result must carry a non-blank string error_code/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when a rejected result carries a non-string message" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 0, replayed: 0, rejected: 1,
+            results: [{
+              record_kind: "item",
+              idempotency_key: entry.idempotency_key,
+              status: "rejected",
+              retryable: false,
+              error_code: "validation_error",
+              message: { detail: "bad row" }
+            }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of coercing the value" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /rejected result message must be a string/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when the server returns 401" do
       before { stub_http(status: 401, body: "Unauthorized") }
 

@@ -509,12 +509,13 @@ module Publication
 
     def build_entry_result(entry, row)
       verify_record_kind!(entry, row)
+      status = row[:status]
       EntryResult.new(
         entry: entry,
-        status: row[:status],
-        retryable: validated_retryable(row[:retryable], status: row[:status]),
-        error_code: redact_credentials(Utf8.sanitize(row[:error_code])),
-        message: redact_credentials(Utf8.sanitize(row[:message]))
+        status:,
+        retryable: validated_retryable(row[:retryable], status:),
+        error_code: validated_error_code(row[:error_code], status:),
+        message: validated_message(row[:message], status:)
       )
     end
 
@@ -529,6 +530,69 @@ module Publication
         "unreconcilable response: rejected result must carry a boolean retryable, got #{value.inspect}",
         retryable: true
       )
+    end
+
+    # Rejected rows require a machine-readable error_code so callers can
+    # classify the failure without scraping free text. Any present error_code
+    # on accepted/replayed rows must still be a string so a malformed 200 body
+    # does not silently coerce arbitrary JSON values into bogus codes.
+    def validated_error_code(value, status:)
+      return nil if value.nil? && status != "rejected"
+      return sanitize_non_blank_response_text(value, field: :error_code, status:) if value.is_a?(String)
+
+      if status == "rejected"
+        raise DeliveryError.new(
+          "unreconcilable response: rejected result must carry a non-blank string error_code, got #{value.inspect}",
+          retryable: true
+        )
+      end
+
+      raise DeliveryError.new(
+        "unreconcilable response: result error_code must be a string when provided, got #{value.inspect}",
+        retryable: true
+      )
+    end
+
+    # Row-level message is optional, but when present it crosses the same log
+    # and persistence boundary as error_code and must therefore keep the
+    # contract string shape instead of being silently coerced from arbitrary
+    # JSON types.
+    def validated_message(value, status:)
+      return nil if value.nil?
+      return sanitize_response_text(value) if value.is_a?(String)
+
+      if status == "rejected"
+        raise DeliveryError.new(
+          "unreconcilable response: rejected result message must be a string when provided, got #{value.inspect}",
+          retryable: true
+        )
+      end
+
+      raise DeliveryError.new(
+        "unreconcilable response: result message must be a string when provided, got #{value.inspect}",
+        retryable: true
+      )
+    end
+
+    def sanitize_non_blank_response_text(value, field:, status:)
+      sanitized = sanitize_response_text(value)
+      return sanitized unless sanitized.strip.empty?
+
+      if status == "rejected"
+        raise DeliveryError.new(
+          "unreconcilable response: rejected result must carry a non-blank string #{field}, got #{value.inspect}",
+          retryable: true
+        )
+      end
+
+      raise DeliveryError.new(
+        "unreconcilable response: result #{field} must be a non-blank string when provided, got #{value.inspect}",
+        retryable: true
+      )
+    end
+
+    def sanitize_response_text(value)
+      redact_credentials(Utf8.sanitize(value))
     end
 
     # Each result's record_kind mirrors the top-level array the row was
