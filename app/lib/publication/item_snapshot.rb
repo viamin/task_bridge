@@ -171,16 +171,17 @@ module Publication
     # parent references another item by the same identity-string fields used
     # everywhere else in the contract, so a wrong-typed value must fail here
     # rather than as a remote non-retryable row rejection. Both fields may be
-    # nil when the source has no parent, per the v1 schema.
+    # nil when the source has no parent, per the v1 schema, but blank strings
+    # are still malformed identifiers and must be rejected.
     def validate_parent!(parent)
       raise ArgumentError, "parent must be a hash when provided" unless parent.nil? || parent.is_a?(Hash)
       return if parent.nil?
 
       %i[external_id item_key].each do |field|
         value = HashAccess.fetch(parent, field)
-        next if value.nil? || value.is_a?(String)
+        next if value.nil?
 
-        raise ArgumentError, "parent.#{field} must be a string when provided"
+        raise ArgumentError, "parent.#{field} must be a non-blank string when provided" unless value.is_a?(String) && value.present?
       end
     end
 

@@ -99,9 +99,16 @@ RSpec.describe Publication::ItemSnapshot do
 
     it "raises when a parent identity field is not a string" do
       expect { described_class.new(**valid_attrs, parent: { item_key: 42 }) }
-        .to raise_error(ArgumentError, /parent\.item_key must be a string/)
+        .to raise_error(ArgumentError, /parent\.item_key must be a non-blank string/)
       expect { described_class.new(**valid_attrs, parent: { external_id: 120_123_456_789 }) }
-        .to raise_error(ArgumentError, /parent\.external_id must be a string/)
+        .to raise_error(ArgumentError, /parent\.external_id must be a non-blank string/)
+    end
+
+    it "raises when a parent identity field is blank" do
+      expect { described_class.new(**valid_attrs, parent: { item_key: "" }) }
+        .to raise_error(ArgumentError, /parent\.item_key must be a non-blank string/)
+      expect { described_class.new(**valid_attrs, parent: { external_id: "" }) }
+        .to raise_error(ArgumentError, /parent\.external_id must be a non-blank string/)
     end
 
     it "accepts a parent with nil identity fields per the v1 schema" do
