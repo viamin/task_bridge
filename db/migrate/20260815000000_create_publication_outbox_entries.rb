@@ -16,9 +16,9 @@ class CreatePublicationOutboxEntries < ActiveRecord::Migration[8.1]
       t.text    :error_message
 
       # Source provenance for filtering and replay
-      t.string   :service_type
-      t.string   :service_instance
-      t.datetime :observed_at
+      t.string   :service_type, null: false
+      t.string   :service_instance, null: false
+      t.datetime :observed_at, null: false
 
       # Delivery timestamps
       t.datetime :delivered_at

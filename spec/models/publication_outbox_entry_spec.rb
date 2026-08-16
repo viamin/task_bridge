@@ -21,7 +21,10 @@ RSpec.describe PublicationOutboxEntry, type: :model do
     {
       idempotency_key: "tb:v1:item:asana:default:1:snapshot:2026-08-14T19:00:00.000000Z",
       record_kind: "item",
-      payload: { contract_version: 1, idempotency_key: "tb:v1:item:asana:default:1:snapshot:2026-08-14T19:00:00.000000Z" }.to_json
+      payload: { contract_version: 1, idempotency_key: "tb:v1:item:asana:default:1:snapshot:2026-08-14T19:00:00.000000Z" }.to_json,
+      service_type: "asana",
+      service_instance: "asana:workspace-12345:default",
+      observed_at: Time.zone.parse("2026-08-14T19:00:00Z")
     }
   end
 
@@ -119,6 +122,14 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.errors[:service_type]).to include("must be valid UTF-8")
       expect(entry.errors[:service_instance]).to include("must be valid UTF-8")
       expect(entry.errors[:error_message]).to include("must be valid UTF-8")
+    end
+  end
+
+  describe "schema" do
+    it "stores extracted provenance as required columns" do
+      expect(described_class.columns_hash["service_type"].null).to be(false)
+      expect(described_class.columns_hash["service_instance"].null).to be(false)
+      expect(described_class.columns_hash["observed_at"].null).to be(false)
     end
   end
 

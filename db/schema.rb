@@ -18,9 +18,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_000000) do
     t.string "status", null: false, default: "pending"
     t.integer "retry_count", null: false, default: 0
     t.text "error_message"
-    t.string "service_type"
-    t.string "service_instance"
-    t.datetime "observed_at"
+    t.string "service_type", null: false
+    t.string "service_instance", null: false
+    t.datetime "observed_at", null: false
     t.datetime "delivered_at"
     t.datetime "failed_at"
     t.datetime "created_at", null: false
