@@ -527,6 +527,16 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when the HTTP stack raises a generic Timeout::Error" do
+      before { allow(HTTParty).to receive(:post).and_raise(Timeout::Error, "execution expired") }
+
+      it "classifies the timeout as a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /transport error/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when the TLS handshake fails" do
       before { allow(HTTParty).to receive(:post).and_raise(OpenSSL::SSL::SSLError, "certificate verify failed") }
 

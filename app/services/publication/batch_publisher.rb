@@ -266,12 +266,14 @@ module Publication
         headers:,
         timeout:
       )
-    rescue Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout, SocketError, EOFError,
+    rescue Timeout::Error, SocketError, EOFError,
            OpenSSL::SSL::SSLError,
            SystemCallError,
            Net::ProtocolError, Net::HTTPBadResponse,
            Zlib::Error,
            HTTParty::Error => e
+      # Timeout::Error catches timeout exceptions that escape the HTTP stack
+      # without the more specific net/http subclasses.
       # SystemCallError covers every Errno::* network failure (ECONNREFUSED,
       # ECONNRESET, EHOSTUNREACH, ETIMEDOUT, EPIPE, ENETUNREACH, ...).
       # HTTParty::Error covers httparty-specific failures such as
