@@ -369,6 +369,30 @@ RSpec.describe Publication::SyncRunSummary do
       expect(payload[:error][:message]).to eq("refresh_token: [REDACTED]")
     end
 
+    it "sanitizes nested strings throughout the published error structure" do
+      summary = described_class.new(
+        **valid_attrs,
+        **failed_run_attrs,
+        error: {
+          class: "ProviderError",
+          message: "401 unauthorized",
+          retryable: false,
+          context: {
+            request_headers: "Authorization: Bearer top-secret",
+            cookies: ["Cookie: session=abc123"],
+            note: "api_key=super-secret"
+          }
+        }
+      )
+
+      payload = summary.to_payload
+
+      expect(payload.dig(:error, :context, :request_headers)).to eq("Authorization: [REDACTED]")
+      expect(payload.dig(:error, :context, :cookies)).to eq(["Cookie: [REDACTED]"])
+      expect(payload.dig(:error, :context, :note)).to eq("api_key=[REDACTED]")
+      expect(payload[:error][:message]).to eq("401 unauthorized")
+    end
+
     it "removes duplicate message keys after sanitizing the published error" do
       summary = described_class.new(
         **valid_attrs,

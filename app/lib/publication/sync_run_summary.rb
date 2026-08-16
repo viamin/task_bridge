@@ -80,12 +80,27 @@ module Publication
 
     def sanitized_error
       return if error.nil?
-      return error unless HashAccess.key?(error, :message)
+      return sanitize_error_value(error) unless HashAccess.key?(error, :message)
 
       message_key = error.key?(:message) ? :message : "message"
-      sanitized_error = error.except(:message, "message")
+      sanitized_error = sanitize_error_value(error.except(:message, "message"))
       sanitized_error[message_key] = OperationalText.sanitize(HashAccess.fetch(error, :message))
       sanitized_error
+    end
+
+    def sanitize_error_value(value)
+      case value
+      when String
+        OperationalText.sanitize(value)
+      when Array
+        value.map { |item| sanitize_error_value(item) }
+      when Hash
+        value.each_with_object({}) do |(key, nested), sanitized|
+          sanitized[key] = sanitize_error_value(nested)
+        end
+      else
+        value
+      end
     end
 
     def validate!
