@@ -283,6 +283,8 @@ class PublicationOutboxEntry < ApplicationRecord
   end
 
   def with_transition_lock(operation)
+    raise ActiveRecord::RecordNotSaved, "#{operation} requires a persisted outbox row" unless persisted?
+
     with_lock do
       reload
       yield

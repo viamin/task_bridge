@@ -720,6 +720,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect { stale_entry.mark_delivered! }
         .to raise_error(ArgumentError, /mark_delivered! cannot transition a delivered outbox row/)
     end
+
+    it "raises a consistent persistence error for an unsaved row" do
+      entry = described_class.new(valid_entry_attrs)
+
+      expect { entry.mark_delivered! }
+        .to raise_error(ActiveRecord::RecordNotSaved, /mark_delivered! requires a persisted outbox row/)
+    end
   end
 
   describe "#mark_failed!" do
@@ -766,6 +773,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
       expect { stale_entry.mark_failed!(message: "network timeout") }
         .to raise_error(ArgumentError, /mark_failed! cannot transition a delivered outbox row/)
+    end
+
+    it "raises a consistent persistence error for an unsaved row" do
+      entry = described_class.new(valid_entry_attrs)
+
+      expect { entry.mark_failed!(message: "network timeout") }
+        .to raise_error(ActiveRecord::RecordNotSaved, /mark_failed! requires a persisted outbox row/)
     end
   end
 
@@ -814,6 +828,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect { stale_entry.mark_terminal!(message: "non-retryable rejection") }
         .to raise_error(ArgumentError, /mark_terminal! cannot transition a terminal outbox row/)
     end
+
+    it "raises a consistent persistence error for an unsaved row" do
+      entry = described_class.new(valid_entry_attrs)
+
+      expect { entry.mark_terminal!(message: "non-retryable rejection") }
+        .to raise_error(ActiveRecord::RecordNotSaved, /mark_terminal! requires a persisted outbox row/)
+    end
   end
 
   describe "#mark_replayed!" do
@@ -859,6 +880,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
       expect { stale_entry.mark_replayed! }
         .to raise_error(ArgumentError, /mark_replayed! cannot transition a delivered outbox row/)
+    end
+
+    it "raises a consistent persistence error for an unsaved row" do
+      entry = described_class.new(valid_entry_attrs)
+
+      expect { entry.mark_replayed! }
+        .to raise_error(ActiveRecord::RecordNotSaved, /mark_replayed! requires a persisted outbox row/)
     end
   end
 
