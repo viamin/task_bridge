@@ -436,7 +436,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       missing_identity::RECORD_KIND = "item"
 
       expect { described_class.from_record(missing_identity.new) }
-        .to raise_error(ArgumentError, /payload service_type is required/)
+        .to raise_error(ArgumentError, /payload source\.service_type is required/)
     end
 
     it "raises a clear ArgumentError when payload does not expose observed_at or started_at" do
@@ -477,7 +477,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       invalid_service_type::RECORD_KIND = "item"
 
       expect { described_class.from_record(invalid_service_type.new) }
-        .to raise_error(ArgumentError, /payload service_type must be valid UTF-8/)
+        .to raise_error(ArgumentError, /payload source\.service_type must be valid UTF-8/)
     end
 
     it "raises a clear ArgumentError when payload observed_at is invalid" do
@@ -563,7 +563,50 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       blank_source_service_type::RECORD_KIND = "item"
 
       expect { described_class.from_record(blank_source_service_type.new) }
-        .to raise_error(ArgumentError, /payload service_type is required/)
+        .to raise_error(ArgumentError, /payload source\.service_type is required/)
+    end
+
+    it "does not mask a missing source service_type with a root fallback" do
+      missing_source_service_type = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            service_type: "root-service",
+            source: {
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      missing_source_service_type::RECORD_KIND = "item"
+
+      expect { described_class.from_record(missing_source_service_type.new) }
+        .to raise_error(ArgumentError, /payload source\.service_type is required/)
+    end
+
+    it "does not mask a missing mapping member item_key with a root fallback" do
+      missing_member_item_key = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:map:sync_collection:84:membership:github:repo-1:issue-42:2026-08-14T19:21:00.000000Z",
+            observed_at: "2026-08-14T19:21:00.000000Z",
+            item_key: "root:item:key",
+            member: {
+              service_type: "github",
+              service_instance: "github:repo-1",
+              external_id: "issue-42"
+            }
+          }
+        end
+      end
+      missing_member_item_key::RECORD_KIND = "mapping"
+
+      expect { described_class.from_record(missing_member_item_key.new) }
+        .to raise_error(ArgumentError, /payload member\.item_key is required/)
     end
 
     it "builds an entry from a Publication::ItemSnapshot" do

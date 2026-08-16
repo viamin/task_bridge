@@ -88,6 +88,7 @@ class PublicationOutboxEntry < ApplicationRecord
     idempotency_key = fetch_required_payload_string!(payload, :idempotency_key)
     validate_payload_contract_version!(payload, idempotency_key)
     validate_required_identity_section!(kind, payload, idempotency_key)
+    validate_required_identity_fields!(kind, identity, idempotency_key)
     service_type     = preferred_payload_value(identity, payload, :service_type)
     service_instance = preferred_payload_value(identity, payload, :service_instance)
     observed_at      = observed_at_value(payload)
@@ -235,6 +236,37 @@ class PublicationOutboxEntry < ApplicationRecord
     raise ArgumentError, "#{e.message} for #{idempotency_key}"
   end
   private_class_method :validate_required_identity_section!
+
+  def self.validate_required_identity_fields!(kind, identity, idempotency_key)
+    section, fields = identity_requirements(kind)
+    return if fields.empty?
+
+    fields.each do |field|
+      validate_required_identity_field!(identity, section, field, idempotency_key)
+    end
+  end
+  private_class_method :validate_required_identity_fields!
+
+  def self.identity_requirements(kind)
+    case kind
+    when "item", "observation"
+      [:source, %i[service_type service_instance external_id]]
+    when "mapping"
+      [:member, %i[item_key service_type service_instance external_id]]
+    else
+      [nil, []]
+    end
+  end
+  private_class_method :identity_requirements
+
+  def self.validate_required_identity_field!(identity, section, field, idempotency_key)
+    value = Publication::HashAccess.fetch(identity, field)
+    Publication::Utf8.validate_fields!("payload #{section}.#{field}" => value)
+    return if value.is_a?(String) && value.present?
+
+    raise ArgumentError, "payload #{section}.#{field} is required for #{idempotency_key}"
+  end
+  private_class_method :validate_required_identity_field!
 
   def self.payload_hash!(payload, field, required:)
     key_present = Publication::HashAccess.key?(payload, field)
