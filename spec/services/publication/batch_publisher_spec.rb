@@ -141,6 +141,14 @@ RSpec.describe Publication::BatchPublisher do
       expect(body[:items].length).to eq(1)
     end
 
+    it "disables redirect following on the HTTP request" do
+      captured = stub_success_and_capture_request([entry])
+
+      publisher.publish(entry)
+
+      expect(captured.dig(:request, :no_follow)).to be(true)
+    end
+
     it "raises ArgumentError when an entry has an unknown record_kind" do
       bogus = make_entry(key: "tb:v1:bogus:1", kind: "bogus")
       expect { publisher.publish([bogus]) }.to raise_error(ArgumentError, /unknown record_kind/)

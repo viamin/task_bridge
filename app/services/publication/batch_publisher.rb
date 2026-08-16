@@ -268,6 +268,7 @@ module Publication
         endpoint,
         body:,
         headers:,
+        no_follow: true,
         timeout:
       )
     rescue Timeout::Error, SocketError, EOFError,
