@@ -371,17 +371,17 @@ module Publication
     # inspected (escaping malformed bytes) instead of interpolated raw.
     def verify_batch_echo!(parsed, batch_id)
       echoed = parsed[:batch_id]
-      return if echoed.nil? || echoed == batch_id
+      return if echoed == batch_id
 
-      raise DeliveryError.new("response batch_id mismatch: expected #{batch_id}, got #{echoed.inspect}", retryable: true)
+      raise DeliveryError.new("response batch_id missing or mismatched: expected #{batch_id}, got #{echoed.inspect}", retryable: true)
     end
 
     def verify_contract_version!(parsed)
       echoed = parsed[:contract_version]
-      return if echoed.nil? || canonical_contract_version?(echoed)
+      return if canonical_contract_version?(echoed)
 
       raise DeliveryError.new(
-        "response contract_version mismatch: expected #{CONTRACT_VERSION}, got #{echoed.inspect}",
+        "response contract_version missing or mismatched: expected #{CONTRACT_VERSION}, got #{echoed.inspect}",
         retryable: true
       )
     end

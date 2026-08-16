@@ -698,7 +698,27 @@ RSpec.describe Publication::BatchPublisher do
 
       it "raises a retryable DeliveryError instead of trusting the results" do
         expect { publisher.publish([entry]) }.to raise_error(
-          Publication::DeliveryError, /batch_id mismatch/
+          Publication::DeliveryError, /batch_id missing or mismatched/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the response omits batch_id" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }]
+          },
+          echo_batch_id: false
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting an unreconcilable success body" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /batch_id missing or mismatched/
         ) { |e| expect(e.retryable).to be true }
       end
     end
@@ -717,7 +737,26 @@ RSpec.describe Publication::BatchPublisher do
 
       it "raises a retryable DeliveryError instead of trusting a non-integer version" do
         expect { publisher.publish([entry]) }.to raise_error(
-          Publication::DeliveryError, /contract_version mismatch/
+          Publication::DeliveryError, /contract_version missing or mismatched/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the response omits contract_version" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x",
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting an unversioned success body" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /contract_version missing or mismatched/
         ) { |e| expect(e.retryable).to be true }
       end
     end
@@ -753,11 +792,12 @@ RSpec.describe Publication::BatchPublisher do
 
     context "when a result carries an invalid-UTF-8 idempotency_key" do
       before do
-        raw = (+"{\"contract_version\":1,\"accepted\":1,\"replayed\":0,\"rejected\":0,\"results\":[{") <<
-              %("record_kind":"item","idempotency_key":"tb:v1:item:\xff","status":"accepted"}]})
-        allow(HTTParty).to receive(:post).and_return(
+        allow(HTTParty).to receive(:post) do |_endpoint, opts|
+          raw = %({"batch_id":"#{opts[:headers]['X-TaskBridge-Batch-Id']}","contract_version":1,) <<
+                %("accepted":1,"replayed":0,"rejected":0,"results":[{) <<
+                %("record_kind":"item","idempotency_key":"tb:v1:item:\xff","status":"accepted"}]})
           instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
-        )
+        end
       end
 
       it "raises a retryable DeliveryError instead of trying to reconcile a malformed key" do
@@ -1020,7 +1060,7 @@ RSpec.describe Publication::BatchPublisher do
 
       it "raises a retryable DeliveryError" do
         expect { publisher.publish([entry]) }.to raise_error(
-          Publication::DeliveryError, /contract_version mismatch/
+          Publication::DeliveryError, /contract_version missing or mismatched/
         ) { |e| expect(e.retryable).to be true }
       end
     end
@@ -1217,12 +1257,13 @@ RSpec.describe Publication::BatchPublisher do
 
     context "when a rejected result carries malformed UTF-8 in its message" do
       before do
-        raw = (+"{\"contract_version\":1,\"accepted\":0,\"replayed\":0,\"rejected\":1,\"results\":[{") <<
-              %("record_kind":"item","idempotency_key":"#{entry.idempotency_key}","status":"rejected","retryable":false,) <<
-              %("error_code":"validation_error","message":"bad \xff"}]})
-        allow(HTTParty).to receive(:post).and_return(
+        allow(HTTParty).to receive(:post) do |_endpoint, opts|
+          raw = %({"batch_id":"#{opts[:headers]['X-TaskBridge-Batch-Id']}","contract_version":1,) <<
+                %("accepted":0,"replayed":0,"rejected":1,"results":[{) <<
+                %("record_kind":"item","idempotency_key":"#{entry.idempotency_key}","status":"rejected","retryable":false,) <<
+                %("error_code":"validation_error","message":"bad \xff"}]})
           instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
-        )
+        end
       end
 
       it "sanitizes the message so it is safe to log and persist" do
@@ -1233,12 +1274,13 @@ RSpec.describe Publication::BatchPublisher do
       end
 
       it "sanitizes the error_code the same way" do
-        raw = (+"{\"contract_version\":1,\"accepted\":0,\"replayed\":0,\"rejected\":1,\"results\":[{") <<
-              %("record_kind":"item","idempotency_key":"#{entry.idempotency_key}","status":"rejected","retryable":false,) <<
-              %("error_code":"boom \xff","message":"bad row"}]})
-        allow(HTTParty).to receive(:post).and_return(
+        allow(HTTParty).to receive(:post) do |_endpoint, opts|
+          raw = %({"batch_id":"#{opts[:headers]['X-TaskBridge-Batch-Id']}","contract_version":1,) <<
+                %("accepted":0,"replayed":0,"rejected":1,"results":[{) <<
+                %("record_kind":"item","idempotency_key":"#{entry.idempotency_key}","status":"rejected","retryable":false,) <<
+                %("error_code":"boom \xff","message":"bad row"}]})
           instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
-        )
+        end
 
         result = publisher.publish([entry]).first
         expect(result.error_code.valid_encoding?).to be true
@@ -1247,11 +1289,12 @@ RSpec.describe Publication::BatchPublisher do
 
     context "when a result's idempotency_key carries malformed UTF-8" do
       before do
-        raw = (+"{\"contract_version\":1,\"accepted\":1,\"replayed\":0,\"rejected\":0,\"results\":[{") <<
-              %("record_kind":"item","idempotency_key":"tb:v1:key\xff","status":"accepted"}]})
-        allow(HTTParty).to receive(:post).and_return(
+        allow(HTTParty).to receive(:post) do |_endpoint, opts|
+          raw = %({"batch_id":"#{opts[:headers]['X-TaskBridge-Batch-Id']}","contract_version":1,) <<
+                %("accepted":1,"replayed":0,"rejected":0,"results":[{) <<
+                %("record_kind":"item","idempotency_key":"tb:v1:key\xff","status":"accepted"}]})
           instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
-        )
+        end
       end
 
       it "raises a retryable DeliveryError instead of trying to reconcile a malformed key" do
@@ -1295,7 +1338,7 @@ RSpec.describe Publication::BatchPublisher do
 
       it "raises a DeliveryError whose message is valid UTF-8" do
         expect { publisher.publish([entry]) }.to raise_error(
-          Publication::DeliveryError, /batch_id mismatch/
+          Publication::DeliveryError, /batch_id missing or mismatched/
         ) { |e| expect(e.message.valid_encoding?).to be true }
       end
     end
@@ -1311,7 +1354,7 @@ RSpec.describe Publication::BatchPublisher do
 
       it "raises a DeliveryError whose message is valid UTF-8" do
         expect { publisher.publish([entry]) }.to raise_error(
-          Publication::DeliveryError, /contract_version mismatch/
+          Publication::DeliveryError, /contract_version missing or mismatched/
         ) { |e| expect(e.message.valid_encoding?).to be true }
       end
     end
