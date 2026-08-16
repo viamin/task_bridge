@@ -390,6 +390,7 @@ module Publication
       raise DeliveryError.new("unexpected response body: results must be an array of objects", retryable: true) unless results.is_a?(Array) && results.all?(Hash)
 
       verify_result_keys_present!(results)
+      verify_result_record_kinds!(results)
       verify_result_statuses!(results)
       results
     end
@@ -409,6 +410,19 @@ module Publication
       return false unless key.is_a?(String) && key.valid_encoding?
 
       !key.strip.empty?
+    end
+
+    # Each result must echo the contract record_kind so the row can be checked
+    # against the top-level array it was submitted in. Missing or invalid kinds
+    # would otherwise let a malformed 200 body drive outbox state changes.
+    def verify_result_record_kinds!(results)
+      invalid = results.map { |result| result[:record_kind] }.reject { |kind| RECORD_KINDS.include?(kind) }.uniq
+      return if invalid.empty?
+
+      raise DeliveryError.new(
+        "unreconcilable response: result record_kind must be one of #{RECORD_KINDS.join(', ')}, got #{invalid.first.inspect}",
+        retryable: true
+      )
     end
 
     # Statuses are validated before the count cross-check so a response whose
@@ -508,7 +522,7 @@ module Publication
     # this request's rows and must not drive outbox state changes.
     def verify_record_kind!(entry, row)
       kind = row[:record_kind]
-      return if kind.nil? || kind == entry.record_kind
+      return if kind == entry.record_kind
 
       raise DeliveryError.new(
         "unreconcilable response: record_kind mismatch for #{entry.idempotency_key}: " \

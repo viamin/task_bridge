@@ -370,7 +370,7 @@ RSpec.describe Publication::BatchPublisher do
           body: {
             batch_id: "x", contract_version: 1,
             accepted: 0, replayed: 1, rejected: 0,
-            results: [{ idempotency_key: entry.idempotency_key, status: "replayed" }]
+            results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "replayed" }]
           }
         )
       end
@@ -388,6 +388,7 @@ RSpec.describe Publication::BatchPublisher do
             batch_id: "x", contract_version: 1,
             accepted: 0, replayed: 0, rejected: 1,
             results: [{
+              record_kind: "item",
               idempotency_key: entry.idempotency_key,
               status: "rejected",
               retryable: false,
@@ -415,6 +416,7 @@ RSpec.describe Publication::BatchPublisher do
             batch_id: "x", contract_version: 1,
             accepted: 0, replayed: 0, rejected: 1,
             results: [{
+              record_kind: "item",
               idempotency_key: entry.idempotency_key,
               status: "rejected",
               retryable: "yes",
@@ -440,6 +442,7 @@ RSpec.describe Publication::BatchPublisher do
             batch_id: "x", contract_version: 1,
             accepted: 0, replayed: 0, rejected: 1,
             results: [{
+              record_kind: "item",
               idempotency_key: entry.idempotency_key,
               status: "rejected",
               error_code: "validation_error",
@@ -630,7 +633,7 @@ RSpec.describe Publication::BatchPublisher do
           body: {
             batch_id: "x", contract_version: 1.0,
             accepted: 1, replayed: 0, rejected: 0,
-            results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+            results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }]
           }
         )
       end
@@ -659,7 +662,7 @@ RSpec.describe Publication::BatchPublisher do
           body: {
             batch_id: "x", contract_version: 1,
             accepted: 1, replayed: 0, rejected: 0,
-            results: [{ idempotency_key: 123, status: "accepted" }]
+            results: [{ record_kind: "item", idempotency_key: 123, status: "accepted" }]
           }
         )
       end
@@ -674,7 +677,7 @@ RSpec.describe Publication::BatchPublisher do
     context "when a result carries an invalid-UTF-8 idempotency_key" do
       before do
         raw = (+"{\"contract_version\":1,\"accepted\":1,\"replayed\":0,\"rejected\":0,\"results\":[{") <<
-              %("idempotency_key":"tb:v1:item:\xff","status":"accepted"}]})
+              %("record_kind":"item","idempotency_key":"tb:v1:item:\xff","status":"accepted"}]})
         allow(HTTParty).to receive(:post).and_return(
           instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
         )
@@ -693,7 +696,7 @@ RSpec.describe Publication::BatchPublisher do
         body: {
           batch_id: "x", contract_version: 1,
           accepted: 1, replayed: 0, rejected: 0,
-          results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+          results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }]
         }
       )
       publisher.publish([entry])
@@ -714,7 +717,7 @@ RSpec.describe Publication::BatchPublisher do
         body: {
           batch_id: "x", contract_version: 1,
           accepted: 1, replayed: 0, rejected: 0,
-          results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+          results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }]
         }
       )
       described_class.new(endpoint:, api_key:, timeout: 5).publish([entry])
@@ -815,7 +818,7 @@ RSpec.describe Publication::BatchPublisher do
           body: {
             batch_id: "x", contract_version: 1,
             accepted: 1, replayed: 0, rejected: 0,
-            results: [{ idempotency_key: "tb:v1:item:other:1", status: "accepted" }]
+            results: [{ record_kind: "item", idempotency_key: "tb:v1:item:other:1", status: "accepted" }]
           }
         )
       end
@@ -849,7 +852,7 @@ RSpec.describe Publication::BatchPublisher do
           body: {
             batch_id: "x", contract_version: 1,
             accepted: 1, replayed: 0, rejected: 0,
-            results: [{ status: "accepted" }]
+            results: [{ record_kind: "item", status: "accepted" }]
           }
         )
       end
@@ -869,8 +872,8 @@ RSpec.describe Publication::BatchPublisher do
             batch_id: "x", contract_version: 1,
             accepted: 2, replayed: 0, rejected: 0,
             results: [
-              { idempotency_key: entry.idempotency_key, status: "accepted" },
-              { idempotency_key: "tb:v1:item:other:1", status: "accepted" }
+              { record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" },
+              { record_kind: "item", idempotency_key: "tb:v1:item:other:1", status: "accepted" }
             ]
           }
         )
@@ -890,7 +893,7 @@ RSpec.describe Publication::BatchPublisher do
           body: {
             batch_id: "x", contract_version: 1,
             accepted: 1, replayed: 0, rejected: 0,
-            results: [{ idempotency_key: entry.idempotency_key, status: "queued" }]
+            results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "queued" }]
           }
         )
       end
@@ -909,7 +912,7 @@ RSpec.describe Publication::BatchPublisher do
           body: {
             batch_id: "x", contract_version: 2,
             accepted: 1, replayed: 0, rejected: 0,
-            results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+            results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }]
           }
         )
       end
@@ -933,8 +936,29 @@ RSpec.describe Publication::BatchPublisher do
         )
       end
 
-      it "accepts the result without requiring record_kind to be echoed" do
-        expect(publisher.publish([entry]).first).to be_accepted
+      it "raises a retryable DeliveryError instead of trusting the malformed result" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /result record_kind must be one of/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when a result carries an unknown record_kind" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ record_kind: "mystery", idempotency_key: entry.idempotency_key, status: "accepted" }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting the malformed result" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /result record_kind must be one of/
+        ) { |e| expect(e.retryable).to be true }
       end
     end
 
@@ -997,8 +1021,8 @@ RSpec.describe Publication::BatchPublisher do
             batch_id: "x", contract_version: 1,
             accepted: 2, replayed: 0, rejected: 0,
             results: [
-              { idempotency_key: entry.idempotency_key, status: "accepted" },
-              { idempotency_key: entry.idempotency_key, status: "accepted" }
+              { record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" },
+              { record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }
             ]
           }
         )
@@ -1018,7 +1042,7 @@ RSpec.describe Publication::BatchPublisher do
           body: {
             batch_id: "x", contract_version: 1,
             accepted: 2, replayed: 0, rejected: 0,
-            results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+            results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }]
           }
         )
       end
@@ -1034,7 +1058,7 @@ RSpec.describe Publication::BatchPublisher do
       before do
         stub_http(
           status: 200,
-          body: { batch_id: "x", contract_version: 1, results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }] }
+          body: { batch_id: "x", contract_version: 1, results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }] }
         )
       end
 
@@ -1052,7 +1076,7 @@ RSpec.describe Publication::BatchPublisher do
           body: {
             batch_id: "x", contract_version: 1,
             accepted: -1, replayed: 0, rejected: 2,
-            results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+            results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }]
           }
         )
       end
@@ -1072,6 +1096,7 @@ RSpec.describe Publication::BatchPublisher do
             batch_id: "x", contract_version: 1,
             accepted: 1, replayed: 0, rejected: 0,
             results: [{
+              record_kind: "item",
               idempotency_key: entry.idempotency_key,
               status: "rejected",
               retryable: false,
@@ -1092,7 +1117,7 @@ RSpec.describe Publication::BatchPublisher do
     context "when a rejected result carries malformed UTF-8 in its message" do
       before do
         raw = (+"{\"contract_version\":1,\"accepted\":0,\"replayed\":0,\"rejected\":1,\"results\":[{") <<
-              %("idempotency_key":"#{entry.idempotency_key}","status":"rejected","retryable":false,) <<
+              %("record_kind":"item","idempotency_key":"#{entry.idempotency_key}","status":"rejected","retryable":false,) <<
               %("error_code":"validation_error","message":"bad \xff"}]})
         allow(HTTParty).to receive(:post).and_return(
           instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
@@ -1108,7 +1133,7 @@ RSpec.describe Publication::BatchPublisher do
 
       it "sanitizes the error_code the same way" do
         raw = (+"{\"contract_version\":1,\"accepted\":0,\"replayed\":0,\"rejected\":1,\"results\":[{") <<
-              %("idempotency_key":"#{entry.idempotency_key}","status":"rejected","retryable":false,) <<
+              %("record_kind":"item","idempotency_key":"#{entry.idempotency_key}","status":"rejected","retryable":false,) <<
               %("error_code":"boom \xff","message":"bad row"}]})
         allow(HTTParty).to receive(:post).and_return(
           instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
@@ -1122,7 +1147,7 @@ RSpec.describe Publication::BatchPublisher do
     context "when a result's idempotency_key carries malformed UTF-8" do
       before do
         raw = (+"{\"contract_version\":1,\"accepted\":1,\"replayed\":0,\"rejected\":0,\"results\":[{") <<
-              %("idempotency_key":"tb:v1:key\xff","status":"accepted"}]})
+              %("record_kind":"item","idempotency_key":"tb:v1:key\xff","status":"accepted"}]})
         allow(HTTParty).to receive(:post).and_return(
           instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
         )
@@ -1145,8 +1170,8 @@ RSpec.describe Publication::BatchPublisher do
             batch_id: "x", contract_version: 1,
             accepted: 2, replayed: 0, rejected: 0,
             results: [
-              { idempotency_key: entry.idempotency_key, status: "accepted" },
-              { idempotency_key: "tb:v1:item:other:2", status: "accepted" }
+              { record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" },
+              { record_kind: "item", idempotency_key: "tb:v1:item:other:2", status: "accepted" }
             ]
           }
         )
