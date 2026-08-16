@@ -168,6 +168,20 @@ RSpec.describe Publication::SyncRunSummary do
         described_class.new(**valid_attrs, error: { class: "ProviderError", message: (+"401 \xff").force_encoding("UTF-8"), retryable: false })
       end.to raise_error(ArgumentError, /error\.message must be valid UTF-8/)
     end
+
+    it "raises when nested error context contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          error: {
+            class: "ProviderError",
+            message: "401",
+            retryable: false,
+            context: { response_excerpt: (+"body \xff").force_encoding("UTF-8") }
+          }
+        )
+      end.to raise_error(ArgumentError, /error\.context\.response_excerpt must be valid UTF-8/)
+    end
   end
 
   describe "#to_payload" do

@@ -125,6 +125,15 @@ RSpec.describe Publication::Mapping do
         .to raise_error(ArgumentError, /provenance/)
     end
 
+    it "raises when nested provenance text contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          provenance: { matcher: { reason: (+"title \xff").force_encoding("UTF-8") } }
+        )
+      end.to raise_error(ArgumentError, /provenance\.matcher\.reason must be valid UTF-8/)
+    end
+
     it "raises when idempotency_key contains invalid UTF-8 byte sequences" do
       expect { described_class.new(**valid_attrs, idempotency_key: (+"tb:v1:\xff").force_encoding("UTF-8")) }
         .to raise_error(ArgumentError, /idempotency_key must be valid UTF-8/)

@@ -114,6 +114,15 @@ RSpec.describe Publication::ItemSnapshot do
         .to raise_error(ArgumentError, /source_metadata/)
     end
 
+    it "raises when nested source_metadata text contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          source_metadata: { raw: { note: (+"details \xff").force_encoding("UTF-8") } }
+        )
+      end.to raise_error(ArgumentError, /source_metadata\.raw\.note must be valid UTF-8/)
+    end
+
     it "raises when sync_collection is not a hash" do
       expect { described_class.new(**valid_attrs, sync_collection: "collection 84") }
         .to raise_error(ArgumentError, /sync_collection must be a hash/)

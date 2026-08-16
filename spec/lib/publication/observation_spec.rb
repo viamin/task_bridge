@@ -175,6 +175,15 @@ RSpec.describe Publication::Observation do
       expect(obs.to_payload[:change][:to]).to eq("2026-08-15T17:00:00Z")
     end
 
+    it "raises when nested change text contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          change: { field: "notes_preview", from: (+"old \xff").force_encoding("UTF-8"), to: "new" }
+        )
+      end.to raise_error(ArgumentError, /change\.from must be valid UTF-8/)
+    end
+
     it "raises when is_deleted is not a boolean" do
       expect { described_class.new(**valid_attrs, is_deleted: "yes") }
         .to raise_error(ArgumentError, /is_deleted/)
@@ -188,6 +197,24 @@ RSpec.describe Publication::Observation do
     it "raises when provenance is not a hash" do
       expect { described_class.new(**valid_attrs, provenance: "detected by sync_compare") }
         .to raise_error(ArgumentError, /provenance/)
+    end
+
+    it "raises when nested last_known text contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          last_known: { title: (+"Buy \xff").force_encoding("UTF-8") }
+        )
+      end.to raise_error(ArgumentError, /last_known\.title must be valid UTF-8/)
+    end
+
+    it "raises when nested provenance text contains invalid UTF-8 byte sequences" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          provenance: { detector: { rule: (+"sync \xff").force_encoding("UTF-8") } }
+        )
+      end.to raise_error(ArgumentError, /provenance\.detector\.rule must be valid UTF-8/)
     end
 
     it "accepts is_deleted false" do

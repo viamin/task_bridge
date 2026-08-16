@@ -183,17 +183,17 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect { JSON.parse(entry.payload) }.not_to raise_error
     end
 
-    it "raises a clear ArgumentError when a nested payload string has invalid UTF-8" do
-      observation = Publication::Observation.new(
-        idempotency_key: "tb:v1:obs:asana:workspace-12345:default:123:source_changed:2026-08-14T19:00:00.000000Z",
-        event_type: "source_changed",
-        observed_at: "2026-08-14T19:00:00.000000Z",
-        item_key: "asana:workspace-12345:default:123",
-        source:,
-        change: { field: "title", from: (+"old title \xff").force_encoding("UTF-8"), to: "new title" }
-      )
-      expect { described_class.from_record(observation) }
-        .to raise_error(ArgumentError, /payload for .*123:source_changed.* is not serializable/)
+    it "rejects nested invalid UTF-8 before an outbox record can be built" do
+      expect do
+        Publication::Observation.new(
+          idempotency_key: "tb:v1:obs:asana:workspace-12345:default:123:source_changed:2026-08-14T19:00:00.000000Z",
+          event_type: "source_changed",
+          observed_at: "2026-08-14T19:00:00.000000Z",
+          item_key: "asana:workspace-12345:default:123",
+          source:,
+          change: { field: "title", from: (+"old title \xff").force_encoding("UTF-8"), to: "new title" }
+        )
+      end.to raise_error(ArgumentError, /change\.from must be valid UTF-8/)
     end
 
     it "raises a clear ArgumentError when source_metadata nests beyond the JSON generation limit" do

@@ -149,11 +149,8 @@ module Publication
     def validate_text_encoding!
       fields = { idempotency_key:, sync_run_id:, service_type:, service_instance:, "detail" => detail,
                  started_at:, finished_at:, last_attempted_at:, last_successful_at:, last_failed_at: }
-      if error.is_a?(Hash)
-        fields["error.class"] = error[:class]
-        fields["error.message"] = error[:message]
-      end
       Utf8.validate_fields!(fields)
+      Utf8.validate_structure!(:error, error) if error.is_a?(Hash)
     end
   end
 end
