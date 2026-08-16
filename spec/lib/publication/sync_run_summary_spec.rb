@@ -140,6 +140,15 @@ RSpec.describe Publication::SyncRunSummary do
       end.not_to raise_error
     end
 
+    it "accepts an error hash with string keys" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          error: { "class" => "ProviderError", "message" => "401", "retryable" => false }
+        )
+      end.not_to raise_error
+    end
+
     it "raises when error.retryable is not a boolean" do
       expect do
         described_class.new(**valid_attrs, error: { class: "ProviderError", message: "401", retryable: "yes" })

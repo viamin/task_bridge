@@ -119,10 +119,10 @@ module Publication
 
     def valid_error?(error)
       error.is_a?(Hash) &&
-        REQUIRED_ERROR_KEYS.all? { |key| error.key?(key) } &&
-        error[:class].is_a?(String) && error[:class].present? &&
-        error[:message].is_a?(String) && error[:message].present? &&
-        [true, false].include?(error[:retryable])
+        REQUIRED_ERROR_KEYS.all? { |key| HashAccess.key?(error, key) } &&
+        HashAccess.fetch(error, :class).is_a?(String) && HashAccess.fetch(error, :class).present? &&
+        HashAccess.fetch(error, :message).is_a?(String) && HashAccess.fetch(error, :message).present? &&
+        [true, false].include?(HashAccess.fetch(error, :retryable))
     end
 
     # RDR 215 lists last_successful_at or last_failed_at as required "as
