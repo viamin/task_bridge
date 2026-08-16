@@ -336,7 +336,14 @@ class PublicationOutboxEntry < ApplicationRecord
   def validate_string_fields
     (REQUIRED_STRING_FIELDS + OPTIONAL_STRING_FIELDS).each do |field|
       value = public_send(field)
-      errors.add(field, "must be valid UTF-8") if value.is_a?(String) && !value.valid_encoding?
+      next if value.nil?
+
+      unless value.is_a?(String)
+        errors.add(field, "must be a string")
+        next
+      end
+
+      errors.add(field, "must be valid UTF-8") unless value.valid_encoding?
     end
 
     REQUIRED_STRING_FIELDS.each do |field|

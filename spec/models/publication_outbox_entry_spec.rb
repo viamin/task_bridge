@@ -56,6 +56,22 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry).not_to be_valid
     end
 
+    it "returns validation errors instead of raising when a required string field is not a string" do
+      entry = described_class.new(valid_entry_attrs)
+      entry.define_singleton_method(:service_type) { 42 }
+
+      expect(entry).not_to be_valid
+      expect(entry.errors[:service_type]).to include("must be a string")
+    end
+
+    it "returns validation errors instead of raising when an optional string field is not a string" do
+      entry = described_class.new(valid_entry_attrs)
+      entry.define_singleton_method(:error_message) { 42 }
+
+      expect(entry).not_to be_valid
+      expect(entry.errors[:error_message]).to include("must be a string")
+    end
+
     it "returns validation errors instead of raising when payload is not a string" do
       entry = described_class.new(valid_entry_attrs)
       entry.define_singleton_method(:payload) { { invalid: true } }
