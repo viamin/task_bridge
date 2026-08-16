@@ -12,6 +12,12 @@ module Publication
   module Utf8
     module_function
 
+    # Returns true when value is a String that can be serialized as UTF-8.
+    # Useful for validations that need the same boundary check without raising.
+    def serializable_string?(value)
+      value.is_a?(String) && utf8_serializable?(value)
+    end
+
     # Raises ArgumentError naming every field whose value is a string with an
     # encoding that cannot be serialized as UTF-8. fields maps field names to
     # caller-supplied values; non-string values are ignored and left to the

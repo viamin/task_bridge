@@ -363,7 +363,7 @@ class PublicationOutboxEntry < ApplicationRecord
         next
       end
 
-      errors.add(field, "must be valid UTF-8") unless value.valid_encoding?
+      errors.add(field, "must be valid UTF-8") unless Publication::Utf8.serializable_string?(value)
     end
 
     REQUIRED_STRING_FIELDS.each do |field|
@@ -393,7 +393,7 @@ class PublicationOutboxEntry < ApplicationRecord
     value = public_send(field)
     return true unless value.is_a?(String)
 
-    value.valid_encoding?
+    Publication::Utf8.serializable_string?(value)
   end
 
   # The publisher sends the stored payload verbatim, so a row that is not a
@@ -407,7 +407,7 @@ class PublicationOutboxEntry < ApplicationRecord
       errors.add(:payload, :blank)
     elsif !payload.is_a?(String)
       errors.add(:payload, "must be a string")
-    elsif !payload.valid_encoding?
+    elsif !Publication::Utf8.serializable_string?(payload)
       errors.add(:payload, "must be valid UTF-8")
     else
       parsed = JSON.parse(payload)

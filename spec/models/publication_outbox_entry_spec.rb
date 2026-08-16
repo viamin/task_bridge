@@ -139,6 +139,14 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.errors[:payload]).to include("must be valid UTF-8")
     end
 
+    it "rejects a payload that cannot be serialized as UTF-8 even when valid_encoding? is true" do
+      payload = "{\"idempotency_key\":\"k\",\"title\":\"\xFF\"}".dup.force_encoding("ASCII-8BIT")
+      entry = described_class.new(valid_entry_attrs.merge(payload: payload))
+
+      expect(entry).not_to be_valid
+      expect(entry.errors[:payload]).to include("must be valid UTF-8")
+    end
+
     it "requires record_kind to be present" do
       entry = described_class.new(valid_entry_attrs.merge(record_kind: nil))
       expect(entry).not_to be_valid
@@ -172,6 +180,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
     it "returns validation errors instead of raising when idempotency_key carries invalid UTF-8" do
       entry = described_class.new(valid_entry_attrs.merge(idempotency_key: (+"tb:v1:\xff").force_encoding("UTF-8")))
+      expect(entry).not_to be_valid
+      expect(entry.errors[:idempotency_key]).to include("must be valid UTF-8")
+    end
+
+    it "returns validation errors when a required string cannot be serialized as UTF-8" do
+      entry = described_class.new(valid_entry_attrs.merge(idempotency_key: "tb:v1:item:\xFF".dup.force_encoding("ASCII-8BIT")))
+
       expect(entry).not_to be_valid
       expect(entry.errors[:idempotency_key]).to include("must be valid UTF-8")
     end
