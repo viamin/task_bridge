@@ -1189,6 +1189,53 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when mixed-kind entries are submitted" do
+      let(:observation) do
+        make_entry(
+          key: "tb:v1:obs:asana:default:1:source_changed:2026-08-14T19:00:00.000000Z",
+          kind: "observation"
+        )
+      end
+
+      before do
+        allow(HTTParty).to receive(:post) do |_endpoint, options|
+          body = JSON.parse(options[:body], symbolize_names: true)
+          wire_order = [
+            *body.fetch(:items).map { |row| ["item", row] },
+            *body.fetch(:observations).map { |row| ["observation", row] },
+            *body.fetch(:mappings).map { |row| ["mapping", row] },
+            *body.fetch(:sync_runs).map { |row| ["sync_run", row] }
+          ]
+
+          instance_double(
+            HTTParty::Response,
+            code: "200",
+            body: {
+              batch_id: options[:headers]["X-TaskBridge-Batch-Id"],
+              contract_version: 1,
+              accepted: wire_order.length,
+              replayed: 0,
+              rejected: 0,
+              results: wire_order.map do |record_kind, row|
+                {
+                  record_kind:,
+                  idempotency_key: row.fetch(:idempotency_key),
+                  status: "accepted"
+                }
+              end
+            }.to_json
+          )
+        end
+      end
+
+      it "accepts a response in transmitted wire order and returns results in caller order" do
+        results = publisher.publish([observation, entry])
+
+        expect(results.map(&:entry)).to eq([observation, entry])
+        expect(results).to all(be_accepted)
+      end
+    end
+
     context "when the response returns results out of submission order" do
       let(:second) { make_entry(key: "tb:v1:item:asana:default:2:snapshot:2026-08-14T19:00:00.000000Z") }
 

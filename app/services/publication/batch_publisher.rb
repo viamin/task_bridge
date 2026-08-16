@@ -88,6 +88,7 @@ module Publication
       check_duplicate_idempotency_keys!(rows)
       check_payload_contract_versions!(rows)
       check_payload_idempotency_keys!(rows)
+      transmitted_rows = rows_in_wire_order(rows)
 
       # One publish attempt is described by a single instant: deriving both
       # stamps from the same Time.current keeps published_at from landing
@@ -96,11 +97,11 @@ module Publication
       batch_id     = SecureRandom.uuid
       sent_at      = Timestamp.format(attempt_time)
       published_at = Timestamp.format(attempt_time)
-      body         = build_body(rows, batch_id:, sent_at:, published_at:)
+      body         = build_body(transmitted_rows, batch_id:, sent_at:, published_at:)
       headers      = build_headers(batch_id:, sent_at:)
 
       response = post_batch(body:, headers:)
-      handle_response(response, rows, batch_id:)
+      handle_response(response, rows, transmitted_rows:, batch_id:)
     end
 
     private
@@ -225,6 +226,14 @@ module Publication
       end
     end
 
+    # The wire contract groups rows by record kind into separate top-level
+    # arrays. Response order must be checked against that transmitted order,
+    # not against the caller's original mixed-kind input order.
+    def rows_in_wire_order(rows)
+      grouped = rows.group_by(&:record_kind)
+      RECORD_KINDS.flat_map { |kind| grouped.fetch(kind, []) }
+    end
+
     # JSON.parse accepts malformed UTF-8 byte sequences, so a row written past
     # the model validation (raw SQL, update_column) can pass every pre-send
     # check and still fail JSON generation when the body is assembled. The
@@ -293,12 +302,12 @@ module Publication
       raise DeliveryError.new("transport error: #{e.message}", retryable: true)
     end
 
-    def handle_response(response, rows, batch_id:)
+    def handle_response(response, rows, transmitted_rows:, batch_id:)
       code = parsed_response_code(response)
 
       case code
       when 200
-        parse_row_results(response, rows, batch_id:)
+        parse_row_results(response, rows, transmitted_rows:, batch_id:)
       when 400, 422
         raise DeliveryError.new("request rejected (#{response.code}): #{response_excerpt(response)}", retryable: false)
       when 401
@@ -391,7 +400,7 @@ module Publication
       end
     end
 
-    def parse_row_results(response, rows, batch_id:)
+    def parse_row_results(response, rows, transmitted_rows:, batch_id:)
       # to_s coerces a nil body (empty responses from proxies and load
       # balancers) into "", which JSON.parse rejects with ParserError; a raw
       # nil would raise TypeError and bypass the classification below.
@@ -405,7 +414,7 @@ module Publication
       verify_result_counts!(parsed, results, rows)
       results_by_key = index_results_by_key(results)
       verify_result_key_set!(rows, results_by_key)
-      verify_result_order!(rows, results)
+      verify_result_order!(transmitted_rows, results)
 
       rows.map { |entry| build_entry_result(entry, results_by_key[entry.idempotency_key]) }
     rescue JSON::ParserError => e
