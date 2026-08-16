@@ -133,12 +133,13 @@ module Publication
     end
 
     # mapping_source is free-form provenance text per RDR 215 ("sync_id_note",
-    # "title_match", ...), so it has no closed enum, but a non-string value
-    # must fail here rather than as a remote non-retryable row rejection.
+    # "title_match", ...), so it has no closed enum, but an empty string still
+    # carries no usable provenance and a non-string value would fail remotely.
     def validate_mapping_source!(value)
-      return if value.nil? || value.is_a?(String)
+      return if value.nil?
+      return if value.is_a?(String) && value.present?
 
-      raise ArgumentError, "mapping_source must be a string when provided"
+      raise ArgumentError, "mapping_source must be a non-blank string when provided"
     end
 
     # provenance is the structured mapping evidence; a non-hash value must be

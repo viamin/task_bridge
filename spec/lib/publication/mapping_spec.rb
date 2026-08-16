@@ -132,7 +132,13 @@ RSpec.describe Publication::Mapping do
     it "raises when mapping_source is not a string" do
       expect do
         described_class.new(**valid_attrs, mapping_source: :title_match)
-      end.to raise_error(ArgumentError, /mapping_source must be a string/)
+      end.to raise_error(ArgumentError, /mapping_source must be a non-blank string/)
+    end
+
+    it "raises when mapping_source is a blank string" do
+      expect do
+        described_class.new(**valid_attrs, mapping_source: "")
+      end.to raise_error(ArgumentError, /mapping_source must be a non-blank string/)
     end
 
     it "raises when sync_collection title is not a string" do

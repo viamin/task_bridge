@@ -160,9 +160,10 @@ module Publication
       validate_enum!(HashAccess.fetch(collection, :mapping_confidence), Mapping::VALID_CONFIDENCE_LEVELS, "sync_collection.mapping_confidence")
 
       mapping_source = HashAccess.fetch(collection, :mapping_source)
-      return if mapping_source.nil? || mapping_source.is_a?(String)
+      return if mapping_source.nil?
+      return if mapping_source.is_a?(String) && mapping_source.present?
 
-      raise ArgumentError, "sync_collection.mapping_source must be a string when provided"
+      raise ArgumentError, "sync_collection.mapping_source must be a non-blank string when provided"
     end
 
     # sync_collection_id feeds the mapping idempotency key's collection scope

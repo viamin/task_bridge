@@ -172,7 +172,13 @@ RSpec.describe Publication::ItemSnapshot do
     it "raises when sync_collection mapping_source is not a string" do
       expect do
         described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, mapping_source: :sync_id_note })
-      end.to raise_error(ArgumentError, /sync_collection\.mapping_source must be a string/)
+      end.to raise_error(ArgumentError, /sync_collection\.mapping_source must be a non-blank string/)
+    end
+
+    it "raises when sync_collection mapping_source is a blank string" do
+      expect do
+        described_class.new(**valid_attrs, sync_collection: { sync_collection_id: 84, mapping_source: "" })
+      end.to raise_error(ArgumentError, /sync_collection\.mapping_source must be a non-blank string/)
     end
 
     it "raises when sync_collection title is not a string" do
