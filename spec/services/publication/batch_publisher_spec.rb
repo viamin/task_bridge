@@ -661,6 +661,16 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when the server returns 403" do
+      before { stub_http(status: 403, body: "Forbidden") }
+
+      it "raises a non-retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /authorization failure/
+        ) { |e| expect(e.retryable).to be false }
+      end
+    end
+
     context "when the server returns string status codes like Net::HTTP" do
       before { stub_http(status: 401, body: "Unauthorized") }
 

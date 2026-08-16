@@ -300,6 +300,8 @@ module Publication
         raise DeliveryError.new("request rejected (#{response.code}): #{response_excerpt(response)}", retryable: false)
       when 401
         raise DeliveryError.new("authentication failure (401): check API key", retryable: false)
+      when 403
+        raise DeliveryError.new("authorization failure (403): check API key permissions", retryable: false)
       when 409
         # The conflict body names the offending key, so the scrubbed excerpt is
         # included for operator debugging like the other terminal rejections.
