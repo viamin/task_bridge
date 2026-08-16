@@ -381,7 +381,8 @@ class PublicationOutboxEntry < ApplicationRecord
   # timestamp is malformed even if it was built outside .from_record.
   def validate_observed_at
     raw_value = validating_raw_observed_at? ? observed_at_before_type_cast : observed_at
-    raw_value = observed_at if raw_value.blank?
+    Publication::Utf8.validate_fields!(observed_at: raw_value)
+    raw_value = observed_at if raw_value.nil?
     return errors.add(:observed_at, :blank) if raw_value.blank?
 
     Publication::Timestamp.validate!(raw_value)

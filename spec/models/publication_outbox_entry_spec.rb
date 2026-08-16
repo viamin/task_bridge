@@ -178,6 +178,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.errors[:observed_at]).to include(/missing timezone/)
     end
 
+    it "returns validation errors instead of raising when observed_at carries invalid UTF-8" do
+      entry = described_class.new(valid_entry_attrs.merge(observed_at: (+"2026-08-14T19:00:00Z\xff").force_encoding("UTF-8")))
+
+      expect(entry).not_to be_valid
+      expect(entry.errors[:observed_at]).to include("observed_at must be valid UTF-8")
+    end
+
     it "returns validation errors instead of raising when idempotency_key carries invalid UTF-8" do
       entry = described_class.new(valid_entry_attrs.merge(idempotency_key: (+"tb:v1:\xff").force_encoding("UTF-8")))
       expect(entry).not_to be_valid
