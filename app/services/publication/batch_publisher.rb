@@ -372,10 +372,14 @@ module Publication
       case value
       when String
         sanitize_remote_text(value)
+      when Symbol
+        sanitize_remote_text(value.to_s)
       when Array
         value.map { |item| sanitize_remote_value(item) }
       when Hash
-        value.transform_values { |nested| sanitize_remote_value(nested) }
+        value.each_with_object({}) do |(key, nested), sanitized|
+          sanitized[sanitize_remote_value(key)] = sanitize_remote_value(nested)
+        end
       else
         value
       end

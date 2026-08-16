@@ -832,6 +832,28 @@ RSpec.describe Publication::BatchPublisher do
           expect(error.message).not_to include(api_key)
         }
       end
+
+      it "redacts secrets nested in malformed hash keys before surfacing the echoed value" do
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(
+            HTTParty::Response,
+            code: "200",
+            body: {
+              batch_id: { "Authorization: Bearer #{api_key}" => { "refresh_token" => api_key } },
+              contract_version: 1,
+              accepted: 0,
+              replayed: 0,
+              rejected: 0,
+              results: []
+            }.to_json
+          )
+        )
+
+        expect { publisher.publish([entry]) }.to raise_error(Publication::DeliveryError) { |error|
+          expect(error.message).to include('{"Authorization: [REDACTED]" => {"refresh_token" => "[REDACTED]"}}')
+          expect(error.message).not_to include(api_key)
+        }
+      end
     end
 
     context "when the response omits batch_id" do
