@@ -209,9 +209,10 @@ module Publication
     # key list of {kind, id} objects), so a wrong type must fail here rather
     # than as a remote non-retryable row rejection.
     def validate_source_url!(url)
-      return if url.nil? || url.is_a?(String)
+      return if url.nil?
+      return if url.is_a?(String) && url.present?
 
-      raise ArgumentError, "source.source_url must be a string when provided"
+      raise ArgumentError, "source.source_url must be a non-blank string when provided"
     end
 
     def validate_source_collection_keys!(keys)

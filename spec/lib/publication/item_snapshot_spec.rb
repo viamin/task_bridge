@@ -212,7 +212,13 @@ RSpec.describe Publication::ItemSnapshot do
     it "raises when source_url is not a string" do
       expect do
         described_class.new(**valid_attrs, source: valid_source.merge(source_url: 42))
-      end.to raise_error(ArgumentError, /source\.source_url must be a string/)
+      end.to raise_error(ArgumentError, /source\.source_url must be a non-blank string/)
+    end
+
+    it "raises when source_url is a blank string" do
+      expect do
+        described_class.new(**valid_attrs, source: valid_source.merge(source_url: ""))
+      end.to raise_error(ArgumentError, /source\.source_url must be a non-blank string/)
     end
 
     it "raises when source_collection_keys is not an array" do
