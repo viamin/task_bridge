@@ -117,6 +117,15 @@ RSpec.describe Publication::Observation do
       end.to raise_error(ArgumentError, /source\.source_collection_keys/)
     end
 
+    it "raises when a source_collection_keys entry cannot be transcoded to UTF-8 even though valid_encoding? is true" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          source: valid_source.merge(source_collection_keys: [{ kind: "project", id: "😀".encode(Encoding.find("UTF8-DoCoMo")) }])
+        )
+      end.to raise_error(ArgumentError, /source\.source_collection_keys/)
+    end
+
     it "raises when observed_at is not parseable as ISO 8601" do
       expect { described_class.new(**valid_attrs, observed_at: "Aug 14 2026") }
         .to raise_error(ArgumentError, /invalid ISO 8601 timestamp/)

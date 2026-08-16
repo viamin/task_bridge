@@ -62,7 +62,7 @@ module Publication
       when Hash
         value.each do |key, nested|
           key_path = "#{path}.#{display_key(key)}"
-          invalid << "#{key_path}(key)" if key.is_a?(String) && !key.valid_encoding?
+          invalid << "#{key_path}(key)" if key.is_a?(String) && !utf8_serializable?(key)
           collect_invalid_paths(nested, key_path, invalid)
         end
       end

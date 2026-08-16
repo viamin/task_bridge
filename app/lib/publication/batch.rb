@@ -130,7 +130,7 @@ module Publication
     end
 
     def present_idempotency_key?(key)
-      key.is_a?(String) && key.valid_encoding? && key.present?
+      Publication::Utf8.serializable_string?(key) && key.present?
     end
   end
 end

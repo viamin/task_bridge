@@ -92,6 +92,11 @@ RSpec.describe Publication::ItemSnapshot do
         .to raise_error(ArgumentError, /tags must be an array of valid UTF-8 strings/)
     end
 
+    it "raises when a tags entry cannot be transcoded to UTF-8 even though valid_encoding? is true" do
+      expect { described_class.new(**valid_attrs, tags: ["😀".encode(Encoding.find("UTF8-DoCoMo"))]) }
+        .to raise_error(ArgumentError, /tags must be an array of valid UTF-8 strings/)
+    end
+
     it "raises when parent is not a hash" do
       expect { described_class.new(**valid_attrs, parent: "asana:workspace-12345:default:7") }
         .to raise_error(ArgumentError, /parent/)
@@ -266,6 +271,15 @@ RSpec.describe Publication::ItemSnapshot do
     it "raises when a source_collection_keys entry carries invalid UTF-8 instead of crashing on presence" do
       expect do
         described_class.new(**valid_attrs, source: valid_source.merge(source_collection_keys: [{ kind: (+"proj\xff").force_encoding("UTF-8"), id: "project-9" }]))
+      end.to raise_error(ArgumentError, /source\.source_collection_keys/)
+    end
+
+    it "raises when a source_collection_keys entry cannot be transcoded to UTF-8 even though valid_encoding? is true" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          source: valid_source.merge(source_collection_keys: [{ kind: "project", id: "😀".encode(Encoding.find("UTF8-DoCoMo")) }])
+        )
       end.to raise_error(ArgumentError, /source\.source_collection_keys/)
     end
 

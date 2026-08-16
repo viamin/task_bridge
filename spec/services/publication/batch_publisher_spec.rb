@@ -207,6 +207,14 @@ RSpec.describe Publication::BatchPublisher do
         expect { publisher.publish([malformed]) }.to raise_error(ArgumentError, /non-blank string idempotency_key/)
       end
 
+      it "raises ArgumentError when an entry's idempotency_key cannot be transcoded to UTF-8 even though valid_encoding? is true" do
+        untranscodable = make_entry(
+          key: "😀".encode(Encoding.find("UTF8-DoCoMo")),
+          payload: { contract_version: 1, source: {} }.to_json
+        )
+        expect { publisher.publish([untranscodable]) }.to raise_error(ArgumentError, /non-blank string idempotency_key/)
+      end
+
       it "does not send an HTTP request" do
         allow(HTTParty).to receive(:post)
         keyless = make_entry(key: nil)

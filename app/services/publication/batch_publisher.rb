@@ -143,7 +143,7 @@ module Publication
     end
 
     def present_idempotency_key?(key)
-      key.is_a?(String) && key.valid_encoding? && key.present?
+      Publication::Utf8.serializable_string?(key) && key.present?
     end
 
     # The contract forbids repeating an idempotency_key within a batch. The
@@ -453,7 +453,7 @@ module Publication
     end
 
     def result_key_present?(key)
-      return false unless key.is_a?(String) && key.valid_encoding?
+      return false unless Publication::Utf8.serializable_string?(key)
 
       !key.strip.empty?
     end

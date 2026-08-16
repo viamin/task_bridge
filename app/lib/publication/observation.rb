@@ -140,7 +140,7 @@ module Publication
     def valid_source_collection_key?(key)
       key.is_a?(Hash) && %i[kind id].all? do |field|
         value = HashAccess.fetch(key, field)
-        value.is_a?(String) && value.valid_encoding? && value.present?
+        Utf8.serializable_string?(value) && value.present?
       end
     end
 

@@ -164,6 +164,17 @@ RSpec.describe Publication::Batch do
         .to raise_error(ArgumentError, /non-blank string idempotency_key/)
     end
 
+    it "raises when a record's idempotency_key cannot be transcoded to UTF-8 even though valid_encoding? is true" do
+      untranscodable_key_record = Class.new do
+        def idempotency_key = "😀".encode(Encoding.find("UTF8-DoCoMo"))
+
+        def to_payload = {}
+      end
+
+      expect { described_class.new(batch_id:, sent_at:, items: [untranscodable_key_record.new]) }
+        .to raise_error(ArgumentError, /non-blank string idempotency_key/)
+    end
+
     it "raises when publisher is not a string" do
       expect { described_class.new(batch_id:, sent_at:, items: [item], publisher: 42) }
         .to raise_error(ArgumentError, /publisher must be a non-blank string/)

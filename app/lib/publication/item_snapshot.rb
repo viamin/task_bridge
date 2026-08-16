@@ -112,7 +112,7 @@ module Publication
     # UTF-8 string: a wrong-typed or malformed entry would otherwise surface
     # as a remote non-retryable row rejection, or crash JSON generation.
     def validate_tags!
-      return if tags.nil? || (tags.is_a?(Array) && tags.all? { |tag| tag.is_a?(String) && tag.valid_encoding? })
+      return if tags.nil? || (tags.is_a?(Array) && tags.all? { |tag| Utf8.serializable_string?(tag) })
 
       raise ArgumentError, "tags must be an array of valid UTF-8 strings when provided"
     end
@@ -229,7 +229,7 @@ module Publication
     def valid_source_collection_key?(key)
       key.is_a?(Hash) && %i[kind id].all? do |field|
         value = HashAccess.fetch(key, field)
-        value.is_a?(String) && value.valid_encoding? && value.present?
+        Utf8.serializable_string?(value) && value.present?
       end
     end
   end
