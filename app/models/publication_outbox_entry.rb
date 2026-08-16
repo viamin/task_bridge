@@ -200,7 +200,7 @@ class PublicationOutboxEntry < ApplicationRecord
   private_class_method :observed_at_value
 
   def mark_delivered!
-    ensure_not_terminal!(:mark_delivered!)
+    ensure_not_delivered_or_terminal!(:mark_delivered!)
     update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
   end
 
@@ -239,7 +239,7 @@ class PublicationOutboxEntry < ApplicationRecord
   private :sanitized_message
 
   def mark_replayed!
-    ensure_not_terminal!(:mark_replayed!)
+    ensure_not_delivered_or_terminal!(:mark_replayed!)
     update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
   end
 

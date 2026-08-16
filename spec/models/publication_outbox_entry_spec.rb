@@ -620,6 +620,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect { entry.mark_delivered! }
         .to raise_error(ArgumentError, /mark_delivered! cannot transition a terminal outbox row/)
     end
+
+    it "rejects attempts to deliver a delivered row" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "delivered", delivered_at: Time.current))
+
+      expect { entry.mark_delivered! }
+        .to raise_error(ArgumentError, /mark_delivered! cannot transition a delivered outbox row/)
+    end
   end
 
   describe "#mark_failed!" do
@@ -722,6 +729,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
       expect { entry.mark_replayed! }
         .to raise_error(ArgumentError, /mark_replayed! cannot transition a terminal outbox row/)
+    end
+
+    it "rejects attempts to replay a delivered row" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "delivered", delivered_at: Time.current))
+
+      expect { entry.mark_replayed! }
+        .to raise_error(ArgumentError, /mark_replayed! cannot transition a delivered outbox row/)
     end
   end
 
