@@ -191,6 +191,27 @@ RSpec.describe PublicationOutboxEntry, type: :model do
         .to raise_error(ArgumentError, /payload idempotency_key is required/)
     end
 
+    it "raises a clear ArgumentError when payload idempotency_key carries invalid UTF-8" do
+      invalid_key = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: (+"tb:v1:item:\xff").force_encoding("UTF-8"),
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            source: {
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      invalid_key::RECORD_KIND = "item"
+
+      expect { described_class.from_record(invalid_key.new) }
+        .to raise_error(ArgumentError, /payload idempotency_key must be valid UTF-8/)
+    end
+
     it "raises a clear ArgumentError when extracted service provenance is missing" do
       missing_identity = Class.new do
         def to_payload

@@ -171,6 +171,7 @@ class PublicationOutboxEntry < ApplicationRecord
 
   def self.fetch_required_payload_string!(payload, field)
     value = Publication::HashAccess.fetch(payload, field)
+    Publication::Utf8.validate_fields!("payload #{field}" => value)
     return value if value.is_a?(String) && value.present?
 
     raise ArgumentError, "payload #{field} is required"
