@@ -274,7 +274,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       source_less_item::RECORD_KIND = "item"
 
       expect { described_class.from_record(source_less_item.new) }
-        .to raise_error(ArgumentError, /payload source must be a hash when present/)
+        .to raise_error(ArgumentError, /payload source is required/)
     end
 
     it "does not fall back from a present nil source to member provenance" do
@@ -315,7 +315,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       member_less_mapping::RECORD_KIND = "mapping"
 
       expect { described_class.from_record(member_less_mapping.new) }
-        .to raise_error(ArgumentError, /payload member must be a hash when present/)
+        .to raise_error(ArgumentError, /payload member is required/)
     end
 
     it "raises a clear ArgumentError when payload idempotency_key is missing" do

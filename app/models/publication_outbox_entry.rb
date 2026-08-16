@@ -205,8 +205,8 @@ class PublicationOutboxEntry < ApplicationRecord
   # silently falling through to the other section and extracting the wrong
   # service provenance.
   def self.payload_identity(payload)
-    return required_payload_hash!(payload, :source) if Publication::HashAccess.key?(payload, :source)
-    return required_payload_hash!(payload, :member) if Publication::HashAccess.key?(payload, :member)
+    return payload_hash!(payload, :source, required: false) if Publication::HashAccess.key?(payload, :source)
+    return payload_hash!(payload, :member, required: false) if Publication::HashAccess.key?(payload, :member)
 
     {}
   end
@@ -219,22 +219,25 @@ class PublicationOutboxEntry < ApplicationRecord
   def self.validate_required_identity_section!(kind, payload, idempotency_key)
     case kind
     when "item", "observation"
-      required_payload_hash!(payload, :source)
+      payload_hash!(payload, :source, required: true)
     when "mapping"
-      required_payload_hash!(payload, :member)
+      payload_hash!(payload, :member, required: true)
     end
   rescue ArgumentError => e
     raise ArgumentError, "#{e.message} for #{idempotency_key}"
   end
   private_class_method :validate_required_identity_section!
 
-  def self.required_payload_hash!(payload, field)
+  def self.payload_hash!(payload, field, required:)
+    key_present = Publication::HashAccess.key?(payload, field)
     value = Publication::HashAccess.fetch(payload, field)
     return value if value.is_a?(Hash)
 
+    raise ArgumentError, "payload #{field} is required" if required && !key_present
+
     raise ArgumentError, "payload #{field} must be a hash when present"
   end
-  private_class_method :required_payload_hash!
+  private_class_method :payload_hash!
 
   # SyncRunSummary uses started_at as the outbox ordering timestamp. Records
   # that expose observed_at must not mask a blank/invalid value by falling back
