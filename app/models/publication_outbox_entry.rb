@@ -98,7 +98,7 @@ class PublicationOutboxEntry < ApplicationRecord
       payload: payload_json(payload, idempotency_key),
       service_type:,
       service_instance:,
-      observed_at:
+      observed_at: Publication::Timestamp.format(observed_at)
     )
   end
 
