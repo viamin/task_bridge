@@ -172,6 +172,83 @@ RSpec.describe PublicationOutboxEntry, type: :model do
         .to raise_error(ArgumentError, %r{source/member must be a hash})
     end
 
+    it "raises a clear ArgumentError when payload idempotency_key is missing" do
+      keyless_payload = Class.new do
+        def to_payload
+          {
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            source: {
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      keyless_payload::RECORD_KIND = "item"
+
+      expect { described_class.from_record(keyless_payload.new) }
+        .to raise_error(ArgumentError, /payload idempotency_key is required/)
+    end
+
+    it "raises a clear ArgumentError when extracted service provenance is missing" do
+      missing_identity = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            source: { external_id: "123" }
+          }
+        end
+      end
+      missing_identity::RECORD_KIND = "item"
+
+      expect { described_class.from_record(missing_identity.new) }
+        .to raise_error(ArgumentError, /payload service_type is required/)
+    end
+
+    it "raises a clear ArgumentError when payload does not expose observed_at or started_at" do
+      missing_observed_at = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            source: {
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      missing_observed_at::RECORD_KIND = "item"
+
+      expect { described_class.from_record(missing_observed_at.new) }
+        .to raise_error(ArgumentError, /payload observed_at is required/)
+    end
+
+    it "raises a clear ArgumentError when payload observed_at is invalid" do
+      invalid_observed_at = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14 19:00:00",
+            source: {
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      invalid_observed_at::RECORD_KIND = "item"
+
+      expect { described_class.from_record(invalid_observed_at.new) }
+        .to raise_error(ArgumentError, /payload observed_at is invalid/)
+    end
+
     it "builds an entry from a Publication::ItemSnapshot" do
       snapshot = build_item_snapshot
       entry = described_class.from_record(snapshot)

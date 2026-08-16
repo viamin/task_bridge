@@ -79,15 +79,25 @@ class PublicationOutboxEntry < ApplicationRecord
     identity = Publication::HashAccess.fetch(payload, :source) || Publication::HashAccess.fetch(payload, :member) || {}
     raise ArgumentError, "payload source/member must be a hash when present" unless identity.is_a?(Hash)
 
+    idempotency_key = fetch_required_payload_string!(payload, :idempotency_key)
     service_type     = Publication::HashAccess.fetch(identity, :service_type) || Publication::HashAccess.fetch(payload, :service_type)
     service_instance = Publication::HashAccess.fetch(identity, :service_instance) || Publication::HashAccess.fetch(payload, :service_instance)
-    new(
-      idempotency_key: Publication::HashAccess.fetch(payload, :idempotency_key),
-      record_kind: kind,
-      payload: payload_json(payload, Publication::HashAccess.fetch(payload, :idempotency_key)),
+    observed_at      = Publication::HashAccess.fetch(payload, :observed_at) || Publication::HashAccess.fetch(payload, :started_at)
+
+    validate_extracted_provenance!(
       service_type:,
       service_instance:,
-      observed_at: Publication::HashAccess.fetch(payload, :observed_at) || Publication::HashAccess.fetch(payload, :started_at)
+      observed_at:,
+      idempotency_key:
+    )
+
+    new(
+      idempotency_key:,
+      record_kind: kind,
+      payload: payload_json(payload, idempotency_key),
+      service_type:,
+      service_instance:,
+      observed_at:
     )
   end
 
@@ -119,6 +129,38 @@ class PublicationOutboxEntry < ApplicationRecord
     raise ArgumentError, "payload for #{idempotency_key} is not serializable: #{e.message}"
   end
   private_class_method :payload_json
+
+  # The outbox depends on extracted provenance for filtering, replay, and
+  # ordering; a row missing these fields is malformed even if the DB schema
+  # allows nils, so it is rejected before construction instead of persisting a
+  # partially usable contract row.
+  def self.validate_extracted_provenance!(service_type:, service_instance:, observed_at:, idempotency_key:)
+    {
+      service_type:,
+      service_instance:
+    }.each do |field, value|
+      next if value.is_a?(String) && value.present?
+
+      raise ArgumentError, "payload #{field} is required for #{idempotency_key}"
+    end
+
+    raise ArgumentError, "payload observed_at is required for #{idempotency_key}" if observed_at.blank?
+
+    Publication::Timestamp.validate!(observed_at)
+  rescue ArgumentError => e
+    raise ArgumentError, "payload observed_at is invalid for #{idempotency_key}: #{e.message}" if e.message.start_with?("invalid ISO 8601 timestamp")
+
+    raise
+  end
+  private_class_method :validate_extracted_provenance!
+
+  def self.fetch_required_payload_string!(payload, field)
+    value = Publication::HashAccess.fetch(payload, field)
+    return value if value.is_a?(String) && value.present?
+
+    raise ArgumentError, "payload #{field} is required"
+  end
+  private_class_method :fetch_required_payload_string!
 
   def mark_delivered!
     update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
