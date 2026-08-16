@@ -138,6 +138,33 @@ RSpec.describe PublicationOutboxEntry, type: :model do
         .to raise_error(ArgumentError, /unknown record_kind: bogus/)
     end
 
+    it "raises a clear ArgumentError when to_payload returns an array" do
+      array_payload = Class.new do
+        def to_payload = [1, 2]
+      end
+      array_payload::RECORD_KIND = "item"
+      expect { described_class.from_record(array_payload.new) }
+        .to raise_error(ArgumentError, /to_payload must return a hash/)
+    end
+
+    it "raises a clear ArgumentError when to_payload returns nil" do
+      nil_payload = Class.new do
+        def to_payload = nil
+      end
+      nil_payload::RECORD_KIND = "observation"
+      expect { described_class.from_record(nil_payload.new) }
+        .to raise_error(ArgumentError, /to_payload must return a hash/)
+    end
+
+    it "raises a clear ArgumentError when payload source is a non-hash value" do
+      string_source = Class.new do
+        def to_payload = { source: "oops" }
+      end
+      string_source::RECORD_KIND = "item"
+      expect { described_class.from_record(string_source.new) }
+        .to raise_error(ArgumentError, %r{source/member must be a hash})
+    end
+
     it "builds an entry from a Publication::ItemSnapshot" do
       snapshot = build_item_snapshot
       entry = described_class.from_record(snapshot)

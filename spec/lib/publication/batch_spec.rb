@@ -131,6 +131,39 @@ RSpec.describe Publication::Batch do
       end.to raise_error(ArgumentError, /duplicate idempotency_key\(s\) in batch: nil/)
     end
 
+    it "raises when a single record carries a nil idempotency_key" do
+      nil_key_record = Class.new do
+        def idempotency_key = nil
+
+        def to_payload = {}
+      end
+
+      expect { described_class.new(batch_id:, sent_at:, items: [nil_key_record.new]) }
+        .to raise_error(ArgumentError, /non-blank string idempotency_key/)
+    end
+
+    it "raises when a single record carries a blank idempotency_key" do
+      blank_key_record = Class.new do
+        def idempotency_key = ""
+
+        def to_payload = {}
+      end
+
+      expect { described_class.new(batch_id:, sent_at:, items: [blank_key_record.new]) }
+        .to raise_error(ArgumentError, /non-blank string idempotency_key/)
+    end
+
+    it "raises when a record's idempotency_key carries invalid UTF-8" do
+      malformed_key_record = Class.new do
+        def idempotency_key = (+"tb:v1:\xff").force_encoding("UTF-8")
+
+        def to_payload = {}
+      end
+
+      expect { described_class.new(batch_id:, sent_at:, items: [malformed_key_record.new]) }
+        .to raise_error(ArgumentError, /non-blank string idempotency_key/)
+    end
+
     it "raises when publisher is not a string" do
       expect { described_class.new(batch_id:, sent_at:, items: [item], publisher: 42) }
         .to raise_error(ArgumentError, /publisher must be a non-blank string/)

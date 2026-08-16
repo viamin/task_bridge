@@ -69,9 +69,16 @@ class PublicationOutboxEntry < ApplicationRecord
   # payload root for sync_run records, so replay-by-service filtering works for
   # every record kind.
   def self.from_record(record)
-    kind             = record_kind!(record)
-    payload          = record.to_payload
-    identity         = payload[:source] || payload[:member] || {}
+    kind    = record_kind!(record)
+    payload = record.to_payload
+    # A non-hash payload (nil, array, scalar) crashes the identity extraction
+    # below with an opaque TypeError or NoMethodError, so like record_kind! it
+    # fails here with a clear error naming the problem instead.
+    raise ArgumentError, "to_payload must return a hash" unless payload.is_a?(Hash)
+
+    identity = payload[:source] || payload[:member] || {}
+    raise ArgumentError, "payload source/member must be a hash when present" unless identity.is_a?(Hash)
+
     service_type     = identity[:service_type] || payload[:service_type]
     service_instance = identity[:service_instance] || payload[:service_instance]
     new(

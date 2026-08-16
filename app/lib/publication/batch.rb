@@ -77,6 +77,7 @@ module Publication
       check_envelope_strings!
       Timestamp.validate!(sent_at)
       check_duplicate_idempotency_keys!
+      check_idempotency_keys_present!
     end
 
     def all_records
@@ -115,6 +116,21 @@ module Publication
       return if duplicates.empty?
 
       raise ArgumentError, "duplicate idempotency_key(s) in batch: #{duplicates.map(&:inspect).join(', ')}"
+    end
+
+    # Uniqueness alone cannot reject a lone keyless record — nil is not a
+    # duplicate of itself — and a row without a non-blank string key could
+    # never be reconciled from the response, so presence is enforced here like
+    # the publisher enforces it. valid_encoding? precedes present? because
+    # present? itself raises on invalid byte sequences.
+    def check_idempotency_keys_present!
+      return if all_records.all? { |record| present_idempotency_key?(record.idempotency_key) }
+
+      raise ArgumentError, "batch entries must carry a non-blank string idempotency_key"
+    end
+
+    def present_idempotency_key?(key)
+      key.is_a?(String) && key.valid_encoding? && key.present?
     end
   end
 end
