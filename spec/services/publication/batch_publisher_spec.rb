@@ -454,6 +454,30 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when an accepted result carries a blank error_code" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{
+              record_kind: "item",
+              idempotency_key: entry.idempotency_key,
+              status: "accepted",
+              error_code: "   "
+            }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of accepting blank success-row metadata" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /result error_code must be a non-blank string when provided/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when the server returns 200 with a replayed result" do
       before do
         stub_http(
