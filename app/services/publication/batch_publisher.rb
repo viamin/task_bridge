@@ -355,6 +355,7 @@ module Publication
       results = extract_results(parsed)
       verify_result_counts!(parsed, results, rows)
       results_by_key = index_results_by_key(results)
+      verify_result_key_set!(rows, results_by_key)
 
       rows.map { |entry| build_entry_result(entry, results_by_key[entry.idempotency_key]) }
     rescue JSON::ParserError => e
@@ -429,6 +430,25 @@ module Publication
 
       raise DeliveryError.new(
         "unreconcilable response: duplicate idempotency_key(s) in results: #{duplicates.inspect}",
+        retryable: true
+      )
+    end
+
+    # A 200 response is trustworthy only when its results map exactly onto the
+    # submitted rows. Matching counts are not enough: an unexpected key would
+    # otherwise be ignored while a submitted row fell through as missing_result.
+    def verify_result_key_set!(rows, results_by_key)
+      submitted_keys = rows.map(&:idempotency_key)
+      response_keys = results_by_key.keys
+      missing = submitted_keys - response_keys
+      extra = response_keys - submitted_keys
+      return if missing.empty? && extra.empty?
+
+      problems = []
+      problems << "missing #{missing.inspect}" if missing.any?
+      problems << "unexpected #{extra.inspect}" if extra.any?
+      raise DeliveryError.new(
+        "unreconcilable response: result idempotency_key set mismatch (#{problems.join('; ')})",
         retryable: true
       )
     end

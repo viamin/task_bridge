@@ -782,7 +782,7 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
-    context "when an entry has no matching result in the response" do
+    context "when the response returns the wrong result idempotency_key" do
       before do
         stub_http(
           status: 200,
@@ -794,15 +794,10 @@ RSpec.describe Publication::BatchPublisher do
         )
       end
 
-      it "marks the entry as rejected with missing_result error code" do
-        result = publisher.publish([entry]).first
-        expect(result).to be_rejected
-        expect(result.error_code).to eq("missing_result")
-      end
-
-      it "flags the row as retryable because delivery state is ambiguous" do
-        result = publisher.publish([entry]).first
-        expect(result.retryable).to be true
+      it "raises a retryable DeliveryError instead of trusting the mismatched result set" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /result idempotency_key set mismatch/
+        ) { |e| expect(e.retryable).to be true }
       end
     end
 
@@ -1107,11 +1102,34 @@ RSpec.describe Publication::BatchPublisher do
         )
       end
 
-      it "reports the submitted row as an ambiguous rejection instead of raising" do
-        result = publisher.publish([entry]).first
-        expect(result).to be_rejected
-        expect(result.error_code).to eq("missing_result")
-        expect(result.retryable).to be true
+      it "raises a retryable DeliveryError instead of trusting the mismatched key set" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /result idempotency_key set mismatch/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when the response mixes a missing submitted key with an unexpected key" do
+      let(:second) { make_entry(key: "tb:v1:item:asana:default:2:snapshot:2026-08-14T19:01:00.000000Z") }
+
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 2, replayed: 0, rejected: 0,
+            results: [
+              { idempotency_key: entry.idempotency_key, status: "accepted" },
+              { idempotency_key: "tb:v1:item:other:2", status: "accepted" }
+            ]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError naming both sides of the mismatch" do
+        expect { publisher.publish([entry, second]) }.to raise_error(
+          Publication::DeliveryError, /missing .*#{Regexp.escape(second.idempotency_key)}.*unexpected .*tb:v1:item:other:2/
+        ) { |e| expect(e.retryable).to be true }
       end
     end
 
