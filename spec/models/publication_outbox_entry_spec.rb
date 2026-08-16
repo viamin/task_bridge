@@ -284,6 +284,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.reload.status).to eq("delivered")
       expect(entry.delivered_at).to be_present
     end
+
+    it "clears a stale error message from an earlier failed attempt" do
+      entry = described_class.create!(valid_entry_attrs)
+      entry.mark_failed!(message: "network timeout")
+      entry.mark_delivered!
+      expect(entry.reload.error_message).to be_nil
+    end
   end
 
   describe "#mark_failed!" do
@@ -337,6 +344,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       entry = described_class.create!(valid_entry_attrs)
       entry.mark_replayed!
       expect(entry.reload.status).to eq("delivered")
+    end
+
+    it "clears a stale error message from an earlier failed attempt" do
+      entry = described_class.create!(valid_entry_attrs)
+      entry.mark_failed!(message: "network timeout")
+      entry.mark_replayed!
+      expect(entry.reload.error_message).to be_nil
     end
   end
 
