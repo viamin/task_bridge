@@ -28,8 +28,8 @@ class CreatePublicationOutboxEntries < ActiveRecord::Migration[8.1]
     end
 
     add_index :publication_outbox_entries, :idempotency_key, unique: true
-    # Status + created_at index supports the common query: fetch pending rows oldest-first.
-    add_index :publication_outbox_entries, [:status, :created_at]
+    # Status + observed_at + id supports fetching publishable rows oldest-first.
+    add_index :publication_outbox_entries, [:status, :observed_at, :id], name: "idx_pub_outbox_on_status_observed_at_id"
     add_index :publication_outbox_entries, [:service_instance, :status]
   end
 end

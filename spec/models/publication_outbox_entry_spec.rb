@@ -692,12 +692,54 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(keys).not_to include("key-terminal", "key-delivered")
     end
 
-    it "publishable breaks created_at ties by id for stable batch order" do
+    it "publishable orders rows by observed_at before created_at" do
       described_class.delete_all
-      shared_time = Time.utc(2026, 8, 15, 12, 0, 0)
 
-      second = described_class.create!(valid_entry_attrs(idempotency_key: "key-second").merge(status: "failed", retry_count: 1, created_at: shared_time, updated_at: shared_time))
-      first = described_class.create!(valid_entry_attrs(idempotency_key: "key-first").merge(status: "pending", created_at: shared_time, updated_at: shared_time))
+      later_created_earlier_observed = described_class.create!(
+        valid_entry_attrs(idempotency_key: "key-earlier-observed").merge(
+          status: "failed",
+          retry_count: 1,
+          observed_at: Time.utc(2026, 8, 14, 18, 59, 0),
+          created_at: Time.utc(2026, 8, 15, 12, 0, 5),
+          updated_at: Time.utc(2026, 8, 15, 12, 0, 5)
+        )
+      )
+      earlier_created_later_observed = described_class.create!(
+        valid_entry_attrs(idempotency_key: "key-later-observed").merge(
+          status: "pending",
+          observed_at: Time.utc(2026, 8, 14, 19, 1, 0),
+          created_at: Time.utc(2026, 8, 15, 12, 0, 0),
+          updated_at: Time.utc(2026, 8, 15, 12, 0, 0)
+        )
+      )
+
+      expect(described_class.publishable.map(&:idempotency_key)).to eq(
+        [later_created_earlier_observed.idempotency_key, earlier_created_later_observed.idempotency_key]
+      )
+    end
+
+    it "publishable breaks observed_at ties by id for stable batch order" do
+      described_class.delete_all
+      shared_created_at = Time.utc(2026, 8, 15, 12, 0, 0)
+      shared_observed_at = Time.utc(2026, 8, 14, 19, 0, 0)
+
+      second = described_class.create!(
+        valid_entry_attrs(idempotency_key: "key-second").merge(
+          status: "failed",
+          retry_count: 1,
+          observed_at: shared_observed_at,
+          created_at: shared_created_at,
+          updated_at: shared_created_at
+        )
+      )
+      first = described_class.create!(
+        valid_entry_attrs(idempotency_key: "key-first").merge(
+          status: "pending",
+          observed_at: shared_observed_at,
+          created_at: shared_created_at,
+          updated_at: shared_created_at
+        )
+      )
 
       expect(described_class.publishable.pluck(:id)).to eq([second.id, first.id].sort)
       expect(described_class.publishable.map(&:idempotency_key)).to eq([second, first].sort_by(&:id).map(&:idempotency_key))

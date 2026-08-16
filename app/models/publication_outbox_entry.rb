@@ -22,7 +22,7 @@
 # Indexes
 #
 #  index_publication_outbox_entries_on_idempotency_key          (idempotency_key) UNIQUE
-#  index_publication_outbox_entries_on_status_and_created_at    (status, created_at)
+#  idx_pub_outbox_on_status_observed_at_id                  (status, observed_at, id)
 #  idx_on_service_instance_status_16c8b627d1                    (service_instance, status)
 #
 class PublicationOutboxEntry < ApplicationRecord
@@ -62,8 +62,8 @@ class PublicationOutboxEntry < ApplicationRecord
   # Rows eligible for retry: failed rows that have not exceeded MAX_RETRIES.
   scope :retryable, -> { where(status: "failed").where("retry_count < ?", MAX_RETRIES) }
 
-  # Returns rows ready for the next publish attempt, oldest-first.
-  scope :publishable, -> { where(status: %w[pending failed]).where("retry_count < ?", MAX_RETRIES).order(:created_at, :id) }
+  # Returns rows ready for the next publish attempt, oldest observed fact first.
+  scope :publishable, -> { where(status: %w[pending failed]).where("retry_count < ?", MAX_RETRIES).order(:observed_at, :id) }
 
   # Builds an entry from a Publication value object without saving.
   #

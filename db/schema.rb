@@ -26,7 +26,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_000000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["idempotency_key"], name: "index_publication_outbox_entries_on_idempotency_key", unique: true
-    t.index ["status", "created_at"], name: "index_publication_outbox_entries_on_status_and_created_at"
+    t.index ["status", "observed_at", "id"], name: "idx_pub_outbox_on_status_observed_at_id"
     t.index ["service_instance", "status"], name: "idx_on_service_instance_status_16c8b627d1"
   end
 
