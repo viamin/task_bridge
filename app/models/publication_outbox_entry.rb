@@ -83,6 +83,7 @@ class PublicationOutboxEntry < ApplicationRecord
     service_type     = Publication::HashAccess.fetch(identity, :service_type) || Publication::HashAccess.fetch(payload, :service_type)
     service_instance = Publication::HashAccess.fetch(identity, :service_instance) || Publication::HashAccess.fetch(payload, :service_instance)
     observed_at      = Publication::HashAccess.fetch(payload, :observed_at) || Publication::HashAccess.fetch(payload, :started_at)
+    payload          = canonical_payload(payload)
 
     validate_extracted_provenance!(
       service_type:,
@@ -115,6 +116,14 @@ class PublicationOutboxEntry < ApplicationRecord
     raise ArgumentError, "record class must define RECORD_KIND"
   end
   private_class_method :record_kind!
+
+  # published_at is per-attempt transport metadata. The outbox stores the
+  # canonical record payload so retries can stamp a fresh published_at without
+  # mutating any persisted record facts.
+  def self.canonical_payload(payload)
+    payload.except(:published_at, "published_at")
+  end
+  private_class_method :canonical_payload
 
   # The record-level UTF-8 guards cover the string fields most likely to
   # carry malformed provider bytes; nested values they do not cover

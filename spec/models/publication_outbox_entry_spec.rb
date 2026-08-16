@@ -267,6 +267,21 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect { JSON.parse(entry.payload) }.not_to raise_error
     end
 
+    it "strips record-level published_at before persisting the canonical payload" do
+      observation = Publication::Observation.new(
+        idempotency_key: "tb:v1:obs:asana:workspace-12345:default:123:snapshot_seen:2026-08-14T19:00:00.000000Z",
+        event_type: "snapshot_seen",
+        observed_at: "2026-08-14T19:00:00.000000Z",
+        published_at: "2026-08-14T19:05:00.000000Z",
+        item_key: "asana:workspace-12345:default:123",
+        source:
+      )
+
+      entry = described_class.from_record(observation)
+
+      expect(entry.parsed_payload).not_to have_key(:published_at)
+    end
+
     it "rejects nested invalid UTF-8 before an outbox record can be built" do
       expect do
         Publication::Observation.new(
