@@ -75,6 +75,36 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.errors[:payload]).to include("must be a JSON object")
     end
 
+    it "rejects a payload with a missing contract_version" do
+      entry = described_class.new(
+        valid_entry_attrs.merge(
+          payload: { idempotency_key: valid_entry_attrs[:idempotency_key] }.to_json
+        )
+      )
+      expect(entry).not_to be_valid
+      expect(entry.errors[:payload]).to include("contract_version must be 1")
+    end
+
+    it "rejects a payload with a non-integer contract_version" do
+      entry = described_class.new(
+        valid_entry_attrs.merge(
+          payload: { contract_version: 1.0, idempotency_key: valid_entry_attrs[:idempotency_key] }.to_json
+        )
+      )
+      expect(entry).not_to be_valid
+      expect(entry.errors[:payload]).to include("contract_version must be 1")
+    end
+
+    it "rejects a payload with the wrong contract_version" do
+      entry = described_class.new(
+        valid_entry_attrs.merge(
+          payload: { contract_version: 2, idempotency_key: valid_entry_attrs[:idempotency_key] }.to_json
+        )
+      )
+      expect(entry).not_to be_valid
+      expect(entry.errors[:payload]).to include("contract_version must be 1")
+    end
+
     it "rejects a payload that is not valid UTF-8 even though JSON.parse accepts it" do
       payload = (+"{\"idempotency_key\": \"k\", \"title\": \"milk \xff\"}").force_encoding("UTF-8")
       entry = described_class.new(valid_entry_attrs.merge(payload: payload))
@@ -200,6 +230,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       keyless_payload = Class.new do
         def to_payload
           {
+            contract_version: 1,
             observed_at: "2026-08-14T19:00:00.000000Z",
             source: {
               service_type: "asana",
@@ -213,6 +244,47 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
       expect { described_class.from_record(keyless_payload.new) }
         .to raise_error(ArgumentError, /payload idempotency_key is required/)
+    end
+
+    it "raises a clear ArgumentError when payload contract_version is missing" do
+      missing_version = Class.new do
+        def to_payload
+          {
+            idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            source: {
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      missing_version::RECORD_KIND = "item"
+
+      expect { described_class.from_record(missing_version.new) }
+        .to raise_error(ArgumentError, /payload contract_version must be 1/)
+    end
+
+    it "raises a clear ArgumentError when payload contract_version is not the canonical integer" do
+      wrong_version = Class.new do
+        def to_payload
+          {
+            contract_version: 1.0,
+            idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            source: {
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      wrong_version::RECORD_KIND = "item"
+
+      expect { described_class.from_record(wrong_version.new) }
+        .to raise_error(ArgumentError, /payload contract_version must be 1/)
     end
 
     it "raises a clear ArgumentError when payload idempotency_key carries invalid UTF-8" do

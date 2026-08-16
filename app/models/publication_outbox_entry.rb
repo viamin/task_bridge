@@ -50,6 +50,7 @@ class PublicationOutboxEntry < ApplicationRecord
   validate :validate_string_fields
   validate :validate_observed_at
   validate :payload_must_be_a_json_object
+  validate :validate_payload_contract_version
 
   scope :pending,    -> { where(status: "pending") }
   scope :delivering, -> { where(status: "delivering") }
@@ -81,6 +82,7 @@ class PublicationOutboxEntry < ApplicationRecord
     raise ArgumentError, "payload source/member must be a hash when present" unless identity.is_a?(Hash)
 
     idempotency_key = fetch_required_payload_string!(payload, :idempotency_key)
+    validate_payload_contract_version!(payload, idempotency_key)
     service_type     = preferred_payload_value(identity, payload, :service_type)
     service_instance = preferred_payload_value(identity, payload, :service_instance)
     observed_at      = observed_at_value(payload)
@@ -178,6 +180,14 @@ class PublicationOutboxEntry < ApplicationRecord
     raise ArgumentError, "payload #{field} is required"
   end
   private_class_method :fetch_required_payload_string!
+
+  def self.validate_payload_contract_version!(payload, idempotency_key)
+    version = Publication::HashAccess.fetch(payload, :contract_version)
+    return if version.is_a?(Integer) && version == Publication::CONTRACT_VERSION
+
+    raise ArgumentError, "payload contract_version must be #{Publication::CONTRACT_VERSION} for #{idempotency_key}"
+  end
+  private_class_method :validate_payload_contract_version!
 
   # A blank-but-present value is still malformed contract data and must not
   # silently fall back to a secondary location. Fallback only when the primary
@@ -319,5 +329,16 @@ class PublicationOutboxEntry < ApplicationRecord
     end
   rescue JSON::ParserError
     errors.add(:payload, "must be valid JSON")
+  end
+
+  def validate_payload_contract_version
+    return if errors.key?(:payload)
+
+    version = parsed_payload["contract_version"] || parsed_payload[:contract_version]
+    return if version.is_a?(Integer) && version == Publication::CONTRACT_VERSION
+
+    errors.add(:payload, "contract_version must be #{Publication::CONTRACT_VERSION}")
+  rescue JSON::ParserError, TypeError
+    nil
   end
 end
