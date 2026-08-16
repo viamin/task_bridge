@@ -5,7 +5,9 @@ module Publication
     module_function
 
     def fetch(hash, key)
-      hash[key] || hash[key.to_s]
+      return hash[key] if hash.key?(key)
+
+      hash[key.to_s]
     end
 
     def key?(hash, key)
