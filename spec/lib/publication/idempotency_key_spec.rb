@@ -39,10 +39,16 @@ RSpec.describe Publication::IdempotencyKey do
       expect(key).to end_with(":42:snapshot:2026-08-14T19:20:31.123456Z")
     end
 
+    it "raises when service_instance is an integer instead of a string" do
+      expect do
+        described_class.for_item(service_instance: 42, external_id:, observed_at: observed_at_str)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string: service_instance/)
+    end
+
     it "raises when a key segment is neither a string nor integer" do
       expect do
         described_class.for_item(service_instance: { workspace: 1 }, external_id:, observed_at: observed_at_str)
-      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or integer: service_instance/)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string: service_instance/)
     end
 
     it "raises when a key segment is an array" do
@@ -55,7 +61,7 @@ RSpec.describe Publication::IdempotencyKey do
     it "raises when a key segment is a boolean" do
       expect do
         described_class.for_sync_run(service_instance:, sync_run_id: true)
-      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or integer: sync_run_id/)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string: sync_run_id/)
     end
 
     it "raises when a key segment is a float" do
@@ -140,6 +146,12 @@ RSpec.describe Publication::IdempotencyKey do
       expect do
         described_class.for_observation(service_instance:, external_id:, event_type: "source_changed")
       end.to raise_error(ArgumentError, /observed_at or sequence is required/)
+    end
+
+    it "raises when event_type is an integer instead of a string" do
+      expect do
+        described_class.for_observation(service_instance:, external_id:, event_type: 7, observed_at: observed_at_str)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string: event_type/)
     end
 
     it "raises when sequence is a blank string" do
@@ -256,6 +268,12 @@ RSpec.describe Publication::IdempotencyKey do
       expect do
         described_class.for_sync_run(service_instance:, sync_run_id: "")
       end.to raise_error(ArgumentError, /blank key segment/)
+    end
+
+    it "raises when sync_run_id is an integer instead of a string" do
+      expect do
+        described_class.for_sync_run(service_instance:, sync_run_id: 42)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string: sync_run_id/)
     end
 
     it "does not include a timestamp segment" do

@@ -13,16 +13,10 @@ module Publication
   class IdempotencyKey
     PREFIX = "tb:v1"
 
-    # Segments are interpolated verbatim into the key, so anything but a
-    # string or numeric would be coerced by to_s into a nonsense segment —
-    # and for hashes and arrays, a memory-address-dependent and therefore
-    # non-deterministic one, violating the RDR's stable-key rule. The same
-    # restriction the sequence tail already enforces applies here.
-    VALID_SEGMENT_TYPES = [String, Integer].freeze
-
     # Returns the key for an item snapshot.
     def self.for_item(service_instance:, external_id:, observed_at:)
-      require_presence!(service_instance:, external_id:)
+      require_string_segments!(service_instance:)
+      require_string_or_integer_segments!(external_id:)
       "#{PREFIX}:item:#{service_instance}:#{external_id}:snapshot:#{format_timestamp(observed_at)}"
     end
 
@@ -30,7 +24,8 @@ module Publication
     # observed_at: when one observation yields several field transitions that
     # share an observed_at, so each row keeps a distinct key.
     def self.for_observation(service_instance:, external_id:, event_type:, observed_at: nil, sequence: nil)
-      require_presence!(service_instance:, external_id:, event_type:)
+      require_string_segments!(service_instance:, event_type:)
+      require_string_or_integer_segments!(external_id:)
       "#{PREFIX}:obs:#{service_instance}:#{external_id}:#{event_type}:#{key_tail(observed_at:, sequence:)}"
     end
 
@@ -38,7 +33,8 @@ module Publication
     # same membership must use distinct keys: a different observed_at, or a
     # sequence when the timestamps collide.
     def self.for_mapping(sync_collection_id:, service_instance:, external_id:, observed_at: nil, sequence: nil)
-      require_presence!(sync_collection_id:, service_instance:, external_id:)
+      require_string_segments!(service_instance:)
+      require_string_or_integer_segments!(sync_collection_id:, external_id:)
       "#{PREFIX}:map:sync_collection:#{sync_collection_id}:membership:" \
         "#{service_instance}:#{external_id}:#{key_tail(observed_at:, sequence:)}"
     end
@@ -46,7 +42,7 @@ module Publication
     # Returns the key for a sync-run summary.
     # Sync-run keys use the run scope in place of item identity.
     def self.for_sync_run(service_instance:, sync_run_id:)
-      require_presence!(service_instance:, sync_run_id:)
+      require_string_segments!(service_instance:, sync_run_id:)
       "#{PREFIX}:sync_run:#{service_instance}:#{sync_run_id}"
     end
 
@@ -80,20 +76,30 @@ module Publication
     end
     private_class_method :key_tail
 
+    def self.require_string_segments!(**fields)
+      require_segments!(fields, allowed_types: [String], message: "key segment(s) must be a string")
+    end
+    private_class_method :require_string_segments!
+
+    def self.require_string_or_integer_segments!(**fields)
+      require_segments!(fields, allowed_types: [String, Integer], message: "key segment(s) must be a string or integer")
+    end
+    private_class_method :require_string_or_integer_segments!
+
     # Blank or malformed segments would produce keys that cannot be recalled
     # once accepted by TaskBridge Web (or crash JSON generation later), so
     # encoding is verified before blank? — which itself raises on invalid
     # byte sequences — and blank segments are rejected at build time.
     # Encoding and blankness first, then the segment type check, so nil
     # keeps reporting as a blank segment rather than a wrong type.
-    def self.require_presence!(**fields)
+    def self.require_segments!(fields, allowed_types:, message:)
       Utf8.validate_fields!(fields)
       blank = fields.select { |_, value| value.blank? }
       raise ArgumentError, "blank key segment(s): #{blank.keys.join(', ')}" if blank.any?
 
-      invalid = fields.reject { |_, value| VALID_SEGMENT_TYPES.any? { |type| value.is_a?(type) } }
-      raise ArgumentError, "key segment(s) must be a string or integer: #{invalid.keys.join(', ')}" if invalid.any?
+      invalid = fields.reject { |_, value| allowed_types.any? { |type| value.is_a?(type) } }
+      raise ArgumentError, "#{message}: #{invalid.keys.join(', ')}" if invalid.any?
     end
-    private_class_method :require_presence!
+    private_class_method :require_segments!
   end
 end
