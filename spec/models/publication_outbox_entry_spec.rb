@@ -643,6 +643,32 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.observed_at).to eq(Time.utc(2026, 8, 14, 19, 0, 0))
     end
 
+    it "does not let a stray source section override root provenance for sync_run records" do
+      sync_run_with_source = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:sync_run:asana:workspace-12345:default:run-1",
+            service_type: "asana",
+            service_instance: "asana:workspace-12345:default",
+            started_at: "2026-08-14T19:00:00.000000Z",
+            status: "success",
+            source: {
+              service_type: "github",
+              service_instance: "github:repo-1",
+              external_id: "issue-42"
+            }
+          }
+        end
+      end
+      sync_run_with_source::RECORD_KIND = "sync_run"
+
+      entry = described_class.from_record(sync_run_with_source.new)
+
+      expect(entry.service_type).to eq("asana")
+      expect(entry.service_instance).to eq("asana:workspace-12345:default")
+    end
+
     it "extracts service_type and service_instance from member for mapping records" do
       mapping = Publication::Mapping.new(
         idempotency_key: "tb:v1:map:sync_collection:84:membership:github:repo-1:issue-42:2026-08-14T19:21:00.000000Z",
@@ -662,6 +688,35 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.service_type).to eq("github")
       expect(entry.service_instance).to eq("github:repo-1")
       expect(entry.observed_at).to eq(Time.utc(2026, 8, 14, 19, 21, 0))
+    end
+
+    it "does not let a stray source section override member provenance for mapping records" do
+      mapping_with_source = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:map:sync_collection:84:membership:github:repo-1:issue-42:2026-08-14T19:21:00.000000Z",
+            observed_at: "2026-08-14T19:21:00.000000Z",
+            source: {
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            },
+            member: {
+              item_key: "github:repo-1:issue-42",
+              service_type: "github",
+              service_instance: "github:repo-1",
+              external_id: "issue-42"
+            }
+          }
+        end
+      end
+      mapping_with_source::RECORD_KIND = "mapping"
+
+      entry = described_class.from_record(mapping_with_source.new)
+
+      expect(entry.service_type).to eq("github")
+      expect(entry.service_instance).to eq("github:repo-1")
     end
 
     it "extracts service_type and service_instance from source for observation records" do

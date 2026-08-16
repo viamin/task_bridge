@@ -79,7 +79,7 @@ class PublicationOutboxEntry < ApplicationRecord
     # fails here with a clear error naming the problem instead.
     raise ArgumentError, "to_payload must return a hash" unless payload.is_a?(Hash)
 
-    identity = payload_identity(payload)
+    identity = payload_identity(payload, kind)
 
     idempotency_key = fetch_required_payload_string!(payload, :idempotency_key)
     validate_payload_contract_version!(payload, idempotency_key)
@@ -200,15 +200,19 @@ class PublicationOutboxEntry < ApplicationRecord
   end
   private_class_method :preferred_payload_value
 
-  # source/member provenance sections are mutually exclusive by record kind.
-  # If one key is present, a nil or wrong-typed value must fail instead of
-  # silently falling through to the other section and extracting the wrong
-  # service provenance.
-  def self.payload_identity(payload)
-    return payload_hash!(payload, :source, required: false) if Publication::HashAccess.key?(payload, :source)
-    return payload_hash!(payload, :member, required: false) if Publication::HashAccess.key?(payload, :member)
-
-    {}
+  # Identity provenance is record-kind specific: items and observations read
+  # source, mappings read member, and sync runs read the root payload. Looking
+  # only at key presence would let a stray source/member section override the
+  # canonical provenance for another kind.
+  def self.payload_identity(payload, kind)
+    case kind
+    when "item", "observation"
+      payload_hash!(payload, :source, required: false) if Publication::HashAccess.key?(payload, :source)
+    when "mapping"
+      payload_hash!(payload, :member, required: false) if Publication::HashAccess.key?(payload, :member)
+    else
+      {}
+    end || {}
   end
   private_class_method :payload_identity
 
