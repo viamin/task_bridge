@@ -259,6 +259,24 @@ RSpec.describe PublicationOutboxEntry, type: :model do
         .to raise_error(ArgumentError, /payload source must be a hash when present/)
     end
 
+    it "raises a clear ArgumentError when an item payload omits its required source hash" do
+      source_less_item = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            service_type: "asana",
+            service_instance: "asana:workspace-12345:default"
+          }
+        end
+      end
+      source_less_item::RECORD_KIND = "item"
+
+      expect { described_class.from_record(source_less_item.new) }
+        .to raise_error(ArgumentError, /payload source must be a hash when present/)
+    end
+
     it "does not fall back from a present nil source to member provenance" do
       mixed_identity = Class.new do
         def to_payload
@@ -280,6 +298,24 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
       expect { described_class.from_record(mixed_identity.new) }
         .to raise_error(ArgumentError, /payload source must be a hash when present/)
+    end
+
+    it "raises a clear ArgumentError when a mapping payload omits its required member hash" do
+      member_less_mapping = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:map:sync_collection:84:membership:asana:workspace-12345:default:123:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            service_type: "asana",
+            service_instance: "asana:workspace-12345:default"
+          }
+        end
+      end
+      member_less_mapping::RECORD_KIND = "mapping"
+
+      expect { described_class.from_record(member_less_mapping.new) }
+        .to raise_error(ArgumentError, /payload member must be a hash when present/)
     end
 
     it "raises a clear ArgumentError when payload idempotency_key is missing" do

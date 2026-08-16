@@ -83,6 +83,7 @@ class PublicationOutboxEntry < ApplicationRecord
 
     idempotency_key = fetch_required_payload_string!(payload, :idempotency_key)
     validate_payload_contract_version!(payload, idempotency_key)
+    validate_required_identity_section!(kind, payload, idempotency_key)
     service_type     = preferred_payload_value(identity, payload, :service_type)
     service_instance = preferred_payload_value(identity, payload, :service_instance)
     observed_at      = observed_at_value(payload)
@@ -210,6 +211,22 @@ class PublicationOutboxEntry < ApplicationRecord
     {}
   end
   private_class_method :payload_identity
+
+  # Item and observation rows require source identity; mapping rows require
+  # member identity. Without those sections, the outbox can persist a row that
+  # already violates the record contract and will only fail later as a remote
+  # non-retryable rejection.
+  def self.validate_required_identity_section!(kind, payload, idempotency_key)
+    case kind
+    when "item", "observation"
+      required_payload_hash!(payload, :source)
+    when "mapping"
+      required_payload_hash!(payload, :member)
+    end
+  rescue ArgumentError => e
+    raise ArgumentError, "#{e.message} for #{idempotency_key}"
+  end
+  private_class_method :validate_required_identity_section!
 
   def self.required_payload_hash!(payload, field)
     value = Publication::HashAccess.fetch(payload, field)
