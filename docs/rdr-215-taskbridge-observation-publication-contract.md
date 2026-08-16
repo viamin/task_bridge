@@ -11,6 +11,15 @@ TaskBridge will publish normalized task facts to TaskBridge Web by HTTP push. Ta
 
 This keeps sync logic and source adapters in TaskBridge while explicitly keeping recommendation, inference, ranking, analytics, and LLM behavior out of TaskBridge.
 
+## Follow-up Decisions
+
+The product owner reviewed this RDR after the pull request opened (2026-08-14) and confirmed the following, which are folded into the sections noted:
+
+- Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
+- Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
+- The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
+- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+
 ## Decision
 
 Use a versioned Rails-native HTTP push contract with these responsibilities:
@@ -19,7 +28,7 @@ Use a versioned Rails-native HTTP push contract with these responsibilities:
 - TaskBridge stores pending publication rows in a local outbox before attempting delivery.
 - TaskBridge pushes batches to TaskBridge Web over authenticated HTTP with per-entry idempotency keys.
 - TaskBridge Web durably stores every accepted event, updates current-state projections, manages cross-system mappings, and exposes downstream APIs.
-- TaskBridge may also support file or stdout export for development and backfill, but HTTP push is the primary production path.
+- The initial ingestion path is push-only: TaskBridge pushes to TaskBridge Web, and TaskBridge Web does not pull from TaskBridge (see Rejected Alternatives). TaskBridge may also support file or stdout export for development and backfill, but HTTP push is the only production ingestion path for v1; a pull-based path can be revisited later if a concrete need emerges.
 
 ## Why This Boundary
 
@@ -155,7 +164,7 @@ Field rules:
 
 - `status` must be one of `open`, `completed`, or `dropped`. `dropped` covers providers such as OmniFocus that model explicitly abandoned items.
 - `entity_type` must be `task` in v1. Other entity kinds require a new major contract version.
-- `notes_preview` must be omitted unless the source is explicitly allowlisted for note export (see Security and Privacy Constraints).
+- `notes_preview` must be omitted unless the user has explicitly enabled note export for that source through TaskBridge configuration (see Security and Privacy Constraints). This is a per-user, per-source configuration decision, not a hard-coded default.
 
 Schema:
 
@@ -639,7 +648,8 @@ Allowed to leave TaskBridge:
 - provider URLs
 - provider IDs
 - provider collection IDs and names when needed for provenance
-- non-secret notes preview or normalized notes only if explicitly approved by configuration
+- non-secret notes preview or normalized notes only if the user has explicitly enabled export for that source through configuration
+- busy/free calendar status once TaskBridge adds a calendar source
 - mapping evidence and sync-run summaries
 
 Must not leave TaskBridge by default:
@@ -648,11 +658,13 @@ Must not leave TaskBridge by default:
 - private sync notes used only for local bridging internals unless explicitly designated safe
 - provider payloads that include secrets or unrelated personal data
 - full raw source payloads
+- calendar event titles, attendees, locations, or descriptions, unless explicitly enabled per source
 
 Rules:
 
 - Treat all notes/body content as sensitive by default.
-- `notes_preview` should be omitted or redacted unless the source is explicitly allowlisted for note export.
+- `notes_preview` is disabled by default. TaskBridge only emits it for a source once the user has explicitly enabled note export for that source, governed by TaskBridge user configuration rather than a hard-coded per-source rule. This follows TaskBridge's existing pattern of per-deployment `task_bridge:` settings (for example `personal_tags`/`work_tags` in `config/settings.yml`, surfaced through the `GlobalOptions` concern); note export should be added to that same configuration surface rather than inferred from source type.
+- When TaskBridge adds a calendar source, published calendar facts must default to busy/free status only. Publishing full event data (title, attendees, location, description) requires the same explicit per-user, per-source configuration opt-in as notes export.
 - TaskBridge should prefer normalized excerpts over raw provider payloads.
 - TaskBridge Web must not require raw source blobs for v1 ingestion.
 
@@ -667,6 +679,10 @@ Rules:
   - deletion tombstones only where deletion can be stated confidently.
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
+
+## Open Questions
+
+- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
 
 ## Rejected Alternatives
 
