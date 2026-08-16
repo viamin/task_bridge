@@ -11,9 +11,9 @@
 #  status           :string           not null, default: "pending"
 #  retry_count      :integer          not null, default: 0
 #  error_message    :text
-#  service_type     :string
-#  service_instance :string
-#  observed_at      :datetime
+#  service_type     :string           not null
+#  service_instance :string           not null
+#  observed_at      :datetime         not null
 #  delivered_at     :datetime
 #  failed_at        :datetime
 #  created_at       :datetime         not null
@@ -22,7 +22,7 @@
 # Indexes
 #
 #  index_publication_outbox_entries_on_idempotency_key          (idempotency_key) UNIQUE
-#  idx_pub_outbox_on_status_observed_at_id                  (status, observed_at, id)
+#  idx_pub_outbox_on_status_observed_at_id              (status, observed_at, id)
 #  idx_on_service_instance_status_16c8b627d1                    (service_instance, status)
 #
 class PublicationOutboxEntry < ApplicationRecord
