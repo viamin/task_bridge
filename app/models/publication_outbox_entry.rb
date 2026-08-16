@@ -25,6 +25,10 @@
 #  idx_pub_outbox_on_status_observed_at_id              (status, observed_at, id)
 #  idx_on_service_instance_status_16c8b627d1                    (service_instance, status)
 #
+# Deliberately larger than the ~100-line class target: contract extraction,
+# validation, and delivery state transitions all define the single persistence
+# boundary for publication rows, so splitting them would spread one lifecycle
+# across multiple tightly coupled classes.
 class PublicationOutboxEntry < ApplicationRecord
   STATUSES = %w[pending delivering delivered failed terminal].freeze
   RECORD_KINDS = %w[item observation mapping sync_run].freeze
