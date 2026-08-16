@@ -710,6 +710,16 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect { entry.mark_delivered! }
         .to raise_error(ArgumentError, /mark_delivered! cannot transition a delivered outbox row/)
     end
+
+    it "rejects a stale instance after another worker delivers the row" do
+      entry = described_class.create!(valid_entry_attrs)
+      stale_entry = described_class.find(entry.id)
+
+      entry.mark_delivered!
+
+      expect { stale_entry.mark_delivered! }
+        .to raise_error(ArgumentError, /mark_delivered! cannot transition a delivered outbox row/)
+    end
   end
 
   describe "#mark_failed!" do
@@ -746,6 +756,16 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
       expect { entry.mark_failed!(message: "network timeout") }
         .to raise_error(ArgumentError, /mark_failed! cannot transition a terminal outbox row/)
+    end
+
+    it "rejects a stale instance after another worker delivers the row" do
+      entry = described_class.create!(valid_entry_attrs)
+      stale_entry = described_class.find(entry.id)
+
+      entry.mark_delivered!
+
+      expect { stale_entry.mark_failed!(message: "network timeout") }
+        .to raise_error(ArgumentError, /mark_failed! cannot transition a delivered outbox row/)
     end
   end
 
@@ -784,6 +804,16 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect { entry.mark_terminal!(message: "non-retryable rejection") }
         .to raise_error(ArgumentError, /mark_terminal! cannot transition a terminal outbox row/)
     end
+
+    it "rejects a stale instance after another worker terminals the row" do
+      entry = described_class.create!(valid_entry_attrs)
+      stale_entry = described_class.find(entry.id)
+
+      entry.mark_terminal!(message: "non-retryable rejection")
+
+      expect { stale_entry.mark_terminal!(message: "non-retryable rejection") }
+        .to raise_error(ArgumentError, /mark_terminal! cannot transition a terminal outbox row/)
+    end
   end
 
   describe "#mark_replayed!" do
@@ -818,6 +848,16 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       entry = described_class.create!(valid_entry_attrs.merge(status: "delivered", delivered_at: Time.current))
 
       expect { entry.mark_replayed! }
+        .to raise_error(ArgumentError, /mark_replayed! cannot transition a delivered outbox row/)
+    end
+
+    it "rejects a stale instance after another worker delivers the row" do
+      entry = described_class.create!(valid_entry_attrs)
+      stale_entry = described_class.find(entry.id)
+
+      entry.mark_delivered!
+
+      expect { stale_entry.mark_replayed! }
         .to raise_error(ArgumentError, /mark_replayed! cannot transition a delivered outbox row/)
     end
   end

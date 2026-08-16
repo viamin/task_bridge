@@ -211,34 +211,40 @@ class PublicationOutboxEntry < ApplicationRecord
   private_class_method :observed_at_value
 
   def mark_delivered!
-    ensure_not_delivered_or_terminal!(:mark_delivered!)
-    update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
+    with_transition_lock(:mark_delivered!) do
+      ensure_not_delivered_or_terminal!(:mark_delivered!)
+      update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
+    end
   end
 
   def mark_failed!(message:)
-    ensure_not_delivered_or_terminal!(:mark_failed!)
-    new_count = retry_count + 1
-    new_status = new_count >= MAX_RETRIES ? "terminal" : "failed"
-    update!(
-      status: new_status,
-      retry_count: new_count,
-      delivered_at: nil,
-      failed_at: Time.current,
-      error_message: sanitized_message(message)
-    )
+    with_transition_lock(:mark_failed!) do
+      ensure_not_delivered_or_terminal!(:mark_failed!)
+      new_count = retry_count + 1
+      new_status = new_count >= MAX_RETRIES ? "terminal" : "failed"
+      update!(
+        status: new_status,
+        retry_count: new_count,
+        delivered_at: nil,
+        failed_at: Time.current,
+        error_message: sanitized_message(message)
+      )
+    end
   end
 
   # Records a terminal failure without burning retries: used when the publisher
   # classifies a row rejection as non-retryable (for example a validation
   # error), so the row is kept for operator review and never rescheduled.
   def mark_terminal!(message:)
-    ensure_not_delivered_or_terminal!(:mark_terminal!)
-    update!(
-      status: "terminal",
-      delivered_at: nil,
-      failed_at: Time.current,
-      error_message: sanitized_message(message)
-    )
+    with_transition_lock(:mark_terminal!) do
+      ensure_not_delivered_or_terminal!(:mark_terminal!)
+      update!(
+        status: "terminal",
+        delivered_at: nil,
+        failed_at: Time.current,
+        error_message: sanitized_message(message)
+      )
+    end
   end
 
   # Recording a failure must never fail itself: a message carrying malformed
@@ -250,8 +256,10 @@ class PublicationOutboxEntry < ApplicationRecord
   private :sanitized_message
 
   def mark_replayed!
-    ensure_not_delivered_or_terminal!(:mark_replayed!)
-    update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
+    with_transition_lock(:mark_replayed!) do
+      ensure_not_delivered_or_terminal!(:mark_replayed!)
+      update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
+    end
   end
 
   def parsed_payload
@@ -274,10 +282,13 @@ class PublicationOutboxEntry < ApplicationRecord
     raise ArgumentError, "#{operation} cannot transition a #{status} outbox row"
   end
 
-  def ensure_not_terminal!(operation)
-    return unless status == "terminal"
-
-    raise ArgumentError, "#{operation} cannot transition a terminal outbox row"
+  def with_transition_lock(operation)
+    with_lock do
+      reload
+      yield
+    end
+  rescue ActiveRecord::RecordNotFound
+    raise ActiveRecord::RecordNotSaved, "#{operation} requires a persisted outbox row"
   end
 
   # Encoding is verified for every string column first — blank? raises on
