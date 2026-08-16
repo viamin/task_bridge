@@ -290,7 +290,9 @@ module Publication
     end
 
     def handle_response(response, rows, batch_id:)
-      case response.code
+      code = parsed_response_code(response)
+
+      case code
       when 200
         parse_row_results(response, rows, batch_id:)
       when 400, 422
@@ -321,9 +323,16 @@ module Publication
         # configuration is fixed.
         raise DeliveryError.new(
           "unexpected response (#{response.code}): #{response_excerpt(response)}",
-          retryable: response.code < 400 || response.code >= 500
+          retryable: code.nil? || code < 400 || code >= 500
         )
       end
+    end
+
+    # HTTParty/Net::HTTP expose status codes as strings. Parse once here so the
+    # transport policy applies to real responses instead of falling through every
+    # numeric branch and misclassifying successful or terminal outcomes.
+    def parsed_response_code(response)
+      Integer(response.code, exception: false)
     end
 
     # Remote bodies (proxy error pages, misbehaving servers) can carry bytes

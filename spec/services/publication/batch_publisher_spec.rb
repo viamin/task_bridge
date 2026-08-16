@@ -22,7 +22,7 @@ RSpec.describe Publication::BatchPublisher do
       payload = body.is_a?(Hash) && echo_batch_id ? body.merge(batch_id: opts[:headers]["X-TaskBridge-Batch-Id"]) : body
       instance_double(
         HTTParty::Response,
-        code: status,
+        code: status.to_s,
         body: payload.is_a?(String) ? payload : payload.to_json
       )
     end
@@ -37,7 +37,7 @@ RSpec.describe Publication::BatchPublisher do
       captured[:request] = options
       instance_double(
         HTTParty::Response,
-        code: 200,
+        code: "200",
         body: {
           batch_id: options[:headers]["X-TaskBridge-Batch-Id"], contract_version: 1,
           accepted: rows.length, replayed: 0, rejected: 0,
@@ -639,6 +639,16 @@ RSpec.describe Publication::BatchPublisher do
       before { stub_http(status: 401, body: "Unauthorized") }
 
       it "raises a non-retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /authentication/
+        ) { |e| expect(e.retryable).to be false }
+      end
+    end
+
+    context "when the server returns string status codes like Net::HTTP" do
+      before { stub_http(status: 401, body: "Unauthorized") }
+
+      it "classifies them using their numeric value" do
         expect { publisher.publish([entry]) }.to raise_error(
           Publication::DeliveryError, /authentication/
         ) { |e| expect(e.retryable).to be false }
