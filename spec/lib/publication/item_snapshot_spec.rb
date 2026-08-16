@@ -347,9 +347,9 @@ RSpec.describe Publication::ItemSnapshot do
       expect(snapshot.to_payload[:tags]).to eq(%w[Errands Home])
     end
 
-    it "omits a blank notes_preview" do
-      snapshot = described_class.new(**valid_attrs, notes_preview: "")
-      expect(snapshot.to_payload.keys).not_to include(:notes_preview)
+    it "raises when notes_preview is a blank string" do
+      expect { described_class.new(**valid_attrs, notes_preview: "") }
+        .to raise_error(ArgumentError, /notes_preview must be a non-blank string/)
     end
 
     it "raises when notes_preview is not a string" do

@@ -98,7 +98,7 @@ module Publication
       raise ArgumentError, "title must be a string" unless title.is_a?(String)
       raise ArgumentError, "status must be one of: #{VALID_STATUSES.join(', ')}" unless VALID_STATUSES.include?(status)
       raise ArgumentError, "is_deleted must be true or false" unless [true, false].include?(is_deleted)
-      raise ArgumentError, "notes_preview must be a string when provided" unless notes_preview.nil? || notes_preview.is_a?(String)
+      raise ArgumentError, "notes_preview must be a non-blank string when provided" if invalid_notes_preview?(notes_preview)
       raise ArgumentError, "source_metadata must be a hash when provided" unless source_metadata.nil? || source_metadata.is_a?(Hash)
 
       validate_tags!
@@ -115,6 +115,13 @@ module Publication
       return if tags.nil? || (tags.is_a?(Array) && tags.all? { |tag| Utf8.serializable_string?(tag) })
 
       raise ArgumentError, "tags must be an array of valid UTF-8 strings when provided"
+    end
+
+    # notes_preview is optional, but when present it must carry real content.
+    # Silently dropping "" at serialization time would hide upstream mistakes
+    # about whether note export was enabled or whether preview text was built.
+    def invalid_notes_preview?(value)
+      !(value.nil? || (value.is_a?(String) && value.present?))
     end
 
     # Provider text can carry malformed bytes (for example from AppleScript
