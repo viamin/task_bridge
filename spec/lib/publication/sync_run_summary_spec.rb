@@ -156,6 +156,27 @@ RSpec.describe Publication::SyncRunSummary do
       expect { described_class.new(**valid_attrs, status: "partial") }.not_to raise_error
     end
 
+    it "accepts ActiveSupport::TimeWithZone timestamps and preserves run-window validation" do
+      zone = ActiveSupport::TimeZone.new("Kathmandu")
+      started_at = zone.local(2026, 8, 15, 1, 5, 31, 123_456)
+      finished_at = started_at + 65.seconds
+
+      summary = described_class.new(
+        **valid_attrs,
+        started_at:,
+        finished_at:,
+        last_attempted_at: started_at,
+        last_successful_at: finished_at
+      )
+
+      expect(summary.to_payload).to include(
+        started_at: "2026-08-14T19:20:31.123456Z",
+        finished_at: "2026-08-14T19:21:36.123456Z",
+        last_attempted_at: "2026-08-14T19:20:31.123456Z",
+        last_successful_at: "2026-08-14T19:21:36.123456Z"
+      )
+    end
+
     it "raises when finished_at is before started_at" do
       expect do
         described_class.new(
