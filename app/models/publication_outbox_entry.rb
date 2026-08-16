@@ -121,7 +121,7 @@ class PublicationOutboxEntry < ApplicationRecord
   private_class_method :payload_json
 
   def mark_delivered!
-    update!(status: "delivered", delivered_at: Time.current, error_message: nil)
+    update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
   end
 
   def mark_failed!(message:)
@@ -155,7 +155,7 @@ class PublicationOutboxEntry < ApplicationRecord
   private :sanitized_message
 
   def mark_replayed!
-    update!(status: "delivered", delivered_at: Time.current, error_message: nil)
+    update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
   end
 
   def parsed_payload
