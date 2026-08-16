@@ -1033,6 +1033,30 @@ RSpec.describe Publication::BatchPublisher do
       expect(timestamps.uniq.length).to eq(1)
     end
 
+    it "replaces stale published_at transport metadata on string-keyed payloads" do
+      stale_payload = instance_double(
+        PublicationOutboxEntry,
+        idempotency_key: entry.idempotency_key,
+        record_kind: "item",
+        parsed_payload: JSON.parse(
+          {
+            contract_version: 1,
+            idempotency_key: entry.idempotency_key,
+            source: {},
+            published_at: "2026-08-01T00:00:00.000000Z"
+          }.to_json
+        )
+      )
+      captured = stub_success_and_capture_request([stale_payload])
+
+      publisher.publish([stale_payload])
+
+      body = JSON.parse(captured[:request][:body])
+      item = body.fetch("items").fetch(0)
+      expect(item.keys.count("published_at")).to eq(1)
+      expect(item.fetch("published_at")).not_to eq("2026-08-01T00:00:00.000000Z")
+    end
+
     it "describes one publish attempt with a single instant across envelope and rows" do
       captured = stub_success_and_capture_request([entry])
 

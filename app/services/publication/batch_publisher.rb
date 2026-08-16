@@ -250,7 +250,9 @@ module Publication
     # published_at is record-level transport metadata; every row in one publish
     # attempt shares the same value so the batch describes a single attempt.
     def serialize_group(entries, published_at:)
-      Array(entries).map { |e| e.parsed_payload.merge(published_at:) }
+      Array(entries).map do |entry|
+        payload_hash(entry).except(:published_at, "published_at").merge(published_at:)
+      end
     end
 
     def build_headers(batch_id:, sent_at:)
