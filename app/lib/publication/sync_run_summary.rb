@@ -102,9 +102,13 @@ module Publication
     # rejection, so it is rejected at this boundary instead.
     def validate_touched_collection_ids!
       ids = touched_collection_ids
-      return if ids.nil? || (ids.is_a?(Array) && ids.all?(Integer))
+      return if ids.nil? || valid_touched_collection_ids?(ids)
 
-      raise ArgumentError, "touched_collection_ids must be an array of integers when provided"
+      raise ArgumentError, "touched_collection_ids must be an array of unique non-negative integers when provided"
+    end
+
+    def valid_touched_collection_ids?(ids)
+      ids.is_a?(Array) && ids.all? { |id| id.is_a?(Integer) && id >= 0 } && ids.uniq == ids
     end
 
     # error carries the run's retry classification; a row without it cannot be

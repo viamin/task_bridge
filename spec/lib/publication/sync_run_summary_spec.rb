@@ -63,7 +63,17 @@ RSpec.describe Publication::SyncRunSummary do
 
     it "raises when a touched_collection_ids entry is not an integer" do
       expect { described_class.new(**valid_attrs, touched_collection_ids: [84, "91"]) }
-        .to raise_error(ArgumentError, /touched_collection_ids must be an array of integers/)
+        .to raise_error(ArgumentError, /touched_collection_ids must be an array of unique non-negative integers/)
+    end
+
+    it "raises when a touched_collection_ids entry is negative" do
+      expect { described_class.new(**valid_attrs, touched_collection_ids: [84, -1]) }
+        .to raise_error(ArgumentError, /touched_collection_ids must be an array of unique non-negative integers/)
+    end
+
+    it "raises when touched_collection_ids contains duplicates" do
+      expect { described_class.new(**valid_attrs, touched_collection_ids: [84, 84]) }
+        .to raise_error(ArgumentError, /touched_collection_ids must be an array of unique non-negative integers/)
     end
 
     it "raises when detail is not a string" do
