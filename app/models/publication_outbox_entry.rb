@@ -263,6 +263,8 @@ class PublicationOutboxEntry < ApplicationRecord
   end
 
   def parsed_payload
+    raise TypeError, "payload must be a string" unless payload.is_a?(String)
+
     return @parsed_payload if defined?(@parsed_payload_source) && @parsed_payload_source == payload
 
     @parsed_payload_source = payload.dup

@@ -897,6 +897,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.parsed_payload[:contract_version]).to eq(1)
     end
 
+    it "raises a clear TypeError when payload is not a string" do
+      entry = described_class.new(valid_entry_attrs)
+      entry.define_singleton_method(:payload) { nil }
+
+      expect { entry.parsed_payload }.to raise_error(TypeError, "payload must be a string")
+    end
+
     it "re-parses when payload changes in memory" do
       entry = described_class.new(valid_entry_attrs)
       expect(entry.parsed_payload[:idempotency_key]).to eq(valid_entry_attrs[:idempotency_key])
