@@ -265,7 +265,7 @@ class PublicationOutboxEntry < ApplicationRecord
   def parsed_payload
     return @parsed_payload if defined?(@parsed_payload_source) && @parsed_payload_source == payload
 
-    @parsed_payload_source = payload
+    @parsed_payload_source = payload.dup
     @parsed_payload = JSON.parse(payload, symbolize_names: true)
   end
 
