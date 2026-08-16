@@ -94,6 +94,19 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.errors[:status]).to be_present
     end
 
+    it "requires extracted service provenance to be present" do
+      entry = described_class.new(valid_entry_attrs.merge(service_type: nil, service_instance: ""))
+      expect(entry).not_to be_valid
+      expect(entry.errors[:service_type]).to be_present
+      expect(entry.errors[:service_instance]).to be_present
+    end
+
+    it "requires observed_at to be present" do
+      entry = described_class.new(valid_entry_attrs.merge(observed_at: nil))
+      expect(entry).not_to be_valid
+      expect(entry.errors[:observed_at]).to be_present
+    end
+
     it "returns validation errors instead of raising when idempotency_key carries invalid UTF-8" do
       entry = described_class.new(valid_entry_attrs.merge(idempotency_key: (+"tb:v1:\xff").force_encoding("UTF-8")))
       expect(entry).not_to be_valid

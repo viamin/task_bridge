@@ -36,8 +36,8 @@ class PublicationOutboxEntry < ApplicationRecord
   # validates :presence because blank? raises on invalid byte sequences; the
   # encoding check must run first or valid?/save crash with an opaque
   # ArgumentError instead of returning validation errors.
-  REQUIRED_STRING_FIELDS = %i[idempotency_key record_kind status].freeze
-  OPTIONAL_STRING_FIELDS = %i[service_type service_instance error_message].freeze
+  REQUIRED_STRING_FIELDS = %i[idempotency_key record_kind status service_type service_instance].freeze
+  OPTIONAL_STRING_FIELDS = %i[error_message].freeze
 
   # EachValidator short-circuits through value.blank? (and uniqueness and
   # inclusion reach it before any custom validator can reject the value), so
@@ -48,6 +48,7 @@ class PublicationOutboxEntry < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }, if: -> { string_encoding_valid?(:status) }
   validates :retry_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validate :validate_string_fields
+  validate :validate_observed_at
   validate :payload_must_be_a_json_object
 
   scope :pending,    -> { where(status: "pending") }
@@ -263,6 +264,12 @@ class PublicationOutboxEntry < ApplicationRecord
 
       errors.add(field, :blank) if public_send(field).blank?
     end
+  end
+
+  # The outbox orders and filters rows by observed_at; a row without that
+  # timestamp is malformed even if it was built outside .from_record.
+  def validate_observed_at
+    errors.add(:observed_at, :blank) if observed_at.blank?
   end
 
   def string_encoding_valid?(field)
