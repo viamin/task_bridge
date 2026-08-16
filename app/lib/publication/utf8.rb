@@ -13,10 +13,11 @@ module Publication
     module_function
 
     # Raises ArgumentError naming every field whose value is a string with an
-    # invalid encoding. fields maps field names to caller-supplied values;
-    # non-string values are ignored and left to the type checks.
+    # encoding that cannot be serialized as UTF-8. fields maps field names to
+    # caller-supplied values; non-string values are ignored and left to the
+    # type checks.
     def validate_fields!(fields)
-      invalid = fields.select { |_, value| value.is_a?(String) && !value.valid_encoding? }
+      invalid = fields.select { |_, value| value.is_a?(String) && !utf8_serializable?(value) }
       return if invalid.empty?
 
       raise ArgumentError, "#{invalid.keys.join(', ')} must be valid UTF-8"
@@ -47,7 +48,7 @@ module Publication
     def collect_invalid_paths(value, path, invalid)
       case value
       when String
-        invalid << path unless value.valid_encoding?
+        invalid << path unless utf8_serializable?(value)
       when Array
         value.each_with_index do |item, index|
           collect_invalid_paths(item, "#{path}[#{index}]", invalid)
@@ -66,5 +67,15 @@ module Publication
       key.is_a?(String) ? sanitize(key) : key
     end
     private_class_method :display_key
+
+    def utf8_serializable?(value)
+      return false unless value.valid_encoding?
+
+      value.encode(Encoding::UTF_8)
+      true
+    rescue Encoding::UndefinedConversionError, Encoding::InvalidByteSequenceError
+      false
+    end
+    private_class_method :utf8_serializable?
   end
 end

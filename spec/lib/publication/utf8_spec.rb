@@ -11,6 +11,14 @@ RSpec.describe Publication::Utf8 do
       end.to raise_error(ArgumentError, /service_instance, external_id must be valid UTF-8/)
     end
 
+    it "rejects strings whose bytes cannot be transcoded to UTF-8" do
+      invalid = "\xE9".b
+
+      expect do
+        described_class.validate_fields!({ title: invalid })
+      end.to raise_error(ArgumentError, /title must be valid UTF-8/)
+    end
+
     it "accepts valid UTF-8 strings" do
       expect { described_class.validate_fields!({ service_instance: "asana:default", title: "Buy milk — ünïcode" }) }
         .not_to raise_error
@@ -36,6 +44,12 @@ RSpec.describe Publication::Utf8 do
         expect(error.message).to eq("payload.source\uFFFD(key) must be valid UTF-8")
         expect(error.message).to be_valid_encoding
       }
+    end
+
+    it "rejects nested strings whose bytes cannot be transcoded to UTF-8" do
+      expect do
+        described_class.validate_structure!(:payload, { source: { external_id: "\xE9".b } })
+      end.to raise_error(ArgumentError, /payload\.source\.external_id must be valid UTF-8/)
     end
   end
 
