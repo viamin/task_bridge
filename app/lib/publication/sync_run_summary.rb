@@ -83,7 +83,9 @@ module Publication
       return error unless HashAccess.key?(error, :message)
 
       message_key = error.key?(:message) ? :message : "message"
-      error.merge(message_key => OperationalText.sanitize(HashAccess.fetch(error, :message)))
+      sanitized_error = error.except(:message, "message")
+      sanitized_error[message_key] = OperationalText.sanitize(HashAccess.fetch(error, :message))
+      sanitized_error
     end
 
     def validate!

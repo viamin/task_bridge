@@ -348,6 +348,26 @@ RSpec.describe Publication::SyncRunSummary do
       expect(payload[:error][:message]).to eq("refresh_token: [REDACTED]")
     end
 
+    it "removes duplicate message keys after sanitizing the published error" do
+      summary = described_class.new(
+        **valid_attrs,
+        **failed_run_attrs,
+        error: {
+          class: "ProviderError",
+          message: "Authorization: Bearer top-secret",
+          "message" => "Authorization: Bearer leaked-token",
+          retryable: false
+        }
+      )
+
+      payload = summary.to_payload
+
+      expect(payload[:error].keys.count { |key| key.to_s == "message" }).to eq(1)
+      expect(payload[:error][:message]).to eq("Authorization: [REDACTED]")
+      expect(payload[:error].values.join(" ")).not_to include("top-secret")
+      expect(payload[:error].values.join(" ")).not_to include("leaked-token")
+    end
+
     it "accepts all valid statuses when the applicable completion timestamp is present" do
       expect { described_class.new(**valid_attrs, status: "success") }.not_to raise_error
       expect { described_class.new(**valid_attrs, **failed_run_attrs) }.not_to raise_error
