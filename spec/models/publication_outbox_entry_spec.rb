@@ -277,6 +277,31 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.service_instance).to eq("asana:workspace-12345:default")
       expect(entry.observed_at).to be_present
     end
+
+    it "extracts identity and observed_at from string-keyed payload hashes" do
+      string_keyed_snapshot = Class.new do
+        def to_payload
+          {
+            "contract_version" => 1,
+            "idempotency_key" => "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            "observed_at" => "2026-08-14T19:00:00.000000Z",
+            "source" => {
+              "service_type" => "asana",
+              "service_instance" => "asana:workspace-12345:default",
+              "external_id" => "123"
+            }
+          }
+        end
+      end
+      string_keyed_snapshot.const_set(:RECORD_KIND, "item")
+
+      entry = described_class.from_record(string_keyed_snapshot.new)
+
+      expect(entry.idempotency_key).to eq("tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z")
+      expect(entry.service_type).to eq("asana")
+      expect(entry.service_instance).to eq("asana:workspace-12345:default")
+      expect(entry.observed_at).to eq(Time.utc(2026, 8, 14, 19, 0, 0))
+    end
   end
 
   describe "scopes" do

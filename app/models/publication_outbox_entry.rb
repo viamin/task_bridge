@@ -76,18 +76,18 @@ class PublicationOutboxEntry < ApplicationRecord
     # fails here with a clear error naming the problem instead.
     raise ArgumentError, "to_payload must return a hash" unless payload.is_a?(Hash)
 
-    identity = payload[:source] || payload[:member] || {}
+    identity = Publication::HashAccess.fetch(payload, :source) || Publication::HashAccess.fetch(payload, :member) || {}
     raise ArgumentError, "payload source/member must be a hash when present" unless identity.is_a?(Hash)
 
-    service_type     = identity[:service_type] || payload[:service_type]
-    service_instance = identity[:service_instance] || payload[:service_instance]
+    service_type     = Publication::HashAccess.fetch(identity, :service_type) || Publication::HashAccess.fetch(payload, :service_type)
+    service_instance = Publication::HashAccess.fetch(identity, :service_instance) || Publication::HashAccess.fetch(payload, :service_instance)
     new(
-      idempotency_key: payload[:idempotency_key],
+      idempotency_key: Publication::HashAccess.fetch(payload, :idempotency_key),
       record_kind: kind,
-      payload: payload_json(payload, payload[:idempotency_key]),
+      payload: payload_json(payload, Publication::HashAccess.fetch(payload, :idempotency_key)),
       service_type:,
       service_instance:,
-      observed_at: payload[:observed_at] || payload[:started_at]
+      observed_at: Publication::HashAccess.fetch(payload, :observed_at) || Publication::HashAccess.fetch(payload, :started_at)
     )
   end
 
