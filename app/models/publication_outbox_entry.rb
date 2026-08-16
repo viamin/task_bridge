@@ -80,9 +80,9 @@ class PublicationOutboxEntry < ApplicationRecord
     raise ArgumentError, "payload source/member must be a hash when present" unless identity.is_a?(Hash)
 
     idempotency_key = fetch_required_payload_string!(payload, :idempotency_key)
-    service_type     = Publication::HashAccess.fetch(identity, :service_type) || Publication::HashAccess.fetch(payload, :service_type)
-    service_instance = Publication::HashAccess.fetch(identity, :service_instance) || Publication::HashAccess.fetch(payload, :service_instance)
-    observed_at      = Publication::HashAccess.fetch(payload, :observed_at) || Publication::HashAccess.fetch(payload, :started_at)
+    service_type     = preferred_payload_value(identity, payload, :service_type)
+    service_instance = preferred_payload_value(identity, payload, :service_instance)
+    observed_at      = observed_at_value(payload)
     payload          = canonical_payload(payload)
 
     validate_extracted_provenance!(
@@ -177,6 +177,26 @@ class PublicationOutboxEntry < ApplicationRecord
     raise ArgumentError, "payload #{field} is required"
   end
   private_class_method :fetch_required_payload_string!
+
+  # A blank-but-present value is still malformed contract data and must not
+  # silently fall back to a secondary location. Fallback only when the primary
+  # key is absent entirely.
+  def self.preferred_payload_value(primary, fallback, field)
+    return Publication::HashAccess.fetch(primary, field) if Publication::HashAccess.key?(primary, field)
+
+    Publication::HashAccess.fetch(fallback, field)
+  end
+  private_class_method :preferred_payload_value
+
+  # SyncRunSummary uses started_at as the outbox ordering timestamp. Records
+  # that expose observed_at must not mask a blank/invalid value by falling back
+  # to started_at; only a missing observed_at key may do that.
+  def self.observed_at_value(payload)
+    return Publication::HashAccess.fetch(payload, :observed_at) if Publication::HashAccess.key?(payload, :observed_at)
+
+    Publication::HashAccess.fetch(payload, :started_at)
+  end
+  private_class_method :observed_at_value
 
   def mark_delivered!
     update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
