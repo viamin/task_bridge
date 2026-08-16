@@ -18,6 +18,17 @@ RSpec.describe Publication::SyncRunSummary do
     }
   end
 
+  def failed_run_attrs(overrides = {})
+    {
+      status: "failed",
+      started_at: "2026-08-14T19:30:00.000000Z",
+      finished_at: "2026-08-14T19:30:02.000000Z",
+      last_attempted_at: "2026-08-14T19:30:00.000000Z",
+      last_successful_at: nil,
+      last_failed_at: "2026-08-14T19:30:02.000000Z"
+    }.merge(overrides)
+  end
+
   describe "required field validation" do
     %i[idempotency_key sync_run_id service_type service_instance].each do |field|
       it "raises when #{field} is blank" do
@@ -137,15 +148,51 @@ RSpec.describe Publication::SyncRunSummary do
     end
 
     it "accepts a failed run that carries last_failed_at" do
-      summary = described_class.new(
-        **valid_attrs, status: "failed", last_successful_at: nil,
-                       last_failed_at: "2026-08-14T19:30:02.000000Z"
-      )
+      summary = described_class.new(**valid_attrs, **failed_run_attrs)
       expect(summary.to_payload[:last_failed_at]).to eq("2026-08-14T19:30:02.000000Z")
     end
 
     it "accepts a partial run that carries at least one completion timestamp" do
       expect { described_class.new(**valid_attrs, status: "partial") }.not_to raise_error
+    end
+
+    it "raises when finished_at is before started_at" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          started_at: "2026-08-14T19:21:05.000000Z",
+          finished_at: "2026-08-14T19:20:00.000000Z",
+          last_attempted_at: "2026-08-14T19:20:30.000000Z",
+          last_successful_at: "2026-08-14T19:21:05.000000Z"
+        )
+      end.to raise_error(ArgumentError, /finished_at must be at or after started_at/)
+    end
+
+    it "raises when last_attempted_at falls outside the run window" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          last_attempted_at: "2026-08-14T19:21:06.000000Z"
+        )
+      end.to raise_error(ArgumentError, /last_attempted_at must be between started_at and finished_at/)
+    end
+
+    it "raises when last_successful_at falls outside the run window" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          last_successful_at: "2026-08-14T19:21:06.000000Z"
+        )
+      end.to raise_error(ArgumentError, /last_successful_at must be between started_at and finished_at/)
+    end
+
+    it "raises when last_failed_at falls outside the run window" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          **failed_run_attrs(last_failed_at: "2026-08-14T19:30:03.000000Z")
+        )
+      end.to raise_error(ArgumentError, /last_failed_at must be between started_at and finished_at/)
     end
   end
 
@@ -164,9 +211,7 @@ RSpec.describe Publication::SyncRunSummary do
       expect do
         described_class.new(
           **valid_attrs,
-          status: "failed",
-          last_successful_at: nil,
-          last_failed_at: "2026-08-14T19:30:02.000000Z",
+          **failed_run_attrs,
           error: { class: "ProviderError", message: "401", retryable: false }
         )
       end.not_to raise_error
@@ -176,9 +221,7 @@ RSpec.describe Publication::SyncRunSummary do
       expect do
         described_class.new(
           **valid_attrs,
-          status: "failed",
-          last_successful_at: nil,
-          last_failed_at: "2026-08-14T19:30:02.000000Z",
+          **failed_run_attrs,
           error: { "class" => "ProviderError", "message" => "401", "retryable" => false }
         )
       end.not_to raise_error
@@ -275,9 +318,9 @@ RSpec.describe Publication::SyncRunSummary do
 
     it "includes error details for a failed run" do
       summary = described_class.new(
-        **valid_attrs, status: "failed", items_synced: 0, last_successful_at: nil,
-                       last_failed_at: "2026-08-14T19:30:02.000000Z",
-                       error: { class: "ProviderError", message: "401 unauthorized", retryable: false }
+        **valid_attrs,
+        **failed_run_attrs(items_synced: 0),
+        error: { class: "ProviderError", message: "401 unauthorized", retryable: false }
       )
       p = summary.to_payload
       expect(p[:status]).to eq("failed")
@@ -287,9 +330,7 @@ RSpec.describe Publication::SyncRunSummary do
     it "sanitizes secrets from detail and error.message before publishing" do
       summary = described_class.new(
         **valid_attrs,
-        status: "failed",
-        last_successful_at: nil,
-        last_failed_at: "2026-08-14T19:30:02.000000Z",
+        **failed_run_attrs,
         detail: "Authorization: Bearer top-secret Cookie: session=abc123",
         error: {
           class: "ProviderError",
@@ -309,10 +350,7 @@ RSpec.describe Publication::SyncRunSummary do
 
     it "accepts all valid statuses when the applicable completion timestamp is present" do
       expect { described_class.new(**valid_attrs, status: "success") }.not_to raise_error
-      expect do
-        described_class.new(**valid_attrs, status: "failed", last_successful_at: nil,
-                                           last_failed_at: "2026-08-14T19:30:02.000000Z")
-      end.not_to raise_error
+      expect { described_class.new(**valid_attrs, **failed_run_attrs) }.not_to raise_error
       expect { described_class.new(**valid_attrs, status: "partial") }.not_to raise_error
     end
   end

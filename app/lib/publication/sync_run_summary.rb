@@ -108,6 +108,7 @@ module Publication
       validate_completion_timestamps!
       validate_error_status!
       Timestamp.validate!(started_at, finished_at, last_attempted_at, last_successful_at, last_failed_at)
+      validate_timestamp_order!
     end
 
     # touched_collection_ids reference TaskBridge sync_collection integer IDs;
@@ -169,6 +170,38 @@ module Publication
       return unless status == "success" && error.present?
 
       raise ArgumentError, "error is not valid for a success run"
+    end
+
+    # A sync-run summary describes one bounded run. Accepting timestamps that
+    # fall outside that window would publish impossible operational facts that
+    # TaskBridge Web cannot interpret sensibly.
+    def validate_timestamp_order!
+      started = parse_timestamp(started_at)
+      finished = parse_timestamp(finished_at)
+      attempted = parse_timestamp(last_attempted_at)
+
+      raise ArgumentError, "finished_at must be at or after started_at" if finished < started
+      raise ArgumentError, "last_attempted_at must be between started_at and finished_at" unless within_run_window?(attempted, started, finished)
+
+      validate_completion_timestamp_order!(last_successful_at, field: :last_successful_at, started:, finished:)
+      validate_completion_timestamp_order!(last_failed_at, field: :last_failed_at, started:, finished:)
+    end
+
+    def validate_completion_timestamp_order!(value, field:, started:, finished:)
+      return if value.nil?
+
+      timestamp = parse_timestamp(value)
+      return if within_run_window?(timestamp, started, finished)
+
+      raise ArgumentError, "#{field} must be between started_at and finished_at"
+    end
+
+    def within_run_window?(timestamp, started_at, finished_at)
+      timestamp.between?(started_at, finished_at)
+    end
+
+    def parse_timestamp(value)
+      value.is_a?(Time) ? value : Timestamp.parse_string(value)
     end
 
     # detail and error text are operational free text; malformed UTF-8 bytes
