@@ -316,7 +316,17 @@ class PublicationOutboxEntry < ApplicationRecord
   # The outbox orders and filters rows by observed_at; a row without that
   # timestamp is malformed even if it was built outside .from_record.
   def validate_observed_at
-    errors.add(:observed_at, :blank) if observed_at.blank?
+    raw_value = validating_raw_observed_at? ? observed_at_before_type_cast : observed_at
+    raw_value = observed_at if raw_value.blank?
+    return errors.add(:observed_at, :blank) if raw_value.blank?
+
+    Publication::Timestamp.validate!(raw_value)
+  rescue ArgumentError => e
+    errors.add(:observed_at, e.message)
+  end
+
+  def validating_raw_observed_at?
+    new_record? || will_save_change_to_observed_at?
   end
 
   def string_encoding_valid?(field)
