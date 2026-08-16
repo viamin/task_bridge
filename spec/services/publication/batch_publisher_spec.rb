@@ -661,6 +661,22 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when a result carries an invalid-UTF-8 idempotency_key" do
+      before do
+        raw = (+"{\"contract_version\":1,\"accepted\":1,\"replayed\":0,\"rejected\":0,\"results\":[{") <<
+              %("idempotency_key":"tb:v1:item:\xff","status":"accepted"}]})
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trying to reconcile a malformed key" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /result missing idempotency_key/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     it "sends required contract headers to the endpoint" do
       stub_http(
         status: 200,
@@ -1102,9 +1118,9 @@ RSpec.describe Publication::BatchPublisher do
         )
       end
 
-      it "raises a retryable DeliveryError instead of trusting the mismatched key set" do
+      it "raises a retryable DeliveryError instead of trying to reconcile a malformed key" do
         expect { publisher.publish([entry]) }.to raise_error(
-          Publication::DeliveryError, /result idempotency_key set mismatch/
+          Publication::DeliveryError, /result missing idempotency_key/
         ) { |e| expect(e.retryable).to be true }
       end
     end

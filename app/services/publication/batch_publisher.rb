@@ -396,7 +396,7 @@ module Publication
     # the submitted row; a result missing this field can never be reconciled
     # and would otherwise silently orphan the row it was meant to describe.
     # present? itself raises on malformed UTF-8, and the response is remote
-    # data, so presence is checked without it.
+    # data, so validity and presence are checked without it.
     def verify_result_keys_present!(results)
       return if results.all? { |result| result_key_present?(result[:idempotency_key]) }
 
@@ -404,11 +404,9 @@ module Publication
     end
 
     def result_key_present?(key)
-      return false unless key.is_a?(String)
+      return false unless key.is_a?(String) && key.valid_encoding?
 
-      # strip raises on malformed UTF-8, so scrub first: the scrubbed form is
-      # only used for the presence test, never as the reconciliation key.
-      !key.scrub.strip.empty?
+      !key.strip.empty?
     end
 
     # Statuses are validated before the count cross-check so a response whose
