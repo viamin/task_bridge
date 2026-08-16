@@ -722,6 +722,20 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when the response code is missing" do
+      before do
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: nil, body: "upstream proxy error")
+        )
+      end
+
+      it "raises a retryable DeliveryError" do
+        expect { publisher.publish([entry]) }.to raise_error(Publication::DeliveryError) do |e|
+          expect(e.retryable).to be true
+        end
+      end
+    end
+
     context "when the connection is refused" do
       before { allow(HTTParty).to receive(:post).and_raise(Errno::ECONNREFUSED, "Connection refused") }
 
