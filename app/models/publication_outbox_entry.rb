@@ -198,6 +198,8 @@ class PublicationOutboxEntry < ApplicationRecord
   def payload_must_be_a_json_object
     if payload.nil?
       errors.add(:payload, :blank)
+    elsif !payload.is_a?(String)
+      errors.add(:payload, "must be a string")
     elsif !payload.valid_encoding?
       errors.add(:payload, "must be valid UTF-8")
     else

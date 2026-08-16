@@ -53,6 +53,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry).not_to be_valid
     end
 
+    it "returns validation errors instead of raising when payload is not a string" do
+      entry = described_class.new(valid_entry_attrs)
+      entry.define_singleton_method(:payload) { { invalid: true } }
+      expect(entry).not_to be_valid
+      expect(entry.errors[:payload]).to include("must be a string")
+    end
+
     it "rejects a payload that is not valid JSON" do
       entry = described_class.new(valid_entry_attrs.merge(payload: "not json"))
       expect(entry).not_to be_valid
