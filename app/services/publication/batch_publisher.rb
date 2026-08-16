@@ -358,6 +358,7 @@ module Publication
       verify_result_counts!(parsed, results, rows)
       results_by_key = index_results_by_key(results)
       verify_result_key_set!(rows, results_by_key)
+      verify_result_order!(rows, results)
 
       rows.map { |entry| build_entry_result(entry, results_by_key[entry.idempotency_key]) }
     rescue JSON::ParserError => e
@@ -433,6 +434,21 @@ module Publication
       return if invalid.empty?
 
       raise DeliveryError.new("unreconcilable response: unknown result status #{invalid.first.inspect}", retryable: true)
+    end
+
+    # The contract requires one result per submitted row in submission order.
+    # Key-based reconciliation is still used afterward for clarity and to catch
+    # duplicates/extras precisely, but an out-of-order 200 body is still a
+    # contract violation and should be surfaced immediately.
+    def verify_result_order!(rows, results)
+      submitted_keys = rows.map(&:idempotency_key)
+      response_keys = results.map { |result| result[:idempotency_key] }
+      return if response_keys == submitted_keys
+
+      raise DeliveryError.new(
+        "unreconcilable response: results are not in submission order",
+        retryable: true
+      )
     end
 
     # The contract returns exactly one result per submitted row; a response

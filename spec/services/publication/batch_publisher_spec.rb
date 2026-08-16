@@ -830,6 +830,30 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when the response returns results out of submission order" do
+      let(:second) { make_entry(key: "tb:v1:item:asana:default:2:snapshot:2026-08-14T19:00:00.000000Z") }
+
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 2, replayed: 0, rejected: 0,
+            results: [
+              { record_kind: "item", idempotency_key: second.idempotency_key, status: "accepted" },
+              { record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }
+            ]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of silently reordering the response" do
+        expect { publisher.publish([entry, second]) }.to raise_error(
+          Publication::DeliveryError, /results are not in submission order/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when the response omits a result for a submitted row" do
       before do
         stub_http(
