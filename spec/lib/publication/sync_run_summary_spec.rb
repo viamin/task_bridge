@@ -162,7 +162,13 @@ RSpec.describe Publication::SyncRunSummary do
 
     it "accepts an error with class, message, and retryable" do
       expect do
-        described_class.new(**valid_attrs, error: { class: "ProviderError", message: "401", retryable: false })
+        described_class.new(
+          **valid_attrs,
+          status: "failed",
+          last_successful_at: nil,
+          last_failed_at: "2026-08-14T19:30:02.000000Z",
+          error: { class: "ProviderError", message: "401", retryable: false }
+        )
       end.not_to raise_error
     end
 
@@ -170,9 +176,18 @@ RSpec.describe Publication::SyncRunSummary do
       expect do
         described_class.new(
           **valid_attrs,
+          status: "failed",
+          last_successful_at: nil,
+          last_failed_at: "2026-08-14T19:30:02.000000Z",
           error: { "class" => "ProviderError", "message" => "401", "retryable" => false }
         )
       end.not_to raise_error
+    end
+
+    it "raises when a success run carries an error object" do
+      expect do
+        described_class.new(**valid_attrs, error: { class: "ProviderError", message: "401", retryable: false })
+      end.to raise_error(ArgumentError, /error is not valid for a success run/)
     end
 
     it "raises when error.retryable is not a boolean" do
@@ -272,6 +287,9 @@ RSpec.describe Publication::SyncRunSummary do
     it "sanitizes secrets from detail and error.message before publishing" do
       summary = described_class.new(
         **valid_attrs,
+        status: "failed",
+        last_successful_at: nil,
+        last_failed_at: "2026-08-14T19:30:02.000000Z",
         detail: "Authorization: Bearer top-secret Cookie: session=abc123",
         error: {
           class: "ProviderError",

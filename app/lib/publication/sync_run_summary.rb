@@ -106,6 +106,7 @@ module Publication
       validate_touched_collection_ids!
       validate_error!(error)
       validate_completion_timestamps!
+      validate_error_status!
       Timestamp.validate!(started_at, finished_at, last_attempted_at, last_successful_at, last_failed_at)
     end
 
@@ -158,6 +159,16 @@ module Publication
 
         raise ArgumentError, "last_successful_at or last_failed_at is required for a partial run"
       end
+    end
+
+    # A successful run may still carry operational detail, but publishing an
+    # error object alongside status: success is contradictory contract data.
+    # Partial and failed runs may include error details when they ended with a
+    # real failure condition.
+    def validate_error_status!
+      return unless status == "success" && error.present?
+
+      raise ArgumentError, "error is not valid for a success run"
     end
 
     # detail and error text are operational free text; malformed UTF-8 bytes

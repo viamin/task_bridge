@@ -448,6 +448,7 @@ Additional rules:
 
 - `status` must be one of `success`, `failed`, or `partial`.
 - TaskBridge currently records `success` and `failed` runs; `partial` is reserved for runs that finish while some items fail. Skipped or idle services should not publish a sync-run summary.
+- `error` is not valid when `status` is `success`.
 - `detail` and `error.message` must be sanitized operational text and must not include secrets, tokens, cookies, raw authorization headers, or raw provider payloads.
 - `error.retryable` must match the retry policy TaskBridge used for the run outcome.
 
