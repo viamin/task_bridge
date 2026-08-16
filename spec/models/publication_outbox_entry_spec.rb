@@ -621,6 +621,23 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.status).to eq("pending")
     end
 
+    it "preserves observed_at microseconds when the entry is persisted" do
+      snapshot = Publication::ItemSnapshot.new(
+        idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.123456Z",
+        item_key: "asana:workspace-12345:default:123",
+        observed_at: "2026-08-14T19:00:00.123456Z",
+        title: "Test task",
+        status: "open",
+        is_deleted: false,
+        source:
+      )
+
+      entry = described_class.from_record(snapshot)
+      entry.save!
+
+      expect(entry.reload.observed_at).to eq(Time.utc(2026, 8, 14, 19, 0, 0, 123_456))
+    end
+
     it "stores JSON-serializable payload" do
       snapshot = build_item_snapshot
       entry = described_class.from_record(snapshot)

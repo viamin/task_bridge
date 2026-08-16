@@ -20,9 +20,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_000000) do
     t.text "error_message"
     t.string "service_type", null: false
     t.string "service_instance", null: false
-    t.datetime "observed_at", null: false
-    t.datetime "delivered_at"
-    t.datetime "failed_at"
+    t.datetime "observed_at", precision: 6, null: false
+    t.datetime "delivered_at", precision: 6
+    t.datetime "failed_at", precision: 6
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["idempotency_key"], name: "index_publication_outbox_entries_on_idempotency_key", unique: true

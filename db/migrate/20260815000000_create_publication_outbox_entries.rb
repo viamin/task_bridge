@@ -18,18 +18,18 @@ class CreatePublicationOutboxEntries < ActiveRecord::Migration[8.1]
       # Source provenance for filtering and replay
       t.string   :service_type, null: false
       t.string   :service_instance, null: false
-      t.datetime :observed_at, null: false
+      t.datetime :observed_at, null: false, precision: 6
 
       # Delivery timestamps
-      t.datetime :delivered_at
-      t.datetime :failed_at
+      t.datetime :delivered_at, precision: 6
+      t.datetime :failed_at, precision: 6
 
       t.timestamps
     end
 
     add_index :publication_outbox_entries, :idempotency_key, unique: true
     # Status + observed_at + id supports fetching publishable rows oldest-first.
-    add_index :publication_outbox_entries, [:status, :observed_at, :id], name: "idx_pub_outbox_on_status_observed_at_id"
-    add_index :publication_outbox_entries, [:service_instance, :status]
+    add_index :publication_outbox_entries, %i[status observed_at id], name: "idx_pub_outbox_on_status_observed_at_id"
+    add_index :publication_outbox_entries, %i[service_instance status]
   end
 end
