@@ -130,6 +130,7 @@ class PublicationOutboxEntry < ApplicationRecord
     update!(
       status: new_status,
       retry_count: new_count,
+      delivered_at: nil,
       failed_at: Time.current,
       error_message: sanitized_message(message)
     )
@@ -141,6 +142,7 @@ class PublicationOutboxEntry < ApplicationRecord
   def mark_terminal!(message:)
     update!(
       status: "terminal",
+      delivered_at: nil,
       failed_at: Time.current,
       error_message: sanitized_message(message)
     )

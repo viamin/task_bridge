@@ -355,6 +355,12 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.reload.error_message).to be_present
       expect(entry.error_message.valid_encoding?).to be true
     end
+
+    it "clears a stale delivered_at from an earlier successful attempt" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "delivered", delivered_at: Time.current))
+      entry.mark_failed!(message: "network timeout")
+      expect(entry.reload.delivered_at).to be_nil
+    end
   end
 
   describe "#mark_terminal!" do
@@ -377,6 +383,12 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       entry = described_class.create!(valid_entry_attrs)
       entry.mark_terminal!(message: "x" * 2000)
       expect(entry.reload.error_message.length).to eq(1000)
+    end
+
+    it "clears a stale delivered_at from an earlier successful attempt" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "delivered", delivered_at: Time.current))
+      entry.mark_terminal!(message: "non-retryable rejection")
+      expect(entry.reload.delivered_at).to be_nil
     end
   end
 

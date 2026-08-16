@@ -374,7 +374,7 @@ module Publication
 
     def verify_contract_version!(parsed)
       echoed = parsed[:contract_version]
-      return if echoed.nil? || echoed == CONTRACT_VERSION
+      return if echoed.nil? || canonical_contract_version?(echoed)
 
       raise DeliveryError.new(
         "response contract_version mismatch: expected #{CONTRACT_VERSION}, got #{echoed.inspect}",
@@ -403,8 +403,7 @@ module Publication
     end
 
     def result_key_present?(key)
-      return false if key.nil?
-      return true unless key.is_a?(String)
+      return false unless key.is_a?(String)
 
       # strip raises on malformed UTF-8, so scrub first: the scrubbed form is
       # only used for the presence test, never as the reconciliation key.

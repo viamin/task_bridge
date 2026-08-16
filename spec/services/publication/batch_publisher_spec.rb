@@ -613,12 +613,50 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when the response echoes contract_version as a float" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1.0,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ idempotency_key: entry.idempotency_key, status: "accepted" }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting a non-integer version" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /contract_version mismatch/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when a 200 response body is not a JSON object" do
       before { stub_http(status: 200, body: '"ok"') }
 
       it "raises a retryable DeliveryError" do
         expect { publisher.publish([entry]) }.to raise_error(
           Publication::DeliveryError, /expected a JSON object/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when a result carries a non-string idempotency_key" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{ idempotency_key: 123, status: "accepted" }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of treating the row as missing" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /result missing idempotency_key/
         ) { |e| expect(e.retryable).to be true }
       end
     end
