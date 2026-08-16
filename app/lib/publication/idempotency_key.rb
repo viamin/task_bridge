@@ -73,7 +73,7 @@ module Publication
       raise ArgumentError, "sequence must be a string or numeric when provided" unless valid_type
 
       Utf8.validate_fields!({ sequence: })
-      raise ArgumentError, "sequence must not be blank" if sequence.to_s.empty?
+      raise ArgumentError, "sequence must not be blank" if sequence.to_s.strip.empty?
 
       sequence.to_s
     end

@@ -142,6 +142,12 @@ RSpec.describe Publication::IdempotencyKey do
       end.to raise_error(ArgumentError, /sequence must not be blank/)
     end
 
+    it "raises when sequence is a whitespace-only string" do
+      expect do
+        described_class.for_observation(service_instance:, external_id:, event_type: "source_changed", sequence: "   ")
+      end.to raise_error(ArgumentError, /sequence must not be blank/)
+    end
+
     it "raises when sequence is neither a string nor numeric" do
       expect do
         described_class.for_observation(service_instance:, external_id:, event_type: "source_changed", sequence: [])
@@ -204,6 +210,12 @@ RSpec.describe Publication::IdempotencyKey do
       expect do
         described_class.for_mapping(sync_collection_id: 84, service_instance:, external_id:)
       end.to raise_error(ArgumentError, /observed_at or sequence is required/)
+    end
+
+    it "raises when sequence is a whitespace-only string" do
+      expect do
+        described_class.for_mapping(sync_collection_id: 84, service_instance:, external_id:, sequence: "  ")
+      end.to raise_error(ArgumentError, /sequence must not be blank/)
     end
 
     it "raises when sequence is neither a string nor numeric" do
