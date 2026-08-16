@@ -131,7 +131,7 @@ module Publication
 
     # A row without a non-blank string idempotency_key can never be reconciled:
     # results echo the payload key, so a keyless row would fail the whole batch
-    # with an unreconcilable response (or retry forever as missing_result).
+    # with an unreconcilable response.
     # A single nil or "" key is not a duplicate and nil == nil satisfies the
     # payload-key match, so presence needs its own guard. present? raises on
     # invalid UTF-8, so encoding is verified first.
@@ -466,7 +466,7 @@ module Publication
 
     # A 200 response is trustworthy only when its results map exactly onto the
     # submitted rows. Matching counts are not enough: an unexpected key would
-    # otherwise be ignored while a submitted row fell through as missing_result.
+    # otherwise be ignored while a submitted row was actually missing.
     def verify_result_key_set!(rows, results_by_key)
       submitted_keys = rows.map(&:idempotency_key)
       response_keys = results_by_key.keys
@@ -508,8 +508,6 @@ module Publication
     end
 
     def build_entry_result(entry, row)
-      return missing_result(entry) if row.nil?
-
       verify_record_kind!(entry, row)
       EntryResult.new(
         entry: entry,
@@ -545,13 +543,6 @@ module Publication
         "expected #{entry.record_kind.inspect}, got #{kind.inspect}",
         retryable: true
       )
-    end
-
-    # Delivery state for the row is ambiguous when the response omits its
-    # result, so it stays retryable; ingestion idempotency makes the retry safe.
-    def missing_result(entry)
-      EntryResult.new(entry:, status: "rejected", retryable: true,
-                      error_code: "missing_result", message: "no result returned for this entry")
     end
   end
 end
