@@ -96,6 +96,11 @@ RSpec.describe Publication::BatchPublisher do
         .to raise_error(ArgumentError, /valid http\(s\) URI/)
     end
 
+    it "raises ArgumentError when endpoint includes embedded credentials" do
+      expect { described_class.new(endpoint: "https://user:pass@taskbridge-web.example.com/api", api_key:) }
+        .to raise_error(ArgumentError, /valid http\(s\) URI/)
+    end
+
     it "raises ArgumentError when publisher_instance is not a string" do
       expect { described_class.new(endpoint:, api_key:, publisher_instance: 42) }
         .to raise_error(ArgumentError, /publisher_instance/)

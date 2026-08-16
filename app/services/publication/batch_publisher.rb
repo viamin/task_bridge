@@ -115,7 +115,7 @@ module Publication
     # transport error (or an unhandled URI parse crash) at publish time.
     def valid_endpoint_uri?(value)
       uri = URI.parse(value)
-      uri.is_a?(URI::HTTP) && uri.host.present?
+      uri.is_a?(URI::HTTP) && uri.host.present? && uri.userinfo.nil?
     rescue URI::Error
       false
     end
