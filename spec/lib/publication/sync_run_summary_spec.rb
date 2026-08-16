@@ -115,6 +115,22 @@ RSpec.describe Publication::SyncRunSummary do
         .to raise_error(ArgumentError, /last_failed_at is required/)
     end
 
+    it "raises when a success run also carries last_failed_at" do
+      expect do
+        described_class.new(**valid_attrs, last_failed_at: "2026-08-14T19:30:02.000000Z")
+      end.to raise_error(ArgumentError, /last_failed_at is not valid for a success run/)
+    end
+
+    it "raises when a failed run also carries last_successful_at" do
+      expect do
+        described_class.new(
+          **valid_attrs,
+          status: "failed",
+          last_failed_at: "2026-08-14T19:30:02.000000Z"
+        )
+      end.to raise_error(ArgumentError, /last_successful_at is not valid for a failed run/)
+    end
+
     it "raises when a partial run omits both completion timestamps" do
       expect { described_class.new(**valid_attrs, status: "partial", last_successful_at: nil) }
         .to raise_error(ArgumentError, /last_successful_at or last_failed_at is required/)
@@ -244,7 +260,7 @@ RSpec.describe Publication::SyncRunSummary do
 
     it "includes error details for a failed run" do
       summary = described_class.new(
-        **valid_attrs, status: "failed", items_synced: 0,
+        **valid_attrs, status: "failed", items_synced: 0, last_successful_at: nil,
                        last_failed_at: "2026-08-14T19:30:02.000000Z",
                        error: { class: "ProviderError", message: "401 unauthorized", retryable: false }
       )

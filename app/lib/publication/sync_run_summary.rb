@@ -131,13 +131,16 @@ module Publication
 
     # RDR 215 lists last_successful_at or last_failed_at as required "as
     # applicable": the summary must carry the completion timestamp matching
-    # its outcome so TaskBridge Web can correlate operational health.
+    # its outcome so TaskBridge Web can correlate operational health, and a
+    # terminal outcome must not also claim the opposite terminal timestamp.
     def validate_completion_timestamps!
       case status
       when "success"
         raise ArgumentError, "last_successful_at is required for a success run" if last_successful_at.blank?
+        raise ArgumentError, "last_failed_at is not valid for a success run" unless last_failed_at.nil?
       when "failed"
         raise ArgumentError, "last_failed_at is required for a failed run" if last_failed_at.blank?
+        raise ArgumentError, "last_successful_at is not valid for a failed run" unless last_successful_at.nil?
       else
         return unless last_successful_at.blank? && last_failed_at.blank?
 
