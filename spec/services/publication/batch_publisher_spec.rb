@@ -1077,6 +1077,49 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when an echoed batch_id carries malformed UTF-8" do
+      before do
+        raw = (+"{\"batch_id\":\"bad\xff\",\"contract_version\":1,\"accepted\":0,\"replayed\":0,\"rejected\":0,\"results\":[]}")
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
+        )
+      end
+
+      it "raises a DeliveryError whose message is valid UTF-8" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /batch_id mismatch/
+        ) { |e| expect(e.message.valid_encoding?).to be true }
+      end
+    end
+
+    context "when an echoed contract_version is a malformed UTF-8 string" do
+      before do
+        allow(HTTParty).to receive(:post) do |_endpoint, opts|
+          raw = "{\"batch_id\":\"#{opts[:headers]['X-TaskBridge-Batch-Id']}\"," <<
+                %("contract_version":"v\xff","accepted":0,"replayed":0,"rejected":0,"results":[]})
+          instance_double(HTTParty::Response, code: 200, body: raw.force_encoding("UTF-8"))
+        end
+      end
+
+      it "raises a DeliveryError whose message is valid UTF-8" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /contract_version mismatch/
+        ) { |e| expect(e.message.valid_encoding?).to be true }
+      end
+    end
+
+    context "when an unparseable stored payload quotes malformed bytes in the parser error" do
+      it "raises an ArgumentError whose message is valid UTF-8" do
+        corrupt = make_entry(key: "tb:v1:item:asana:default:11:snapshot:2026-08-14T19:00:00.000000Z")
+        allow(corrupt).to receive(:parsed_payload).and_raise(
+          JSON::ParserError, (+"unexpected token at '\xff'").force_encoding("UTF-8")
+        )
+        expect { publisher.publish([corrupt]) }.to raise_error(ArgumentError, /unparseable payload/) do |e|
+          expect(e.message.valid_encoding?).to be true
+        end
+      end
+    end
+
     context "when a non-200 response body contains malformed UTF-8" do
       before do
         allow(HTTParty).to receive(:post).and_return(

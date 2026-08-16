@@ -195,7 +195,10 @@ module Publication
       # not a string, for example on an entry that was never persisted.
       raise ArgumentError, "payload for #{row.idempotency_key} is missing or unreadable: #{e.message}"
     rescue JSON::ParserError => e
-      raise ArgumentError, "unparseable payload for #{row.idempotency_key}: #{e.message}"
+      # Parser messages quote the offending payload region, and a row written
+      # past the model validation can carry malformed bytes there, so the
+      # message is scrubbed before it reaches callers that log it.
+      raise ArgumentError, "unparseable payload for #{row.idempotency_key}: #{Utf8.sanitize(e.message)}"
     end
 
     def build_body(rows, batch_id:, sent_at:, published_at:)
@@ -359,12 +362,14 @@ module Publication
     end
 
     # A response echoing a different batch_id cannot be reconciled with this
-    # request's rows, so its results must not be trusted.
+    # request's rows, so its results must not be trusted. The echoed value is
+    # remote text and can carry invalid UTF-8 past JSON parsing, so it is
+    # inspected (escaping malformed bytes) instead of interpolated raw.
     def verify_batch_echo!(parsed, batch_id)
       echoed = parsed[:batch_id]
       return if echoed.nil? || echoed == batch_id
 
-      raise DeliveryError.new("response batch_id mismatch: expected #{batch_id}, got #{echoed}", retryable: true)
+      raise DeliveryError.new("response batch_id mismatch: expected #{batch_id}, got #{echoed.inspect}", retryable: true)
     end
 
     def verify_contract_version!(parsed)
@@ -372,7 +377,7 @@ module Publication
       return if echoed.nil? || echoed == CONTRACT_VERSION
 
       raise DeliveryError.new(
-        "response contract_version mismatch: expected #{CONTRACT_VERSION}, got #{echoed}",
+        "response contract_version mismatch: expected #{CONTRACT_VERSION}, got #{echoed.inspect}",
         retryable: true
       )
     end
