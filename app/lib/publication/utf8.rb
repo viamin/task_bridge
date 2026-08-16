@@ -54,12 +54,17 @@ module Publication
         end
       when Hash
         value.each do |key, nested|
-          key_path = "#{path}.#{key}"
+          key_path = "#{path}.#{display_key(key)}"
           invalid << "#{key_path}(key)" if key.is_a?(String) && !key.valid_encoding?
           collect_invalid_paths(nested, key_path, invalid)
         end
       end
     end
     private_class_method :collect_invalid_paths
+
+    def display_key(key)
+      key.is_a?(String) ? sanitize(key) : key
+    end
+    private_class_method :display_key
   end
 end

@@ -26,6 +26,19 @@ RSpec.describe Publication::Utf8 do
     end
   end
 
+  describe ".validate_structure!" do
+    it "raises a valid UTF-8 error message when an invalid nested hash key is encountered" do
+      invalid_key = (+"source\xff").force_encoding("UTF-8")
+
+      expect do
+        described_class.validate_structure!(:payload, { invalid_key => "ok" })
+      end.to raise_error(ArgumentError) { |error|
+        expect(error.message).to eq("payload.source\uFFFD(key) must be valid UTF-8")
+        expect(error.message).to be_valid_encoding
+      }
+    end
+  end
+
   describe ".sanitize" do
     it "replaces malformed byte sequences with the replacement character" do
       expect(described_class.sanitize((+"milk \xff").force_encoding("UTF-8"))).to eq("milk \uFFFD")
