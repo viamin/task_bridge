@@ -228,6 +228,27 @@ RSpec.describe PublicationOutboxEntry, type: :model do
         .to raise_error(ArgumentError, /payload observed_at is required/)
     end
 
+    it "raises a clear ArgumentError when payload service_type carries invalid UTF-8" do
+      invalid_service_type = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            source: {
+              service_type: (+"asana \xff").force_encoding("UTF-8"),
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      invalid_service_type::RECORD_KIND = "item"
+
+      expect { described_class.from_record(invalid_service_type.new) }
+        .to raise_error(ArgumentError, /payload service_type must be valid UTF-8/)
+    end
+
     it "raises a clear ArgumentError when payload observed_at is invalid" do
       invalid_observed_at = Class.new do
         def to_payload
@@ -247,6 +268,27 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
       expect { described_class.from_record(invalid_observed_at.new) }
         .to raise_error(ArgumentError, /payload observed_at is invalid/)
+    end
+
+    it "raises a clear ArgumentError when payload observed_at carries invalid UTF-8" do
+      invalid_observed_at = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            observed_at: (+"2026-08-14T19:00:00.000000Z\xff").force_encoding("UTF-8"),
+            source: {
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      invalid_observed_at::RECORD_KIND = "item"
+
+      expect { described_class.from_record(invalid_observed_at.new) }
+        .to raise_error(ArgumentError, /payload observed_at must be valid UTF-8/)
     end
 
     it "builds an entry from a Publication::ItemSnapshot" do

@@ -144,6 +144,12 @@ class PublicationOutboxEntry < ApplicationRecord
   # allows nils, so it is rejected before construction instead of persisting a
   # partially usable contract row.
   def self.validate_extracted_provenance!(service_type:, service_instance:, observed_at:, idempotency_key:)
+    Publication::Utf8.validate_fields!(
+      "payload service_type" => service_type,
+      "payload service_instance" => service_instance,
+      "payload observed_at" => observed_at
+    )
+
     {
       service_type:,
       service_instance:
