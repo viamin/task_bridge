@@ -240,7 +240,30 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       end
       string_source::RECORD_KIND = "item"
       expect { described_class.from_record(string_source.new) }
-        .to raise_error(ArgumentError, %r{source/member must be a hash})
+        .to raise_error(ArgumentError, /payload source must be a hash when present/)
+    end
+
+    it "does not fall back from a present nil source to member provenance" do
+      mixed_identity = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:item:asana:workspace-12345:default:123:snapshot:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            source: nil,
+            member: {
+              service_type: "github",
+              service_instance: "github:repo-1:default",
+              external_id: "42",
+              item_key: "github:repo-1:default:42"
+            }
+          }
+        end
+      end
+      mixed_identity::RECORD_KIND = "item"
+
+      expect { described_class.from_record(mixed_identity.new) }
+        .to raise_error(ArgumentError, /payload source must be a hash when present/)
     end
 
     it "raises a clear ArgumentError when payload idempotency_key is missing" do

@@ -79,8 +79,7 @@ class PublicationOutboxEntry < ApplicationRecord
     # fails here with a clear error naming the problem instead.
     raise ArgumentError, "to_payload must return a hash" unless payload.is_a?(Hash)
 
-    identity = Publication::HashAccess.fetch(payload, :source) || Publication::HashAccess.fetch(payload, :member) || {}
-    raise ArgumentError, "payload source/member must be a hash when present" unless identity.is_a?(Hash)
+    identity = payload_identity(payload)
 
     idempotency_key = fetch_required_payload_string!(payload, :idempotency_key)
     validate_payload_contract_version!(payload, idempotency_key)
@@ -199,6 +198,26 @@ class PublicationOutboxEntry < ApplicationRecord
     Publication::HashAccess.fetch(fallback, field)
   end
   private_class_method :preferred_payload_value
+
+  # source/member provenance sections are mutually exclusive by record kind.
+  # If one key is present, a nil or wrong-typed value must fail instead of
+  # silently falling through to the other section and extracting the wrong
+  # service provenance.
+  def self.payload_identity(payload)
+    return required_payload_hash!(payload, :source) if Publication::HashAccess.key?(payload, :source)
+    return required_payload_hash!(payload, :member) if Publication::HashAccess.key?(payload, :member)
+
+    {}
+  end
+  private_class_method :payload_identity
+
+  def self.required_payload_hash!(payload, field)
+    value = Publication::HashAccess.fetch(payload, field)
+    return value if value.is_a?(Hash)
+
+    raise ArgumentError, "payload #{field} must be a hash when present"
+  end
+  private_class_method :required_payload_hash!
 
   # SyncRunSummary uses started_at as the outbox ordering timestamp. Records
   # that expose observed_at must not mask a blank/invalid value by falling back
