@@ -810,6 +810,28 @@ RSpec.describe Publication::BatchPublisher do
           Publication::DeliveryError, /batch_id missing or mismatched/
         ) { |e| expect(e.retryable).to be true }
       end
+
+      it "redacts secrets from the echoed batch_id in the error message" do
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(
+            HTTParty::Response,
+            code: "200",
+            body: {
+              batch_id: "Authorization: Bearer #{api_key}",
+              contract_version: 1,
+              accepted: 0,
+              replayed: 0,
+              rejected: 0,
+              results: []
+            }.to_json
+          )
+        )
+
+        expect { publisher.publish([entry]) }.to raise_error(Publication::DeliveryError) { |error|
+          expect(error.message).to include('got "Authorization: [REDACTED]"')
+          expect(error.message).not_to include(api_key)
+        }
+      end
     end
 
     context "when the response omits batch_id" do
@@ -1152,6 +1174,32 @@ RSpec.describe Publication::BatchPublisher do
         expect { publisher.publish([entry]) }.to raise_error(
           Publication::DeliveryError, /unknown result status/
         ) { |e| expect(e.retryable).to be true }
+      end
+
+      it "redacts secrets from the rejected status value in the error message" do
+        allow(HTTParty).to receive(:post) do |_endpoint, options|
+          instance_double(
+            HTTParty::Response,
+            code: "200",
+            body: {
+              batch_id: options[:headers]["X-TaskBridge-Batch-Id"],
+              contract_version: 1,
+              accepted: 1,
+              replayed: 0,
+              rejected: 0,
+              results: [{
+                record_kind: "item",
+                idempotency_key: entry.idempotency_key,
+                status: "Bearer #{api_key}"
+              }]
+            }.to_json
+          )
+        end
+
+        expect { publisher.publish([entry]) }.to raise_error(Publication::DeliveryError) { |error|
+          expect(error.message).to include(%(unknown result status "Bearer [REDACTED]"))
+          expect(error.message).not_to include(api_key)
+        }
       end
     end
 

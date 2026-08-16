@@ -364,6 +364,23 @@ module Publication
       redact_credentials(OperationalText.sanitize(value))
     end
 
+    def sanitized_remote_inspect(value)
+      sanitize_remote_value(value).inspect
+    end
+
+    def sanitize_remote_value(value)
+      case value
+      when String
+        sanitize_remote_text(value)
+      when Array
+        value.map { |item| sanitize_remote_value(item) }
+      when Hash
+        value.transform_values { |nested| sanitize_remote_value(nested) }
+      else
+        value
+      end
+    end
+
     def parse_row_results(response, rows, batch_id:)
       # to_s coerces a nil body (empty responses from proxies and load
       # balancers) into "", which JSON.parse rejects with ParserError; a raw
@@ -393,7 +410,10 @@ module Publication
       echoed = parsed[:batch_id]
       return if echoed == batch_id
 
-      raise DeliveryError.new("response batch_id missing or mismatched: expected #{batch_id}, got #{echoed.inspect}", retryable: true)
+      raise DeliveryError.new(
+        "response batch_id missing or mismatched: expected #{batch_id}, got #{sanitized_remote_inspect(echoed)}",
+        retryable: true
+      )
     end
 
     def verify_contract_version!(parsed)
@@ -401,7 +421,7 @@ module Publication
       return if canonical_contract_version?(echoed)
 
       raise DeliveryError.new(
-        "response contract_version missing or mismatched: expected #{CONTRACT_VERSION}, got #{echoed.inspect}",
+        "response contract_version missing or mismatched: expected #{CONTRACT_VERSION}, got #{sanitized_remote_inspect(echoed)}",
         retryable: true
       )
     end
@@ -441,7 +461,7 @@ module Publication
       return if invalid.empty?
 
       raise DeliveryError.new(
-        "unreconcilable response: result record_kind must be one of #{RECORD_KINDS.join(', ')}, got #{invalid.first.inspect}",
+        "unreconcilable response: result record_kind must be one of #{RECORD_KINDS.join(', ')}, got #{sanitized_remote_inspect(invalid.first)}",
         retryable: true
       )
     end
@@ -453,7 +473,10 @@ module Publication
       invalid = results.map { |result| result[:status] }.reject { |status| VALID_RESULT_STATUSES.include?(status) }.uniq
       return if invalid.empty?
 
-      raise DeliveryError.new("unreconcilable response: unknown result status #{invalid.first.inspect}", retryable: true)
+      raise DeliveryError.new(
+        "unreconcilable response: unknown result status #{sanitized_remote_inspect(invalid.first)}",
+        retryable: true
+      )
     end
 
     # The contract requires one result per submitted row in submission order.
@@ -557,13 +580,13 @@ module Publication
 
       if status == "rejected"
         raise DeliveryError.new(
-          "unreconcilable response: rejected result must carry a boolean retryable, got #{value.inspect}",
+          "unreconcilable response: rejected result must carry a boolean retryable, got #{sanitized_remote_inspect(value)}",
           retryable: true
         )
       end
 
       raise DeliveryError.new(
-        "unreconcilable response: result retryable must be a boolean when provided, got #{value.inspect}",
+        "unreconcilable response: result retryable must be a boolean when provided, got #{sanitized_remote_inspect(value)}",
         retryable: true
       )
     end
@@ -578,13 +601,13 @@ module Publication
 
       if status == "rejected"
         raise DeliveryError.new(
-          "unreconcilable response: rejected result must carry a non-blank string error_code, got #{value.inspect}",
+          "unreconcilable response: rejected result must carry a non-blank string error_code, got #{sanitized_remote_inspect(value)}",
           retryable: true
         )
       end
 
       raise DeliveryError.new(
-        "unreconcilable response: result error_code must be a string when provided, got #{value.inspect}",
+        "unreconcilable response: result error_code must be a string when provided, got #{sanitized_remote_inspect(value)}",
         retryable: true
       )
     end
@@ -599,13 +622,13 @@ module Publication
 
       if status == "rejected"
         raise DeliveryError.new(
-          "unreconcilable response: rejected result message must be a string when provided, got #{value.inspect}",
+          "unreconcilable response: rejected result message must be a string when provided, got #{sanitized_remote_inspect(value)}",
           retryable: true
         )
       end
 
       raise DeliveryError.new(
-        "unreconcilable response: result message must be a string when provided, got #{value.inspect}",
+        "unreconcilable response: result message must be a string when provided, got #{sanitized_remote_inspect(value)}",
         retryable: true
       )
     end
@@ -616,13 +639,13 @@ module Publication
 
       if status == "rejected"
         raise DeliveryError.new(
-          "unreconcilable response: rejected result must carry a non-blank string #{field}, got #{value.inspect}",
+          "unreconcilable response: rejected result must carry a non-blank string #{field}, got #{sanitized_remote_inspect(value)}",
           retryable: true
         )
       end
 
       raise DeliveryError.new(
-        "unreconcilable response: result #{field} must be a non-blank string when provided, got #{value.inspect}",
+        "unreconcilable response: result #{field} must be a non-blank string when provided, got #{sanitized_remote_inspect(value)}",
         retryable: true
       )
     end
@@ -640,7 +663,7 @@ module Publication
 
       raise DeliveryError.new(
         "unreconcilable response: record_kind mismatch for #{entry.idempotency_key}: " \
-        "expected #{entry.record_kind.inspect}, got #{kind.inspect}",
+        "expected #{entry.record_kind.inspect}, got #{sanitized_remote_inspect(kind)}",
         retryable: true
       )
     end
