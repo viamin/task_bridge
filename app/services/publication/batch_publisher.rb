@@ -533,10 +533,17 @@ module Publication
     # requires retry guidance per failed row, so rejected results must carry it.
     def validated_retryable(value, status:)
       return value if [true, false].include?(value)
-      return nil unless status == "rejected"
+      return nil if value.nil? && status != "rejected"
+
+      if status == "rejected"
+        raise DeliveryError.new(
+          "unreconcilable response: rejected result must carry a boolean retryable, got #{value.inspect}",
+          retryable: true
+        )
+      end
 
       raise DeliveryError.new(
-        "unreconcilable response: rejected result must carry a boolean retryable, got #{value.inspect}",
+        "unreconcilable response: result retryable must be a boolean when provided, got #{value.inspect}",
         retryable: true
       )
     end

@@ -368,6 +368,55 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when an accepted result carries a non-boolean retryable value" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{
+              record_kind: "item",
+              idempotency_key: entry.idempotency_key,
+              status: "accepted",
+              retryable: "false"
+            }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting malformed metadata on a success row" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /result retryable must be a boolean when provided/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
+    context "when an accepted result carries non-string error details" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 1, replayed: 0, rejected: 0,
+            results: [{
+              record_kind: "item",
+              idempotency_key: entry.idempotency_key,
+              status: "accepted",
+              error_code: 422,
+              message: { detail: "bad row" }
+            }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of coercing bogus success-row details" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /result error_code must be a string when provided/
+        ) { |e| expect(e.retryable).to be true }
+      end
+    end
+
     context "when the server returns 200 with a replayed result" do
       before do
         stub_http(
@@ -382,6 +431,30 @@ RSpec.describe Publication::BatchPublisher do
 
       it "marks the result as replayed" do
         expect(publisher.publish([entry]).first).to be_replayed
+      end
+    end
+
+    context "when a replayed result carries a non-string message" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 0, replayed: 1, rejected: 0,
+            results: [{
+              record_kind: "item",
+              idempotency_key: entry.idempotency_key,
+              status: "replayed",
+              message: { detail: "already seen" }
+            }]
+          }
+        )
+      end
+
+      it "raises a retryable DeliveryError instead of trusting malformed replay metadata" do
+        expect { publisher.publish([entry]) }.to raise_error(
+          Publication::DeliveryError, /result message must be a string when provided/
+        ) { |e| expect(e.retryable).to be true }
       end
     end
 
