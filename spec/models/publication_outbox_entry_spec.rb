@@ -613,6 +613,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       entry.mark_delivered!
       expect(entry.reload.failed_at).to be_nil
     end
+
+    it "rejects attempts to deliver a terminal row" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "terminal", failed_at: Time.current))
+
+      expect { entry.mark_delivered! }
+        .to raise_error(ArgumentError, /mark_delivered! cannot transition a terminal outbox row/)
+    end
   end
 
   describe "#mark_failed!" do
@@ -641,6 +648,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       entry = described_class.create!(valid_entry_attrs.merge(status: "delivered", delivered_at: Time.current))
       entry.mark_failed!(message: "network timeout")
       expect(entry.reload.delivered_at).to be_nil
+    end
+
+    it "rejects attempts to fail a terminal row" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "terminal", failed_at: Time.current))
+
+      expect { entry.mark_failed!(message: "network timeout") }
+        .to raise_error(ArgumentError, /mark_failed! cannot transition a terminal outbox row/)
     end
   end
 
@@ -671,6 +685,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       entry.mark_terminal!(message: "non-retryable rejection")
       expect(entry.reload.delivered_at).to be_nil
     end
+
+    it "rejects attempts to terminal a terminal row" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "terminal", failed_at: Time.current))
+
+      expect { entry.mark_terminal!(message: "non-retryable rejection") }
+        .to raise_error(ArgumentError, /mark_terminal! cannot transition a terminal outbox row/)
+    end
   end
 
   describe "#mark_replayed!" do
@@ -692,6 +713,13 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       entry.mark_failed!(message: "network timeout")
       entry.mark_replayed!
       expect(entry.reload.failed_at).to be_nil
+    end
+
+    it "rejects attempts to replay a terminal row" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "terminal", failed_at: Time.current))
+
+      expect { entry.mark_replayed! }
+        .to raise_error(ArgumentError, /mark_replayed! cannot transition a terminal outbox row/)
     end
   end
 

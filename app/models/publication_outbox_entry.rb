@@ -200,10 +200,12 @@ class PublicationOutboxEntry < ApplicationRecord
   private_class_method :observed_at_value
 
   def mark_delivered!
+    ensure_not_terminal!(:mark_delivered!)
     update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
   end
 
   def mark_failed!(message:)
+    ensure_not_terminal!(:mark_failed!)
     new_count = retry_count + 1
     new_status = new_count >= MAX_RETRIES ? "terminal" : "failed"
     update!(
@@ -219,6 +221,7 @@ class PublicationOutboxEntry < ApplicationRecord
   # classifies a row rejection as non-retryable (for example a validation
   # error), so the row is kept for operator review and never rescheduled.
   def mark_terminal!(message:)
+    ensure_not_terminal!(:mark_terminal!)
     update!(
       status: "terminal",
       delivered_at: nil,
@@ -236,6 +239,7 @@ class PublicationOutboxEntry < ApplicationRecord
   private :sanitized_message
 
   def mark_replayed!
+    ensure_not_terminal!(:mark_replayed!)
     update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
   end
 
@@ -247,6 +251,15 @@ class PublicationOutboxEntry < ApplicationRecord
   end
 
   private
+
+  # terminal rows are already a final operator-visible outcome. Allowing later
+  # callers to mutate them would let duplicate workers overwrite the failure
+  # that intentionally stopped further retries.
+  def ensure_not_terminal!(operation)
+    return unless status == "terminal"
+
+    raise ArgumentError, "#{operation} cannot transition a terminal outbox row"
+  end
 
   # Encoding is verified for every string column first — blank? raises on
   # invalid byte sequences, so presence runs only on values that passed the
