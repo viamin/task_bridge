@@ -60,7 +60,7 @@ class PublicationOutboxEntry < ApplicationRecord
   scope :retryable, -> { where(status: "failed").where("retry_count < ?", MAX_RETRIES) }
 
   # Returns rows ready for the next publish attempt, oldest-first.
-  scope :publishable, -> { where(status: %w[pending failed]).where("retry_count < ?", MAX_RETRIES).order(:created_at) }
+  scope :publishable, -> { where(status: %w[pending failed]).where("retry_count < ?", MAX_RETRIES).order(:created_at, :id) }
 
   # Builds an entry from a Publication value object without saving.
   #

@@ -489,6 +489,17 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(keys).to include("key-pending", "key-failed")
       expect(keys).not_to include("key-terminal", "key-delivered")
     end
+
+    it "publishable breaks created_at ties by id for stable batch order" do
+      described_class.delete_all
+      shared_time = Time.utc(2026, 8, 15, 12, 0, 0)
+
+      second = described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-second", status: "failed", retry_count: 1, created_at: shared_time, updated_at: shared_time))
+      first = described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-first", status: "pending", created_at: shared_time, updated_at: shared_time))
+
+      expect(described_class.publishable.pluck(:id)).to eq([second.id, first.id].sort)
+      expect(described_class.publishable.map(&:idempotency_key)).to eq([second, first].sort_by(&:id).map(&:idempotency_key))
+    end
   end
 
   describe "#mark_delivered!" do
