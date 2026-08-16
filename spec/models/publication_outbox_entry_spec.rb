@@ -903,6 +903,21 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.parsed_payload[:contract_version]).to eq(1)
     end
 
+    it "returns an immutable cached payload" do
+      entry = described_class.new(
+        valid_entry_attrs.merge(
+          payload: {
+            contract_version: 1,
+            idempotency_key: valid_entry_attrs[:idempotency_key],
+            source: { service_type: "asana" }
+          }.to_json
+        )
+      )
+
+      expect { entry.parsed_payload[:source][:service_type] = "github" }.to raise_error(FrozenError)
+      expect(entry.parsed_payload.dig(:source, :service_type)).to eq("asana")
+    end
+
     it "raises a clear TypeError when payload is not a string" do
       entry = described_class.new(valid_entry_attrs)
       entry.define_singleton_method(:payload) { nil }

@@ -268,10 +268,24 @@ class PublicationOutboxEntry < ApplicationRecord
     return @parsed_payload if defined?(@parsed_payload_source) && @parsed_payload_source == payload
 
     @parsed_payload_source = payload.dup
-    @parsed_payload = JSON.parse(payload, symbolize_names: true)
+    @parsed_payload = deep_freeze_json_value(JSON.parse(payload, symbolize_names: true))
   end
 
   private
+
+  # parsed_payload is cached for repeated publisher validation, so it must be
+  # immutable: mutating the returned hash would otherwise change what the
+  # publisher sends without changing the stored JSON payload itself.
+  def deep_freeze_json_value(value)
+    case value
+    when Array
+      value.each { |item| deep_freeze_json_value(item) }
+    when Hash
+      value.each_value { |nested| deep_freeze_json_value(nested) }
+    end
+
+    value.freeze
+  end
 
   # terminal rows are already a final operator-visible outcome. Allowing later
   # callers to mutate them would let duplicate workers overwrite the failure
