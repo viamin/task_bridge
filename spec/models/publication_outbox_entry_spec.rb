@@ -445,5 +445,19 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.parsed_payload).to be_a(Hash)
       expect(entry.parsed_payload[:contract_version]).to eq(1)
     end
+
+    it "re-parses when payload changes in memory" do
+      entry = described_class.new(valid_entry_attrs)
+      expect(entry.parsed_payload[:idempotency_key]).to eq(valid_entry_attrs[:idempotency_key])
+
+      entry.payload = {
+        contract_version: 1,
+        idempotency_key: "tb:v1:item:asana:default:2:snapshot:2026-08-14T19:00:00.000000Z"
+      }.to_json
+
+      expect(entry.parsed_payload[:idempotency_key]).to eq(
+        "tb:v1:item:asana:default:2:snapshot:2026-08-14T19:00:00.000000Z"
+      )
+    end
   end
 end
