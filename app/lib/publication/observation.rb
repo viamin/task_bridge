@@ -82,6 +82,7 @@ module Publication
       validate_change!(change)
       validate_last_known!(last_known)
       validate_is_deleted!(is_deleted)
+      validate_deletion_fields!
       validate_provenance!(provenance)
       Timestamp.validate!(observed_at, published_at, source_created_at, source_updated_at, completed_at)
     end
@@ -175,6 +176,20 @@ module Publication
       return if flag.nil? || [true, false].include?(flag)
 
       raise ArgumentError, "is_deleted must be true or false when provided"
+    end
+
+    # last_known and is_deleted describe tombstones specifically. Allowing them
+    # on snapshot_seen/source_changed would blur observation semantics, and
+    # is_deleted: false is not a meaningful observation fact.
+    def validate_deletion_fields!
+      if event_type == "deleted"
+        raise ArgumentError, "is_deleted must be true when provided for deleted observations" if is_deleted == false
+
+        return
+      end
+
+      raise ArgumentError, "last_known is only valid for deleted observations" if last_known
+      raise ArgumentError, "is_deleted is only valid for deleted observations" unless is_deleted.nil?
     end
 
     # provenance is the structured evidence for the observation; a non-hash

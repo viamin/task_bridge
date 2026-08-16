@@ -233,8 +233,19 @@ RSpec.describe Publication::Observation do
       end.to raise_error(ArgumentError, /provenance\.detector\.rule must be valid UTF-8/)
     end
 
-    it "accepts is_deleted false" do
-      expect { described_class.new(**valid_attrs, is_deleted: false) }.not_to raise_error
+    it "raises when is_deleted is false" do
+      expect { described_class.new(**valid_attrs, event_type: "deleted", is_deleted: false) }
+        .to raise_error(ArgumentError, /is_deleted/)
+    end
+
+    it "raises when last_known is set on a non-deleted event" do
+      expect { described_class.new(**valid_attrs, last_known: { title: "Buy milk" }) }
+        .to raise_error(ArgumentError, /last_known is only valid for deleted observations/)
+    end
+
+    it "raises when is_deleted is set on a non-deleted event" do
+      expect { described_class.new(**valid_attrs, is_deleted: true) }
+        .to raise_error(ArgumentError, /is_deleted is only valid for deleted observations/)
     end
 
     it "raises when an optional timestamp is not parseable as ISO 8601" do
