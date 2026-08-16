@@ -205,7 +205,7 @@ class PublicationOutboxEntry < ApplicationRecord
   end
 
   def mark_failed!(message:)
-    ensure_not_terminal!(:mark_failed!)
+    ensure_not_delivered_or_terminal!(:mark_failed!)
     new_count = retry_count + 1
     new_status = new_count >= MAX_RETRIES ? "terminal" : "failed"
     update!(
@@ -221,7 +221,7 @@ class PublicationOutboxEntry < ApplicationRecord
   # classifies a row rejection as non-retryable (for example a validation
   # error), so the row is kept for operator review and never rescheduled.
   def mark_terminal!(message:)
-    ensure_not_terminal!(:mark_terminal!)
+    ensure_not_delivered_or_terminal!(:mark_terminal!)
     update!(
       status: "terminal",
       delivered_at: nil,
@@ -254,7 +254,15 @@ class PublicationOutboxEntry < ApplicationRecord
 
   # terminal rows are already a final operator-visible outcome. Allowing later
   # callers to mutate them would let duplicate workers overwrite the failure
-  # that intentionally stopped further retries.
+  # that intentionally stopped further retries. delivered rows are also final
+  # for downgrade paths: a late timeout or validation path must not move a row
+  # back out of successful delivery once another worker has finished it.
+  def ensure_not_delivered_or_terminal!(operation)
+    return unless %w[delivered terminal].include?(status)
+
+    raise ArgumentError, "#{operation} cannot transition a #{status} outbox row"
+  end
+
   def ensure_not_terminal!(operation)
     return unless status == "terminal"
 

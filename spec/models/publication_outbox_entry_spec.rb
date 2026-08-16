@@ -644,10 +644,11 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.error_message.valid_encoding?).to be true
     end
 
-    it "clears a stale delivered_at from an earlier successful attempt" do
+    it "rejects attempts to fail a delivered row" do
       entry = described_class.create!(valid_entry_attrs.merge(status: "delivered", delivered_at: Time.current))
-      entry.mark_failed!(message: "network timeout")
-      expect(entry.reload.delivered_at).to be_nil
+
+      expect { entry.mark_failed!(message: "network timeout") }
+        .to raise_error(ArgumentError, /mark_failed! cannot transition a delivered outbox row/)
     end
 
     it "rejects attempts to fail a terminal row" do
@@ -680,10 +681,11 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.reload.error_message.length).to eq(1000)
     end
 
-    it "clears a stale delivered_at from an earlier successful attempt" do
+    it "rejects attempts to terminal a delivered row" do
       entry = described_class.create!(valid_entry_attrs.merge(status: "delivered", delivered_at: Time.current))
-      entry.mark_terminal!(message: "non-retryable rejection")
-      expect(entry.reload.delivered_at).to be_nil
+
+      expect { entry.mark_terminal!(message: "non-retryable rejection") }
+        .to raise_error(ArgumentError, /mark_terminal! cannot transition a delivered outbox row/)
     end
 
     it "rejects attempts to terminal a terminal row" do
