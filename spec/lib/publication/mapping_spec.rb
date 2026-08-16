@@ -75,6 +75,22 @@ RSpec.describe Publication::Mapping do
         .not_to raise_error
     end
 
+    it "accepts string-keyed sync_collection and member hashes" do
+      mapping = described_class.new(
+        **valid_attrs,
+        sync_collection: { "sync_collection_id" => "84", "title" => "Release checklist" },
+        member: {
+          "item_key" => "github:repo-1:issue-42",
+          "service_type" => "github",
+          "service_instance" => "github:repo-1",
+          "external_id" => "issue-42"
+        }
+      )
+
+      expect(mapping.to_payload[:sync_collection]["sync_collection_id"]).to eq("84")
+      expect(mapping.to_payload[:member]["external_id"]).to eq("issue-42")
+    end
+
     it "raises when member is nil" do
       expect { described_class.new(**valid_attrs, member: nil) }.to raise_error(ArgumentError, /member/)
     end

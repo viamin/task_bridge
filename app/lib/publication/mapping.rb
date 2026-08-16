@@ -91,12 +91,15 @@ module Publication
 
     def validate_sync_collection!(sync_collection)
       raise ArgumentError, "sync_collection is required" if sync_collection.nil?
+
       raise ArgumentError, "sync_collection must be a hash" unless sync_collection.is_a?(Hash)
-      raise ArgumentError, "sync_collection.sync_collection_id is required" if sync_collection[:sync_collection_id].blank?
 
-      validate_sync_collection_id!(sync_collection[:sync_collection_id])
+      sync_collection_id = HashAccess.fetch(sync_collection, :sync_collection_id)
+      raise ArgumentError, "sync_collection.sync_collection_id is required" if sync_collection_id.blank?
 
-      title = sync_collection[:title]
+      validate_sync_collection_id!(sync_collection_id)
+
+      title = HashAccess.fetch(sync_collection, :title)
       return if title.nil? || title.is_a?(String)
 
       raise ArgumentError, "sync_collection.title must be a string when provided"
@@ -116,10 +119,10 @@ module Publication
       raise ArgumentError, "member is required" if member.nil?
       raise ArgumentError, "member must be a hash" unless member.is_a?(Hash)
 
-      missing = %i[item_key service_type service_instance external_id].reject { |k| member[k].present? }
+      missing = %i[item_key service_type service_instance external_id].reject { |k| HashAccess.fetch(member, k).present? }
       raise ArgumentError, "member is missing required fields: #{missing.join(', ')}" if missing.any?
 
-      non_strings = %i[item_key service_type service_instance external_id].reject { |k| member[k].is_a?(String) }
+      non_strings = %i[item_key service_type service_instance external_id].reject { |k| HashAccess.fetch(member, k).is_a?(String) }
       raise ArgumentError, "member required fields must be strings: #{non_strings.join(', ')}" if non_strings.any?
     end
 

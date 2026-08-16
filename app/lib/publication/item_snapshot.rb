@@ -138,18 +138,21 @@ module Publication
     # be publishable with values TaskBridge Web would reject row-by-row.
     def validate_sync_collection!(collection)
       return if collection.nil?
+
       raise ArgumentError, "sync_collection must be a hash when provided" unless collection.is_a?(Hash)
-      raise ArgumentError, "sync_collection.sync_collection_id is required" if collection[:sync_collection_id].blank?
 
-      validate_sync_collection_id!(collection[:sync_collection_id])
+      sync_collection_id = HashAccess.fetch(collection, :sync_collection_id)
+      raise ArgumentError, "sync_collection.sync_collection_id is required" if sync_collection_id.blank?
 
-      title = collection[:title]
+      validate_sync_collection_id!(sync_collection_id)
+
+      title = HashAccess.fetch(collection, :title)
       raise ArgumentError, "sync_collection.title must be a string when provided" unless title.nil? || title.is_a?(String)
 
-      validate_enum!(collection[:membership_role], Mapping::VALID_MEMBERSHIP_ROLES, "sync_collection.membership_role")
-      validate_enum!(collection[:mapping_confidence], Mapping::VALID_CONFIDENCE_LEVELS, "sync_collection.mapping_confidence")
+      validate_enum!(HashAccess.fetch(collection, :membership_role), Mapping::VALID_MEMBERSHIP_ROLES, "sync_collection.membership_role")
+      validate_enum!(HashAccess.fetch(collection, :mapping_confidence), Mapping::VALID_CONFIDENCE_LEVELS, "sync_collection.mapping_confidence")
 
-      mapping_source = collection[:mapping_source]
+      mapping_source = HashAccess.fetch(collection, :mapping_source)
       return if mapping_source.nil? || mapping_source.is_a?(String)
 
       raise ArgumentError, "sync_collection.mapping_source must be a string when provided"
@@ -174,7 +177,8 @@ module Publication
       return if parent.nil?
 
       %i[external_id item_key].each do |field|
-        next if parent[field].nil? || parent[field].is_a?(String)
+        value = HashAccess.fetch(parent, field)
+        next if value.nil? || value.is_a?(String)
 
         raise ArgumentError, "parent.#{field} must be a string when provided"
       end
@@ -190,14 +194,14 @@ module Publication
       raise ArgumentError, "source is required" if source.nil?
       raise ArgumentError, "source must be a hash" unless source.is_a?(Hash)
 
-      missing = %i[service_type service_instance external_id].reject { |k| source[k].present? }
+      missing = %i[service_type service_instance external_id].reject { |k| HashAccess.fetch(source, k).present? }
       raise ArgumentError, "source is missing required fields: #{missing.join(', ')}" if missing.any?
 
-      non_strings = %i[service_type service_instance external_id].reject { |k| source[k].is_a?(String) }
+      non_strings = %i[service_type service_instance external_id].reject { |k| HashAccess.fetch(source, k).is_a?(String) }
       raise ArgumentError, "source required fields must be strings: #{non_strings.join(', ')}" if non_strings.any?
 
-      validate_source_url!(source[:source_url])
-      validate_source_collection_keys!(source[:source_collection_keys])
+      validate_source_url!(HashAccess.fetch(source, :source_url))
+      validate_source_collection_keys!(HashAccess.fetch(source, :source_collection_keys))
     end
 
     # source_url and source_collection_keys are optional because some providers
@@ -222,7 +226,7 @@ module Publication
     # itself raises on invalid byte sequences.
     def valid_source_collection_key?(key)
       key.is_a?(Hash) && %i[kind id].all? do |field|
-        value = key[field]
+        value = HashAccess.fetch(key, field)
         value.is_a?(String) && value.valid_encoding? && value.present?
       end
     end

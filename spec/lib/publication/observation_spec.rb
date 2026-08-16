@@ -175,6 +175,22 @@ RSpec.describe Publication::Observation do
       expect(obs.to_payload[:change][:to]).to eq("2026-08-15T17:00:00Z")
     end
 
+    it "accepts string-keyed source and change hashes" do
+      obs = described_class.new(
+        **valid_attrs,
+        source: {
+          "service_type" => "asana",
+          "service_instance" => "asana:workspace-12345:default",
+          "external_id" => "1201234567890",
+          "source_collection_keys" => [{ "kind" => "project", "id" => "project-9" }]
+        },
+        change: { "field" => "status", "from" => "open", "to" => "completed" }
+      )
+
+      expect(obs.to_payload[:source]["source_collection_keys"]).to eq([{ "kind" => "project", "id" => "project-9" }])
+      expect(obs.to_payload[:change]).to eq({ "field" => "status", "from" => "open", "to" => "completed" })
+    end
+
     it "raises when nested change text contains invalid UTF-8 byte sequences" do
       expect do
         described_class.new(

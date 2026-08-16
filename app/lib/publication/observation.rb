@@ -105,14 +105,14 @@ module Publication
       raise ArgumentError, "source is required" if source.nil?
       raise ArgumentError, "source must be a hash" unless source.is_a?(Hash)
 
-      missing = %i[service_type service_instance external_id].reject { |k| source[k].present? }
+      missing = %i[service_type service_instance external_id].reject { |k| HashAccess.fetch(source, k).present? }
       raise ArgumentError, "source is missing required fields: #{missing.join(', ')}" if missing.any?
 
-      non_strings = %i[service_type service_instance external_id].reject { |k| source[k].is_a?(String) }
+      non_strings = %i[service_type service_instance external_id].reject { |k| HashAccess.fetch(source, k).is_a?(String) }
       raise ArgumentError, "source required fields must be strings: #{non_strings.join(', ')}" if non_strings.any?
 
-      validate_source_url!(source[:source_url])
-      validate_source_collection_keys!(source[:source_collection_keys])
+      validate_source_url!(HashAccess.fetch(source, :source_url))
+      validate_source_collection_keys!(HashAccess.fetch(source, :source_collection_keys))
     end
 
     # source_url and source_collection_keys are optional because some providers
@@ -137,7 +137,7 @@ module Publication
     # itself raises on invalid byte sequences.
     def valid_source_collection_key?(key)
       key.is_a?(Hash) && %i[kind id].all? do |field|
-        value = key[field]
+        value = HashAccess.fetch(key, field)
         value.is_a?(String) && value.valid_encoding? && value.present?
       end
     end
@@ -155,8 +155,12 @@ module Publication
     end
 
     def valid_change?(change)
-      change.is_a?(Hash) && change[:field].is_a?(String) && change[:field].present? &&
-        change.key?(:from) && change.key?(:to)
+      return false unless change.is_a?(Hash)
+
+      field = HashAccess.fetch(change, :field)
+
+      field.is_a?(String) && field.present? &&
+        HashAccess.key?(change, :from) && HashAccess.key?(change, :to)
     end
 
     # last_known preserves the pre-deletion state on tombstones as a structured

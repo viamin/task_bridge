@@ -173,6 +173,30 @@ RSpec.describe Publication::ItemSnapshot do
       expect(snapshot.to_payload[:sync_collection][:title]).to eq("Release checklist")
     end
 
+    it "accepts string-keyed source, parent, and sync_collection hashes" do
+      snapshot = described_class.new(
+        **valid_attrs,
+        source: {
+          "service_type" => "asana",
+          "service_instance" => "asana:workspace-12345:default",
+          "external_id" => "1201234567890",
+          "source_collection_keys" => [{ "kind" => "project", "id" => "project-9" }]
+        },
+        parent: { "external_id" => "1201234567889", "item_key" => "asana:workspace-12345:default:1201234567889" },
+        sync_collection: {
+          "sync_collection_id" => "84",
+          "title" => "Release checklist",
+          "membership_role" => "member",
+          "mapping_confidence" => "confirmed",
+          "mapping_source" => "sync_id_note"
+        }
+      )
+
+      expect(snapshot.to_payload[:parent]).to eq({ "external_id" => "1201234567889", "item_key" => "asana:workspace-12345:default:1201234567889" })
+      expect(snapshot.to_payload[:sync_collection]["mapping_confidence"]).to eq("confirmed")
+      expect(snapshot.to_payload[:source]["source_collection_keys"]).to eq([{ "kind" => "project", "id" => "project-9" }])
+    end
+
     it "raises when source is missing service_instance" do
       expect do
         described_class.new(**valid_attrs, source: { service_type: "asana", external_id: "1" })
