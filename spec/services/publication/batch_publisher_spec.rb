@@ -1014,6 +1014,7 @@ RSpec.describe Publication::BatchPublisher do
         endpoint,
         hash_including(
           headers: hash_including(
+            "Accept" => "application/json",
             "Authorization" => "Bearer #{api_key}",
             "X-TaskBridge-Contract-Version" => "1"
           )

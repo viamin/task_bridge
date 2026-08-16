@@ -257,6 +257,7 @@ module Publication
 
     def build_headers(batch_id:, sent_at:)
       {
+        "Accept" => "application/json",
         "Authorization" => "Bearer #{api_key}",
         "Content-Type" => "application/json",
         "X-TaskBridge-Contract-Version" => CONTRACT_VERSION.to_s,
