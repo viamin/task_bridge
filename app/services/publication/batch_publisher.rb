@@ -332,7 +332,7 @@ module Publication
     # error_message column, and truncation bounds the message regardless of
     # what the remote sent back.
     def response_excerpt(response)
-      redact_credentials(Utf8.sanitize(response.body.to_s)).truncate(RESPONSE_EXCERPT_MAX)
+      sanitize_remote_text(response.body.to_s).truncate(RESPONSE_EXCERPT_MAX)
     end
 
     # Remote text is embedded in DeliveryError messages and EntryResults that
@@ -346,6 +346,13 @@ module Publication
       return if text.nil?
 
       text.to_s.gsub(api_key, "[REDACTED]")
+    end
+
+    # Remote text crosses the same logging/persistence boundary as sync-run
+    # operational detail, so it needs the broader header/cookie/secret
+    # redaction rules in addition to literal API-key replacement.
+    def sanitize_remote_text(value)
+      redact_credentials(OperationalText.sanitize(value))
     end
 
     def parse_row_results(response, rows, batch_id:)
@@ -366,7 +373,7 @@ module Publication
 
       rows.map { |entry| build_entry_result(entry, results_by_key[entry.idempotency_key]) }
     rescue JSON::ParserError => e
-      raise DeliveryError.new("unparseable response body: #{redact_credentials(Utf8.sanitize(e.message))}", retryable: true)
+      raise DeliveryError.new("unparseable response body: #{sanitize_remote_text(e.message)}", retryable: true)
     end
 
     # A response echoing a different batch_id cannot be reconciled with this
@@ -612,7 +619,7 @@ module Publication
     end
 
     def sanitize_response_text(value)
-      redact_credentials(Utf8.sanitize(value))
+      sanitize_remote_text(value)
     end
 
     # Each result's record_kind mirrors the top-level array the row was

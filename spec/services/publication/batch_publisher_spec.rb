@@ -1513,6 +1513,29 @@ RSpec.describe Publication::BatchPublisher do
       end
     end
 
+    context "when a non-200 response body includes secret-bearing headers and cookies" do
+      before do
+        allow(HTTParty).to receive(:post).and_return(
+          instance_double(
+            HTTParty::Response,
+            code: 422,
+            body: "Authorization: Bearer reflected-token\nSet-Cookie: session=abc123\ncookie: prefs=secret"
+          )
+        )
+      end
+
+      it "redacts the reflected secrets from the DeliveryError message" do
+        expect { publisher.publish([entry]) }.to raise_error(Publication::DeliveryError) do |e|
+          expect(e.message).not_to include("reflected-token")
+          expect(e.message).not_to include("session=abc123")
+          expect(e.message).not_to include("prefs=secret")
+          expect(e.message).to include("Authorization: [REDACTED]")
+          expect(e.message).to include("Set-Cookie: [REDACTED]")
+          expect(e.message).to include("cookie: [REDACTED]")
+        end
+      end
+    end
+
     context "when a rejected row message echoes the API key back" do
       before do
         stub_http(
@@ -1538,6 +1561,36 @@ RSpec.describe Publication::BatchPublisher do
         expect(result.message).not_to include(api_key)
         expect(result.message).to include("[REDACTED]")
         expect(result.error_code).not_to include(api_key)
+      end
+    end
+
+    context "when a rejected row returns secret-bearing operational text" do
+      before do
+        stub_http(
+          status: 200,
+          body: {
+            batch_id: "x", contract_version: 1,
+            accepted: 0, replayed: 0, rejected: 1,
+            results: [{
+              record_kind: "item",
+              idempotency_key: entry.idempotency_key,
+              status: "rejected",
+              retryable: false,
+              error_code: "Set-Cookie: session=abc123",
+              message: "Authorization: Bearer reflected-token; cookie: prefs=secret"
+            }]
+          }
+        )
+      end
+
+      it "redacts the reflected secrets from row-level error text" do
+        result = publisher.publish([entry]).first
+        expect(result).to be_rejected
+        expect(result.error_code).to eq("Set-Cookie: [REDACTED]")
+        expect(result.message).to include("Authorization: [REDACTED]")
+        expect(result.message).to include("cookie: [REDACTED]")
+        expect(result.message).not_to include("reflected-token")
+        expect(result.message).not_to include("prefs=secret")
       end
     end
 
