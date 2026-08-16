@@ -163,7 +163,7 @@ module Publication
     # The Integer check rejects JSON 1.0: Ruby numeric equality would let the
     # Float through, only for the row to face a remote non-retryable rejection.
     def check_payload_contract_versions!(rows)
-      mismatched = rows.reject { |row| canonical_contract_version?(payload_hash(row)[:contract_version]) }
+      mismatched = rows.reject { |row| canonical_contract_version?(payload_value(row, :contract_version)) }
       return if mismatched.empty?
 
       keys = mismatched.map(&:idempotency_key).join(", ")
@@ -178,7 +178,7 @@ module Publication
     # never be reconciled from the response (results echo the payload key) and
     # would retry forever, so it is rejected before any bytes are sent.
     def check_payload_idempotency_keys!(rows)
-      mismatched = rows.reject { |row| payload_hash(row)[:idempotency_key] == row.idempotency_key }
+      mismatched = rows.reject { |row| payload_value(row, :idempotency_key) == row.idempotency_key }
       return if mismatched.empty?
 
       keys = mismatched.map(&:idempotency_key).join(", ")
@@ -199,6 +199,10 @@ module Publication
       # past the model validation can carry malformed bytes there, so the
       # message is scrubbed before it reaches callers that log it.
       raise ArgumentError, "unparseable payload for #{row.idempotency_key}: #{Utf8.sanitize(e.message)}"
+    end
+
+    def payload_value(row, field)
+      Publication::HashAccess.fetch(payload_hash(row), field)
     end
 
     def build_body(rows, batch_id:, sent_at:, published_at:)

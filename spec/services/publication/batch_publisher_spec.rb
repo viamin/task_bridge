@@ -242,6 +242,27 @@ RSpec.describe Publication::BatchPublisher do
       expect { publisher.publish([floaty]) }.to raise_error(ArgumentError, /payload contract_version/)
     end
 
+    it "accepts a valid entry whose parsed_payload uses string keys" do
+      string_keyed = instance_double(
+        PublicationOutboxEntry,
+        idempotency_key: entry.idempotency_key,
+        record_kind: "item",
+        parsed_payload: JSON.parse({ contract_version: 1, idempotency_key: entry.idempotency_key, source: {} }.to_json)
+      )
+      stub_http(
+        status: 200,
+        body: {
+          contract_version: 1,
+          accepted: 1,
+          replayed: 0,
+          rejected: 0,
+          results: [{ record_kind: "item", idempotency_key: entry.idempotency_key, status: "accepted" }]
+        }
+      )
+
+      expect(publisher.publish([string_keyed]).first).to be_accepted
+    end
+
     context "when a stored payload carries a different idempotency_key than its outbox row" do
       let(:mismatched) do
         make_entry(
