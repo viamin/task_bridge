@@ -490,19 +490,28 @@ module Publication
     # number of results carrying that status: counts that merely sum correctly
     # while contradicting the per-row statuses are still unreconcilable.
     def verify_result_counts!(parsed, results, rows)
-      counts = parsed.values_at(:accepted, :replayed, :rejected)
-      return if counts.all? { |count| count.is_a?(Integer) && count >= 0 } &&
-                counts.sum == results.length && results.length == rows.length &&
+      counts = declared_result_counts(parsed)
+      return if counts.values.all? { |count| count.is_a?(Integer) && count >= 0 } &&
+                counts.values.sum == results.length && results.length == rows.length &&
                 declared_counts_match?(counts, results)
 
       raise DeliveryError.new(
-        "unreconcilable response: counts #{counts.inspect} do not match #{results.length} result(s) for #{rows.length} submitted row(s)",
+        "unreconcilable response: counts #{counts.values.inspect} do not match #{results.length} result(s) for #{rows.length} submitted row(s)",
         retryable: true
       )
     end
 
+    def declared_result_counts(parsed)
+      {
+        "accepted" => parsed[:accepted],
+        "replayed" => parsed[:replayed],
+        "rejected" => parsed[:rejected]
+      }
+    end
+
     def declared_counts_match?(counts, results)
-      VALID_RESULT_STATUSES.zip(counts).all? do |status, declared|
+      VALID_RESULT_STATUSES.all? do |status|
+        declared = counts.fetch(status)
         results.count { |result| result[:status] == status } == declared
       end
     end
