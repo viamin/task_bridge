@@ -39,23 +39,29 @@ RSpec.describe Publication::IdempotencyKey do
       expect(key).to end_with(":42:snapshot:2026-08-14T19:20:31.123456Z")
     end
 
-    it "raises when a key segment is neither a string nor numeric" do
+    it "raises when a key segment is neither a string nor integer" do
       expect do
         described_class.for_item(service_instance: { workspace: 1 }, external_id:, observed_at: observed_at_str)
-      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or numeric: service_instance/)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or integer: service_instance/)
     end
 
     it "raises when a key segment is an array" do
       expect do
         described_class.for_observation(service_instance:, external_id: ["1"], event_type: "source_changed",
                                         observed_at: observed_at_str)
-      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or numeric: external_id/)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or integer: external_id/)
     end
 
     it "raises when a key segment is a boolean" do
       expect do
         described_class.for_sync_run(service_instance:, sync_run_id: true)
-      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or numeric: sync_run_id/)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or integer: sync_run_id/)
+    end
+
+    it "raises when a key segment is a float" do
+      expect do
+        described_class.for_item(service_instance:, external_id: 42.5, observed_at: observed_at_str)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or integer: external_id/)
     end
 
     it "raises when a key segment contains invalid UTF-8 byte sequences" do
@@ -148,16 +154,22 @@ RSpec.describe Publication::IdempotencyKey do
       end.to raise_error(ArgumentError, /sequence must not be blank/)
     end
 
-    it "raises when sequence is neither a string nor numeric" do
+    it "raises when sequence is neither a string nor integer" do
       expect do
         described_class.for_observation(service_instance:, external_id:, event_type: "source_changed", sequence: [])
-      end.to raise_error(ArgumentError, /sequence must be a string or numeric/)
+      end.to raise_error(ArgumentError, /sequence must be a string or integer/)
     end
 
-    it "raises when a boolean sequence is passed instead of a numeric" do
+    it "raises when a boolean sequence is passed instead of an integer" do
       expect do
         described_class.for_observation(service_instance:, external_id:, event_type: "source_changed", sequence: true)
-      end.to raise_error(ArgumentError, /sequence must be a string or numeric/)
+      end.to raise_error(ArgumentError, /sequence must be a string or integer/)
+    end
+
+    it "raises when a float sequence is passed" do
+      expect do
+        described_class.for_observation(service_instance:, external_id:, event_type: "source_changed", sequence: 1.5)
+      end.to raise_error(ArgumentError, /sequence must be a string or integer/)
     end
 
     it "raises when sequence contains invalid UTF-8 byte sequences" do
@@ -218,10 +230,16 @@ RSpec.describe Publication::IdempotencyKey do
       end.to raise_error(ArgumentError, /sequence must not be blank/)
     end
 
-    it "raises when sequence is neither a string nor numeric" do
+    it "raises when sequence is neither a string nor integer" do
       expect do
         described_class.for_mapping(sync_collection_id: 84, service_instance:, external_id:, sequence: { index: 1 })
-      end.to raise_error(ArgumentError, /sequence must be a string or numeric/)
+      end.to raise_error(ArgumentError, /sequence must be a string or integer/)
+    end
+
+    it "raises when sync_collection_id is a float" do
+      expect do
+        described_class.for_mapping(sync_collection_id: 84.5, service_instance:, external_id:, observed_at: observed_at_str)
+      end.to raise_error(ArgumentError, /key segment\(s\) must be a string or integer: sync_collection_id/)
     end
   end
 

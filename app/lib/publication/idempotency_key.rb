@@ -18,7 +18,7 @@ module Publication
     # and for hashes and arrays, a memory-address-dependent and therefore
     # non-deterministic one, violating the RDR's stable-key rule. The same
     # restriction the sequence tail already enforces applies here.
-    VALID_SEGMENT_TYPES = [String, Numeric].freeze
+    VALID_SEGMENT_TYPES = [String, Integer].freeze
 
     # Returns the key for an item snapshot.
     def self.for_item(service_instance:, external_id:, observed_at:)
@@ -60,17 +60,18 @@ module Publication
 
     # The key format ends with a single <observed_at_or_sequence> segment, so
     # exactly one of the two may be provided. A sequence must be a string or
-    # numeric: anything else (arrays, hashes, booleans) would be coerced by
-    # to_s into a nonsense segment, and like every other key segment it must
-    # be valid UTF-8 so the key can never crash JSON generation later.
+    # integer: anything else (arrays, hashes, booleans, floats) would be
+    # coerced by to_s into a nonsense segment, and like every other key
+    # segment it must be valid UTF-8 so the key can never crash JSON
+    # generation later.
     def self.key_tail(observed_at:, sequence:)
       raise ArgumentError, "pass observed_at or sequence, not both" if observed_at && sequence
       return format_timestamp(observed_at) if observed_at
 
       raise ArgumentError, "observed_at or sequence is required" if sequence.nil?
 
-      valid_type = sequence.is_a?(String) || sequence.is_a?(Numeric)
-      raise ArgumentError, "sequence must be a string or numeric when provided" unless valid_type
+      valid_type = sequence.is_a?(String) || sequence.is_a?(Integer)
+      raise ArgumentError, "sequence must be a string or integer when provided" unless valid_type
 
       Utf8.validate_fields!({ sequence: })
       raise ArgumentError, "sequence must not be blank" if sequence.to_s.strip.empty?
@@ -91,7 +92,7 @@ module Publication
       raise ArgumentError, "blank key segment(s): #{blank.keys.join(', ')}" if blank.any?
 
       invalid = fields.reject { |_, value| VALID_SEGMENT_TYPES.any? { |type| value.is_a?(type) } }
-      raise ArgumentError, "key segment(s) must be a string or numeric: #{invalid.keys.join(', ')}" if invalid.any?
+      raise ArgumentError, "key segment(s) must be a string or integer: #{invalid.keys.join(', ')}" if invalid.any?
     end
     private_class_method :require_presence!
   end
