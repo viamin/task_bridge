@@ -17,11 +17,11 @@ RSpec.describe PublicationOutboxEntry, type: :model do
     )
   end
 
-  def valid_entry_attrs
+  def valid_entry_attrs(idempotency_key: "tb:v1:item:asana:default:1:snapshot:2026-08-14T19:00:00.000000Z")
     {
-      idempotency_key: "tb:v1:item:asana:default:1:snapshot:2026-08-14T19:00:00.000000Z",
+      idempotency_key:,
       record_kind: "item",
-      payload: { contract_version: 1, idempotency_key: "tb:v1:item:asana:default:1:snapshot:2026-08-14T19:00:00.000000Z" }.to_json,
+      payload: { contract_version: 1, idempotency_key: }.to_json,
       service_type: "asana",
       service_instance: "asana:workspace-12345:default",
       observed_at: Time.zone.parse("2026-08-14T19:00:00Z")
@@ -103,6 +103,17 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       )
       expect(entry).not_to be_valid
       expect(entry.errors[:payload]).to include("contract_version must be 1")
+    end
+
+    it "rejects a payload whose idempotency_key disagrees with the outbox row" do
+      entry = described_class.new(
+        valid_entry_attrs.merge(
+          payload: { contract_version: 1, idempotency_key: "tb:v1:item:asana:default:999:snapshot:2026-08-14T19:00:00.000000Z" }.to_json
+        )
+      )
+
+      expect(entry).not_to be_valid
+      expect(entry.errors[:payload]).to include("idempotency_key must match the outbox row")
     end
 
     it "rejects a payload that is not valid UTF-8 even though JSON.parse accepts it" do
@@ -623,11 +634,11 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
   describe "scopes" do
     before do
-      described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-pending", status: "pending"))
-      described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-delivering", status: "delivering"))
-      described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-delivered", status: "delivered"))
-      described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-failed", status: "failed", retry_count: 2))
-      described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-terminal", status: "terminal", retry_count: 10))
+      described_class.create!(valid_entry_attrs(idempotency_key: "key-pending").merge(status: "pending"))
+      described_class.create!(valid_entry_attrs(idempotency_key: "key-delivering").merge(status: "delivering"))
+      described_class.create!(valid_entry_attrs(idempotency_key: "key-delivered").merge(status: "delivered"))
+      described_class.create!(valid_entry_attrs(idempotency_key: "key-failed").merge(status: "failed", retry_count: 2))
+      described_class.create!(valid_entry_attrs(idempotency_key: "key-terminal").merge(status: "terminal", retry_count: 10))
     end
 
     it "pending returns only pending rows" do
@@ -656,8 +667,8 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       described_class.delete_all
       shared_time = Time.utc(2026, 8, 15, 12, 0, 0)
 
-      second = described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-second", status: "failed", retry_count: 1, created_at: shared_time, updated_at: shared_time))
-      first = described_class.create!(valid_entry_attrs.merge(idempotency_key: "key-first", status: "pending", created_at: shared_time, updated_at: shared_time))
+      second = described_class.create!(valid_entry_attrs(idempotency_key: "key-second").merge(status: "failed", retry_count: 1, created_at: shared_time, updated_at: shared_time))
+      first = described_class.create!(valid_entry_attrs(idempotency_key: "key-first").merge(status: "pending", created_at: shared_time, updated_at: shared_time))
 
       expect(described_class.publishable.pluck(:id)).to eq([second.id, first.id].sort)
       expect(described_class.publishable.map(&:idempotency_key)).to eq([second, first].sort_by(&:id).map(&:idempotency_key))

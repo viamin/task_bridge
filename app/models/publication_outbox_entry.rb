@@ -51,6 +51,7 @@ class PublicationOutboxEntry < ApplicationRecord
   validate :validate_observed_at
   validate :payload_must_be_a_json_object
   validate :validate_payload_contract_version
+  validate :validate_payload_idempotency_key
 
   scope :pending,    -> { where(status: "pending") }
   scope :delivering, -> { where(status: "delivering") }
@@ -338,6 +339,20 @@ class PublicationOutboxEntry < ApplicationRecord
     return if version.is_a?(Integer) && version == Publication::CONTRACT_VERSION
 
     errors.add(:payload, "contract_version must be #{Publication::CONTRACT_VERSION}")
+  rescue JSON::ParserError, TypeError
+    nil
+  end
+
+  # The outbox row key and payload key must agree: response reconciliation uses
+  # the row key, while retries resend the stored payload. Persisting a mismatch
+  # would only fail later in the publisher after the bad row was already saved.
+  def validate_payload_idempotency_key
+    return if errors.key?(:payload) || errors.key?(:idempotency_key)
+
+    payload_key = parsed_payload["idempotency_key"] || parsed_payload[:idempotency_key]
+    return if payload_key == idempotency_key
+
+    errors.add(:payload, "idempotency_key must match the outbox row")
   rescue JSON::ParserError, TypeError
     nil
   end
