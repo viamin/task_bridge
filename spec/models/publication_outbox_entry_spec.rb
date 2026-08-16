@@ -1252,4 +1252,45 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       )
     end
   end
+
+  describe "#parsed_payload" do
+    it "returns a deeply frozen payload hash" do
+      entry = described_class.new(
+        valid_entry_attrs.merge(
+          payload: {
+            contract_version: 1,
+            idempotency_key: valid_entry_attrs[:idempotency_key],
+            source: { service_type: "asana" },
+            tags: ["ops"]
+          }.to_json
+        )
+      )
+
+      parsed = entry.parsed_payload
+
+      expect(parsed).to be_frozen
+      expect(parsed[:source]).to be_frozen
+      expect(parsed[:tags]).to be_frozen
+      expect(parsed[:tags].first).to be_frozen
+      expect { parsed[:source][:service_type].replace("github") }.to raise_error(FrozenError)
+      expect { parsed[:tags] << "eng" }.to raise_error(FrozenError)
+    end
+
+    it "refreshes the cached value when payload changes" do
+      entry = described_class.new(valid_entry_attrs)
+      original = entry.parsed_payload
+
+      entry.payload = {
+        contract_version: 1,
+        idempotency_key: valid_entry_attrs[:idempotency_key],
+        title: "Updated"
+      }.to_json
+
+      updated = entry.parsed_payload
+
+      expect(updated).not_to equal(original)
+      expect(updated).to include(title: "Updated")
+      expect(original).not_to have_key(:title)
+    end
+  end
 end
