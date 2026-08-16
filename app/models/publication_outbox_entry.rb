@@ -346,8 +346,9 @@ class PublicationOutboxEntry < ApplicationRecord
 
     return @parsed_payload if defined?(@parsed_payload_source) && @parsed_payload_source == payload
 
+    parsed = deep_freeze_json_value(JSON.parse(payload, symbolize_names: true))
     @parsed_payload_source = payload.dup
-    @parsed_payload = deep_freeze_json_value(JSON.parse(payload, symbolize_names: true))
+    @parsed_payload = parsed
   end
 
   private

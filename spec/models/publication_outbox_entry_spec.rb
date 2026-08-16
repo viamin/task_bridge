@@ -1208,5 +1208,23 @@ RSpec.describe PublicationOutboxEntry, type: :model do
         "tb:v1:item:asana:default:3:snapshot:2026-08-14T19:00:00.000000Z"
       )
     end
+
+    it "does not cache a failed parse over the previous payload" do
+      entry = described_class.new(valid_entry_attrs)
+      expect(entry.parsed_payload[:idempotency_key]).to eq(valid_entry_attrs[:idempotency_key])
+
+      entry.payload = "{"
+      expect { entry.parsed_payload }.to raise_error(JSON::ParserError)
+      expect { entry.parsed_payload }.to raise_error(JSON::ParserError)
+
+      entry.payload = {
+        contract_version: 1,
+        idempotency_key: "tb:v1:item:asana:default:4:snapshot:2026-08-14T19:00:00.000000Z"
+      }.to_json
+
+      expect(entry.parsed_payload[:idempotency_key]).to eq(
+        "tb:v1:item:asana:default:4:snapshot:2026-08-14T19:00:00.000000Z"
+      )
+    end
   end
 end
