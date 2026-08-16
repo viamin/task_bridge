@@ -269,6 +269,26 @@ RSpec.describe Publication::SyncRunSummary do
       expect(p[:error][:message]).to eq("401 unauthorized")
     end
 
+    it "sanitizes secrets from detail and error.message before publishing" do
+      summary = described_class.new(
+        **valid_attrs,
+        detail: "Authorization: Bearer top-secret Cookie: session=abc123",
+        error: {
+          class: "ProviderError",
+          message: "refresh_token: r1",
+          retryable: false
+        }
+      )
+
+      payload = summary.to_payload
+
+      expect(payload[:detail]).to include("Authorization: [REDACTED]")
+      expect(payload[:detail]).to include("Cookie: [REDACTED]")
+      expect(payload[:detail]).not_to include("top-secret")
+      expect(payload[:detail]).not_to include("abc123")
+      expect(payload[:error][:message]).to eq("refresh_token: [REDACTED]")
+    end
+
     it "accepts all valid statuses when the applicable completion timestamp is present" do
       expect { described_class.new(**valid_attrs, status: "success") }.not_to raise_error
       expect do

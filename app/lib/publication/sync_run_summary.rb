@@ -67,12 +67,24 @@ module Publication
         status:,
         items_synced:,
         touched_collection_ids: touched_collection_ids || [],
-        detail:,
-        error:
+        detail: sanitized_detail,
+        error: sanitized_error
       }.compact
     end
 
     private
+
+    def sanitized_detail
+      OperationalText.sanitize(detail)
+    end
+
+    def sanitized_error
+      return if error.nil?
+      return error unless HashAccess.key?(error, :message)
+
+      message_key = error.key?(:message) ? :message : "message"
+      error.merge(message_key => OperationalText.sanitize(HashAccess.fetch(error, :message)))
+    end
 
     def validate!
       validate_text_encoding!
