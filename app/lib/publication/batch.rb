@@ -78,6 +78,7 @@ module Publication
       Timestamp.validate!(sent_at)
       check_duplicate_idempotency_keys!
       check_idempotency_keys_present!
+      check_record_kinds!
     end
 
     def all_records
@@ -92,6 +93,25 @@ module Publication
       return if invalid.empty?
 
       raise ArgumentError, "batch entries must implement idempotency_key and to_payload"
+    end
+
+    # Each top-level array is a distinct contract surface. Allowing, for
+    # example, an observation inside items: would emit a structurally invalid
+    # batch even though every record is otherwise well-formed.
+    def check_record_kinds!
+      {
+        items: "item",
+        observations: "observation",
+        mappings: "mapping",
+        sync_runs: "sync_run"
+      }.each do |group, kind|
+        invalid = public_send(group).reject { |record| kind == record.class::RECORD_KIND }
+        next if invalid.empty?
+
+        raise ArgumentError, "#{group} must contain only #{kind} record(s)"
+      rescue NameError
+        raise ArgumentError, "#{group} entries must define RECORD_KIND"
+      end
     end
 
     # publisher and publisher_instance are envelope metadata strings; nil means

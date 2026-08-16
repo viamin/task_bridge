@@ -98,6 +98,11 @@ RSpec.describe Publication::Batch do
         .to raise_error(ArgumentError, /must implement idempotency_key and to_payload/)
     end
 
+    it "raises when a record is placed in the wrong top-level array" do
+      expect { described_class.new(batch_id:, sent_at:, items: [build_observation]) }
+        .to raise_error(ArgumentError, /items must contain only item record/)
+    end
+
     it "wraps a single record argument into a one-record batch" do
       batch = described_class.new(batch_id:, sent_at:, items: item)
       expect(batch.total_record_count).to eq(1)
