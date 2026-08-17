@@ -116,4 +116,118 @@ RSpec.describe SyncCollection, :full_options do
       expect(collection.needs_sync?).to be false
     end
   end
+
+  describe "#update_mapping_provenance!" do
+    it "stores explicit mapping provenance and timestamps" do
+      collection = described_class.create!(title: "Mapped")
+      observed_at = Time.zone.parse("2024-04-03T12:00:00Z")
+
+      collection.update_mapping_provenance!(
+        method: "source_sync_id",
+        confidence: "high",
+        metadata: { note_key: "asana_work_id" },
+        observed_at:
+      )
+
+      collection.reload
+      expect(collection.mapping_method).to eq("source_sync_id")
+      expect(collection.mapping_confidence).to eq("high")
+      expect(collection.mapping_metadata).to include("note_key" => "asana_work_id")
+      expect(collection.mapping_established_at).to be_present
+      expect(collection.mapping_last_observed_at).to eq(observed_at)
+    end
+
+    it "keeps the original mapping method, confidence, and metadata once established" do
+      collection = described_class.create!(title: "Mapped")
+      first_observed_at = Time.zone.parse("2024-04-03T12:00:00Z")
+      second_observed_at = Time.zone.parse("2024-04-04T12:00:00Z")
+
+      collection.update_mapping_provenance!(
+        method: "source_sync_id",
+        confidence: "high",
+        metadata: { note_key: "asana_work_id" },
+        observed_at: first_observed_at
+      )
+      established_at = collection.reload.mapping_established_at
+
+      collection.update_mapping_provenance!(
+        method: "manual_backfill",
+        confidence: "low",
+        metadata: { matched_by: "fallback" },
+        observed_at: second_observed_at
+      )
+
+      collection.reload
+      expect(collection.mapping_method).to eq("source_sync_id")
+      expect(collection.mapping_confidence).to eq("high")
+      expect(collection.mapping_metadata).to eq({ "note_key" => "asana_work_id" })
+      expect(collection.mapping_established_at).to eq(established_at)
+      expect(collection.mapping_last_observed_at).to eq(second_observed_at)
+    end
+
+    it "allows created-by-sync to upgrade an existing mapping" do
+      collection = described_class.create!(title: "Mapped")
+
+      collection.update_mapping_provenance!(
+        method: "title_fallback",
+        confidence: "medium",
+        metadata: { matched_by: "title" }
+      )
+      collection.update_mapping_provenance!(
+        method: "created_by_sync",
+        confidence: "high",
+        metadata: { target_service_name: "Primary Service" }
+      )
+
+      collection.reload
+      expect(collection.mapping_method).to eq("created_by_sync")
+      expect(collection.mapping_confidence).to eq("high")
+      expect(collection.mapping_metadata).to include(
+        "matched_by" => "title",
+        "target_service_name" => "Primary Service"
+      )
+    end
+
+    it "does not let an unknown/typo'd method override a known mapping method" do
+      collection = described_class.create!(title: "Mapped")
+
+      collection.update_mapping_provenance!(
+        method: "source_sync_id",
+        confidence: "high",
+        metadata: { note_key: "asana_work_id" }
+      )
+      collection.update_mapping_provenance!(
+        method: "soruce_sync_id",
+        confidence: "high",
+        metadata: { note_key: "typo" }
+      )
+
+      collection.reload
+      expect(collection.mapping_method).to eq("source_sync_id")
+      expect(collection.mapping_metadata).to include("note_key" => "asana_work_id")
+    end
+
+    it "upgrades weaker provenance when stronger evidence is observed later" do
+      collection = described_class.create!(title: "Mapped")
+
+      collection.update_mapping_provenance!(
+        method: "title_fallback",
+        confidence: "medium",
+        metadata: { matched_by: "title" }
+      )
+      collection.update_mapping_provenance!(
+        method: "source_sync_id",
+        confidence: "high",
+        metadata: { note_key: "asana_work_id" }
+      )
+
+      collection.reload
+      expect(collection.mapping_method).to eq("source_sync_id")
+      expect(collection.mapping_confidence).to eq("high")
+      expect(collection.mapping_metadata).to include(
+        "matched_by" => "title",
+        "note_key" => "asana_work_id"
+      )
+    end
+  end
 end

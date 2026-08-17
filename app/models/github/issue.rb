@@ -87,6 +87,7 @@ module Github
           tags: nil,
           url: "html_url",
           notes: "body",
+          source_created_at: "created_at",
           last_modified: nil
         }
       end

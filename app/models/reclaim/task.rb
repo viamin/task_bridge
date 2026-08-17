@@ -145,6 +145,7 @@ module Reclaim
         {
           due_date: "due",
           start_date: "snoozeUntil",
+          source_created_at: "created",
           last_modified: "updated",
           tags: nil,
           item_type: "eventCategory"

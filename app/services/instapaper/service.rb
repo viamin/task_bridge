@@ -68,7 +68,11 @@ module Instapaper
 
       articles = JSON.parse(response.body)
       articles.select { |article| article["type"] == "bookmark" }.map do |external_article|
-        article = Article.find_or_initialize_by(external_id: external_article[Article.external_attribute_map[:external_id]])
+        article = Article.find_or_initialize_by_source(
+          service_name: service_name,
+          external_id: external_article[Article.external_attribute_map[:external_id]]
+        )
+        article.options = self.class.build_options(article.options, service_name)
         article.instapaper_article = external_article.merge("folder" => "archive")
         article.refresh_from_external!(only_modified_dates: true)
       end
@@ -82,7 +86,11 @@ module Instapaper
 
       articles = JSON.parse(response.body)
       articles.select { |article| article["type"] == "bookmark" }.map do |external_article|
-        article = Article.find_or_initialize_by(external_id: external_article[Article.external_attribute_map[:external_id]])
+        article = Article.find_or_initialize_by_source(
+          service_name: service_name,
+          external_id: external_article[Article.external_attribute_map[:external_id]]
+        )
+        article.options = self.class.build_options(article.options, service_name)
         article.instapaper_article = external_article.merge("folder" => "unread")
         article.refresh_from_external!(only_modified_dates: true)
       end

@@ -17,7 +17,12 @@ RSpec.describe "Reclaim::Service" do
 
   before do
     allow(service).to receive(:list_tasks).and_return([reclaim_task])
-    allow(Reclaim::Task).to receive(:find_or_initialize_by).with(external_id: "reclaim-123").and_return(task)
+    allow(Reclaim::Task).to receive(:find_or_initialize_by_source).with(
+      service_name: service.service_name,
+      external_id: "reclaim-123"
+    ).and_return(task)
+    allow(task).to receive(:options).and_return({})
+    allow(task).to receive(:options=)
     allow(task).to receive(:refresh_from_external!).and_return(task)
   end
 

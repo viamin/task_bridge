@@ -45,6 +45,21 @@ RSpec.describe Base::Service do
       end
     end)
   end
+  let(:tertiary_sync_item_class) do
+    stub_const("TertiaryServiceSpecItem", Class.new(Base::SyncItem) do
+      def self.attribute_map
+        {}
+      end
+
+      def provider
+        "TertiaryService"
+      end
+
+      def external_data
+        {}
+      end
+    end)
+  end
   let(:service_class) do
     Class.new(described_class) do
       def friendly_name
@@ -103,6 +118,7 @@ RSpec.describe Base::Service do
   before do
     sync_item_class
     primary_sync_item_class
+    tertiary_sync_item_class
   end
 
   describe ".service_identifier_for" do
@@ -213,6 +229,8 @@ RSpec.describe Base::Service do
 
       expect(persisted_service_item.reload.sync_collection_id).to eq(persisted_primary_item.reload.sync_collection_id)
       expect(persisted_service_item.sync_collection_id).to be_present
+      expect(persisted_service_item.sync_collection.mapping_method).to eq("manual_backfill")
+      expect(persisted_service_item.sync_collection.mapping_confidence).to eq("low")
     end
 
     it "persists a sync collection for matched items even when the item is skipped as unchanged" do
@@ -269,6 +287,8 @@ RSpec.describe Base::Service do
       expect(persisted_service_item.reload.sync_collection_id).to eq(created_primary_item.sync_collection_id)
       expect(created_primary_item.title).to eq(persisted_service_item.title)
       expect(created_primary_item.test_service_id).to eq(persisted_service_item.external_id)
+      expect(created_primary_item.sync_collection.mapping_method).to eq("created_by_sync")
+      expect(created_primary_item.sync_collection.mapping_confidence).to eq("high")
     end
 
     it "persists newly created primary items when sync IDs are stored as note instance variables" do
@@ -365,6 +385,33 @@ RSpec.describe Base::Service do
         tags: ["Test Service"],
         inbox: true
       )
+    end
+  end
+
+  describe "#persist_sync_collection_for" do
+    it "records the strongest provenance pair for collections with more than two items" do
+      service_item = sync_item_class.create!(
+        title: "Shared task",
+        external_id: "service-strong-123",
+        completed: false
+      )
+      primary_item = primary_sync_item_class.create!(
+        title: "Shared task",
+        external_id: "primary-strong-123",
+        completed: false
+      )
+      tertiary_item = tertiary_sync_item_class.create!(
+        title: "Different task",
+        external_id: "tertiary-strong-123",
+        completed: false,
+        notes: "test_service_id: service-strong-123"
+      )
+
+      collection = service.send(:persist_sync_collection_for, service_item, primary_item, tertiary_item)
+
+      expect(collection.mapping_method).to eq("source_sync_id")
+      expect(collection.mapping_confidence).to eq("high")
+      expect(collection.mapping_metadata).to include("note_key" => "test_service_id")
     end
   end
 

@@ -43,7 +43,12 @@ RSpec.describe "GoogleTasks::Service" do
         completed_min: service.send(:completed_min_timestamp),
         updated_min: service.send(:last_sync_time)&.iso8601
       ).and_return(tasks_response)
-      allow(GoogleTasks::Task).to receive(:find_or_initialize_by).with(external_id: "google-task-id").and_return(wrapped_task)
+      allow(GoogleTasks::Task).to receive(:find_or_initialize_by_source).with(
+        service_name: service.service_name,
+        external_id: "google-task-id"
+      ).and_return(wrapped_task)
+      allow(wrapped_task).to receive(:options).and_return({})
+      allow(wrapped_task).to receive(:options=)
       allow(wrapped_task).to receive(:refresh_from_external!).and_return(wrapped_task)
     end
 

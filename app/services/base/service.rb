@@ -356,7 +356,7 @@ module Base
       item.last_modified || item.updated_at || Time.zone.at(0)
     end
 
-    def persist_sync_collection_for(*items)
+    def persist_sync_collection_for(*items, provenance: nil)
       collection_items = items.compact.select do |item|
         item.respond_to?(:sync_collection_id) && item.respond_to?(:sync_collection_id=)
       end
@@ -381,15 +381,23 @@ module Base
         next if persisted_item.sync_collection_id == collection.id
 
         persisted_item.sync_collection_id = collection.id
-        persisted_item.save! if persisted_item.respond_to?(:save!)
+        persisted_item.observe_source! if persisted_item.respond_to?(:save!)
       end
 
+      collection.update_mapping_provenance!(
+        **(provenance || mapping_provenance_for(collection_items)),
+        observed_at: Time.current
+      )
       collection
     end
 
     def persist_created_sync_collection_for(source_item, target_service, created_item)
       target_item = persisted_sync_target_for(target_service, source_item, created_item)
-      persist_sync_collection_for(source_item, target_item)
+      persist_sync_collection_for(
+        source_item,
+        target_item,
+        provenance: created_by_sync_provenance(source_item, target_service, target_item)
+      )
     end
 
     def persist_created_sync_data_for(source_service_name, source_item, target_service, created_item)
@@ -418,7 +426,8 @@ module Base
       external_id = sync_note_value(source_item, :"#{target_service_key}_id")
       return if external_id.blank?
 
-      item_class.find_or_initialize_by(external_id:).tap do |target_item|
+      target_service_name = service_display_name(target_service)
+      item_class.find_or_initialize_by_source(service_name: target_service_name, external_id:).tap do |target_item|
         target_item.title ||= source_item.title if source_item.respond_to?(:title)
         target_item.completed = source_item.completed? if source_item.respond_to?(:completed?)
         target_item.last_modified ||= sync_timestamp_for(source_item)
@@ -427,7 +436,7 @@ module Base
         # patch (which only carries IDs and URLs) does not clobber the
         # human-readable content that the provider's `add_item` just stored.
         target_item.notes ||= source_item.notes_content if source_item.respond_to?(:notes_content)
-        target_item.options = self.class.build_options(target_item.options, service_display_name(target_service))
+        target_item.options = self.class.build_options(target_item.options, target_service_name)
         target_item.save! if target_item.new_record? || target_item.changed?
       end
     end
@@ -498,6 +507,25 @@ module Base
 
     def sync_operation_successful?(result)
       !sync_error?(result)
+    end
+
+    def mapping_provenance_for(items)
+      SyncMappingProvenance.preferred_for(items)
+    end
+
+    def created_by_sync_provenance(source_item, target_service, target_item)
+      return if target_item.nil?
+
+      {
+        method: "created_by_sync",
+        confidence: "high",
+        metadata: {
+          source_service_name: source_item.service_name,
+          source_external_id: source_item.external_id,
+          target_service_name: service_display_name(target_service),
+          target_external_id: target_item.external_id
+        }
+      }
     end
 
     def sync_error?(result)

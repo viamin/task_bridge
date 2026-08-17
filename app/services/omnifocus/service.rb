@@ -41,7 +41,8 @@ module Omnifocus
         external_id = external_id_for(external_data)
         next if external_id.blank?
 
-        task = Task.find_or_initialize_by(external_id:)
+        task = Task.find_or_initialize_by_source(service_name:, external_id:)
+        task.options = self.class.build_options(task.options, service_name)
         task.omnifocus_task = external_data
         task.refresh_from_external!(only_modified_dates:)
       end
@@ -65,7 +66,8 @@ module Omnifocus
         external_id = external_id_for(external_data)
         next if external_id.blank?
 
-        task = Task.find_or_initialize_by(external_id:)
+        task = Task.find_or_initialize_by_source(service_name:, external_id:)
+        task.options = self.class.build_options(task.options, service_name)
         task.omnifocus_task = external_data
         task.refresh_from_external!(only_modified_dates: true)
       end
@@ -279,7 +281,7 @@ module Omnifocus
       external_id = task_summary[:id_]
       return if external_id.blank?
 
-      existing_task = Task.find_by(external_id:)
+      existing_task = Task.find_by_source(service_name:, external_id:)
       return unless existing_task && sync_metadata_present?(existing_task, source_provider)
 
       task_summary.merge(note: existing_task.notes)

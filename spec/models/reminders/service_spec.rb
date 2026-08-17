@@ -68,7 +68,12 @@ RSpec.describe "Reminders::Service" do
         allow(service).to receive(:authorized).and_return(true)
         allow(stale_id).to receive(:get).and_raise(make_stale_reference_error(command: "id_.get"))
         allow(service).to receive(:reminders_in_list).with("TaskBridge").and_return([stale_reminder, valid_reminder])
-        allow(Reminders::Reminder).to receive(:find_or_initialize_by).with(external_id: "reminder-ok").and_return(wrapped_reminder)
+        allow(Reminders::Reminder).to receive(:find_or_initialize_by_source).with(
+          service_name: service.service_name,
+          external_id: "reminder-ok"
+        ).and_return(wrapped_reminder)
+        allow(wrapped_reminder).to receive(:options).and_return({})
+        allow(wrapped_reminder).to receive(:options=)
         allow(wrapped_reminder).to receive(:refresh_from_external!).with(only_modified_dates: true).and_return(wrapped_reminder)
       end
 

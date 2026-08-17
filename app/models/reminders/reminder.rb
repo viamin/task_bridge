@@ -112,6 +112,7 @@ module Reminders
           external_id: "id_",
           due_at: "allday_due_date",
           notes: "body",
+          source_created_at: "creation_date",
           start_date: "remind_me_date",
           title: "name",
           last_modified: "modification_date",

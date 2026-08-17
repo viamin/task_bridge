@@ -54,7 +54,8 @@ module GoogleTasks
           updated_min: last_sync_time&.iso8601
         ).items || []
         raw_tasks.map do |external_task|
-          task = Task.find_or_initialize_by(external_id: external_task.id)
+          task = Task.find_or_initialize_by_source(service_name:, external_id: external_task.id)
+          task.options = self.class.build_options(task.options, service_name)
           task.google_task = external_task
           task.refresh_from_external!(only_modified_dates:)
         end

@@ -3,6 +3,8 @@
 require "rails_helper"
 
 RSpec.describe "Base::SyncItem", :full_options do
+  include ActiveSupport::Testing::TimeHelpers
+
   # Create a concrete test class since Base::SyncItem is abstract
   let(:test_item_class) do
     Class.new(Base::SyncItem) do
@@ -503,6 +505,7 @@ RSpec.describe "Base::SyncItem", :full_options do
         "name" => "Persisted Task",
         "completed" => false,
         "completed_at" => nil,
+        "created_at" => "2024-04-01T09:30:00Z",
         "modified_at" => "2024-04-03T12:00:00Z",
         "notes" => "omnifocus_id: of-123\nomnifocus_url: omnifocus:///task/of-123",
         "projects" => [],
@@ -522,6 +525,13 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.last_modified).to eq(Time.zone.parse("2024-04-03T12:00:00Z"))
       expect(item.notes).to eq(asana_task_data["notes"])
       expect(item.omnifocus_id).to eq("of-123")
+      expect(item.source_service_name).to eq("Asana")
+      expect(item.source_service_type).to eq("Asana")
+      expect(item.source_external_id).to eq("asana-123")
+      expect(item.source_created_at).to eq(Time.zone.parse("2024-04-01T09:30:00Z"))
+      expect(item.source_updated_at).to eq(Time.zone.parse("2024-04-03T12:00:00Z"))
+      expect(item.first_observed_at).to be_present
+      expect(item.last_observed_at).to be_present
     end
 
     it "does not persist hydrated attributes in pretend mode" do
@@ -547,6 +557,20 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.notes).to eq("omnifocus_id: of-pretend")
       expect(item.reload.title).to eq("Local title")
       expect(item.reload.notes).to eq("local note")
+    end
+
+    it "advances last_observed_at even when the external data is unchanged" do
+      item = Asana::Task.find_or_initialize_by(external_id: "asana-123")
+      item.asana_task = asana_task_data
+      item.refresh_from_external!
+      first_observed_at = item.reload.last_observed_at
+
+      travel_to(first_observed_at + 1.hour) do
+        item.asana_task = asana_task_data
+        item.refresh_from_external!
+      end
+
+      expect(item.reload.last_observed_at).to be > first_observed_at
     end
   end
 
@@ -607,6 +631,19 @@ RSpec.describe "Base::SyncItem", :full_options do
       item.read_original(only_modified_dates: true)
 
       expect(item.instance_variable_get(:@asana_id)).to eq("asana-999")
+    end
+
+    it "hydrates source_created_at during partial reads" do
+      item = asana_item_class.new(
+        sync_item: sync_item_data.merge("created_at" => "2024-04-01T09:30:00Z"),
+        options: options,
+        external_id: "test-123",
+        title: "Original Task"
+      )
+
+      item.read_original(only_modified_dates: true)
+
+      expect(item.source_created_at).to eq(Time.zone.parse("2024-04-01T09:30:00Z"))
     end
   end
 
@@ -708,6 +745,79 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.external_sync_notes).to include("asana_work_id: asana-456")
       expect(item.external_sync_notes).to include("asana_work_url: https://app.asana.com/0/456")
       expect(item.external_sync_notes).not_to include("asana_id:")
+    end
+
+    it "finds persisted items by instance-qualified source identity" do
+      persisted_item = asana_item_class.create!(
+        options: options.merge(service_name: "Asana:work"),
+        title: "Buy milk",
+        external_id: "asana-456"
+      )
+
+      found_item = asana_item_class.find_by_source(service_name: "Asana:work", external_id: "asana-456")
+
+      expect(found_item).to eq(persisted_item)
+      expect(found_item.source_service_name).to eq("Asana:work")
+      expect(found_item.source_service_instance).to eq("work")
+    end
+
+    it "adopts a legacy item only when peer notes infer the requested instance" do
+      collection = SyncCollection.create!(title: "Buy milk")
+      legacy_item = asana_item_class.create!(
+        title: "Buy milk",
+        external_id: "asana-legacy-123",
+        sync_collection: collection
+      )
+      legacy_item.update_columns(source_service_name: nil, source_service_instance: nil)
+      omnifocus_item_class.create!(
+        title: "Buy milk",
+        external_id: "of-123",
+        notes: "asana_work_id: asana-legacy-123",
+        sync_collection: collection
+      )
+
+      found_item = asana_item_class.find_by_source(service_name: "Asana:work", external_id: "asana-legacy-123")
+
+      expect(found_item).to eq(legacy_item)
+    end
+
+    it "refuses to adopt a legacy item for the wrong requested instance" do
+      collection = SyncCollection.create!(title: "Buy milk")
+      legacy_item = asana_item_class.create!(
+        title: "Buy milk",
+        external_id: "asana-legacy-456",
+        sync_collection: collection
+      )
+      legacy_item.update_columns(source_service_name: nil, source_service_instance: nil)
+      omnifocus_item_class.create!(
+        title: "Buy milk",
+        external_id: "of-456",
+        notes: "asana_work_id: asana-legacy-456",
+        sync_collection: collection
+      )
+
+      found_item = asana_item_class.find_by_source(service_name: "Asana:personal", external_id: "asana-legacy-456")
+
+      expect(found_item).to be_nil
+    end
+  end
+
+  describe "#observe_source!" do
+    it "persists an explicitly provided observation timestamp" do
+      item = test_item_class.create!(title: "Buy milk", external_id: "observe-explicit-1")
+      observed_at = Time.zone.parse("2020-01-01T00:00:00Z")
+
+      item.observe_source!(observed_at:)
+
+      expect(item.reload.last_observed_at).to eq(observed_at)
+    end
+
+    it "records the current time when no observation timestamp is provided" do
+      item = test_item_class.create!(title: "Buy milk", external_id: "observe-default-1")
+
+      item.observe_source!
+
+      expect(item.reload.last_observed_at).to be_within(1.minute).of(Time.current)
     end
   end
 

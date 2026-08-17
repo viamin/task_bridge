@@ -11,9 +11,19 @@
 #  due_at             :datetime
 #  due_date           :datetime
 #  flagged            :boolean
+#  first_observed_at  :datetime
 #  item_type          :string
 #  last_modified      :datetime
+#  last_observed_at   :datetime
 #  notes              :text
+#  source_created_at  :datetime
+#  source_external_id :string
+#  source_metadata    :text
+#  source_service_instance :string
+#  source_service_name :string
+#  source_service_type :string
+#  source_updated_at  :datetime
+#  source_url         :string
 #  start_at           :datetime
 #  start_date         :datetime
 #  status             :string
@@ -28,11 +38,11 @@
 #
 # Indexes
 #
-#  index_sync_items_on_last_modified               (last_modified)
-#  index_sync_items_on_parent_item_id              (parent_item_id)
-#  index_sync_items_on_sync_collection_id          (sync_collection_id)
-#  index_sync_items_on_sync_collection_id_and_type (sync_collection_id,type) UNIQUE WHERE (sync_collection_id IS NOT NULL)
-#  index_sync_items_on_type_and_external_id        (type,external_id) UNIQUE
+#  index_sync_items_on_collection_id_and_source_service_name (sync_collection_id,source_service_name) UNIQUE WHERE ((sync_collection_id IS NOT NULL) AND (source_service_name IS NOT NULL))
+#  index_sync_items_on_last_modified                     (last_modified)
+#  index_sync_items_on_parent_item_id                    (parent_item_id)
+#  index_sync_items_on_sync_collection_id                (sync_collection_id)
+#  index_sync_items_on_type_service_name_and_external_id (type,source_service_name,external_id) UNIQUE
 #
 # Foreign Keys
 #
@@ -52,8 +62,11 @@ module Base
     delegate :external_attribute_map, :attribute_map, :read_external_attribute, to: :class
 
     after_initialize :read_notes, :set_tags
+    before_validation :capture_source_identity
 
     belongs_to :sync_collection, optional: true, inverse_of: :sync_items
+
+    serialize :source_metadata, coder: JSON
 
     def initialize(attributes = nil, &)
       attributes ||= {}
@@ -82,7 +95,7 @@ module Base
       end
     end
 
-    validates :external_id, uniqueness: { scope: :type }
+    validates :external_id, uniqueness: { scope: %i[type source_service_name] }
 
     def read_original(only_modified_dates: false)
       values_hash = external_attribute_map.each_with_object({}) do |(attribute_key, attribute_value), hash|
@@ -92,6 +105,7 @@ module Base
                 !self.class.send(:completion_indicator_attributes).include?(attribute_key)
 
         value = read_external_attribute(external_data, attribute_value, only_modified_dates:, attribute_key:)
+        value = normalize_external_timestamp(value) if attribute_key == :source_created_at
         value = Chronic.parse(value) if value && chronic_attributes.include?(attribute_key)
         hash[attribute_key] = value
       end
@@ -109,8 +123,11 @@ module Base
       read_original(only_modified_dates:)
       return self if options[:pretend]
 
-      save! if changed?
-      self
+      # Always record the observation (not just when attributes changed) so
+      # last_observed_at reflects every fetch, not just ones that produced a
+      # diff. observe_source! saves unconditionally because it always bumps
+      # last_observed_at, which keeps the record dirty.
+      observe_source!
     end
 
     def read_notes
@@ -150,7 +167,9 @@ module Base
     end
 
     def service_name
-      Base::Service.normalized_service_name(@service_name.presence || options[:service_name].presence || provider)
+      Base::Service.normalized_service_name(
+        source_service_name.presence || @service_name.presence || options[:service_name].presence || provider
+      )
     end
 
     def options
@@ -261,6 +280,55 @@ module Base
       parsed_notes(notes:, keys: [key.to_s])[key.to_s]
     end
 
+    def observe_source!(observed_at: Time.current)
+      @explicit_observed_at = observed_at
+      capture_source_identity(observed_at:)
+      save! if changed?
+      self
+    ensure
+      @explicit_observed_at = nil
+    end
+
+    def mapping_provenance_with(other_item)
+      target_sync_key = :"#{other_item.service_key}_id"
+      source_sync_key = :"#{service_key}_id"
+
+      if sync_ids_match?(sync_note_value_for(target_sync_key), other_item.external_id)
+        {
+          method: "source_sync_id",
+          confidence: "high",
+          metadata: {
+            "matched_by" => "source_note",
+            "note_key" => target_sync_key.to_s
+          }
+        }
+      elsif sync_ids_match?(other_item.sync_note_value_for(source_sync_key), external_id)
+        {
+          method: "source_sync_id",
+          confidence: "high",
+          metadata: {
+            "matched_by" => "target_note",
+            "note_key" => source_sync_key.to_s
+          }
+        }
+      elsif friendly_title_matches(other_item)
+        {
+          method: "title_fallback",
+          confidence: "medium",
+          metadata: {
+            "matched_by" => "title",
+            "title" => friendly_title
+          }
+        }
+      else
+        {
+          method: "manual_backfill",
+          confidence: "low",
+          metadata: {}
+        }
+      end
+    end
+
     def define_note_component_accessors(key)
       return if singleton_class.method_defined?(key.to_sym) && singleton_class.method_defined?(:"#{key}=")
 
@@ -279,6 +347,19 @@ module Base
 
       def external_attribute_map
         standard_attribute_map.merge(attribute_map).compact
+      end
+
+      def find_by_source(service_name:, external_id:)
+        normalized_service_name = Base::Service.normalized_service_name(service_name)
+        find_by(source_service_name: normalized_service_name, external_id:) ||
+          legacy_item_for_source(normalized_service_name:, external_id:)
+      end
+
+      def find_or_initialize_by_source(service_name:, external_id:)
+        find_by_source(service_name:, external_id:) || new(
+          external_id:,
+          source_service_name: Base::Service.normalized_service_name(service_name)
+        )
       end
 
       # Read a single attribute value from external_data (AppleScript refs or hash keys).
@@ -328,10 +409,10 @@ module Base
       end
 
       def standard_attribute_map
-        # NOTE: Do not map `created_at` here. AR manages `created_at`/`updated_at`
-        # as record timestamps. Populating `created_at` from external data would
-        # break ordering, auditing, and Rails conventions. If we need to persist
-        # the remote creation time, add a dedicated `external_created_at` column.
+        # NOTE: Do not map `created_at` itself here. AR manages `created_at` /
+        # `updated_at` as record timestamps. Persist the remote creation time in
+        # `source_created_at` instead so local audit timestamps keep their
+        # Rails semantics.
         {
           external_id: "id",
           completed_at: "completed_at",
@@ -340,6 +421,7 @@ module Base
           due_date: "due_date",
           flagged: "flagged",
           notes: "notes",
+          source_created_at: "created_at",
           start_at: "start_at",
           start_date: "start_date",
           status: "status",
@@ -351,7 +433,35 @@ module Base
       end
 
       def modified_date_attributes
-        %i[completed_at last_modified]
+        %i[completed_at last_modified source_created_at]
+      end
+
+      def legacy_item_for_source(normalized_service_name:, external_id:)
+        where(source_service_name: nil, external_id:)
+          .find { |item| inferred_service_name_for(item) == normalized_service_name }
+      end
+
+      def inferred_service_name_for(item)
+        service_type = item.source_service_type.presence || item.provider
+        base_identifier = Base::Service.service_identifier_for(service_type)
+        matching_key = peer_sync_id_keys_for(item).find { |key| key.start_with?(base_identifier) }
+        return service_type if matching_key.nil?
+
+        instance_suffix = matching_key.delete_prefix(base_identifier).delete_suffix("_id").delete_prefix("_")
+        [service_type, instance_suffix.presence].compact.join(":")
+      end
+
+      def peer_sync_id_keys_for(item)
+        return [] if item.sync_collection_id.blank?
+
+        Base::SyncItem.where(sync_collection_id: item.sync_collection_id)
+                      .where.not(id: item.id)
+                      .pluck(:notes)
+                      .flat_map do |notes|
+          notes.to_s.scan(/^([a-z0-9_]+_id):\s(.+)$/).filter_map do |key, value|
+            key if value == item.external_id.to_s
+          end
+        end
       end
 
       # Attributes that must always be read (even with only_modified_dates)
@@ -367,6 +477,8 @@ module Base
       def completion_indicator_attributes
         %i[completed completed_at status]
       end
+
+      public :inferred_service_name_for
     end
 
     private
@@ -430,6 +542,30 @@ module Base
       return false if left.blank? || right.blank?
 
       left.to_s == right.to_s
+    end
+
+    def normalize_external_timestamp(value)
+      return if value.blank?
+      return value.in_time_zone if value.respond_to?(:in_time_zone)
+      return Time.zone.at(value) if value.is_a?(Numeric)
+
+      Time.zone.parse(value.to_s)
+    end
+
+    def capture_source_identity(observed_at: @explicit_observed_at || Time.current)
+      resolved_service_name = Base::Service.normalized_service_name(
+        source_service_name.presence || @service_name.presence || options[:service_name].presence || provider
+      )
+
+      self.source_service_name = resolved_service_name
+      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name)
+      self.source_service_type = provider.presence || self.class.name.deconstantize
+      self.source_external_id = external_id if external_id.present?
+      self.source_url = url if url.present?
+      self.source_updated_at = last_modified if last_modified.present?
+      self.first_observed_at ||= observed_at
+      self.last_observed_at = observed_at
+      self.source_metadata ||= {}
     end
   end
 end
