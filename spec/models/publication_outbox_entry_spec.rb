@@ -1029,6 +1029,41 @@ RSpec.describe PublicationOutboxEntry, type: :model do
     end
   end
 
+  describe "#mark_delivering!" do
+    it "sets status to delivering" do
+      entry = described_class.create!(valid_entry_attrs)
+      entry.mark_delivering!
+      expect(entry.reload.status).to eq("delivering")
+    end
+
+    it "excludes the row from publishable once claimed" do
+      entry = described_class.create!(valid_entry_attrs)
+      entry.mark_delivering!
+      expect(described_class.publishable.map(&:idempotency_key)).not_to include(entry.idempotency_key)
+    end
+
+    it "rejects attempts to claim a terminal row" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "terminal", failed_at: Time.current))
+
+      expect { entry.mark_delivering! }
+        .to raise_error(ArgumentError, /mark_delivering! cannot transition a terminal outbox row/)
+    end
+
+    it "rejects attempts to claim a delivered row" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "delivered", delivered_at: Time.current))
+
+      expect { entry.mark_delivering! }
+        .to raise_error(ArgumentError, /mark_delivering! cannot transition a delivered outbox row/)
+    end
+
+    it "raises a consistent persistence error for an unsaved row" do
+      entry = described_class.new(valid_entry_attrs)
+
+      expect { entry.mark_delivering! }
+        .to raise_error(ActiveRecord::RecordNotSaved, /mark_delivering! requires a persisted outbox row/)
+    end
+  end
+
   describe "#mark_delivered!" do
     it "sets status to delivered and records delivered_at" do
       entry = described_class.create!(valid_entry_attrs)

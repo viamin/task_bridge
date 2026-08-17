@@ -213,9 +213,9 @@ class PublicationOutboxEntry < ApplicationRecord
   def self.payload_identity(payload, kind)
     case kind
     when "item", "observation"
-      payload_hash!(payload, :source, required: false) if Publication::HashAccess.key?(payload, :source)
+      optional_payload_hash!(payload, :source) if Publication::HashAccess.key?(payload, :source)
     when "mapping"
-      payload_hash!(payload, :member, required: false) if Publication::HashAccess.key?(payload, :member)
+      optional_payload_hash!(payload, :member) if Publication::HashAccess.key?(payload, :member)
     else
       {}
     end || {}
@@ -229,9 +229,9 @@ class PublicationOutboxEntry < ApplicationRecord
   def self.validate_required_identity_section!(kind, payload, idempotency_key)
     case kind
     when "item", "observation"
-      payload_hash!(payload, :source, required: true)
+      required_payload_hash!(payload, :source)
     when "mapping"
-      payload_hash!(payload, :member, required: true)
+      required_payload_hash!(payload, :member)
     end
   rescue ArgumentError => e
     raise ArgumentError, "#{e.message} for #{idempotency_key}"
@@ -272,7 +272,7 @@ class PublicationOutboxEntry < ApplicationRecord
   private_class_method :validate_record_contract_fields!
 
   def self.validate_mapping_sync_collection!(payload, idempotency_key)
-    sync_collection = payload_hash!(payload, :sync_collection, required: true)
+    sync_collection = required_payload_hash!(payload, :sync_collection)
     sync_collection_id = Publication::HashAccess.fetch(sync_collection, :sync_collection_id)
     Publication::Utf8.validate_fields!("payload sync_collection.sync_collection_id" => sync_collection_id)
 
@@ -300,16 +300,29 @@ class PublicationOutboxEntry < ApplicationRecord
   end
   private_class_method :validate_required_identity_field!
 
-  def self.payload_hash!(payload, field, required:)
-    key_present = Publication::HashAccess.key?(payload, field)
+  # Used where the section is mandatory (item/observation source, mapping
+  # member, mapping sync_collection): a missing key and a wrong-typed value
+  # are both contract violations, so both raise.
+  def self.required_payload_hash!(payload, field)
     value = Publication::HashAccess.fetch(payload, field)
     return value if value.is_a?(Hash)
 
-    raise ArgumentError, "payload #{field} is required" if required && !key_present
+    raise ArgumentError, "payload #{field} is required" unless Publication::HashAccess.key?(payload, field)
 
     raise ArgumentError, "payload #{field} must be a hash when present"
   end
-  private_class_method :payload_hash!
+  private_class_method :required_payload_hash!
+
+  # Used only where the caller has already confirmed the key is present
+  # (payload_identity), so a missing key never reaches this method; a
+  # wrong-typed value is still a contract violation and raises.
+  def self.optional_payload_hash!(payload, field)
+    value = Publication::HashAccess.fetch(payload, field)
+    return value if value.is_a?(Hash)
+
+    raise ArgumentError, "payload #{field} must be a hash when present"
+  end
+  private_class_method :optional_payload_hash!
 
   # SyncRunSummary uses started_at as the outbox ordering timestamp. Records
   # that expose observed_at must not mask a blank/invalid value by falling back
@@ -320,6 +333,17 @@ class PublicationOutboxEntry < ApplicationRecord
     Publication::HashAccess.fetch(payload, :started_at)
   end
   private_class_method :observed_at_value
+
+  # Claims a row for an in-flight publish attempt. Callers should mark rows
+  # delivering before handing them to BatchPublisher: publishable excludes
+  # delivering rows, so this prevents two concurrent workers from selecting
+  # and sending the same row twice.
+  def mark_delivering!
+    with_transition_lock(:mark_delivering!) do
+      ensure_not_delivered_or_terminal!(:mark_delivering!)
+      update!(status: "delivering")
+    end
+  end
 
   def mark_delivered!
     with_transition_lock(:mark_delivered!) do
@@ -494,7 +518,9 @@ class PublicationOutboxEntry < ApplicationRecord
   def validate_payload_contract_version
     return if errors.key?(:payload)
 
-    version = parsed_payload["contract_version"] || parsed_payload[:contract_version]
+    # parsed_payload is always built with symbolize_names: true, so only the
+    # symbol key can ever be present.
+    version = parsed_payload[:contract_version]
     return if version.is_a?(Integer) && version == Publication::CONTRACT_VERSION
 
     errors.add(:payload, "contract_version must be #{Publication::CONTRACT_VERSION}")
@@ -508,7 +534,9 @@ class PublicationOutboxEntry < ApplicationRecord
   def validate_payload_idempotency_key
     return if errors.key?(:payload) || errors.key?(:idempotency_key)
 
-    payload_key = parsed_payload["idempotency_key"] || parsed_payload[:idempotency_key]
+    # parsed_payload is always built with symbolize_names: true, so only the
+    # symbol key can ever be present.
+    payload_key = parsed_payload[:idempotency_key]
     return if payload_key == idempotency_key
 
     errors.add(:payload, "idempotency_key must match the outbox row")

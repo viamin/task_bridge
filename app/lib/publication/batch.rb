@@ -1,7 +1,15 @@
 # frozen_string_literal: true
 
 module Publication
-  # Assembles the batch envelope for a single HTTP push to TaskBridge Web.
+  # Assembles the batch envelope directly from Publication record value objects
+  # (ItemSnapshot, Observation, Mapping, SyncRunSummary), independent of the
+  # outbox. This is the entry point for the file/stdout export and backfill
+  # paths described in the RDR, which do not go through PublicationOutboxEntry.
+  #
+  # BatchPublisher assembles its own envelope from already-persisted,
+  # already-serialized PublicationOutboxEntry rows instead of reusing this
+  # class, because its inputs are JSON payload hashes recovered from the
+  # outbox, not live record objects with #to_payload.
   #
   # A batch must contain at least one record across items, observations, mappings,
   # and sync_runs. Empty batches must not be sent. All arrays are independent;

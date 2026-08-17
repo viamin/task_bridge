@@ -8,6 +8,8 @@ module Publication
   #
   # Usage:
   #   entries = PublicationOutboxEntry.publishable.limit(100)
+  #   entries.each(&:mark_delivering!) # claims the rows so another worker's
+  #                                    # .publishable query skips them
   #   result  = Publication::BatchPublisher.new(endpoint:, api_key:).publish(entries)
   #   result.each do |entry_result|
   #     entry = entry_result.entry
@@ -356,9 +358,9 @@ module Publication
       end
     end
 
-    # HTTParty/Net::HTTP expose status codes as strings. Parse once here so the
-    # transport policy applies to real responses instead of falling through every
-    # numeric branch and misclassifying successful or terminal outcomes.
+    # response.code is normally already an Integer, but Integer(..., exception:
+    # false) also tolerates a string or unparseable value from a stubbed or
+    # misbehaving client instead of misclassifying it as a numeric status.
     def parsed_response_code(response)
       Integer(response.code, exception: false)
     end
