@@ -10,27 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_15_000000) do
-  create_table "publication_outbox_entries", force: :cascade do |t|
-    t.string "idempotency_key", null: false
-    t.string "record_kind", null: false
-    t.text "payload", null: false
-    t.string "status", null: false, default: "pending"
-    t.integer "retry_count", null: false, default: 0
-    t.text "error_message"
-    t.string "service_type", null: false
-    t.string "service_instance", null: false
-    t.datetime "observed_at", precision: 6, null: false
-    t.datetime "delivered_at", precision: 6
-    t.datetime "failed_at", precision: 6
-    t.datetime "next_attempt_at", precision: 6
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["idempotency_key"], name: "index_publication_outbox_entries_on_idempotency_key", unique: true
-    t.index ["status", "observed_at", "id"], name: "idx_pub_outbox_on_status_observed_at_id"
-    t.index ["service_instance", "status"], name: "idx_on_service_instance_status_16c8b627d1"
-  end
-
+ActiveRecord::Schema[7.2].define(version: 2026_04_05_000002) do
   create_table "sync_collections", force: :cascade do |t|
     t.string "title"
     t.datetime "last_synced"

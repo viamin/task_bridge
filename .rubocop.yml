@@ -588,10 +588,8 @@ Metrics/MethodLength:
   Enabled: false
 # Metrics/ModuleLength:
 #   Enabled: false
-Metrics/ParameterLists:
-  # Value objects and contract types legitimately require many keyword parameters.
-  # Keyword args do not increase method complexity the way positional args do.
-  CountKeywordArgs: false
+# Metrics/ParameterLists:
+#   Enabled: false
 Metrics/PerceivedComplexity:
   Enabled: false
 
