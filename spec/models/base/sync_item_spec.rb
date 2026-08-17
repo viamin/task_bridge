@@ -503,6 +503,7 @@ RSpec.describe "Base::SyncItem", :full_options do
         "name" => "Persisted Task",
         "completed" => false,
         "completed_at" => nil,
+        "created_at" => "2024-04-01T09:30:00Z",
         "modified_at" => "2024-04-03T12:00:00Z",
         "notes" => "omnifocus_id: of-123\nomnifocus_url: omnifocus:///task/of-123",
         "projects" => [],
@@ -525,6 +526,7 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.source_service_name).to eq("Asana")
       expect(item.source_service_type).to eq("Asana")
       expect(item.source_external_id).to eq("asana-123")
+      expect(item.source_created_at).to eq(Time.zone.parse("2024-04-01T09:30:00Z"))
       expect(item.source_updated_at).to eq(Time.zone.parse("2024-04-03T12:00:00Z"))
       expect(item.first_observed_at).to be_present
       expect(item.last_observed_at).to be_present

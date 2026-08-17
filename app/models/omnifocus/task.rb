@@ -225,6 +225,7 @@ module Omnifocus
           completed_at: "completion_date",
           due_date: nil,
           notes: "note",
+          source_created_at: "creation_date",
           start_date: "defer_date",
           status: nil,
           tags: nil,

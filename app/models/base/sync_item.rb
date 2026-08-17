@@ -105,6 +105,7 @@ module Base
                 !self.class.send(:completion_indicator_attributes).include?(attribute_key)
 
         value = read_external_attribute(external_data, attribute_value, only_modified_dates:, attribute_key:)
+        value = normalize_external_timestamp(value) if attribute_key == :source_created_at
         value = Chronic.parse(value) if value && chronic_attributes.include?(attribute_key)
         hash[attribute_key] = value
       end
@@ -402,10 +403,10 @@ module Base
       end
 
       def standard_attribute_map
-        # NOTE: Do not map `created_at` here. AR manages `created_at`/`updated_at`
-        # as record timestamps. Populating `created_at` from external data would
-        # break ordering, auditing, and Rails conventions. If we need to persist
-        # the remote creation time, add a dedicated `external_created_at` column.
+        # NOTE: Do not map `created_at` itself here. AR manages `created_at` /
+        # `updated_at` as record timestamps. Persist the remote creation time in
+        # `source_created_at` instead so local audit timestamps keep their
+        # Rails semantics.
         {
           external_id: "id",
           completed_at: "completed_at",
@@ -414,6 +415,7 @@ module Base
           due_date: "due_date",
           flagged: "flagged",
           notes: "notes",
+          source_created_at: "created_at",
           start_at: "start_at",
           start_date: "start_date",
           status: "status",
@@ -506,6 +508,14 @@ module Base
       left.to_s == right.to_s
     end
 
+    def normalize_external_timestamp(value)
+      return if value.blank?
+      return value.in_time_zone if value.respond_to?(:in_time_zone)
+      return Time.zone.at(value) if value.is_a?(Numeric)
+
+      Time.zone.parse(value.to_s)
+    end
+
     def capture_source_identity(observed_at: Time.current)
       resolved_service_name = Base::Service.normalized_service_name(
         source_service_name.presence || @service_name.presence || options[:service_name].presence || provider
@@ -516,6 +526,7 @@ module Base
       self.source_service_type = provider.presence || self.class.name.deconstantize
       self.source_external_id = external_id if external_id.present?
       self.source_url = url if url.present?
+      self.source_created_at ||= created_at || observed_at
       self.source_updated_at = last_modified if last_modified.present?
       self.first_observed_at ||= created_at || observed_at
       self.last_observed_at = observed_at

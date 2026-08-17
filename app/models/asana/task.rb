@@ -149,6 +149,7 @@ module Asana
           external_id: "gid",
           title: "name",
           url: "permalink_url",
+          source_created_at: "created_at",
           due_date: "due_on",
           flagged: "hearted",
           item_type: "resource_type",

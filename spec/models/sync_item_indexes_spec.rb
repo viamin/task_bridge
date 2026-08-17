@@ -16,6 +16,7 @@ RSpec.describe Base::SyncItem, type: :model do
       "source_service_type",
       "source_external_id",
       "source_url",
+      "source_created_at",
       "source_updated_at",
       "first_observed_at",
       "last_observed_at",

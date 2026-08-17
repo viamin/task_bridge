@@ -8,6 +8,7 @@ class AddSourceProvenanceToSyncItemsAndCollections < ActiveRecord::Migration[8.1
       t.string :source_service_type
       t.string :source_external_id
       t.string :source_url
+      t.datetime :source_created_at
       t.datetime :source_updated_at
       t.datetime :first_observed_at
       t.datetime :last_observed_at

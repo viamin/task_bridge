@@ -70,6 +70,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       source_service_type: nil,
       source_external_id: nil,
       source_url: nil,
+      source_created_at: nil,
       source_updated_at: nil,
       first_observed_at: nil,
       last_observed_at: nil,
@@ -81,6 +82,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       source_service_type: nil,
       source_external_id: nil,
       source_url: nil,
+      source_created_at: nil,
       source_updated_at: nil,
       first_observed_at: nil,
       last_observed_at: nil,
@@ -103,7 +105,9 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(source_item.reload.source_service_name).to eq("Asana:work")
     expect(source_item.source_service_instance).to eq("work")
     expect(source_item.source_external_id).to eq("asana-123")
+    expect(source_item.source_created_at).to eq(source_item.created_at)
     expect(target_item.reload.source_service_name).to eq("Omnifocus")
+    expect(target_item.source_created_at).to eq(target_item.created_at)
     expect(collection.reload.mapping_method).to eq("source_sync_id")
     expect(collection.mapping_confidence).to eq("high")
     expect(collection.mapping_metadata).to include("note_key" => "omnifocus_id")
