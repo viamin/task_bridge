@@ -14,7 +14,7 @@ module SyncBackfill
     private
 
     def backfill_sync_items
-      Base::SyncItem.find_each do |item|
+      Base::SyncItem.includes(sync_collection: :sync_items).find_each do |item|
         observed_at = item.updated_at || item.created_at || Time.current
         item.source_service_name ||= inferred_service_name_for(item)
         item.observe_source!(observed_at:)
@@ -40,11 +40,7 @@ module SyncBackfill
     end
 
     def preferred_provenance(items)
-      source_sync_id_match = items.combination(2).find do |left_item, right_item|
-        left_item.mapping_provenance_with(right_item)[:method] == "source_sync_id"
-      end
-      left_item, right_item = source_sync_id_match || items.first(2)
-      left_item.mapping_provenance_with(right_item)
+      SyncMappingProvenance.preferred_for(items)
     end
 
     def inferred_service_name_for(item)

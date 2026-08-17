@@ -37,8 +37,9 @@ class SyncCollection < ApplicationRecord
   end
 
   def update_mapping_provenance!(method:, confidence:, metadata: {}, observed_at: Time.current)
-    self.mapping_method = method
-    self.mapping_confidence = confidence
+    override_mapping = mapping_method.nil? || method == "created_by_sync"
+    self.mapping_method = method if override_mapping
+    self.mapping_confidence = confidence if override_mapping
     self.mapping_metadata = (mapping_metadata || {}).merge(metadata.deep_stringify_keys)
     self.mapping_established_at ||= created_at || observed_at
     self.mapping_last_observed_at = observed_at

@@ -517,7 +517,7 @@ module Base
     end
 
     def mapping_provenance_for(items)
-      items.first.mapping_provenance_with(items.second)
+      SyncMappingProvenance.preferred_for(items)
     end
 
     def sync_error?(result)
