@@ -298,6 +298,7 @@ Format:
 Rules:
 
 - Prefix all keys with `tb:v1`.
+- Treat the full idempotency key as an opaque identifier. Receivers must not parse it by splitting on `:` because segments such as `service_instance` and timestamps may themselves contain colons.
 - Keys must be deterministic for the same published fact.
 - If TaskBridge retries the same outbox row, it must reuse the same idempotency key.
 - TaskBridge must keep the canonical record payload immutable across retries. The only fields allowed to vary between retries are transport metadata such as batch headers, `batch.batch_id`, `batch.sent_at`, and record-level `published_at`.
