@@ -187,5 +187,28 @@ RSpec.describe SyncCollection, :full_options do
         "target_service_name" => "Primary Service"
       )
     end
+
+    it "upgrades weaker provenance when stronger evidence is observed later" do
+      collection = described_class.create!(title: "Mapped")
+
+      collection.update_mapping_provenance!(
+        method: "title_fallback",
+        confidence: "medium",
+        metadata: { matched_by: "title" }
+      )
+      collection.update_mapping_provenance!(
+        method: "source_sync_id",
+        confidence: "high",
+        metadata: { note_key: "asana_work_id" }
+      )
+
+      collection.reload
+      expect(collection.mapping_method).to eq("source_sync_id")
+      expect(collection.mapping_confidence).to eq("high")
+      expect(collection.mapping_metadata).to include(
+        "matched_by" => "title",
+        "note_key" => "asana_work_id"
+      )
+    end
   end
 end

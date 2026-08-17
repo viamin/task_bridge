@@ -349,7 +349,7 @@ module Base
       def find_by_source(service_name:, external_id:)
         normalized_service_name = Base::Service.normalized_service_name(service_name)
         find_by(source_service_name: normalized_service_name, external_id:) ||
-          find_by(source_service_name: nil, external_id:)
+          legacy_item_for_source(normalized_service_name:, external_id:)
       end
 
       def find_or_initialize_by_source(service_name:, external_id:)
@@ -430,7 +430,35 @@ module Base
       end
 
       def modified_date_attributes
-        %i[completed_at last_modified]
+        %i[completed_at last_modified source_created_at]
+      end
+
+      def legacy_item_for_source(normalized_service_name:, external_id:)
+        where(source_service_name: nil, external_id:)
+          .find { |item| inferred_service_name_for(item) == normalized_service_name }
+      end
+
+      def inferred_service_name_for(item)
+        service_type = item.source_service_type.presence || item.provider
+        base_identifier = Base::Service.service_identifier_for(service_type)
+        matching_key = peer_sync_id_keys_for(item).find { |key| key.start_with?(base_identifier) }
+        return service_type if matching_key.nil?
+
+        instance_suffix = matching_key.delete_prefix(base_identifier).delete_suffix("_id").delete_prefix("_")
+        [service_type, instance_suffix.presence].compact.join(":")
+      end
+
+      def peer_sync_id_keys_for(item)
+        return [] if item.sync_collection_id.blank?
+
+        Base::SyncItem.where(sync_collection_id: item.sync_collection_id)
+                      .where.not(id: item.id)
+                      .pluck(:notes)
+                      .flat_map do |notes|
+          notes.to_s.scan(/^([a-z0-9_]+_id):\s(.+)$/).filter_map do |key, value|
+            key if value == item.external_id.to_s
+          end
+        end
       end
 
       # Attributes that must always be read (even with only_modified_dates)
@@ -446,6 +474,8 @@ module Base
       def completion_indicator_attributes
         %i[completed completed_at status]
       end
+
+      public :inferred_service_name_for
     end
 
     private

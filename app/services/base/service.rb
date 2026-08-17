@@ -356,7 +356,7 @@ module Base
       item.last_modified || item.updated_at || Time.zone.at(0)
     end
 
-    def persist_sync_collection_for(*items)
+    def persist_sync_collection_for(*items, provenance: nil)
       collection_items = items.compact.select do |item|
         item.respond_to?(:sync_collection_id) && item.respond_to?(:sync_collection_id=)
       end
@@ -384,27 +384,20 @@ module Base
         persisted_item.observe_source! if persisted_item.respond_to?(:save!)
       end
 
-      collection.update_mapping_provenance!(**mapping_provenance_for(collection_items), observed_at: Time.current)
+      collection.update_mapping_provenance!(
+        **(provenance || mapping_provenance_for(collection_items)),
+        observed_at: Time.current
+      )
       collection
     end
 
     def persist_created_sync_collection_for(source_item, target_service, created_item)
       target_item = persisted_sync_target_for(target_service, source_item, created_item)
-      persist_sync_collection_for(source_item, target_item).tap do |collection|
-        next if collection.nil? || target_item.nil?
-
-        collection.update_mapping_provenance!(
-          method: "created_by_sync",
-          confidence: "high",
-          metadata: {
-            source_service_name: source_item.service_name,
-            source_external_id: source_item.external_id,
-            target_service_name: service_display_name(target_service),
-            target_external_id: target_item.external_id
-          },
-          observed_at: Time.current
-        )
-      end
+      persist_sync_collection_for(
+        source_item,
+        target_item,
+        provenance: created_by_sync_provenance(source_item, target_service, target_item)
+      )
     end
 
     def persist_created_sync_data_for(source_service_name, source_item, target_service, created_item)
@@ -518,6 +511,21 @@ module Base
 
     def mapping_provenance_for(items)
       SyncMappingProvenance.preferred_for(items)
+    end
+
+    def created_by_sync_provenance(source_item, target_service, target_item)
+      return if target_item.nil?
+
+      {
+        method: "created_by_sync",
+        confidence: "high",
+        metadata: {
+          source_service_name: source_item.service_name,
+          source_external_id: source_item.external_id,
+          target_service_name: service_display_name(target_service),
+          target_external_id: target_item.external_id
+        }
+      }
     end
 
     def sync_error?(result)

@@ -18,7 +18,7 @@ module SyncBackfill
         next if item.last_observed_at.present?
 
         observed_at = item.updated_at || item.created_at || Time.current
-        item.source_service_name ||= inferred_service_name_for(item)
+        item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
         item.observe_source!(observed_at:)
       end
     end
@@ -45,26 +45,6 @@ module SyncBackfill
 
     def preferred_provenance(items)
       SyncMappingProvenance.preferred_for(items)
-    end
-
-    def inferred_service_name_for(item)
-      service_type = item.source_service_type.presence || item.provider
-      base_identifier = Base::Service.service_identifier_for(service_type)
-      matching_key = peer_sync_id_keys_for(item).find { |key| key.start_with?(base_identifier) }
-      return service_type if matching_key.nil?
-
-      instance_suffix = matching_key.delete_prefix(base_identifier).delete_suffix("_id").delete_prefix("_")
-      [service_type, instance_suffix.presence].compact.join(":")
-    end
-
-    def peer_sync_id_keys_for(item)
-      Array(item.sync_collection&.sync_items).flat_map do |peer_item|
-        next [] if peer_item.id == item.id
-
-        peer_item.notes.to_s.scan(/^([a-z0-9_]+_id):\s(.+)$/).filter_map do |key, value|
-          key if value == item.external_id.to_s
-        end
-      end
     end
   end
 end

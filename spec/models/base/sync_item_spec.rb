@@ -616,6 +616,19 @@ RSpec.describe "Base::SyncItem", :full_options do
 
       expect(item.instance_variable_get(:@asana_id)).to eq("asana-999")
     end
+
+    it "hydrates source_created_at during partial reads" do
+      item = asana_item_class.new(
+        sync_item: sync_item_data.merge("created_at" => "2024-04-01T09:30:00Z"),
+        options: options,
+        external_id: "test-123",
+        title: "Original Task"
+      )
+
+      item.read_original(only_modified_dates: true)
+
+      expect(item.source_created_at).to eq(Time.zone.parse("2024-04-01T09:30:00Z"))
+    end
   end
 
   describe ".read_external_attribute" do
@@ -730,6 +743,46 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(found_item).to eq(persisted_item)
       expect(found_item.source_service_name).to eq("Asana:work")
       expect(found_item.source_service_instance).to eq("work")
+    end
+
+    it "adopts a legacy item only when peer notes infer the requested instance" do
+      collection = SyncCollection.create!(title: "Buy milk")
+      legacy_item = asana_item_class.create!(
+        title: "Buy milk",
+        external_id: "asana-legacy-123",
+        sync_collection: collection
+      )
+      legacy_item.update_columns(source_service_name: nil, source_service_instance: nil)
+      omnifocus_item_class.create!(
+        title: "Buy milk",
+        external_id: "of-123",
+        notes: "asana_work_id: asana-legacy-123",
+        sync_collection: collection
+      )
+
+      found_item = asana_item_class.find_by_source(service_name: "Asana:work", external_id: "asana-legacy-123")
+
+      expect(found_item).to eq(legacy_item)
+    end
+
+    it "refuses to adopt a legacy item for the wrong requested instance" do
+      collection = SyncCollection.create!(title: "Buy milk")
+      legacy_item = asana_item_class.create!(
+        title: "Buy milk",
+        external_id: "asana-legacy-456",
+        sync_collection: collection
+      )
+      legacy_item.update_columns(source_service_name: nil, source_service_instance: nil)
+      omnifocus_item_class.create!(
+        title: "Buy milk",
+        external_id: "of-456",
+        notes: "asana_work_id: asana-legacy-456",
+        sync_collection: collection
+      )
+
+      found_item = asana_item_class.find_by_source(service_name: "Asana:personal", external_id: "asana-legacy-456")
+
+      expect(found_item).to be_nil
     end
   end
 
