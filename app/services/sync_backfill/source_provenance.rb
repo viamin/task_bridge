@@ -15,6 +15,8 @@ module SyncBackfill
 
     def backfill_sync_items
       Base::SyncItem.includes(sync_collection: :sync_items).find_each do |item|
+        next if item.last_observed_at.present?
+
         observed_at = item.updated_at || item.created_at || Time.current
         item.source_service_name ||= inferred_service_name_for(item)
         item.observe_source!(observed_at:)
@@ -23,6 +25,8 @@ module SyncBackfill
 
     def backfill_sync_collections
       SyncCollection.includes(:sync_items).find_each do |collection|
+        next if collection.mapping_method.present?
+
         observed_at = collection.updated_at || collection.created_at || Time.current
         provenance = inferred_provenance_for(collection)
         collection.update_mapping_provenance!(**provenance, observed_at:)

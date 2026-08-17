@@ -40,7 +40,11 @@ class SyncCollection < ApplicationRecord
     override_mapping = mapping_method.nil? || method == "created_by_sync"
     self.mapping_method = method if override_mapping
     self.mapping_confidence = confidence if override_mapping
-    self.mapping_metadata = (mapping_metadata || {}).merge(metadata.deep_stringify_keys)
+    self.mapping_metadata = if override_mapping
+      (mapping_metadata || {}).merge(metadata.deep_stringify_keys)
+    else
+      mapping_metadata
+    end
     self.mapping_established_at ||= created_at || observed_at
     self.mapping_last_observed_at = observed_at
     save! if changed?

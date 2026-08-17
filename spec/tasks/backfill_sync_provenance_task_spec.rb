@@ -96,10 +96,17 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       mapping_last_observed_at: nil
     )
 
-    2.times do
-      task.invoke
-      task.reenable
-    end
+    task.invoke
+    task.reenable
+    first_run = {
+      source_observed_at: source_item.reload.last_observed_at,
+      target_observed_at: target_item.reload.last_observed_at,
+      collection_observed_at: collection.reload.mapping_last_observed_at,
+      collection_updated_at: collection.updated_at
+    }
+
+    task.invoke
+    task.reenable
 
     expect(SyncBackfill::SourceProvenance).to have_received(:run!).twice
     expect(source_item.reload.source_service_name).to eq("Asana:work")
@@ -113,5 +120,9 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(collection.mapping_metadata).to include("note_key" => "omnifocus_id")
     expect(collection.mapping_established_at).to be_present
     expect(collection.mapping_last_observed_at).to be_present
+    expect(source_item.reload.last_observed_at).to eq(first_run[:source_observed_at])
+    expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
+    expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
+    expect(collection.updated_at).to eq(first_run[:collection_updated_at])
   end
 end

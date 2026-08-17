@@ -733,6 +733,25 @@ RSpec.describe "Base::SyncItem", :full_options do
     end
   end
 
+  describe "#observe_source!" do
+    it "persists an explicitly provided observation timestamp" do
+      item = test_item_class.create!(title: "Buy milk", external_id: "observe-explicit-1")
+      observed_at = Time.zone.parse("2020-01-01T00:00:00Z")
+
+      item.observe_source!(observed_at:)
+
+      expect(item.reload.last_observed_at).to eq(observed_at)
+    end
+
+    it "records the current time when no observation timestamp is provided" do
+      item = test_item_class.create!(title: "Buy milk", external_id: "observe-default-1")
+
+      item.observe_source!
+
+      expect(item.reload.last_observed_at).to be_within(1.minute).of(Time.current)
+    end
+  end
+
   describe "#notes_content" do
     it "strips all sync metadata lines, keeping only human-readable content" do
       item = omnifocus_item_class.new(

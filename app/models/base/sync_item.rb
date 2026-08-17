@@ -278,9 +278,12 @@ module Base
     end
 
     def observe_source!(observed_at: Time.current)
+      @explicit_observed_at = observed_at
       capture_source_identity(observed_at:)
       save! if changed?
       self
+    ensure
+      @explicit_observed_at = nil
     end
 
     def mapping_provenance_with(other_item)
@@ -516,7 +519,7 @@ module Base
       Time.zone.parse(value.to_s)
     end
 
-    def capture_source_identity(observed_at: Time.current)
+    def capture_source_identity(observed_at: @explicit_observed_at || Time.current)
       resolved_service_name = Base::Service.normalized_service_name(
         source_service_name.presence || @service_name.presence || options[:service_name].presence || provider
       )

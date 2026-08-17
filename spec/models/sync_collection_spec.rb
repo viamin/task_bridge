@@ -137,7 +137,7 @@ RSpec.describe SyncCollection, :full_options do
       expect(collection.mapping_last_observed_at).to eq(observed_at)
     end
 
-    it "keeps the original mapping method and confidence once established" do
+    it "keeps the original mapping method, confidence, and metadata once established" do
       collection = described_class.create!(title: "Mapped")
       first_observed_at = Time.zone.parse("2024-04-03T12:00:00Z")
       second_observed_at = Time.zone.parse("2024-04-04T12:00:00Z")
@@ -160,10 +160,7 @@ RSpec.describe SyncCollection, :full_options do
       collection.reload
       expect(collection.mapping_method).to eq("source_sync_id")
       expect(collection.mapping_confidence).to eq("high")
-      expect(collection.mapping_metadata).to include(
-        "note_key" => "asana_work_id",
-        "matched_by" => "fallback"
-      )
+      expect(collection.mapping_metadata).to eq({ "note_key" => "asana_work_id" })
       expect(collection.mapping_established_at).to eq(established_at)
       expect(collection.mapping_last_observed_at).to eq(second_observed_at)
     end
