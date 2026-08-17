@@ -80,8 +80,9 @@ module Publication
 
     def sanitized_error
       return if error.nil?
-      return sanitize_error_value(error) unless HashAccess.key?(error, :message)
 
+      # error is guaranteed to have a :message/"message" key here because
+      # validate_error! rejects any non-nil error missing it.
       message_key = error.key?(:message) ? :message : "message"
       sanitized_error = sanitize_error_value(error.except(:message, "message"))
       sanitized_error[message_key] = OperationalText.sanitize(HashAccess.fetch(error, :message))
