@@ -9,7 +9,7 @@ module Publication
   # Usage:
   #   entries = PublicationOutboxEntry.publishable.limit(100)
   #   entries.each(&:mark_delivering!) # claims the rows so another worker's
-  #                                    # .publishable query skips them
+  #                                    # .publishable query skips fresh claims
   #   result  = Publication::BatchPublisher.new(endpoint:, api_key:).publish(entries)
   #   result.each do |entry_result|
   #     entry = entry_result.entry

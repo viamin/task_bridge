@@ -728,6 +728,10 @@ Rejected because:
 
 ## Implementation Notes for Follow-up Issues
 
+This document remains the #215 deliverable. The implementation in this branch is
+best treated as a reference point for the follow-up integration work under #214,
+not as a substitute for those issues' review and wiring into the live sync flow.
+
 The first implementation issues under #214 can proceed with these assumptions:
 
 - TaskBridge needs an outbox model and batch publisher.

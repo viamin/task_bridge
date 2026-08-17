@@ -975,6 +975,48 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(keys).not_to include("key-terminal", "key-delivered")
     end
 
+    it "stale_delivering returns only abandoned claims older than the reclaim cutoff" do
+      described_class.delete_all
+
+      stale = described_class.create!(
+        valid_entry_attrs(idempotency_key: "key-stale-delivering").merge(
+          status: "delivering",
+          updated_at: described_class.stale_delivery_cutoff - 1.second
+        )
+      )
+      fresh = described_class.create!(
+        valid_entry_attrs(idempotency_key: "key-fresh-delivering").merge(
+          status: "delivering",
+          updated_at: described_class.stale_delivery_cutoff + 1.second
+        )
+      )
+
+      expect(described_class.stale_delivering.map(&:idempotency_key)).to eq([stale.idempotency_key])
+      expect(described_class.stale_delivering).not_to include(fresh)
+    end
+
+    it "publishable reclaims stale delivering rows so abandoned claims self-heal" do
+      described_class.delete_all
+
+      stale = described_class.create!(
+        valid_entry_attrs(idempotency_key: "key-stale-delivering").merge(
+          status: "delivering",
+          observed_at: Time.utc(2026, 8, 14, 18, 58, 0),
+          updated_at: described_class.stale_delivery_cutoff - 1.second
+        )
+      )
+      fresh = described_class.create!(
+        valid_entry_attrs(idempotency_key: "key-fresh-delivering").merge(
+          status: "delivering",
+          observed_at: Time.utc(2026, 8, 14, 18, 57, 0),
+          updated_at: described_class.stale_delivery_cutoff + 1.second
+        )
+      )
+
+      expect(described_class.publishable.map(&:idempotency_key)).to include(stale.idempotency_key)
+      expect(described_class.publishable).not_to include(fresh)
+    end
+
     it "publishable orders rows by observed_at before created_at" do
       described_class.delete_all
 

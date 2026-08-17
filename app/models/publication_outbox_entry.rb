@@ -35,6 +35,10 @@ class PublicationOutboxEntry < ApplicationRecord
 
   # Maximum retries before a row is moved to terminal status.
   MAX_RETRIES = 10
+  # A delivery claim older than this is assumed to belong to a crashed or
+  # otherwise abandoned worker and can safely be retried under the at-least-once
+  # contract.
+  DELIVERY_CLAIM_TIMEOUT = 15.minutes
 
   # Presence for these columns is enforced by validate_string_fields instead of
   # validates :presence because blank? raises on invalid byte sequences; the
@@ -66,8 +70,28 @@ class PublicationOutboxEntry < ApplicationRecord
   # Rows eligible for retry: failed rows that have not exceeded MAX_RETRIES.
   scope :retryable, -> { where(status: "failed").where("retry_count < ?", MAX_RETRIES) }
 
+  # Rows claimed by a worker that did not finish the attempt. The claim timestamp
+  # lives on updated_at because mark_delivering! is the only state transition
+  # that creates a new in-flight attempt.
+  scope :stale_delivering, lambda { |cutoff = nil|
+    cutoff ||= PublicationOutboxEntry.stale_delivery_cutoff
+
+    delivering.where(updated_at: ...cutoff)
+  }
+
   # Returns rows ready for the next publish attempt, oldest observed fact first.
-  scope :publishable, -> { where(status: %w[pending failed]).where("retry_count < ?", MAX_RETRIES).order(:observed_at, :id) }
+  # Stale delivering rows are folded back into the retry pool so a crashed
+  # worker does not strand them forever.
+  scope :publishable, lambda {
+    ready = where(status: %w[pending failed]).where("retry_count < ?", MAX_RETRIES)
+    stale = stale_delivering.where("retry_count < ?", MAX_RETRIES)
+
+    ready.or(stale).order(:observed_at, :id)
+  }
+
+  def self.stale_delivery_cutoff(now = Time.current)
+    now - DELIVERY_CLAIM_TIMEOUT
+  end
 
   # Builds an entry from a Publication value object without saving.
   #
@@ -336,8 +360,9 @@ class PublicationOutboxEntry < ApplicationRecord
 
   # Claims a row for an in-flight publish attempt. Callers should mark rows
   # delivering before handing them to BatchPublisher: publishable excludes
-  # delivering rows, so this prevents two concurrent workers from selecting
-  # and sending the same row twice.
+  # fresh delivering rows, so this prevents two concurrent workers from
+  # selecting and sending the same row twice while still allowing abandoned
+  # claims to be reclaimed after DELIVERY_CLAIM_TIMEOUT.
   def mark_delivering!
     with_transition_lock(:mark_delivering!) do
       ensure_not_delivered_or_terminal!(:mark_delivering!)
