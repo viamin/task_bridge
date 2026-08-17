@@ -341,7 +341,7 @@ class PublicationOutboxEntry < ApplicationRecord
   def mark_delivering!
     with_transition_lock(:mark_delivering!) do
       ensure_not_delivered_or_terminal!(:mark_delivering!)
-      update!(status: "delivering")
+      update!(status: "delivering", delivered_at: nil, failed_at: nil, error_message: nil)
     end
   end
 

@@ -1062,6 +1062,24 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect { entry.mark_delivering! }
         .to raise_error(ActiveRecord::RecordNotSaved, /mark_delivering! requires a persisted outbox row/)
     end
+
+    it "clears a stale error message from an earlier failed attempt" do
+      entry = described_class.create!(valid_entry_attrs)
+      entry.mark_failed!(message: "network timeout")
+
+      entry.mark_delivering!
+
+      expect(entry.reload.error_message).to be_nil
+    end
+
+    it "clears a stale failed_at from an earlier failed attempt" do
+      entry = described_class.create!(valid_entry_attrs)
+      entry.mark_failed!(message: "network timeout")
+
+      entry.mark_delivering!
+
+      expect(entry.reload.failed_at).to be_nil
+    end
   end
 
   describe "#mark_delivered!" do
