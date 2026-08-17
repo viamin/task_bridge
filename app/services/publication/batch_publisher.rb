@@ -80,7 +80,7 @@ module Publication
       raise ArgumentError, "entries must not be empty" if rows.empty?
 
       check_entry_interface!(rows)
-      check_persisted_outbox_entries!(rows)
+      check_real_outbox_entries!(rows)
 
       # empty? (not any?) because a nil record_kind element is not truthy and
       # would otherwise slip past this guard into the group_by below.
@@ -133,16 +133,25 @@ module Publication
       raise ArgumentError, "entries must respond to #{interface.join(', ')}"
     end
 
-    # The publisher exists to transmit durable outbox rows. Sending an unsaved
-    # PublicationOutboxEntry could succeed remotely and then fail locally when
-    # the caller marks it delivered, leaving the publish attempt unrecoverable.
+    # The publisher exists to transmit durable outbox rows that have already
+    # been claimed for one in-flight attempt. Sending an unsaved row could
+    # succeed remotely and then fail locally when the caller marks it
+    # delivered, leaving the publish attempt unrecoverable. Sending a persisted
+    # row that is not currently delivering would bypass the claim step and let a
+    # caller republish pending, failed, delivered, or terminal rows directly.
     # Restrict the guard to real outbox rows so lightweight test doubles and
     # other caller-owned entry types can still exercise the transport logic.
-    def check_persisted_outbox_entries!(rows)
-      unsaved = rows.select { |row| row.is_a?(PublicationOutboxEntry) && !row.persisted? }
-      return if unsaved.empty?
+    def check_real_outbox_entries!(rows)
+      real_rows = rows.grep(PublicationOutboxEntry)
+      return if real_rows.empty?
 
-      raise ArgumentError, "entries must be persisted PublicationOutboxEntry rows before publish"
+      unsaved = real_rows.reject(&:persisted?)
+      raise ArgumentError, "entries must be persisted PublicationOutboxEntry rows before publish" unless unsaved.empty?
+
+      undispatched = real_rows.reject { |row| row.status == "delivering" }
+      return if undispatched.empty?
+
+      raise ArgumentError, "entries must be delivering PublicationOutboxEntry rows before publish"
     end
 
     # A row without a non-blank string idempotency_key can never be reconciled:
