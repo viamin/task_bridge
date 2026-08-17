@@ -1,0 +1,741 @@
+# RDR 215: TaskBridge Observation and Publication Contract for TaskBridge Web
+
+- Status: Accepted
+- Date: 2026-08-14
+- Issue: #215
+- Parent: #214
+
+## Summary
+
+TaskBridge will publish normalized task facts to TaskBridge Web by HTTP push. TaskBridge remains responsible for detecting source observations during sync, normalizing them, and retrying delivery from a local outbox. TaskBridge Web becomes the durable system for event history, materialized current state, semantic indexing, analytics, and any LLM or MCP features.
+
+This keeps sync logic and source adapters in TaskBridge while explicitly keeping recommendation, inference, ranking, analytics, and LLM behavior out of TaskBridge.
+
+## Follow-up Decisions
+
+The product owner reviewed this RDR after the pull request opened (2026-08-14) and confirmed the following, which are folded into the sections noted:
+
+- Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
+- Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
+- The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
+- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+
+## Decision
+
+Use a versioned Rails-native HTTP push contract with these responsibilities:
+
+- TaskBridge detects observations while syncing provider data.
+- TaskBridge stores pending publication rows in a local outbox before attempting delivery.
+- TaskBridge pushes batches to TaskBridge Web over authenticated HTTP with per-entry idempotency keys.
+- TaskBridge Web durably stores every accepted event, updates current-state projections, manages cross-system mappings, and exposes downstream APIs.
+- The initial ingestion path is push-only: TaskBridge pushes to TaskBridge Web, and TaskBridge Web does not pull from TaskBridge (see Rejected Alternatives). TaskBridge may also support file or stdout export for development and backfill, but HTTP push is the only production ingestion path for v1; a pull-based path can be revisited later if a concrete need emerges.
+
+## Why This Boundary
+
+This boundary matches the current codebase:
+
+- TaskBridge already owns source sync, normalized `sync_items` state, `sync_collections`, and per-service sync status.
+- TaskBridge already computes meaningful sync facts such as `items_synced`, `last_attempted`, `last_successful`, `last_failed`, and touched collection IDs.
+- TaskBridge does not currently expose an ingestion API and should not grow into an analytics or AI-serving application.
+
+TaskBridge Web is the correct place to own:
+
+- durable history;
+- current-state materialization across sources;
+- cross-system identity graphs and user-facing provenance views;
+- semantic search, embeddings, analytics, and LLM/MCP tools.
+
+## Contract Shape
+
+Every request is versioned and batch-oriented.
+
+- Endpoint: `POST /api/task_bridge/v1/ingestion/batches`
+- Authentication: static API key from TaskBridge to TaskBridge Web
+- Headers:
+  - `Authorization: Bearer <taskbridge_web_ingest_key>`
+  - `Content-Type: application/json`
+  - `X-TaskBridge-Contract-Version: 1`
+  - `X-TaskBridge-Batch-Id: <uuid>`
+  - `X-TaskBridge-Sent-At: <iso8601>`
+- Body:
+  - `contract_version`
+  - `batch`
+  - `items`
+  - `observations`
+  - `mappings`
+  - `sync_runs`
+
+TaskBridge Web must accept partial batches and return one result entry per submitted row, each entry carrying its `idempotency_key`.
+
+Additional batch rules:
+
+- `batch` is required and must include `batch_id` and `sent_at`.
+- `items`, `observations`, `mappings`, and `sync_runs` are independent top-level arrays; if present, each must be an array.
+- Omitted top-level arrays are equivalent to empty arrays. Consumers must not infer a different meaning from omission versus `[]`.
+- A batch must contain at least one record across those arrays. TaskBridge must not send empty batches.
+- `X-TaskBridge-Contract-Version` and `body.contract_version` must match exactly; if they differ, or if either is missing, TaskBridge Web must reject the whole request before row processing.
+- `X-TaskBridge-Batch-Id` must match `batch.batch_id` when both are present.
+- `X-TaskBridge-Sent-At` must match `batch.sent_at` when both are present.
+- Every submitted row must carry `contract_version` equal to `body.contract_version`; a row-level mismatch is a row validation failure, not a signal to reinterpret the request.
+- A batch must not contain the same `idempotency_key` more than once across any top-level arrays.
+- Row processing order is not semantically significant. TaskBridge Web must evaluate each row independently.
+- After successful request parsing, TaskBridge Web must return exactly one result entry for every submitted row in submission order so TaskBridge can reconcile its outbox without ambiguity.
+
+## Versioning Rules
+
+- `contract_version` is required on every batch and on every record; the payload examples below assume `1`.
+- Version `1` consumers must ignore unknown fields.
+- New optional fields are backward-compatible within the same version.
+- Removing fields, changing semantics, or changing the set of allowed enum values requires a new major contract version.
+- TaskBridge must not silently send `contract_version: 2` payloads to a `v1` endpoint.
+- TaskBridge Web should keep at least one prior major contract version available during rollout windows.
+
+## Identity Model
+
+### Source identity
+
+Every item or observation must identify the source record with:
+
+- `service_type`: stable adapter family such as `asana`, `omnifocus`, `github`, `google_tasks`
+- `service_instance`: stable identifier for the configured account/workspace/app instance inside TaskBridge
+- `external_id`: provider-native item identifier
+- `source_url`: canonical provider URL when available
+- `source_collection_keys`: provider collection identifiers such as project/list/section IDs when they are available and relevant to the published record
+- provenance timestamps: provider-native created/updated/completed timestamps when available, carried at the record level as `source_created_at`, `source_updated_at`, and `completed_at` (see Timestamps)
+
+`service_instance` must distinguish two configured accounts of the same provider. The minimum shape is:
+
+```json
+{
+  "service_type": "asana",
+  "service_instance": "asana:workspace-12345:default",
+  "external_id": "1201234567890"
+}
+```
+
+TaskBridge owns the `service_instance` format. It must be stable for the life of that configuration and unique within one TaskBridge deployment.
+
+For v1 item and observation records, `source.service_type`, `source.service_instance`, and `source.external_id` are required. `source_url` and `source_collection_keys` remain optional because some providers cannot supply them reliably.
+
+`service_instance` and `item_key` are opaque identifiers. Consumers must not parse them by splitting on `:` because provider- or deployment-defined segments may themselves contain colons.
+
+### Cross-system identity
+
+Cross-system identity is represented separately from the source item snapshot.
+
+- `sync_collection_id`: TaskBridge’s internal representation group when one exists
+- `membership_role`: optional role within the representation; v1 values are `canonical` and `member`
+- `mapping_confidence`: `confirmed`, `inferred`, or `tentative`
+- `mapping_source`: how the mapping was established, such as `sync_id_note`, `direct_external_reference`, `title_match`, `manual`
+- `provenance`: structured explanation of the evidence TaskBridge used
+
+This keeps source facts separate from TaskBridge’s local matching judgment.
+
+## Minimum Normalized Item Snapshot Schema
+
+An item snapshot is the minimum current-state document TaskBridge can publish for a source item.
+
+Required fields:
+
+- `contract_version`
+- `idempotency_key`
+- `item_key`
+- `entity_type`
+- `observed_at`
+- `title`
+- `status`
+- `is_deleted`
+- `source`
+
+Recommended minimum optional fields:
+
+- `completed_at`
+- `source_created_at`
+- `source_updated_at`
+- `due_at`
+- `started_at`
+- `notes_preview`
+- `tags`
+- `parent`
+- `sync_collection`
+- `source_metadata`
+
+Field rules:
+
+- `status` must be one of `open`, `completed`, or `dropped`. `dropped` covers providers such as OmniFocus that model explicitly abandoned items.
+- `entity_type` must be `task` in v1. Other entity kinds require a new major contract version.
+- `notes_preview` must be omitted unless the user has explicitly enabled note export for that source through TaskBridge configuration (see Security and Privacy Constraints). This is a per-user, per-source configuration decision, not a hard-coded default.
+
+Schema:
+
+```json
+{
+  "contract_version": 1,
+  "idempotency_key": "tb:v1:item:asana:workspace-12345:default:1201234567890:snapshot:2026-08-14T19:20:31.123456Z",
+  "item_key": "asana:workspace-12345:default:1201234567890",
+  "entity_type": "task",
+  "observed_at": "2026-08-14T19:20:31.123456Z",
+  "title": "Buy milk",
+  "status": "open",
+  "is_deleted": false,
+  "completed_at": null,
+  "source_created_at": "2026-08-10T12:00:00Z",
+  "source_updated_at": "2026-08-14T18:58:02Z",
+  "due_at": "2026-08-15T17:00:00Z",
+  "started_at": null,
+  "notes_preview": "2% and eggs",
+  "tags": ["Errands", "Home"],
+  "parent": {
+    "external_id": null,
+    "item_key": null
+  },
+  "source": {
+    "service_type": "asana",
+    "service_instance": "asana:workspace-12345:default",
+    "external_id": "1201234567890",
+    "source_url": "https://app.asana.com/0/12345/1201234567890",
+    "source_collection_keys": [
+      { "kind": "project", "id": "project-9" },
+      { "kind": "section", "id": "section-3" }
+    ]
+  },
+  "sync_collection": {
+    "sync_collection_id": 84,
+    "membership_role": "member",
+    "mapping_confidence": "confirmed",
+    "mapping_source": "sync_id_note"
+  },
+  "source_metadata": {
+    "item_type": "task"
+  }
+}
+```
+
+### Common vs source-specific fields
+
+Common normalized fields:
+
+- identity: `item_key`, `entity_type`, `source.*`
+- lifecycle: `observed_at`, `status`, `is_deleted`, `completed_at`
+- task shape: `title`, `due_at`, `started_at`, `parent`, `tags`
+- mapping: `sync_collection.*`
+- provenance timestamps: `source_created_at`, `source_updated_at`
+
+Source-specific metadata belongs only in `source_metadata` and must not be required for core ingestion behavior.
+
+Examples:
+
+- Asana section or workspace details
+- OmniFocus project/container details
+- GitHub issue numbers or repository names
+
+## Minimum Normalized Observation Schema
+
+Observations are append-only facts about what TaskBridge saw or concluded at a point in time. They are not just snapshots; they preserve change history.
+
+Required fields:
+
+- `contract_version`
+- `idempotency_key`
+- `event_type`
+- `observed_at`
+- `item_key`
+- `source`
+
+Minimum schema:
+
+```json
+{
+  "contract_version": 1,
+  "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-08-14T19:20:31.123456Z",
+  "event_type": "source_changed",
+  "observed_at": "2026-08-14T19:20:31.123456Z",
+  "published_at": "2026-08-14T19:20:33.000000Z",
+  "item_key": "asana:workspace-12345:default:1201234567890",
+  "source": {
+    "service_type": "asana",
+    "service_instance": "asana:workspace-12345:default",
+    "external_id": "1201234567890",
+    "source_url": "https://app.asana.com/0/12345/1201234567890"
+  },
+  "change": {
+    "field": "status",
+    "from": "open",
+    "to": "completed"
+  },
+  "source_created_at": "2026-08-10T12:00:00Z",
+  "source_updated_at": "2026-08-14T19:19:58Z",
+  "completed_at": "2026-08-14T19:19:58Z",
+  "provenance": {
+    "detected_by": "sync_compare",
+    "sync_run_id": "sync-run-20260814T192000Z-asana"
+  }
+}
+```
+
+Supported v1 `event_type` values:
+
+- `snapshot_seen`
+- `source_changed`
+- `deleted`
+
+Mapping facts belong in `mappings`, not `observations`. Run-scoped operational facts belong in `sync_runs`, not `observations`. In v1, every observation is item-scoped, so `item_key` must be present.
+
+Field rules:
+
+- `change` is optional and describes a single field transition as `field`, `from`, and `to`.
+- When one observation yields several field transitions, TaskBridge must emit one row per transition with distinct idempotency keys, using the sequence segment from the key format when observed timestamps collide.
+- `event_type: snapshot_seen` rows normally carry no `change`; `deleted` rows may carry `last_known` and `is_deleted: true` as shown in Deletes and Tombstones.
+
+## Idempotency Keys
+
+TaskBridge must create deterministic record-level idempotency keys.
+
+Format:
+
+`tb:v1:<record_kind>:<service_instance>:<external_id_or_scope>:<event_type_or_kind>:<observed_at_or_sequence>`
+
+Rules:
+
+- Prefix all keys with `tb:v1`.
+- Treat the full idempotency key as an opaque identifier. Receivers must not parse it by splitting on `:` because segments such as `service_instance` and timestamps may themselves contain colons.
+- Keys must be deterministic for the same published fact.
+- If TaskBridge retries the same outbox row, it must reuse the same idempotency key.
+- TaskBridge must keep the canonical record payload immutable across retries. The only fields allowed to vary between retries are transport metadata such as batch headers, `batch.batch_id`, `batch.sent_at`, and record-level `published_at`.
+- Duplicate-key comparisons must be based on the canonical row payload after removing transport-only fields. JSON object key order must not affect equivalence.
+- Different facts about the same item must use different keys.
+- Mapping keys carry two identity segments — the collection scope (`sync_collection:<id>`) with the membership kind, followed by the member's `service_instance` and `external_id` — and end with the mapping's `observed_at` timestamp or a sequence. Successive facts about the same membership (for example `mapping_confidence` moving from `tentative` to `confirmed`) must therefore use distinct keys instead of conflicting with the originally accepted row.
+- Sync-run keys use the run scope in place of item identity: `tb:v1:sync_run:<service_instance>:<sync_run_id>`.
+- Batch IDs are transport identifiers only and do not replace record-level idempotency keys.
+- If the same `idempotency_key` is submitted again with different non-transport field values, TaskBridge Web must reject that row as a non-retryable conflict.
+
+Examples:
+
+- item snapshot:
+  - `tb:v1:item:asana:workspace-12345:default:1201234567890:snapshot:2026-08-14T19:20:31.123456Z`
+- observation:
+  - `tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-08-14T19:20:31.123456Z`
+- mapping update:
+  - `tb:v1:map:sync_collection:84:membership:asana:workspace-12345:default:1201234567890:2026-08-14T19:21:00.000000Z`
+- sync run summary:
+  - `tb:v1:sync_run:asana:workspace-12345:default:sync-run-20260814T192000Z-asana`
+
+## Timestamps
+
+Required timestamp semantics:
+
+- `observed_at`: when TaskBridge observed or concluded the fact
+- `published_at`: when TaskBridge attempted publication for this payload row
+- `source_created_at`: provider creation time if known
+- `source_updated_at`: provider last modification time if known
+- `completed_at`: completion timestamp if the item is complete and the source exposes one
+
+Required on sync-run summaries:
+
+- `started_at`
+- `finished_at`
+- `last_attempted_at`
+- `last_successful_at` or `last_failed_at` as applicable
+
+Rules:
+
+- All timestamps must be ISO 8601 UTC with microseconds when available.
+- Unknown source timestamps may be `null`.
+- `published_at` is transport metadata and may differ across retries; the idempotency key must not change, and TaskBridge Web may retain the first accepted `published_at` value.
+- Record-level `published_at` is optional. If omitted, TaskBridge Web should treat `batch.sent_at` as the publish timestamp for operational tracing.
+
+## Deletes and Tombstones
+
+TaskBridge must represent deletions explicitly instead of silently omitting missing items.
+
+Deletion rules:
+
+- If a source clearly marks an item deleted, publish `event_type: deleted`.
+- If a source no longer returns an item that TaskBridge previously observed, publish a tombstone observation only when the adapter can distinguish disappearance from temporary listing incompleteness.
+- Tombstones must preserve source identity, last known title when available, and `observed_at`.
+- After a tombstone, TaskBridge may publish a current-state snapshot with `is_deleted: true`.
+
+Example tombstone observation:
+
+```json
+{
+  "contract_version": 1,
+  "idempotency_key": "tb:v1:obs:omnifocus:default:task-77:deleted:2026-08-14T19:30:00.000000Z",
+  "event_type": "deleted",
+  "observed_at": "2026-08-14T19:30:00.000000Z",
+  "published_at": "2026-08-14T19:30:01.000000Z",
+  "item_key": "omnifocus:default:task-77",
+  "source": {
+    "service_type": "omnifocus",
+    "service_instance": "omnifocus:default",
+    "external_id": "task-77",
+    "source_url": "omnifocus:///task/task-77"
+  },
+  "last_known": {
+    "title": "Buy milk",
+    "status": "open"
+  },
+  "is_deleted": true,
+  "provenance": {
+    "detected_by": "missing_from_authoritative_fetch",
+    "sync_run_id": "sync-run-20260814T192500Z-omnifocus"
+  }
+}
+```
+
+## Mapping Update Schema
+
+Mappings are separate events so TaskBridge Web can track representation changes without diffing snapshots.
+
+Required fields:
+
+- `contract_version`
+- `idempotency_key`
+- `mapping_type`
+- `observed_at`
+- `sync_collection.sync_collection_id`
+- `member.item_key`
+- `member.service_type`
+- `member.service_instance`
+- `member.external_id`
+
+```json
+{
+  "contract_version": 1,
+  "idempotency_key": "tb:v1:map:sync_collection:84:membership:github:repo-1:issue-42:2026-08-14T19:21:00.000000Z",
+  "mapping_type": "representation_membership",
+  "observed_at": "2026-08-14T19:21:00.000000Z",
+  "sync_collection": {
+    "sync_collection_id": 84,
+    "title": "Release checklist"
+  },
+  "member": {
+    "item_key": "github:repo-1:issue-42",
+    "service_type": "github",
+    "service_instance": "github:repo-1",
+    "external_id": "issue-42"
+  },
+  "membership_role": "member",
+  "mapping_confidence": "tentative",
+  "mapping_source": "title_match",
+  "provenance": {
+    "matched_fields": ["title"],
+    "notes": "Single-title match during sync"
+  }
+}
+```
+
+## Sync-Run Summary Schema
+
+TaskBridge should publish one sync-run summary per service run so TaskBridge Web can correlate item observations with operational health.
+
+This schema should align with facts already produced by `StructuredLogger` and service `sync_result`.
+The timestamp fields are normalized to explicit `*_at` names even where current TaskBridge internals use shorter keys such as `last_attempted`; the values map directly.
+
+Required fields:
+
+- `contract_version`
+- `idempotency_key`
+- `sync_run_id`
+- `service_type`
+- `service_instance`
+- `started_at`
+- `finished_at`
+- `last_attempted_at`
+- `status`
+- `items_synced`
+
+Additional rules:
+
+- `status` must be one of `success`, `failed`, or `partial`.
+- TaskBridge currently records `success` and `failed` runs; `partial` is reserved for runs that finish while some items fail. Skipped or idle services should not publish a sync-run summary.
+- `error` is not valid when `status` is `success`.
+- `detail` and `error.message` must be sanitized operational text and must not include secrets, tokens, cookies, raw authorization headers, or raw provider payloads.
+- `error.retryable` must match the retry policy TaskBridge used for the run outcome.
+
+```json
+{
+  "contract_version": 1,
+  "idempotency_key": "tb:v1:sync_run:asana:workspace-12345:default:sync-run-20260814T192000Z-asana",
+  "sync_run_id": "sync-run-20260814T192000Z-asana",
+  "service_type": "asana",
+  "service_instance": "asana:workspace-12345:default",
+  "started_at": "2026-08-14T19:20:00.000000Z",
+  "finished_at": "2026-08-14T19:21:05.000000Z",
+  "last_attempted_at": "2026-08-14T19:20:00.000000Z",
+  "last_successful_at": "2026-08-14T19:21:05.000000Z",
+  "last_failed_at": null,
+  "status": "success",
+  "items_synced": 12,
+  "touched_collection_ids": [84, 91],
+  "detail": "12 items processed",
+  "error": null
+}
+```
+
+Failure example:
+
+```json
+{
+  "contract_version": 1,
+  "idempotency_key": "tb:v1:sync_run:github:repo-1:sync-run-20260814T193000Z-github",
+  "sync_run_id": "sync-run-20260814T193000Z-github",
+  "service_type": "github",
+  "service_instance": "github:repo-1",
+  "started_at": "2026-08-14T19:30:00.000000Z",
+  "finished_at": "2026-08-14T19:30:02.000000Z",
+  "last_attempted_at": "2026-08-14T19:30:00.000000Z",
+  "last_successful_at": null,
+  "last_failed_at": "2026-08-14T19:30:02.000000Z",
+  "status": "failed",
+  "items_synced": 0,
+  "touched_collection_ids": [],
+  "detail": "ProviderError: 401 unauthorized",
+  "error": {
+    "class": "ProviderError",
+    "message": "401 unauthorized",
+    "retryable": false
+  }
+}
+```
+
+## Batch Request Example
+
+```json
+{
+  "contract_version": 1,
+  "batch": {
+    "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+    "sent_at": "2026-08-14T19:21:10.000000Z",
+    "publisher": "task_bridge",
+    "publisher_instance": "task-bridge-macbook-pro"
+  },
+  "items": [
+    {
+      "contract_version": 1,
+      "idempotency_key": "tb:v1:item:asana:workspace-12345:default:1201234567890:snapshot:2026-08-14T19:20:31.123456Z",
+      "item_key": "asana:workspace-12345:default:1201234567890",
+      "entity_type": "task",
+      "observed_at": "2026-08-14T19:20:31.123456Z",
+      "published_at": "2026-08-14T19:21:10.000000Z",
+      "title": "Buy milk",
+      "status": "open",
+      "is_deleted": false,
+      "source": {
+        "service_type": "asana",
+        "service_instance": "asana:workspace-12345:default",
+        "external_id": "1201234567890"
+      }
+    }
+  ],
+  "observations": [
+    {
+      "contract_version": 1,
+      "idempotency_key": "tb:v1:obs:omnifocus:default:task-78:source_changed:2026-08-14T19:32:00.000000Z",
+      "event_type": "source_changed",
+      "observed_at": "2026-08-14T19:32:00.000000Z",
+      "item_key": "omnifocus:default:task-78",
+      "source": {
+        "service_type": "omnifocus",
+        "external_id": "task-78"
+      },
+      "change": {
+        "field": "status",
+        "from": "open",
+        "to": "completed"
+      }
+    }
+  ],
+  "mappings": [],
+  "sync_runs": []
+}
+```
+
+The observation row in this example omits `source.service_instance` deliberately to demonstrate partial-success handling; the response below accepts the item snapshot while rejecting that row.
+
+## TaskBridge Web Endpoint Expectations
+
+The first compatible ingestion surface required under #214 is:
+
+- `POST /api/task_bridge/v1/ingestion/batches`
+
+Minimum behavior:
+
+- authenticate by API key;
+- validate `contract_version`;
+- reject empty batches;
+- reject header/body contract mismatches before row processing;
+- reject requests that repeat an `idempotency_key` across arrays, before row processing;
+- respond to pre-row rejections with a top-level error body and no `results` array; TaskBridge must treat every submitted row in such a response as not delivered;
+- process `items`, `observations`, `mappings`, and `sync_runs` independently;
+- enforce idempotency per record using `idempotency_key`;
+- persist accepted records durably before responding success;
+- support partial success;
+- return retry guidance per failed row;
+- return one result per submitted row after parsing succeeds;
+- reject duplicate keys whose non-transport payload differs from the originally accepted row.
+
+Recommended response for the batch request example above:
+
+```json
+{
+  "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+  "contract_version": 1,
+  "accepted": 1,
+  "replayed": 0,
+  "rejected": 1,
+  "results": [
+    {
+      "record_kind": "item",
+      "idempotency_key": "tb:v1:item:asana:workspace-12345:default:1201234567890:snapshot:2026-08-14T19:20:31.123456Z",
+      "status": "accepted"
+    },
+    {
+      "record_kind": "observation",
+      "idempotency_key": "tb:v1:obs:omnifocus:default:task-78:source_changed:2026-08-14T19:32:00.000000Z",
+      "status": "rejected",
+      "retryable": false,
+      "error_code": "validation_error",
+      "message": "source.service_instance is required"
+    }
+  ]
+}
+```
+
+The count fields must satisfy `accepted + replayed + rejected == results.length` so TaskBridge can reconcile its outbox from this response alone. Each result entry's `record_kind` is one of `item`, `observation`, `mapping`, or `sync_run`, mirroring the top-level array the row was submitted in.
+
+HTTP status guidance:
+
+- `200 OK`: batch parsed; inspect per-row statuses
+- `400 Bad Request`: request body is unparseable or not valid JSON; no rows are processed
+- `401 Unauthorized`: invalid API key; terminal until secrets are fixed
+- `413 Payload Too Large`: retryable after smaller batches
+- `422 Unprocessable Entity`: batch-level contract validation failure such as missing or unsupported `contract_version` or a malformed body; terminal — resend a corrected batch. Per-row validation failures are reported as rejected rows in the `200 OK` per-row results.
+- `409 Conflict`: optional whole-batch response when the request cannot be processed because of duplicate-key payload mismatch
+- `429 Too Many Requests`: retryable with backoff
+- `5xx`: retryable
+
+Per-row result status guidance:
+
+- `accepted`: the row was durably persisted during this request
+- `replayed`: the row matches a previously accepted payload for the same `idempotency_key`; TaskBridge should mark it delivered
+- `rejected`: the row was not accepted; inspect `retryable` and `error_code`
+
+## Failure Semantics
+
+Publication must be at-least-once with idempotent ingestion.
+
+TaskBridge rules:
+
+- Store every pending row in a local outbox before publish.
+- Mark rows delivered only after TaskBridge Web accepts them.
+- Retry retryable failures with exponential backoff and jitter.
+- Keep terminal failures in the outbox with failure status for operator review.
+- Allow manual or scripted replay by batch range, time range, service, or sync run.
+- Prune delivered outbox rows after a configured retention window and terminal rows after operator review; TaskBridge Web owns durable history, so the local outbox is a bounded queue, not an archive.
+
+TaskBridge Web rules:
+
+- Evaluate each row independently.
+- Return `retryable: true` only for transient errors.
+- Never require clients to guess whether a row was persisted.
+- Treat duplicate `idempotency_key` submissions as success if the original payload was already accepted, preferably with `status: replayed`.
+- Treat duplicate `idempotency_key` submissions with different non-transport fields as terminal conflicts and return an explicit validation or conflict error for that row.
+
+## Security and Privacy Constraints
+
+Allowed to leave TaskBridge:
+
+- normalized task title
+- normalized status and timestamps
+- provider URLs
+- provider IDs
+- provider collection IDs and names when needed for provenance
+- non-secret notes preview or normalized notes only if the user has explicitly enabled export for that source through configuration
+- busy/free calendar status once TaskBridge adds a calendar source
+- mapping evidence and sync-run summaries
+
+Must not leave TaskBridge by default:
+
+- API tokens, OAuth credentials, cookies, session data
+- private sync notes used only for local bridging internals unless explicitly designated safe
+- provider payloads that include secrets or unrelated personal data
+- full raw source payloads
+- calendar event titles, attendees, locations, or descriptions, unless explicitly enabled per source
+
+Rules:
+
+- Treat all notes/body content as sensitive by default.
+- `notes_preview` is disabled by default. TaskBridge only emits it for a source once the user has explicitly enabled note export for that source, governed by TaskBridge user configuration rather than a hard-coded per-source rule. This follows TaskBridge's existing pattern of per-deployment `task_bridge:` settings (for example `personal_tags`/`work_tags` in `config/settings.yml`, surfaced through the `GlobalOptions` concern); note export should be added to that same configuration surface rather than inferred from source type.
+- When TaskBridge adds a calendar source, published calendar facts must default to busy/free status only. Publishing full event data (title, attendees, location, description) requires the same explicit per-user, per-source configuration opt-in as notes export.
+- TaskBridge should prefer normalized excerpts over raw provider payloads.
+- TaskBridge Web must not require raw source blobs for v1 ingestion.
+
+## Migration and Backfill Implications
+
+- Add a local outbox table in TaskBridge for durable pending publications.
+- Existing `sync_items`, `sync_collections`, and `sync_service_states` are enough to seed an initial backfill.
+- Backfill should emit:
+  - one current-state item snapshot per known source item;
+  - mapping rows for known `sync_collection` memberships;
+  - sync-run summaries only where reliable historical timestamps exist;
+  - deletion tombstones only where deletion can be stated confidently.
+- Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
+- Backfill records must still carry deterministic idempotency keys so reruns are safe.
+
+## Open Questions
+
+- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+
+## Rejected Alternatives
+
+### Poll TaskBridge from TaskBridge Web
+
+Rejected because:
+
+- it requires TaskBridge to expose and operate a query API;
+- it makes TaskBridge responsible for another durable serving surface;
+- it weakens retry control because the producer no longer owns durable publication state.
+
+### Send only sync-run summaries
+
+Rejected because:
+
+- summaries do not represent item history, deletions, or cross-system mappings;
+- TaskBridge Web would have to reconstruct facts from incomplete aggregates.
+
+### Send only current-state snapshots
+
+Rejected because:
+
+- snapshots alone do not preserve meaningful changes or explicit deletions;
+- TaskBridge Web would need to compute history heuristically.
+
+### Publish raw provider payloads
+
+Rejected because:
+
+- it leaks provider-specific complexity into TaskBridge Web;
+- it expands privacy risk;
+- it couples ingestion to every source adapter’s raw shape.
+
+### Put embeddings, recommendations, or LLM enrichment in TaskBridge
+
+Rejected because:
+
+- it violates the intended app boundary;
+- it makes sync execution depend on analytics/AI concerns;
+- it would force provider adapters to own unstable product logic.
+
+## Implementation Notes for Follow-up Issues
+
+This document remains the #215 deliverable. The implementation in this branch is
+best treated as a reference point for the follow-up integration work under #214,
+not as a substitute for those issues' review and wiring into the live sync flow.
+
+The first implementation issues under #214 can proceed with these assumptions:
+
+- TaskBridge needs an outbox model and batch publisher.
+- TaskBridge Web needs the `v1` ingestion endpoint and idempotent persistence.
+- Both sides should treat `sync_collection` membership and deletion as first-class records, not inferred side effects.
+- LLM or recommendation behavior remains entirely outside TaskBridge.
