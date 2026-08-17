@@ -78,6 +78,7 @@ module Publication
       raise ArgumentError, "entries must not be empty" if rows.empty?
 
       check_entry_interface!(rows)
+      check_persisted_outbox_entries!(rows)
 
       # empty? (not any?) because a nil record_kind element is not truthy and
       # would otherwise slip past this guard into the group_by below.
@@ -128,6 +129,18 @@ module Publication
       return if rows.all? { |row| interface.all? { |method| row.respond_to?(method) } }
 
       raise ArgumentError, "entries must respond to #{interface.join(', ')}"
+    end
+
+    # The publisher exists to transmit durable outbox rows. Sending an unsaved
+    # PublicationOutboxEntry could succeed remotely and then fail locally when
+    # the caller marks it delivered, leaving the publish attempt unrecoverable.
+    # Restrict the guard to real outbox rows so lightweight test doubles and
+    # other caller-owned entry types can still exercise the transport logic.
+    def check_persisted_outbox_entries!(rows)
+      unsaved = rows.select { |row| row.is_a?(PublicationOutboxEntry) && !row.persisted? }
+      return if unsaved.empty?
+
+      raise ArgumentError, "entries must be persisted PublicationOutboxEntry rows before publish"
     end
 
     # A row without a non-blank string idempotency_key can never be reconciled:

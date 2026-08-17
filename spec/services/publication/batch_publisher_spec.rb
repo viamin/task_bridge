@@ -174,6 +174,53 @@ RSpec.describe Publication::BatchPublisher do
       expect(HTTParty).not_to have_received(:post)
     end
 
+    it "raises ArgumentError when a real outbox entry has not been persisted yet" do
+      unsaved_entry = PublicationOutboxEntry.new(
+        idempotency_key: "tb:v1:item:asana:default:11:snapshot:2026-08-14T19:00:00.000000Z",
+        record_kind: "item",
+        payload: {
+          contract_version: 1,
+          idempotency_key: "tb:v1:item:asana:default:11:snapshot:2026-08-14T19:00:00.000000Z",
+          observed_at: "2026-08-14T19:00:00.000000Z",
+          source: {
+            service_type: "asana",
+            service_instance: "asana:default",
+            external_id: "11"
+          }
+        }.to_json,
+        service_type: "asana",
+        service_instance: "asana:default",
+        observed_at: "2026-08-14T19:00:00.000000Z"
+      )
+
+      expect { publisher.publish([unsaved_entry]) }
+        .to raise_error(ArgumentError, /must be persisted PublicationOutboxEntry rows/)
+    end
+
+    it "does not send an HTTP request when a real outbox entry has not been persisted yet" do
+      allow(HTTParty).to receive(:post)
+      unsaved_entry = PublicationOutboxEntry.new(
+        idempotency_key: "tb:v1:item:asana:default:12:snapshot:2026-08-14T19:00:00.000000Z",
+        record_kind: "item",
+        payload: {
+          contract_version: 1,
+          idempotency_key: "tb:v1:item:asana:default:12:snapshot:2026-08-14T19:00:00.000000Z",
+          observed_at: "2026-08-14T19:00:00.000000Z",
+          source: {
+            service_type: "asana",
+            service_instance: "asana:default",
+            external_id: "12"
+          }
+        }.to_json,
+        service_type: "asana",
+        service_instance: "asana:default",
+        observed_at: "2026-08-14T19:00:00.000000Z"
+      )
+
+      expect { publisher.publish([unsaved_entry]) }.to raise_error(ArgumentError, /must be persisted/)
+      expect(HTTParty).not_to have_received(:post)
+    end
+
     it "does not send an HTTP request when an entry has an unknown record_kind" do
       allow(HTTParty).to receive(:post)
       bogus = make_entry(key: "tb:v1:bogus:1", kind: "bogus")
