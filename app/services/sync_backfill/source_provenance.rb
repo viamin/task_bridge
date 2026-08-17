@@ -14,7 +14,11 @@ module SyncBackfill
     private
 
     def backfill_sync_items
-      Base::SyncItem.includes(sync_collection: :sync_items).find_each do |item|
+      # Base::SyncItem.inferred_service_name_for reads peer notes via
+      # peer_sync_id_keys_for, which plucks a fresh notes column per item
+      # rather than using a loaded association, so preloading sync_items
+      # here would not save any queries.
+      Base::SyncItem.find_each do |item|
         next if item.last_observed_at.present?
 
         observed_at = item.updated_at || item.created_at || Time.current

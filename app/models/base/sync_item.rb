@@ -123,8 +123,11 @@ module Base
       read_original(only_modified_dates:)
       return self if options[:pretend]
 
-      save! if changed?
-      self
+      # Always record the observation (not just when attributes changed) so
+      # last_observed_at reflects every fetch, not just ones that produced a
+      # diff. observe_source! saves unconditionally because it always bumps
+      # last_observed_at, which keeps the record dirty.
+      observe_source!
     end
 
     def read_notes

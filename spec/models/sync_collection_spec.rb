@@ -188,6 +188,25 @@ RSpec.describe SyncCollection, :full_options do
       )
     end
 
+    it "does not let an unknown/typo'd method override a known mapping method" do
+      collection = described_class.create!(title: "Mapped")
+
+      collection.update_mapping_provenance!(
+        method: "source_sync_id",
+        confidence: "high",
+        metadata: { note_key: "asana_work_id" }
+      )
+      collection.update_mapping_provenance!(
+        method: "soruce_sync_id",
+        confidence: "high",
+        metadata: { note_key: "typo" }
+      )
+
+      collection.reload
+      expect(collection.mapping_method).to eq("source_sync_id")
+      expect(collection.mapping_metadata).to include("note_key" => "asana_work_id")
+    end
+
     it "upgrades weaker provenance when stronger evidence is observed later" do
       collection = described_class.create!(title: "Mapped")
 

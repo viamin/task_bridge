@@ -123,4 +123,18 @@ RSpec.describe SyncMappingProvenance, :full_options do
       expect { described_class.preferred_for([nil, alpha]) }.to raise_error(ArgumentError)
     end
   end
+
+  describe ".method_priority" do
+    it "ranks created_by_sync above every other known method" do
+      priorities = SyncMappingProvenance::METHOD_PRIORITY.index_with { |method| described_class.method_priority(method) }
+
+      expect(priorities["created_by_sync"]).to eq(priorities.values.max)
+    end
+
+    it "ranks unknown or typo'd methods below every known method instead of above them" do
+      lowest_known_priority = SyncMappingProvenance::METHOD_PRIORITY.map { |method| described_class.method_priority(method) }.min
+
+      expect(described_class.method_priority("soruce_sync_id")).to be < lowest_known_priority
+    end
+  end
 end

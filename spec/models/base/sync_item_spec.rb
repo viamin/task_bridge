@@ -3,6 +3,8 @@
 require "rails_helper"
 
 RSpec.describe "Base::SyncItem", :full_options do
+  include ActiveSupport::Testing::TimeHelpers
+
   # Create a concrete test class since Base::SyncItem is abstract
   let(:test_item_class) do
     Class.new(Base::SyncItem) do
@@ -555,6 +557,20 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.notes).to eq("omnifocus_id: of-pretend")
       expect(item.reload.title).to eq("Local title")
       expect(item.reload.notes).to eq("local note")
+    end
+
+    it "advances last_observed_at even when the external data is unchanged" do
+      item = Asana::Task.find_or_initialize_by(external_id: "asana-123")
+      item.asana_task = asana_task_data
+      item.refresh_from_external!
+      first_observed_at = item.reload.last_observed_at
+
+      travel_to(first_observed_at + 1.hour) do
+        item.asana_task = asana_task_data
+        item.refresh_from_external!
+      end
+
+      expect(item.reload.last_observed_at).to be > first_observed_at
     end
   end
 
