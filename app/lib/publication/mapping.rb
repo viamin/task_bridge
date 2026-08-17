@@ -33,12 +33,12 @@ module Publication
       @idempotency_key = idempotency_key
       @mapping_type = mapping_type
       @observed_at = observed_at
-      @sync_collection = sync_collection
-      @member = member
+      @sync_collection = ImmutableValue.copy(sync_collection)
+      @member = ImmutableValue.copy(member)
       @membership_role = membership_role
       @mapping_confidence = mapping_confidence
       @mapping_source = mapping_source
-      @provenance = provenance
+      @provenance = ImmutableValue.copy(provenance)
 
       validate!
     end

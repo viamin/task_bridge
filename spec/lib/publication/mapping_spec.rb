@@ -244,4 +244,26 @@ RSpec.describe Publication::Mapping do
       expect(described_class::RECORD_KIND).to eq("mapping")
     end
   end
+
+  describe "immutability" do
+    it "deep-copies nested hashes so later caller mutation cannot rewrite the payload" do
+      sync_collection = valid_sync_collection.dup
+      member = valid_member.dup
+      provenance = { matched_fields: ["title"] }
+      mapping = described_class.new(**valid_attrs, sync_collection:, member:, provenance:)
+
+      sync_collection[:title] = "Changed"
+      member[:external_id] = "issue-99"
+      provenance[:matched_fields] << "notes"
+
+      expect(mapping.to_payload).to include(
+        sync_collection: { sync_collection_id: 84, title: "Release checklist" },
+        member: hash_including(external_id: "issue-42"),
+        provenance: { matched_fields: ["title"] }
+      )
+      expect(mapping.sync_collection).to be_frozen
+      expect(mapping.member).to be_frozen
+      expect(mapping.provenance[:matched_fields]).to be_frozen
+    end
+  end
 end

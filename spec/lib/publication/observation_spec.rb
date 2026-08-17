@@ -324,4 +324,27 @@ RSpec.describe Publication::Observation do
       expect(described_class::RECORD_KIND).to eq("observation")
     end
   end
+
+  describe "immutability" do
+    it "deep-copies nested hashes so later caller mutation cannot rewrite the payload" do
+      source = valid_source.merge(source_collection_keys: [{ kind: "project", id: "project-9" }])
+      change = { field: "status", from: "open", to: "completed" }
+      observation = described_class.new(**valid_attrs, source:, change:)
+
+      source[:service_instance] = "asana:workspace-12345:other"
+      source[:source_collection_keys][0][:id] = "project-10"
+      change[:to] = "dropped"
+
+      expect(observation.to_payload).to include(
+        source: hash_including(
+          service_instance: "asana:workspace-12345:default",
+          source_collection_keys: [{ kind: "project", id: "project-9" }]
+        ),
+        change: { field: "status", from: "open", to: "completed" }
+      )
+      expect(observation.source).to be_frozen
+      expect(observation.source[:source_collection_keys]).to be_frozen
+      expect(observation.change).to be_frozen
+    end
+  end
 end

@@ -45,9 +45,9 @@ module Publication
       @items_synced = items_synced
       @last_successful_at = last_successful_at
       @last_failed_at = last_failed_at
-      @touched_collection_ids = touched_collection_ids
+      @touched_collection_ids = ImmutableValue.copy(touched_collection_ids)
       @detail = detail
-      @error = error
+      @error = ImmutableValue.copy(error)
 
       validate!
     end

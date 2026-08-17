@@ -425,4 +425,28 @@ RSpec.describe Publication::SyncRunSummary do
       expect(described_class::RECORD_KIND).to eq("sync_run")
     end
   end
+
+  describe "immutability" do
+    it "deep-copies nested payload structures so later caller mutation cannot rewrite the payload" do
+      touched_collection_ids = [84]
+      error = { class: "ProviderError", message: "401", retryable: false, detail: { code: "unauthorized" } }
+      summary = described_class.new(
+        **valid_attrs,
+        **failed_run_attrs(error: nil),
+        touched_collection_ids:,
+        error:
+      )
+
+      touched_collection_ids << 91
+      error[:message] = "500"
+      error[:detail][:code] = "server_error"
+
+      expect(summary.to_payload).to include(
+        touched_collection_ids: [84],
+        error: { class: "ProviderError", message: "401", retryable: false, detail: { code: "unauthorized" } }
+      )
+      expect(summary.touched_collection_ids).to be_frozen
+      expect(summary.error[:detail]).to be_frozen
+    end
+  end
 end

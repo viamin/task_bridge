@@ -451,4 +451,38 @@ RSpec.describe Publication::ItemSnapshot do
       expect(described_class::RECORD_KIND).to eq("item")
     end
   end
+
+  describe "immutability" do
+    it "deep-copies nested payload structures so later caller mutation cannot rewrite the payload" do
+      source = valid_source.merge(source_collection_keys: [{ kind: "project", id: "project-9" }])
+      tags = ["Errands"]
+      sync_collection = { sync_collection_id: 84, title: "Release checklist" }
+      source_metadata = { raw: { note: "draft" } }
+      snapshot = described_class.new(
+        **valid_attrs,
+        source:,
+        tags:,
+        sync_collection:,
+        source_metadata:
+      )
+
+      source[:service_instance] = "asana:workspace-12345:other"
+      source[:source_collection_keys][0][:id] = "project-10"
+      tags << "Home"
+      sync_collection[:title] = "Changed title"
+      source_metadata[:raw][:note] = "changed"
+
+      expect(snapshot.to_payload).to include(
+        source: hash_including(
+          service_instance: "asana:workspace-12345:default",
+          source_collection_keys: [{ kind: "project", id: "project-9" }]
+        ),
+        tags: ["Errands"],
+        sync_collection: { sync_collection_id: 84, title: "Release checklist" },
+        source_metadata: { raw: { note: "draft" } }
+      )
+      expect(snapshot.tags).to be_frozen
+      expect(snapshot.source_metadata[:raw]).to be_frozen
+    end
+  end
 end

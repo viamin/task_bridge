@@ -35,14 +35,14 @@ module Publication
       @event_type = event_type
       @observed_at = observed_at
       @item_key = item_key
-      @source = source
+      @source = ImmutableValue.copy(source)
       @published_at = published_at
-      @change = change
+      @change = ImmutableValue.copy(change)
       @source_created_at = source_created_at
       @source_updated_at = source_updated_at
       @completed_at = completed_at
-      @provenance = provenance
-      @last_known = last_known
+      @provenance = ImmutableValue.copy(provenance)
+      @last_known = ImmutableValue.copy(last_known)
       @is_deleted = is_deleted
 
       validate!

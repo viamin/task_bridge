@@ -43,17 +43,17 @@ module Publication
       @title = title
       @status = status
       @is_deleted = is_deleted
-      @source = source
+      @source = ImmutableValue.copy(source)
       @completed_at = completed_at
       @source_created_at = source_created_at
       @source_updated_at = source_updated_at
       @due_at = due_at
       @started_at = started_at
       @notes_preview = notes_preview
-      @tags = tags
-      @parent = parent
-      @sync_collection = sync_collection
-      @source_metadata = source_metadata
+      @tags = ImmutableValue.copy(tags)
+      @parent = ImmutableValue.copy(parent)
+      @sync_collection = ImmutableValue.copy(sync_collection)
+      @source_metadata = ImmutableValue.copy(source_metadata)
 
       validate!
     end
