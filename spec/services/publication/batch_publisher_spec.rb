@@ -101,6 +101,11 @@ RSpec.describe Publication::BatchPublisher do
         .to raise_error(ArgumentError, /valid http\(s\) URI/)
     end
 
+    it "raises ArgumentError when endpoint includes a fragment" do
+      expect { described_class.new(endpoint: "https://taskbridge-web.example.com/api#batch", api_key:) }
+        .to raise_error(ArgumentError, /valid http\(s\) URI/)
+    end
+
     it "raises ArgumentError when publisher_instance is not a string" do
       expect { described_class.new(endpoint:, api_key:, publisher_instance: 42) }
         .to raise_error(ArgumentError, /publisher_instance/)
