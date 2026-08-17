@@ -340,6 +340,74 @@ RSpec.describe PublicationOutboxEntry, type: :model do
         .to raise_error(ArgumentError, /payload member is required/)
     end
 
+    it "raises a clear ArgumentError when a mapping payload omits its required sync_collection hash" do
+      sync_collection_less_mapping = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:map:sync_collection:84:membership:asana:workspace-12345:default:123:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            member: {
+              item_key: "asana:workspace-12345:default:123",
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      sync_collection_less_mapping::RECORD_KIND = "mapping"
+
+      expect { described_class.from_record(sync_collection_less_mapping.new) }
+        .to raise_error(ArgumentError, /payload sync_collection is required/)
+    end
+
+    it "raises a clear ArgumentError when mapping sync_collection_id is missing" do
+      missing_sync_collection_id = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:map:sync_collection:84:membership:asana:workspace-12345:default:123:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            sync_collection: {},
+            member: {
+              item_key: "asana:workspace-12345:default:123",
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      missing_sync_collection_id::RECORD_KIND = "mapping"
+
+      expect { described_class.from_record(missing_sync_collection_id.new) }
+        .to raise_error(ArgumentError, /payload sync_collection\.sync_collection_id is required/)
+    end
+
+    it "raises a clear ArgumentError when mapping sync_collection_id has the wrong type" do
+      invalid_sync_collection_id = Class.new do
+        def to_payload
+          {
+            contract_version: 1,
+            idempotency_key: "tb:v1:map:sync_collection:84:membership:asana:workspace-12345:default:123:2026-08-14T19:00:00.000000Z",
+            observed_at: "2026-08-14T19:00:00.000000Z",
+            sync_collection: { sync_collection_id: { bad: true } },
+            member: {
+              item_key: "asana:workspace-12345:default:123",
+              service_type: "asana",
+              service_instance: "asana:workspace-12345:default",
+              external_id: "123"
+            }
+          }
+        end
+      end
+      invalid_sync_collection_id::RECORD_KIND = "mapping"
+
+      expect { described_class.from_record(invalid_sync_collection_id.new) }
+        .to raise_error(ArgumentError, /payload sync_collection\.sync_collection_id must be a string or integer/)
+    end
+
     it "raises a clear ArgumentError when payload idempotency_key is missing" do
       keyless_payload = Class.new do
         def to_payload
@@ -789,6 +857,7 @@ RSpec.describe PublicationOutboxEntry, type: :model do
             contract_version: 1,
             idempotency_key: "tb:v1:map:sync_collection:84:membership:github:repo-1:issue-42:2026-08-14T19:21:00.000000Z",
             observed_at: "2026-08-14T19:21:00.000000Z",
+            sync_collection: { sync_collection_id: 84 },
             source: {
               service_type: "asana",
               service_instance: "asana:workspace-12345:default",

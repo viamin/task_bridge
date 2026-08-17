@@ -89,6 +89,7 @@ class PublicationOutboxEntry < ApplicationRecord
     validate_payload_contract_version!(payload, idempotency_key)
     validate_required_identity_section!(kind, payload, idempotency_key)
     validate_required_identity_fields!(kind, identity, idempotency_key)
+    validate_record_contract_fields!(kind, payload, idempotency_key)
     service_type     = preferred_payload_value(identity, payload, :service_type)
     service_instance = preferred_payload_value(identity, payload, :service_instance)
     observed_at      = observed_at_value(payload)
@@ -258,6 +259,37 @@ class PublicationOutboxEntry < ApplicationRecord
     end
   end
   private_class_method :identity_requirements
+
+  # The outbox should reject malformed record-kind-specific payloads before
+  # they are persisted; otherwise a row can be stored locally and only fail as
+  # a non-retryable remote rejection later. Start with the extra mapping
+  # fields the outbox itself cannot derive from service provenance.
+  def self.validate_record_contract_fields!(kind, payload, idempotency_key)
+    return unless kind == "mapping"
+
+    validate_mapping_sync_collection!(payload, idempotency_key)
+  end
+  private_class_method :validate_record_contract_fields!
+
+  def self.validate_mapping_sync_collection!(payload, idempotency_key)
+    sync_collection = payload_hash!(payload, :sync_collection, required: true)
+    sync_collection_id = Publication::HashAccess.fetch(sync_collection, :sync_collection_id)
+    Publication::Utf8.validate_fields!("payload sync_collection.sync_collection_id" => sync_collection_id)
+
+    return if sync_collection_id.is_a?(String) && sync_collection_id.present?
+    return if sync_collection_id.is_a?(Integer)
+
+    raise ArgumentError, "payload sync_collection.sync_collection_id is required for #{idempotency_key}" if sync_collection_id.blank?
+
+    raise ArgumentError,
+          "payload sync_collection.sync_collection_id must be a string or integer for #{idempotency_key}"
+  rescue ArgumentError => e
+    raise ArgumentError, "#{e.message} for #{idempotency_key}" if e.message.start_with?("payload sync_collection is required")
+    raise ArgumentError, "#{e.message} for #{idempotency_key}" if e.message.start_with?("payload sync_collection must be a hash")
+
+    raise
+  end
+  private_class_method :validate_mapping_sync_collection!
 
   def self.validate_required_identity_field!(identity, section, field, idempotency_key)
     value = Publication::HashAccess.fetch(identity, field)
