@@ -23,6 +23,7 @@ class CreatePublicationOutboxEntries < ActiveRecord::Migration[8.1]
       # Delivery timestamps
       t.datetime :delivered_at, precision: 6
       t.datetime :failed_at, precision: 6
+      t.datetime :next_attempt_at, precision: 6
 
       t.timestamps
     end

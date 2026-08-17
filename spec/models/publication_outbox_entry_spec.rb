@@ -975,6 +975,28 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(keys).not_to include("key-terminal", "key-delivered")
     end
 
+    it "publishable skips failed rows whose retry backoff has not elapsed yet" do
+      described_class.delete_all
+
+      ready = described_class.create!(
+        valid_entry_attrs(idempotency_key: "key-ready-failed").merge(
+          status: "failed",
+          retry_count: 1,
+          next_attempt_at: 1.minute.ago
+        )
+      )
+      waiting = described_class.create!(
+        valid_entry_attrs(idempotency_key: "key-waiting-failed").merge(
+          status: "failed",
+          retry_count: 1,
+          next_attempt_at: 1.minute.from_now
+        )
+      )
+
+      expect(described_class.publishable).to include(ready)
+      expect(described_class.publishable).not_to include(waiting)
+    end
+
     it "stale_delivering returns only abandoned claims older than the reclaim cutoff" do
       described_class.delete_all
 
@@ -1122,6 +1144,25 @@ RSpec.describe PublicationOutboxEntry, type: :model do
 
       expect(entry.reload.failed_at).to be_nil
     end
+
+    it "rejects attempts to claim a fresh delivering row" do
+      entry = described_class.create!(valid_entry_attrs.merge(status: "delivering"))
+
+      expect { entry.mark_delivering! }
+        .to raise_error(ArgumentError, /mark_delivering! cannot transition a fresh delivering outbox row/)
+    end
+
+    it "allows reclaiming a stale delivering row" do
+      entry = described_class.create!(
+        valid_entry_attrs.merge(
+          status: "delivering",
+          updated_at: described_class.stale_delivery_cutoff - 1.second
+        )
+      )
+
+      expect { entry.mark_delivering! }.not_to raise_error
+      expect(entry.reload.status).to eq("delivering")
+    end
   end
 
   describe "#mark_delivered!" do
@@ -1187,10 +1228,34 @@ RSpec.describe PublicationOutboxEntry, type: :model do
       expect(entry.error_message).to include("network timeout")
     end
 
+    it "schedules the next retry attempt with exponential backoff and jitter" do
+      allow(described_class).to receive(:retry_jitter_seconds).and_return(7)
+      entry = described_class.create!(valid_entry_attrs)
+
+      entry.mark_failed!(message: "network timeout")
+
+      failed_at = entry.reload.failed_at
+      expect(entry.next_attempt_at).to eq(failed_at + 67.seconds)
+    end
+
+    it "keeps a failed row out of publishable until next_attempt_at arrives" do
+      allow(described_class).to receive(:retry_jitter_seconds).and_return(0)
+      entry = described_class.create!(valid_entry_attrs)
+
+      entry.mark_failed!(message: "network timeout")
+
+      expect(described_class.publishable).not_to include(entry)
+
+      entry.update!(next_attempt_at: 1.second.ago)
+
+      expect(described_class.publishable).to include(entry.reload)
+    end
+
     it "transitions to terminal when retry_count reaches MAX_RETRIES" do
       entry = described_class.create!(valid_entry_attrs.merge(retry_count: described_class::MAX_RETRIES - 1))
       entry.mark_failed!(message: "permanent error")
       expect(entry.reload.status).to eq("terminal")
+      expect(entry.next_attempt_at).to be_nil
     end
 
     it "scrubs malformed bytes from the message so recording a failure cannot fail" do

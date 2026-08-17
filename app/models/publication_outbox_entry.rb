@@ -16,6 +16,7 @@
 #  observed_at      :datetime         not null
 #  delivered_at     :datetime
 #  failed_at        :datetime
+#  next_attempt_at  :datetime
 #  created_at       :datetime         not null
 #  updated_at       :datetime         not null
 #
@@ -35,6 +36,8 @@ class PublicationOutboxEntry < ApplicationRecord
 
   # Maximum retries before a row is moved to terminal status.
   MAX_RETRIES = 10
+  RETRY_BASE_DELAY = 30.seconds
+  RETRY_JITTER_MAX = RETRY_BASE_DELAY
   # A delivery claim older than this is assumed to belong to a crashed or
   # otherwise abandoned worker and can safely be retried under the at-least-once
   # contract.
@@ -67,7 +70,8 @@ class PublicationOutboxEntry < ApplicationRecord
   scope :failed,     -> { where(status: "failed") }
   scope :terminal,   -> { where(status: "terminal") }
 
-  # Rows eligible for retry: failed rows that have not exceeded MAX_RETRIES.
+  # Failed rows that have not exceeded MAX_RETRIES, regardless of whether the
+  # current backoff window has elapsed yet.
   scope :retryable, -> { where(status: "failed").where("retry_count < ?", MAX_RETRIES) }
 
   # Rows claimed by a worker that did not finish the attempt. The claim timestamp
@@ -83,7 +87,8 @@ class PublicationOutboxEntry < ApplicationRecord
   # Stale delivering rows are folded back into the retry pool so a crashed
   # worker does not strand them forever.
   scope :publishable, lambda {
-    ready = where(status: %w[pending failed]).where("retry_count < ?", MAX_RETRIES)
+    ready_failed = retryable.where("next_attempt_at IS NULL OR next_attempt_at <= ?", Time.current)
+    ready = pending.or(ready_failed)
     stale = stale_delivering.where("retry_count < ?", MAX_RETRIES)
 
     ready.or(stale).order(:observed_at, :id)
@@ -91,6 +96,18 @@ class PublicationOutboxEntry < ApplicationRecord
 
   def self.stale_delivery_cutoff(now = Time.current)
     now - DELIVERY_CLAIM_TIMEOUT
+  end
+
+  def self.next_attempt_at_for(failed_at:, retry_count:, jitter_seconds: retry_jitter_seconds)
+    failed_at + retry_delay_for(retry_count:, jitter_seconds:)
+  end
+
+  def self.retry_delay_for(retry_count:, jitter_seconds: retry_jitter_seconds)
+    (RETRY_BASE_DELAY * (2**retry_count)) + jitter_seconds
+  end
+
+  def self.retry_jitter_seconds
+    rand(0..RETRY_JITTER_MAX.to_i)
   end
 
   # Builds an entry from a Publication value object without saving.
@@ -365,28 +382,30 @@ class PublicationOutboxEntry < ApplicationRecord
   # claims to be reclaimed after DELIVERY_CLAIM_TIMEOUT.
   def mark_delivering!
     with_transition_lock(:mark_delivering!) do
-      ensure_not_delivered_or_terminal!(:mark_delivering!)
-      update!(status: "delivering", delivered_at: nil, failed_at: nil, error_message: nil)
+      ensure_claimable_for_delivery!(:mark_delivering!)
+      update!(status: "delivering", delivered_at: nil, failed_at: nil, next_attempt_at: nil, error_message: nil)
     end
   end
 
   def mark_delivered!
     with_transition_lock(:mark_delivered!) do
       ensure_not_delivered_or_terminal!(:mark_delivered!)
-      update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
+      update!(status: "delivered", delivered_at: Time.current, failed_at: nil, next_attempt_at: nil, error_message: nil)
     end
   end
 
   def mark_failed!(message:)
     with_transition_lock(:mark_failed!) do
       ensure_not_delivered_or_terminal!(:mark_failed!)
+      failed_at = Time.current
       new_count = retry_count + 1
       new_status = new_count >= MAX_RETRIES ? "terminal" : "failed"
       update!(
         status: new_status,
         retry_count: new_count,
         delivered_at: nil,
-        failed_at: Time.current,
+        failed_at:,
+        next_attempt_at: next_attempt_at_for(new_status:, failed_at:, retry_count: new_count),
         error_message: sanitized_message(message)
       )
     end
@@ -402,6 +421,7 @@ class PublicationOutboxEntry < ApplicationRecord
         status: "terminal",
         delivered_at: nil,
         failed_at: Time.current,
+        next_attempt_at: nil,
         error_message: sanitized_message(message)
       )
     end
@@ -418,7 +438,7 @@ class PublicationOutboxEntry < ApplicationRecord
   def mark_replayed!
     with_transition_lock(:mark_replayed!) do
       ensure_not_delivered_or_terminal!(:mark_replayed!)
-      update!(status: "delivered", delivered_at: Time.current, failed_at: nil, error_message: nil)
+      update!(status: "delivered", delivered_at: Time.current, failed_at: nil, next_attempt_at: nil, error_message: nil)
     end
   end
 
@@ -458,6 +478,27 @@ class PublicationOutboxEntry < ApplicationRecord
 
     raise ArgumentError, "#{operation} cannot transition a #{status} outbox row"
   end
+
+  def ensure_claimable_for_delivery!(operation)
+    return if %w[pending failed].include?(status)
+    return if status == "delivering" && stale_delivery_claim?
+
+    raise ArgumentError, "#{operation} cannot transition a fresh delivering outbox row" if status == "delivering"
+
+    ensure_not_delivered_or_terminal!(operation)
+    raise ArgumentError, "#{operation} cannot transition a #{status} outbox row"
+  end
+
+  def stale_delivery_claim?
+    updated_at.present? && updated_at < self.class.stale_delivery_cutoff
+  end
+
+  def next_attempt_at_for(new_status:, failed_at:, retry_count:)
+    return if new_status == "terminal"
+
+    self.class.next_attempt_at_for(failed_at:, retry_count:)
+  end
+  private :next_attempt_at_for
 
   def with_transition_lock(operation)
     raise ActiveRecord::RecordNotSaved, "#{operation} requires a persisted outbox row" unless persisted?

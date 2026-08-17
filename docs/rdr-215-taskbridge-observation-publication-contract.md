@@ -632,6 +632,7 @@ TaskBridge rules:
 - Retry retryable failures with exponential backoff and jitter.
 - Keep terminal failures in the outbox with failure status for operator review.
 - Allow manual or scripted replay by batch range, time range, service, or sync run.
+- Prune delivered outbox rows after a configured retention window and terminal rows after operator review; TaskBridge Web owns durable history, so the local outbox is a bounded queue, not an archive.
 
 TaskBridge Web rules:
 
