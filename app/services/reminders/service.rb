@@ -46,7 +46,8 @@ module Reminders
         external_id = Reminder.read_external_attribute(external_reminder, Reminder.external_attribute_map[:external_id])
         next if external_id.blank?
 
-        reminder = Reminder.find_or_initialize_by(external_id:)
+        reminder = Reminder.find_or_initialize_by_source(service_name:, external_id:)
+        reminder.options = self.class.build_options(reminder.options, service_name)
         reminder.reminder = external_reminder
         reminder.refresh_from_external!(only_modified_dates: true)
       end

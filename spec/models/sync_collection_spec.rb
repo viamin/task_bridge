@@ -116,4 +116,25 @@ RSpec.describe SyncCollection, :full_options do
       expect(collection.needs_sync?).to be false
     end
   end
+
+  describe "#update_mapping_provenance!" do
+    it "stores explicit mapping provenance and timestamps" do
+      collection = described_class.create!(title: "Mapped")
+      observed_at = Time.zone.parse("2024-04-03T12:00:00Z")
+
+      collection.update_mapping_provenance!(
+        method: "source_sync_id",
+        confidence: "high",
+        metadata: { note_key: "asana_work_id" },
+        observed_at:
+      )
+
+      collection.reload
+      expect(collection.mapping_method).to eq("source_sync_id")
+      expect(collection.mapping_confidence).to eq("high")
+      expect(collection.mapping_metadata).to include("note_key" => "asana_work_id")
+      expect(collection.mapping_established_at).to be_present
+      expect(collection.mapping_last_observed_at).to eq(observed_at)
+    end
+  end
 end

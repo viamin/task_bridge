@@ -45,8 +45,14 @@ RSpec.describe Asana::Service, :full_options do
       allow(service).to receive(:list_projects).and_return([{ "gid" => "project-gid" }])
       allow(service).to receive(:list_project_tasks).with("project-gid", only_modified_dates: false).and_return([parent_task_data, sub_task_data])
       allow(service).to receive(:list_task_sub_items).with("parent-gid", only_modified_dates: false).and_return([sub_task_data])
-      allow(Asana::Task).to receive(:find_or_initialize_by).with(external_id: "parent-gid").and_return(parent_task)
-      allow(Asana::Task).to receive(:find_or_initialize_by).with(external_id: "subtask-gid").and_return(sub_task)
+      allow(Asana::Task).to receive(:find_or_initialize_by_source).with(
+        service_name: service.service_name,
+        external_id: "parent-gid"
+      ).and_return(parent_task)
+      allow(Asana::Task).to receive(:find_or_initialize_by_source).with(
+        service_name: service.service_name,
+        external_id: "subtask-gid"
+      ).and_return(sub_task)
     end
 
     it "hydrates loaded subtasks before matching and deduping them" do
@@ -94,7 +100,10 @@ RSpec.describe Asana::Service, :full_options do
       allow(service).to receive(:list_projects).and_return([{ "gid" => "project-b" }, { "gid" => "project-a" }])
       allow(service).to receive(:list_project_tasks).with("project-b", only_modified_dates: false).and_return([multi_project_task_data])
       allow(service).to receive(:list_project_tasks).with("project-a", only_modified_dates: false).and_return([multi_project_task_data])
-      allow(Asana::Task).to receive(:find_or_initialize_by).with(external_id: "multi-project-gid").and_return(multi_project_task)
+      allow(Asana::Task).to receive(:find_or_initialize_by_source).with(
+        service_name: service.service_name,
+        external_id: "multi-project-gid"
+      ).and_return(multi_project_task)
 
       tasks = service.items_to_sync
 

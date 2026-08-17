@@ -104,7 +104,8 @@ module Omnifocus
         external_id = self.class.read_external_attribute(sub_item, self.class.external_attribute_map[:external_id])
         next if external_id.blank?
 
-        task = Task.find_or_initialize_by(external_id:)
+        task = Task.find_or_initialize_by_source(service_name:, external_id:)
+        task.options = Base::Service.build_options(task.options, service_name)
         task.omnifocus_task = sub_item
         task.refresh_from_external!(only_modified_dates:)
       end

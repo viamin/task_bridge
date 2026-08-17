@@ -213,6 +213,8 @@ RSpec.describe Base::Service do
 
       expect(persisted_service_item.reload.sync_collection_id).to eq(persisted_primary_item.reload.sync_collection_id)
       expect(persisted_service_item.sync_collection_id).to be_present
+      expect(persisted_service_item.sync_collection.mapping_method).to eq("manual_backfill")
+      expect(persisted_service_item.sync_collection.mapping_confidence).to eq("low")
     end
 
     it "persists a sync collection for matched items even when the item is skipped as unchanged" do
@@ -269,6 +271,8 @@ RSpec.describe Base::Service do
       expect(persisted_service_item.reload.sync_collection_id).to eq(created_primary_item.sync_collection_id)
       expect(created_primary_item.title).to eq(persisted_service_item.title)
       expect(created_primary_item.test_service_id).to eq(persisted_service_item.external_id)
+      expect(created_primary_item.sync_collection.mapping_method).to eq("created_by_sync")
+      expect(created_primary_item.sync_collection.mapping_confidence).to eq("high")
     end
 
     it "persists newly created primary items when sync IDs are stored as note instance variables" do

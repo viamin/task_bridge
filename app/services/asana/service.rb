@@ -41,7 +41,10 @@ module Asana
 
       tasks = task_list.map do |external_task|
         task_hash, synced_project_gid = external_task
-        asana_task = Task.find_or_initialize_by(external_id: task_hash[Task.external_attribute_map[:external_id]])
+        asana_task = Task.find_or_initialize_by_source(
+          service_name: service_name,
+          external_id: task_hash[Task.external_attribute_map[:external_id]]
+        )
         asana_task.options = self.class.build_options(asana_task.options, service_name)
         asana_task.synced_project_gid = synced_project_gid
         asana_task.asana_task = task_hash
@@ -53,7 +56,10 @@ module Asana
         tasks_with_sub_items.each do |parent_task|
           sub_item_hashes = list_task_sub_items(parent_task.external_id, only_modified_dates:)
           sub_item_hashes.each do |sub_item_hash|
-            sub_item = Task.find_or_initialize_by(external_id: sub_item_hash[Task.external_attribute_map[:external_id]])
+            sub_item = Task.find_or_initialize_by_source(
+              service_name: service_name,
+              external_id: sub_item_hash[Task.external_attribute_map[:external_id]]
+            )
             sub_item.options = self.class.build_options(sub_item.options, service_name)
             sub_item.asana_task = sub_item_hash
             sub_item.refresh_from_external!(only_modified_dates:)

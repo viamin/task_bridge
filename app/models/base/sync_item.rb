@@ -11,9 +11,19 @@
 #  due_at             :datetime
 #  due_date           :datetime
 #  flagged            :boolean
+#  first_observed_at  :datetime
 #  item_type          :string
 #  last_modified      :datetime
+#  last_observed_at   :datetime
 #  notes              :text
+#  source_created_at  :datetime
+#  source_external_id :string
+#  source_metadata    :text
+#  source_service_instance :string
+#  source_service_name :string
+#  source_service_type :string
+#  source_updated_at  :datetime
+#  source_url         :string
 #  start_at           :datetime
 #  start_date         :datetime
 #  status             :string
@@ -28,11 +38,11 @@
 #
 # Indexes
 #
-#  index_sync_items_on_last_modified               (last_modified)
-#  index_sync_items_on_parent_item_id              (parent_item_id)
-#  index_sync_items_on_sync_collection_id          (sync_collection_id)
-#  index_sync_items_on_sync_collection_id_and_type (sync_collection_id,type) UNIQUE WHERE (sync_collection_id IS NOT NULL)
-#  index_sync_items_on_type_and_external_id        (type,external_id) UNIQUE
+#  index_sync_items_on_collection_id_and_source_service_name (sync_collection_id,source_service_name) UNIQUE WHERE ((sync_collection_id IS NOT NULL) AND (source_service_name IS NOT NULL))
+#  index_sync_items_on_last_modified                     (last_modified)
+#  index_sync_items_on_parent_item_id                    (parent_item_id)
+#  index_sync_items_on_sync_collection_id                (sync_collection_id)
+#  index_sync_items_on_type_service_name_and_external_id (type,source_service_name,external_id) UNIQUE
 #
 # Foreign Keys
 #
@@ -52,8 +62,11 @@ module Base
     delegate :external_attribute_map, :attribute_map, :read_external_attribute, to: :class
 
     after_initialize :read_notes, :set_tags
+    before_validation :capture_source_identity
 
     belongs_to :sync_collection, optional: true, inverse_of: :sync_items
+
+    serialize :source_metadata, coder: JSON
 
     def initialize(attributes = nil, &)
       attributes ||= {}
@@ -82,7 +95,7 @@ module Base
       end
     end
 
-    validates :external_id, uniqueness: { scope: :type }
+    validates :external_id, uniqueness: { scope: %i[type source_service_name] }
 
     def read_original(only_modified_dates: false)
       values_hash = external_attribute_map.each_with_object({}) do |(attribute_key, attribute_value), hash|
@@ -150,7 +163,9 @@ module Base
     end
 
     def service_name
-      Base::Service.normalized_service_name(@service_name.presence || options[:service_name].presence || provider)
+      Base::Service.normalized_service_name(
+        source_service_name.presence || @service_name.presence || options[:service_name].presence || provider
+      )
     end
 
     def options
@@ -261,6 +276,52 @@ module Base
       parsed_notes(notes:, keys: [key.to_s])[key.to_s]
     end
 
+    def observe_source!(observed_at: Time.current)
+      capture_source_identity(observed_at:)
+      save! if changed?
+      self
+    end
+
+    def mapping_provenance_with(other_item)
+      target_sync_key = :"#{other_item.service_key}_id"
+      source_sync_key = :"#{service_key}_id"
+
+      if sync_ids_match?(sync_note_value_for(target_sync_key), other_item.external_id)
+        {
+          method: "source_sync_id",
+          confidence: "high",
+          metadata: {
+            "matched_by" => "source_note",
+            "note_key" => target_sync_key.to_s
+          }
+        }
+      elsif sync_ids_match?(other_item.sync_note_value_for(source_sync_key), external_id)
+        {
+          method: "source_sync_id",
+          confidence: "high",
+          metadata: {
+            "matched_by" => "target_note",
+            "note_key" => source_sync_key.to_s
+          }
+        }
+      elsif friendly_title_matches(other_item)
+        {
+          method: "title_fallback",
+          confidence: "medium",
+          metadata: {
+            "matched_by" => "title",
+            "title" => friendly_title
+          }
+        }
+      else
+        {
+          method: "manual_backfill",
+          confidence: "low",
+          metadata: {}
+        }
+      end
+    end
+
     def define_note_component_accessors(key)
       return if singleton_class.method_defined?(key.to_sym) && singleton_class.method_defined?(:"#{key}=")
 
@@ -279,6 +340,19 @@ module Base
 
       def external_attribute_map
         standard_attribute_map.merge(attribute_map).compact
+      end
+
+      def find_by_source(service_name:, external_id:)
+        normalized_service_name = Base::Service.normalized_service_name(service_name)
+        find_by(source_service_name: normalized_service_name, external_id:) ||
+          find_by(source_service_name: nil, external_id:)
+      end
+
+      def find_or_initialize_by_source(service_name:, external_id:)
+        find_by_source(service_name:, external_id:) || new(
+          external_id:,
+          source_service_name: Base::Service.normalized_service_name(service_name)
+        )
       end
 
       # Read a single attribute value from external_data (AppleScript refs or hash keys).
@@ -430,6 +504,22 @@ module Base
       return false if left.blank? || right.blank?
 
       left.to_s == right.to_s
+    end
+
+    def capture_source_identity(observed_at: Time.current)
+      resolved_service_name = Base::Service.normalized_service_name(
+        source_service_name.presence || @service_name.presence || options[:service_name].presence || provider
+      )
+
+      self.source_service_name = resolved_service_name
+      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name)
+      self.source_service_type = provider.presence || self.class.name.deconstantize
+      self.source_external_id = external_id if external_id.present?
+      self.source_url = url if url.present?
+      self.source_updated_at = last_modified if last_modified.present?
+      self.first_observed_at ||= created_at || observed_at
+      self.last_observed_at = observed_at
+      self.source_metadata ||= {}
     end
   end
 end

@@ -4,15 +4,22 @@
 #
 # Table name: sync_collections
 #
-#  id          :integer          not null, primary key
-#  last_synced :datetime
-#  title       :string
-#  created_at  :datetime         not null
-#  updated_at  :datetime         not null
+#  id                       :integer          not null, primary key
+#  last_synced              :datetime
+#  mapping_confidence       :string
+#  mapping_established_at   :datetime
+#  mapping_last_observed_at :datetime
+#  mapping_metadata         :text
+#  mapping_method           :string
+#  title                    :string
+#  created_at               :datetime         not null
+#  updated_at               :datetime         not null
 #
 class SyncCollection < ApplicationRecord
   has_many :sync_items, class_name: "Base::SyncItem", foreign_key: :sync_collection_id,
                         dependent: :nullify, inverse_of: :sync_collection
+
+  serialize :mapping_metadata, coder: JSON
 
   def items
     sync_items.to_a
@@ -27,5 +34,15 @@ class SyncCollection < ApplicationRecord
     return true if last_synced.nil?
 
     sync_items.where.not(last_modified: nil).where("last_modified > ?", last_synced).exists?
+  end
+
+  def update_mapping_provenance!(method:, confidence:, metadata: {}, observed_at: Time.current)
+    self.mapping_method = method
+    self.mapping_confidence = confidence
+    self.mapping_metadata = (mapping_metadata || {}).merge(metadata.deep_stringify_keys)
+    self.mapping_established_at ||= created_at || observed_at
+    self.mapping_last_observed_at = observed_at
+    save! if changed?
+    self
   end
 end

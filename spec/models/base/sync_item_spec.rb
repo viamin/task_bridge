@@ -522,6 +522,12 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.last_modified).to eq(Time.zone.parse("2024-04-03T12:00:00Z"))
       expect(item.notes).to eq(asana_task_data["notes"])
       expect(item.omnifocus_id).to eq("of-123")
+      expect(item.source_service_name).to eq("Asana")
+      expect(item.source_service_type).to eq("Asana")
+      expect(item.source_external_id).to eq("asana-123")
+      expect(item.source_updated_at).to eq(Time.zone.parse("2024-04-03T12:00:00Z"))
+      expect(item.first_observed_at).to be_present
+      expect(item.last_observed_at).to be_present
     end
 
     it "does not persist hydrated attributes in pretend mode" do
@@ -708,6 +714,20 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.external_sync_notes).to include("asana_work_id: asana-456")
       expect(item.external_sync_notes).to include("asana_work_url: https://app.asana.com/0/456")
       expect(item.external_sync_notes).not_to include("asana_id:")
+    end
+
+    it "finds persisted items by instance-qualified source identity" do
+      persisted_item = asana_item_class.create!(
+        options: options.merge(service_name: "Asana:work"),
+        title: "Buy milk",
+        external_id: "asana-456"
+      )
+
+      found_item = asana_item_class.find_by_source(service_name: "Asana:work", external_id: "asana-456")
+
+      expect(found_item).to eq(persisted_item)
+      expect(found_item.source_service_name).to eq("Asana:work")
+      expect(found_item.source_service_instance).to eq("work")
     end
   end
 

@@ -35,18 +35,22 @@ module Github
                       .map { |repo| list_issues(repo, tags) }
                       .flatten
                       .map do |external_issue|
-        issue = Issue.find_or_initialize_by(
+        issue = Issue.find_or_initialize_by_source(
+          service_name: service_name,
           external_id: external_issue[Issue.external_attribute_map[:external_id]]
         )
+        issue.options = self.class.build_options(issue.options, service_name)
         issue.github_issue = external_issue
         issue.refresh_from_external!(only_modified_dates:)
       end
       assigned_issues = list_assigned
                         .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
                         .map do |external_issue|
-        issue = Issue.find_or_initialize_by(
+        issue = Issue.find_or_initialize_by_source(
+          service_name: service_name,
           external_id: external_issue[Issue.external_attribute_map[:external_id]]
         )
+        issue.options = self.class.build_options(issue.options, service_name)
         issue.github_issue = external_issue
         issue.refresh_from_external!(only_modified_dates:)
       end

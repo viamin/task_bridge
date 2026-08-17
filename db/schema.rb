@@ -10,10 +10,15 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_04_05_000002) do
+ActiveRecord::Schema[7.2].define(version: 2026_08_17_094249) do
   create_table "sync_collections", force: :cascade do |t|
     t.string "title"
     t.datetime "last_synced"
+    t.string "mapping_method"
+    t.string "mapping_confidence"
+    t.text "mapping_metadata"
+    t.datetime "mapping_established_at"
+    t.datetime "mapping_last_observed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -49,15 +54,25 @@ ActiveRecord::Schema[7.2].define(version: 2026_04_05_000002) do
     t.string "url"
     t.string "external_id"
     t.datetime "last_modified"
+    t.string "source_service_name"
+    t.string "source_service_instance"
+    t.string "source_service_type"
+    t.string "source_external_id"
+    t.string "source_url"
+    t.datetime "source_created_at"
+    t.datetime "source_updated_at"
+    t.datetime "first_observed_at"
+    t.datetime "last_observed_at"
+    t.text "source_metadata"
     t.integer "parent_item_id"
     t.integer "sync_collection_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["parent_item_id"], name: "index_sync_items_on_parent_item_id"
     t.index ["sync_collection_id"], name: "index_sync_items_on_sync_collection_id"
-    t.index ["sync_collection_id", "type"], name: "index_sync_items_on_sync_collection_id_and_type", unique: true, where: "(sync_collection_id IS NOT NULL)"
     t.index ["last_modified"], name: "index_sync_items_on_last_modified"
-    t.index ["type", "external_id"], name: "index_sync_items_on_type_and_external_id", unique: true
+    t.index ["sync_collection_id", "source_service_name"], name: "index_sync_items_on_collection_id_and_source_service_name", unique: true, where: "((sync_collection_id IS NOT NULL) AND (source_service_name IS NOT NULL))"
+    t.index ["type", "source_service_name", "external_id"], name: "index_sync_items_on_type_service_name_and_external_id", unique: true
   end
 
   add_foreign_key "sync_items", "sync_collections"
