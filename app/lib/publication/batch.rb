@@ -117,9 +117,12 @@ module Publication
     # publisher and publisher_instance are envelope metadata strings; nil means
     # omit, and any other type would publish a contract field with the wrong
     # shape, so wrong-typed or blank values fail here like every other field.
+    # publisher_instance only makes sense as an instance of a named publisher,
+    # so it must not appear by itself.
     def check_envelope_strings!
       check_envelope_string!(publisher, :publisher)
       check_envelope_string!(publisher_instance, :publisher_instance)
+      raise ArgumentError, "publisher_instance requires publisher" if publisher.nil? && publisher_instance.present?
     end
 
     def check_envelope_string!(value, field)

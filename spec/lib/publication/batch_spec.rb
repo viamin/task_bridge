@@ -200,6 +200,11 @@ RSpec.describe Publication::Batch do
         .to raise_error(ArgumentError, /publisher_instance must be a non-blank string/)
     end
 
+    it "raises when publisher_instance is provided without publisher" do
+      expect { described_class.new(batch_id:, sent_at:, items: [item], publisher: nil, publisher_instance: "my-mac") }
+        .to raise_error(ArgumentError, /publisher_instance requires publisher/)
+    end
+
     it "raises when batch_id contains invalid UTF-8 byte sequences" do
       expect { described_class.new(batch_id: (+"b\xff").force_encoding("UTF-8"), sent_at:, items: [item]) }
         .to raise_error(ArgumentError, /batch_id must be valid UTF-8/)
