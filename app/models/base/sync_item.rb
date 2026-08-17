@@ -562,9 +562,8 @@ module Base
       self.source_service_type = provider.presence || self.class.name.deconstantize
       self.source_external_id = external_id if external_id.present?
       self.source_url = url if url.present?
-      self.source_created_at ||= created_at || observed_at
       self.source_updated_at = last_modified if last_modified.present?
-      self.first_observed_at ||= created_at || observed_at
+      self.first_observed_at ||= observed_at
       self.last_observed_at = observed_at
       self.source_metadata ||= {}
     end
