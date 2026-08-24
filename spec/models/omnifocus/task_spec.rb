@@ -68,6 +68,10 @@ RSpec.describe "Omnifocus::Task" do
     let(:item) { task }
   end
 
+  it_behaves_like "normalized_snapshot" do
+    let(:item) { task }
+  end
+
   context "with time-related tags" do
     context "with a relative date tag" do
       let(:tags) { ["This Week"] }

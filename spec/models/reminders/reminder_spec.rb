@@ -60,6 +60,10 @@ RSpec.describe "Reminders::Reminder" do
     let(:item) { reminder }
   end
 
+  it_behaves_like "normalized_snapshot" do
+    let(:item) { reminder }
+  end
+
   describe "new" do
     it "parses out the omnifocus_id from notes" do
       expect(reminder.omnifocus_id).to eq("jU466dYHf2o")

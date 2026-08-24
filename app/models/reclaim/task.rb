@@ -89,6 +89,20 @@ module Reclaim
       item_type == PERSONAL
     end
 
+    # Reclaim's chunk-based scheduling model doesn't map to a single
+    # estimated_minutes value, so it stays in metadata.
+    def normalized_metadata
+      {
+        category: item_type,
+        time_required:,
+        time_spent:,
+        time_remaining:,
+        minimum_chunk_size:,
+        maximum_chunk_size:,
+        always_private:
+      }.compact
+    end
+
     def to_h(*_args)
       {
         title:,

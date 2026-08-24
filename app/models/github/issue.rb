@@ -80,6 +80,12 @@ module Github
       url
     end
 
+    # Issue number and PR flag are GitHub-specific identity/classification
+    # details, not part of the common normalized_snapshot schema.
+    def normalized_metadata
+      { number:, pull_request: is_pr }.compact
+    end
+
     class << self
       def attribute_map
         {

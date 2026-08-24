@@ -57,6 +57,10 @@ RSpec.describe GoogleTasks::Task do
     let(:item) { google_task }
   end
 
+  it_behaves_like "normalized_snapshot" do
+    let(:item) { google_task }
+  end
+
   describe "new" do
     it "parses out the omnifocus_id from notes" do
       expect(google_task.omnifocus_id).to eq("jU466dYHf2o")

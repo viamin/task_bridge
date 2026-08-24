@@ -187,6 +187,28 @@ module Base
       Base::Service.service_identifier_for(service_name)
     end
 
+    # An opaque, deterministic identifier for this item that is stable across
+    # syncs. Consumers must not parse it by splitting on `:` (the service key
+    # or external ID may themselves contain colons).
+    def item_key
+      [service_key, external_id].compact.join(":")
+    end
+
+    # A versioned, source-agnostic snapshot of this item's current state,
+    # suitable for change detection and publication without source-specific
+    # branching. See docs/normalized-snapshot-field-support.md for what each
+    # adapter currently supports.
+    def normalized_snapshot
+      Base::SnapshotSerializer.call(self)
+    end
+
+    # Source-specific facts that don't fit the common normalized_snapshot
+    # schema. Subclasses override this to expose fields unique to their
+    # provider (see Base::SnapshotSerializer#call).
+    def normalized_metadata
+      {}
+    end
+
     def service
       return @service if defined?(@service) && !@service.nil?
 

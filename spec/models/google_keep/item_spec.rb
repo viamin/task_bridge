@@ -39,6 +39,8 @@ RSpec.describe GoogleKeep::Item do
     item.read_original
   end
 
+  it_behaves_like "normalized_snapshot"
+
   describe "#read_original" do
     it "reads the title, completion state, and shallow nesting from a Keep list item" do
       expect(item.title).to eq("Buy milk")

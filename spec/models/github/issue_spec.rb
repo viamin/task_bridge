@@ -72,6 +72,16 @@ RSpec.describe "Github::Issue" do
     let(:item) { issue }
   end
 
+  it_behaves_like "normalized_snapshot" do
+    let(:item) { issue }
+  end
+
+  describe "#normalized_metadata" do
+    it "carries the GitHub-specific number and pull_request flag under metadata" do
+      expect(issue.normalized_metadata).to eq(number:, pull_request: false)
+    end
+  end
+
   it "is marked open" do
     expect(issue).to be_open
   end

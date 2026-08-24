@@ -72,6 +72,12 @@ module GoogleKeep
       @stable_external_id_embedded == true
     end
 
+    # Whether this item's external ID came from Keep's embedded marker
+    # (vs. a freshly generated UUID) doesn't generalize to other sources.
+    def normalized_metadata
+      { stable_external_id_embedded: stable_external_id_embedded? }
+    end
+
     def self.from_external(external_item)
       {
         checked: external_item.completed?,

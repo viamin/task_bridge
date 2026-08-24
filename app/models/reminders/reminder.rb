@@ -97,6 +97,12 @@ module Reminders
       "#{provider}::Reminder:(#{external_id})#{title}"
     end
 
+    # Reminders lists don't generalize across sources (unlike the shared
+    # `project` field), so they stay in metadata.
+    def normalized_metadata
+      { list: }.compact
+    end
+
     def patch_external_attributes(attributes)
       attributes.each do |key, value|
         mapped_key = attribute_map[key]
@@ -124,9 +130,9 @@ module Reminders
     private
 
     def project_map
-      return {} if options[:reminders_mapping].nil?
+      return {} if options[:reminders_mapping].blank?
 
-      options[:reminders_mapping].split(",").to_h { |mapping| mapping.split("~") }
+      options[:reminders_mapping].split(",").filter_map { |mapping| mapping.split("~") if mapping.include?("~") }.to_h
     end
   end
 end

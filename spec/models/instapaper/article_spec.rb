@@ -58,6 +58,16 @@ RSpec.describe Instapaper::Article do
     article.read_original
   end
 
+  it_behaves_like "normalized_snapshot" do
+    let(:item) { article }
+  end
+
+  describe "#normalized_metadata" do
+    it "carries the Instapaper-specific folder under metadata" do
+      expect(article.normalized_metadata).to eq(folder:)
+    end
+  end
+
   describe "#completed?" do
     before { allow(article).to receive(:unread?).and_return(true) }
 

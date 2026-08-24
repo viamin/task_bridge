@@ -70,6 +70,12 @@ module Instapaper
       folder == "unread"
     end
 
+    # Instapaper's reading-list folder doesn't generalize to other sources,
+    # so it stays in metadata.
+    def normalized_metadata
+      { folder: }.compact
+    end
+
     def friendly_title
       if title&.strip.blank?
         "[READ] #{url}"
