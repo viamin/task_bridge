@@ -46,6 +46,17 @@ RSpec.describe "Asana::Task" do
     let(:item) { asana_task }
   end
 
+  it_behaves_like "normalized_snapshot" do
+    let(:item) { asana_task }
+  end
+
+  describe "#normalized_metadata" do
+    it "carries the Asana-specific section under metadata" do
+      asana_task.read_original
+      expect(asana_task.normalized_metadata).to eq(section: "Bucky")
+    end
+  end
+
   describe "new" do
     it "parses out the omnifocus_id from notes" do
       expect(asana_task.omnifocus_id).to eq("jU466dYHf2o")

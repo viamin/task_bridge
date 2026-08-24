@@ -78,6 +78,12 @@ module Asana
       !completed?
     end
 
+    # Asana sections don't generalize across sources, so they stay in
+    # metadata rather than widening the normalized_snapshot schema.
+    def normalized_metadata
+      { section: }.compact
+    end
+
     # For now, default to true
     def personal?
       true

@@ -66,6 +66,16 @@ RSpec.describe "Reclaim::Task" do
     let(:item) { task }
   end
 
+  it_behaves_like "normalized_snapshot" do
+    let(:item) { task }
+  end
+
+  describe "#normalized_metadata" do
+    it "carries Reclaim-specific scheduling facts under metadata" do
+      expect(task.normalized_metadata).to eq(category: event_category)
+    end
+  end
+
   it "parses the due_date" do
     expect(task.due_date).to be_instance_of(ActiveSupport::TimeWithZone)
   end
