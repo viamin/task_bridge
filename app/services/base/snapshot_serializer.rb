@@ -49,7 +49,10 @@ module Base
 
     def source_identity
       {
-        service_type: item.provider,
+        # The publication contract (#215) calls for stable adapter-family
+        # identifiers (e.g. "asana", "google_tasks") rather than the display
+        # names each subclass's `provider` returns ("Asana", "GoogleTasks").
+        service_type: Base::Service.service_identifier_for(item.provider),
         service_instance: item.source_service_instance,
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
@@ -60,7 +63,12 @@ module Base
       {
         title: item.title,
         display_title: item.friendly_title,
-        notes: item.notes_content,
+        # Notes are intentionally omitted: the publication contract (#215)
+        # requires `notes_preview` to be opt-in per source via TaskBridge
+        # configuration, and the per-source setting does not exist yet.
+        # Until then, emitting full notes here would silently leak source
+        # notes to any consumer of this snapshot. When the setting lands,
+        # gate this field behind it (as `notes_preview`, not `notes`).
         status: status,
         completed: item.completed?,
         completed_at: item.completed_at || item.completed_on,

@@ -18,7 +18,6 @@ source does not expose the concept today, not that it never could.
 | Field              | OmniFocus | Asana | GitHub | Google Tasks | Reminders | Reclaim | Instapaper | Google Keep |
 |--------------------|-----------|-------|--------|---------------|-----------|---------|------------|-------------|
 | title              | yes       | yes   | yes    | yes           | yes       | yes     | yes        | yes         |
-| notes              | yes       | yes   | yes    | yes           | yes       | yes     | no         | no          |
 | status/completed   | yes       | yes   | yes    | yes           | yes       | yes     | yes        | yes         |
 | due_at / due_date  | yes       | yes   | no     | yes (date)    | yes       | yes     | no         | no          |
 | start_at / start_date | yes    | yes   | no     | no            | yes       | yes     | no         | no          |
@@ -51,6 +50,12 @@ source does not expose the concept today, not that it never could.
 
 ## Known gaps
 
+- `notes_preview` is intentionally **not** emitted by any adapter today. The
+  publication contract (#215) requires note export to be opt-in per source via
+  TaskBridge configuration, and that setting does not exist yet. Until it
+  lands, omitting notes keeps full source note bodies from leaking through
+  the snapshot. When the setting is added, the field should be exposed as
+  `notes_preview` (matching the contract) rather than `notes`.
 - `status` only ever resolves to `open` or `completed`. No adapter currently
   exposes an explicit "dropped"/abandoned state (OmniFocus models this via
   AppleScript's `dropped`/`effectively_dropped` properties, but TaskBridge
@@ -63,3 +68,14 @@ source does not expose the concept today, not that it never could.
   `refresh_from_external!`). A freshly constructed, unsaved item may have a
   `nil` `service_instance` even though `service_type` and `external_id` are
   already known.
+
+## `source.service_type` format
+
+`source.service_type` carries the stable adapter-family identifier from the
+publication contract (#215), not the display name returned by
+`Base::SyncItem#provider`. The serializer applies
+`Base::Service.service_identifier_for(provider)` so each value is the
+class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
+`github`, `instapaper`, `reminders`, `reclaim`, `google_keep`). The instance
+component (when present) belongs only in `source.service_instance` — see
+`app/services/base/snapshot_serializer.rb`.

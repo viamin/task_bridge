@@ -28,7 +28,7 @@ RSpec.shared_examples "normalized_snapshot" do
       expect(snapshot[:item_key]).to eq(item.item_key)
       expect(snapshot[:entity_type]).to eq("task")
       expect(snapshot[:source]).to include(
-        service_type: item.provider,
+        service_type: Base::Service.service_identifier_for(item.provider),
         external_id: item.external_id
       )
     end
@@ -37,7 +37,11 @@ RSpec.shared_examples "normalized_snapshot" do
       snapshot = item.normalized_snapshot
 
       expect(snapshot[:title]).to eq(item.title)
-      expect(snapshot[:notes]).to eq(item.notes_content)
+      # Notes are opt-in per source under the publication contract (#215)
+      # and the per-source setting does not exist yet, so the snapshot must
+      # not carry any notes field today.
+      expect(snapshot).not_to have_key(:notes)
+      expect(snapshot).not_to have_key(:notes_preview)
       expect(snapshot[:status]).to be_in(%w[open completed dropped])
       expect(snapshot[:completed]).to eq(item.completed?)
       expect(snapshot[:tags]).to eq(Array(item.tags))
