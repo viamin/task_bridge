@@ -43,17 +43,18 @@ module Asana
     include Collectible
 
     attr_accessor :asana_task, :synced_project_gid
-    attr_reader :project, :section, :sub_item_count, :sub_items, :assignee
+    attr_reader :project, :section, :sub_item_count, :sub_items, :assignee,
+                :section_gid, :project_gid, :workspace_gid, :workspace_name, :assignee_name
 
     def read_original(only_modified_dates: false)
       super
       @sub_item_count = asana_task.fetch("num_subtasks", 0).to_i
       @sub_items = []
       unless only_modified_dates
-        @project = project_from_memberships(asana_task)
-        @section = section_from_memberships(asana_task)
-        @tags = (@tags + Array(@section)).uniq
+        assign_container_attributes
+        @tags = (@tags + Array(@section) + asana_tag_names).uniq
         @assignee = asana_task.dig("assignee", "gid")
+        @assignee_name = asana_task.dig("assignee", "name")
       end
       self
     end
@@ -78,10 +79,18 @@ module Asana
       !completed?
     end
 
-    # Asana sections don't generalize across sources, so they stay in
-    # metadata rather than widening the normalized_snapshot schema.
+    # Asana sections, tag names, workspace/project IDs, and assignee details
+    # don't generalize across sources, so they stay in metadata rather than
+    # widening the normalized_snapshot schema.
     def normalized_metadata
-      { section: }.compact
+      {
+        section:,
+        section_gid:,
+        project_gid:,
+        workspace_gid:,
+        workspace_name:,
+        assignee_name:
+      }.compact
     end
 
     # For now, default to true
@@ -130,6 +139,7 @@ module Asana
           permalink_url: false,
           completed: true,
           completed_at: true,
+          created_at: true,
           projects: true,
           due_on: false,
           due_at: false,
@@ -143,6 +153,10 @@ module Asana
           "memberships.section.gid": true,
           "memberships.section.name": true,
           "memberships.project.name": true,
+          "tags.name": false,
+          "assignee.name": false,
+          "workspace.gid": false,
+          "workspace.name": false,
           subtasks_name: false,
           assignee: false
         }.stringify_keys
@@ -167,10 +181,19 @@ module Asana
 
     private
 
-    # try to read the project and sections from the memberships array
-    # If there isn't anything there, use the projects array
-    def project_from_memberships(asana_task)
+    # Reads the project/section names and gids, plus the workspace identity,
+    # from the selected membership.
+    def assign_container_attributes
       membership = matching_membership(asana_task) || asana_task["memberships"]&.first
+      @project = project_name_from(membership)
+      @section = section_name_from(membership)
+      @project_gid = membership&.dig("project", "gid")
+      @section_gid = membership&.dig("section", "gid")
+      @workspace_gid = asana_task.dig("workspace", "gid")
+      @workspace_name = asana_task.dig("workspace", "name")
+    end
+
+    def project_name_from(membership)
       return fallback_project_name(asana_task) if membership.nil?
 
       membership.dig("project", "name") || fallback_project_name(asana_task)
@@ -188,12 +211,15 @@ module Asana
       synced_project&.dig("name") || asana_task["projects"]&.first&.dig("name")
     end
 
-    def section_from_memberships(asana_task)
-      membership = matching_membership(asana_task) || asana_task["memberships"]&.first
+    def section_name_from(membership)
       return if membership.nil?
 
       section = membership.dig("section", "name")
       section == "Untitled section" ? nil : section
+    end
+
+    def asana_tag_names
+      Array(asana_task["tags"]).filter_map { |tag| tag["name"] }
     end
 
     def serialized_project_gids

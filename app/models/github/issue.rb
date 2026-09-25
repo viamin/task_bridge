@@ -43,7 +43,7 @@ module Github
     include Collectible
 
     attr_accessor :github_issue
-    attr_reader :number, :tags, :project, :is_pr
+    attr_reader :number, :tags, :project, :is_pr, :assignee
 
     def read_original(only_modified_dates: false)
       super
@@ -52,6 +52,7 @@ module Github
       @tags = (default_tags + Array(github_issue["labels"]).map { |label| label["name"] }).uniq
       @project = github_issue["project"] || short_repo_name(github_issue)
       @is_pr = (github_issue["pull_request"] && !github_issue["pull_request"]["diff_url"].nil?) || false
+      @assignee = github_issue.dig("assignee", "login")
       self.last_modified = Chronic.parse(github_issue["updated_at"])&.getlocal
       self
     end
@@ -80,10 +81,23 @@ module Github
       url
     end
 
-    # Issue number and PR flag are GitHub-specific identity/classification
-    # details, not part of the common normalized_snapshot schema.
+    def chronic_attributes
+      %i[completed_at]
+    end
+
+    # Issue number, PR flag, and other GitHub-specific identity/classification
+    # details are not part of the common normalized_snapshot schema.
     def normalized_metadata
-      { number:, pull_request: is_pr }.compact
+      {
+        number:,
+        pull_request: is_pr,
+        repository: full_repo_name,
+        author: github_issue.dig("user", "login"),
+        assignees: assignee_logins,
+        milestone: github_issue.dig("milestone", "title"),
+        comments_count: github_issue["comments"].presence,
+        draft: (github_issue["draft"] if is_pr)
+      }.compact
     end
 
     class << self
@@ -94,6 +108,7 @@ module Github
           url: "html_url",
           notes: "body",
           source_created_at: "created_at",
+          completed_at: "closed_at",
           last_modified: nil
         }
       end
@@ -103,6 +118,14 @@ module Github
 
     def short_repo_name(github_issue)
       github_issue["repository_url"]&.split("/")&.last || "unknown"
+    end
+
+    def full_repo_name
+      github_issue["repository_url"]&.split("repos/")&.last
+    end
+
+    def assignee_logins
+      Array(github_issue["assignees"]).filter_map { |assignee| assignee["login"] }
     end
 
     # Raw:

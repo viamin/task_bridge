@@ -46,13 +46,15 @@ RSpec.describe "Reminders::Reminder" do
   let(:completed) { [true, false].sample }
   let(:containing_list) { SecureRandom.uuid.upcase }
   let(:body) { "notes\n\nomnifocus_id: jU466dYHf2o" }
+  let(:priority) { nil }
   let(:properties) do
     OpenStruct.new({
       external_id: id,
       name:,
       completed:,
       containing_list:,
-      body:
+      body:,
+      priority:
     }.compact)
   end
 
@@ -67,6 +69,37 @@ RSpec.describe "Reminders::Reminder" do
   describe "new" do
     it "parses out the omnifocus_id from notes" do
       expect(reminder.omnifocus_id).to eq("jU466dYHf2o")
+    end
+  end
+
+  describe "#priority" do
+    def reminder_with_priority(value)
+      Reminders::Reminder.new(
+        reminder: OpenStruct.new(external_id: id, name:, completed:, containing_list:, body:, priority: value)
+      ).tap(&:read_original)
+    end
+
+    it "maps the AppleScript priority value to a source label" do
+      expect(reminder_with_priority(0).priority).to eq("none")
+      expect(reminder_with_priority(1).priority).to eq("low")
+      expect(reminder_with_priority(5).priority).to eq("medium")
+      expect(reminder_with_priority(9).priority).to eq("high")
+    end
+
+    it "publishes no label for unknown values" do
+      expect(reminder_with_priority(7).priority).to be_nil
+    end
+  end
+
+  describe "#normalized_snapshot" do
+    let(:priority) { 5 }
+
+    it "publishes the mapped priority label with the raw value under metadata" do
+      reminder.read_original
+      snapshot = reminder.normalized_snapshot
+
+      expect(snapshot[:priority]).to eq("medium")
+      expect(snapshot[:metadata]).to eq(list: "", priority_value: 5)
     end
   end
 

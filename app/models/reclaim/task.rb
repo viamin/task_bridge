@@ -43,7 +43,8 @@ module Reclaim
     WORK = "WORK"
 
     attr_accessor :reclaim_task
-    attr_reader :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :always_private
+    attr_reader :time_required, :time_spent, :time_remaining, :minimum_chunk_size, :maximum_chunk_size, :always_private,
+                :scheduling_status, :event_sub_type, :at_risk
 
     def read_original(only_modified_dates: false)
       super
@@ -53,6 +54,9 @@ module Reclaim
       @minimum_chunk_size = read_external_attribute(reclaim_task, "minChunkSize", only_modified_dates:)
       @maximum_chunk_size = read_external_attribute(reclaim_task, "maxChunkSize", only_modified_dates:)
       @always_private = read_external_attribute(reclaim_task, "alwaysPrivate", only_modified_dates:)
+      @scheduling_status = read_external_attribute(reclaim_task, "status", only_modified_dates:)
+      @event_sub_type = read_external_attribute(reclaim_task, "eventSubType", only_modified_dates:)
+      @at_risk = read_external_attribute(reclaim_task, "atRisk", only_modified_dates:)
       @tags = default_tags
       @tags = if personal?
         @tags + options[:personal_tags]
@@ -90,10 +94,15 @@ module Reclaim
     end
 
     # Reclaim's chunk-based scheduling model doesn't map to a single
-    # estimated_minutes value, so it stays in metadata.
+    # estimated_minutes value, so it stays in metadata. `status` is Reclaim's
+    # own scheduling status (e.g. SCHEDULED/IN_PROGRESS), not the snapshot's
+    # open/completed/dropped status.
     def normalized_metadata
       {
         category: item_type,
+        status: scheduling_status,
+        event_sub_type:,
+        at_risk:,
         time_required:,
         time_spent:,
         time_remaining:,

@@ -51,9 +51,28 @@ RSpec.describe "Asana::Task" do
   end
 
   describe "#normalized_metadata" do
-    it "carries the Asana-specific section under metadata" do
+    it "carries the Asana-specific container, workspace, and assignee facts under metadata" do
       asana_task.read_original
-      expect(asana_task.normalized_metadata).to eq(section: "Bucky")
+      expect(asana_task.normalized_metadata).to eq(
+        section: "Bucky",
+        section_gid: "1203152506994884",
+        project_gid: "1203152506994879",
+        workspace_gid: "498346170860",
+        workspace_name: "Personal Projects",
+        assignee_name: "Bart Agapinan"
+      )
+    end
+  end
+
+  describe "#normalized_snapshot" do
+    it "publishes the enriched fixture fields" do
+      asana_task.read_original
+      snapshot = asana_task.normalized_snapshot
+
+      expect(snapshot[:source_created_at]).to eq(Chronic.parse("2022-12-10T18:00:00.000Z"))
+      expect(snapshot[:assignee]).to eq("1172102786176655")
+      expect(snapshot[:tags]).to include("errands")
+      expect(snapshot[:metadata]).to eq(asana_task.normalized_metadata)
     end
   end
 
@@ -261,10 +280,21 @@ RSpec.describe "Asana::Task" do
         "name",
         "completed",
         "completed_at",
+        "created_at",
         "modified_at",
         "num_subtasks",
         "memberships.project.gid",
         "memberships.section.gid"
+      )
+    end
+
+    it "requests the enrichment fields for full reads" do
+      expect(Asana::Task.requested_fields).to include(
+        "created_at",
+        "tags.name",
+        "assignee.name",
+        "workspace.gid",
+        "workspace.name"
       )
     end
   end

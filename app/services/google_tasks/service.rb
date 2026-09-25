@@ -57,6 +57,7 @@ module GoogleTasks
           task = Task.find_or_initialize_by_source(service_name:, external_id: external_task.id)
           task.options = self.class.build_options(task.options, service_name)
           task.google_task = external_task
+          task.google_tasklist = target_tasklist
           task.refresh_from_external!(only_modified_dates:)
         end
       end

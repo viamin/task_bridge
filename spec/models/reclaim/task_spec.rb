@@ -47,6 +47,9 @@ RSpec.describe "Reclaim::Task" do
   let(:start_date) { "Today" }
   let(:due_date) { "Tomorrow" }
   let(:event_category) { %w[WORK PERSONAL].sample }
+  let(:scheduling_status) { "SCHEDULED" }
+  let(:event_sub_type) { "FOCUS" }
+  let(:at_risk) { false }
   let(:properties) do
     {
       "id" => id,
@@ -54,7 +57,10 @@ RSpec.describe "Reclaim::Task" do
       "due" => due_date,
       "snoozeUntil" => start_date,
       "notes" => notes,
-      "eventCategory" => event_category
+      "eventCategory" => event_category,
+      "status" => scheduling_status,
+      "eventSubType" => event_sub_type,
+      "atRisk" => at_risk
     }.compact
   end
 
@@ -72,7 +78,26 @@ RSpec.describe "Reclaim::Task" do
 
   describe "#normalized_metadata" do
     it "carries Reclaim-specific scheduling facts under metadata" do
-      expect(task.normalized_metadata).to eq(category: event_category)
+      expect(task.normalized_metadata).to eq(
+        category: event_category,
+        status: scheduling_status,
+        event_sub_type: event_sub_type,
+        at_risk: at_risk
+      )
+    end
+  end
+
+  describe "#normalized_snapshot" do
+    it "publishes the schedule and duration facts through metadata" do
+      task.read_original
+      snapshot = task.normalized_snapshot
+
+      expect(snapshot[:metadata]).to eq(
+        category: event_category,
+        status: scheduling_status,
+        event_sub_type: event_sub_type,
+        at_risk: at_risk
+      )
     end
   end
 

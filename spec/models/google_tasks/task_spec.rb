@@ -39,19 +39,28 @@
 require "rails_helper"
 
 RSpec.describe GoogleTasks::Task do
-  let(:google_task) { GoogleTasks::Task.new(google_task: google_task_json) }
+  let(:google_task) { GoogleTasks::Task.new(google_task: google_task_json, google_tasklist: tasklist) }
+  let(:tasklist) { { "id" => "task-list-id", "title" => "TaskBridge" } }
   let(:google_task_json) do
     {
       "id" => id,
       "title" => title,
       "self_link" => url,
-      "notes" => notes
-    }
+      "notes" => notes,
+      "status" => status,
+      "completed" => completed_at,
+      "parent" => parent_id,
+      "web_view_link" => web_view_link
+    }.compact
   end
   let(:id) { Faker::Number.number(digits: 10) }
   let(:title) { Faker::Lorem.sentence }
   let(:url) { Faker::Internet.url }
   let(:notes) { "notes\n\nomnifocus_id: jU466dYHf2o" }
+  let(:status) { "needsAction" }
+  let(:completed_at) { nil }
+  let(:parent_id) { nil }
+  let(:web_view_link) { "https://tasks.google.com/embed/list/~default" }
 
   it_behaves_like "sync_item" do
     let(:item) { google_task }
@@ -64,6 +73,44 @@ RSpec.describe GoogleTasks::Task do
   describe "new" do
     it "parses out the omnifocus_id from notes" do
       expect(google_task.omnifocus_id).to eq("jU466dYHf2o")
+    end
+  end
+
+  describe "#normalized_metadata" do
+    before { google_task.read_original }
+
+    it "carries the tasklist identity, parent, and web link under metadata" do
+      expect(google_task.normalized_metadata).to eq(
+        list: "TaskBridge",
+        list_id: "task-list-id",
+        web_view_link:
+      )
+    end
+
+    it "carries the parent task id when the payload provides one" do
+      subtask = GoogleTasks::Task.new(
+        google_task: google_task_json.merge("parent" => "parent-task-id"),
+        google_tasklist: tasklist
+      )
+      subtask.read_original
+
+      expect(subtask.normalized_metadata).to include(parent: "parent-task-id")
+    end
+  end
+
+  describe "#normalized_snapshot" do
+    context "with a completed task" do
+      let(:status) { "completed" }
+      let(:completed_at) { "2024-04-03T10:00:00.000Z" }
+
+      it "publishes the completion timestamp and enriched metadata" do
+        google_task.read_original
+        snapshot = google_task.normalized_snapshot
+
+        expect(snapshot[:completed]).to be(true)
+        expect(snapshot[:completed_at]).to eq(Chronic.parse("2024-04-03T10:00:00.000Z"))
+        expect(snapshot[:metadata]).to eq(google_task.normalized_metadata)
+      end
     end
   end
 

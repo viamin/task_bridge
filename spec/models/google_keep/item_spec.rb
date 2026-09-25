@@ -6,7 +6,7 @@ RSpec.describe GoogleKeep::Item do
   include_context "full_options"
   let(:service_names) { %w[Asana Reminders Github GoogleTasks Instapaper] }
 
-  let(:note) { OpenStruct.new(title: "Groceries", update_time: Time.zone.parse("2024-04-03 10:00:00 UTC")) }
+  let(:note) { OpenStruct.new(name: "notes/keep-note-123", title: "Groceries", update_time: Time.zone.parse("2024-04-03 10:00:00 UTC")) }
   let(:child_item) do
     OpenStruct.new(
       text: OpenStruct.new(text: "Oat milk"),
@@ -40,6 +40,20 @@ RSpec.describe GoogleKeep::Item do
   end
 
   it_behaves_like "normalized_snapshot"
+
+  describe "#normalized_metadata" do
+    it "carries the note identity and list path under metadata" do
+      expect(item.normalized_metadata).to eq(
+        stable_external_id_embedded: false,
+        note_id: "notes/keep-note-123",
+        list_path: [0]
+      )
+    end
+
+    it "carries the nested path for child items" do
+      expect(item.sub_items.first.normalized_metadata).to include(list_path: [0, 0])
+    end
+  end
 
   describe "#read_original" do
     it "reads the title, completion state, and shallow nesting from a Keep list item" do
