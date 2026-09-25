@@ -41,6 +41,8 @@ require "rails_helper"
 RSpec.describe Instapaper::Article do
   let(:title) { Faker::Lorem.sentence }
   let(:folder) { %w[unread archive].sample }
+  let(:progress) { 0.72406 }
+  let(:starred) { "1" }
   let(:article_props) do
     {
       "id" => "id_string",
@@ -49,6 +51,8 @@ RSpec.describe Instapaper::Article do
       "folder" => folder,
       "tags" => ["Instapaper"],
       "progress_timestamp" => Chronic.parse("2 weeks ago").to_i,
+      "progress" => progress,
+      "starred" => starred,
       "updated_at" => Chronic.parse("1 week ago")
     }
   end
@@ -63,8 +67,24 @@ RSpec.describe Instapaper::Article do
   end
 
   describe "#normalized_metadata" do
-    it "carries the Instapaper-specific folder under metadata" do
-      expect(article.normalized_metadata).to eq(folder:)
+    it "carries the Instapaper-specific reading facts under metadata" do
+      expect(article.normalized_metadata).to eq(folder:, progress:, starred: true)
+    end
+
+    it "treats an unstarred article as a published false fact" do
+      article.instapaper_article["starred"] = "0"
+      article.read_original
+
+      expect(article.normalized_metadata).to include(starred: false)
+    end
+  end
+
+  describe "#normalized_snapshot" do
+    it "publishes reading progress through metadata" do
+      snapshot = article.normalized_snapshot
+
+      expect(snapshot[:metadata]).to eq(article.normalized_metadata)
+      expect(snapshot[:metadata]).to include(folder:, progress:)
     end
   end
 

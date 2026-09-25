@@ -1,6 +1,7 @@
 # Normalized Snapshot Field Support
 
-- Issue: #217
+- Issue: #217 (enriched by #223 — see `docs/source-capability-matrix.md` for
+  the full per-source capability audit)
 - Depends on: #215 (contract shape, see
   `docs/rdr-215-taskbridge-observation-publication-contract.md`), #216 (source
   identity/provenance columns)
@@ -19,14 +20,15 @@ source does not expose the concept today, not that it never could.
 |--------------------|-----------|-------|--------|---------------|-----------|---------|------------|-------------|
 | title              | yes       | yes   | yes    | yes           | yes       | yes     | yes        | yes         |
 | status/completed   | yes       | yes   | yes    | yes           | yes       | yes     | yes        | yes         |
+| completed_at       | yes       | yes   | yes (closed_at) | yes (completed) | yes (completed_on) | no  | no        | no          |
 | due_at / due_date  | yes       | yes   | no     | yes (date)    | yes       | yes     | no         | no          |
 | start_at / start_date | yes    | yes   | no     | no            | yes       | yes     | no         | no          |
 | flagged            | yes       | yes   | no     | no            | no        | no      | no         | no          |
-| priority           | no        | no    | no     | no            | yes       | no      | no         | no          |
+| priority           | no        | no    | no     | no            | yes (mapped label) | no | no        | no          |
 | estimated_minutes  | yes       | no    | no     | no            | no        | no      | yes (computed) | no      |
 | project            | yes       | yes   | yes (repo) | no        | yes (mapped list) | no | yes (configured) | yes (note title) |
 | tags               | yes       | yes   | yes (labels) | no      | no        | yes     | yes (static) | no        |
-| assignee           | no        | yes   | no     | no            | no        | no      | no         | no          |
+| assignee           | no        | yes   | yes (login) | no       | no        | no      | no         | no         |
 | sub_item_count / sub_item_keys | yes | yes | no  | no            | no        | no      | no         | yes         |
 | source_url         | yes       | yes   | yes    | yes           | no        | no      | yes        | no          |
 | source_created_at  | yes       | yes   | yes    | no            | yes       | yes     | yes        | no          |
@@ -34,22 +36,46 @@ source does not expose the concept today, not that it never could.
 
 ## Source-specific `metadata`
 
-- **Asana**: `section` (Asana section name; not a general project/list concept).
-- **GitHub**: `number` (issue/PR number), `pull_request` (PR flag).
-- **Reminders**: `list` (containing Reminders list name).
-- **Reclaim**: `category` (`PERSONAL`/`WORK`), `time_required`, `time_spent`,
-  `time_remaining`, `minimum_chunk_size`, `maximum_chunk_size`,
-  `always_private` — Reclaim's chunk-based scheduling model doesn't reduce to
-  a single `estimated_minutes` value.
+- **Asana**: `section` (Asana section name), `section_gid`, `project_gid`
+  (the matched membership's identifiers), `workspace_gid`, `workspace_name`,
+  `assignee_name`.
+- **GitHub**: `number` (issue/PR number), `pull_request` (PR flag), `draft`
+  (PR draft state, PRs only), `repository` (`owner/name`), `author` (issue
+  author login), `assignees` (assignee logins), `milestone` (title),
+  `comments_count`.
+- **Google Tasks**: `list`, `list_id` (containing task list identity, when
+  known from the service), `parent` (parent task id), `web_view_link` (web
+  UI deep link).
+- **Reminders**: `list` (containing Reminders list name), `priority_value`
+  (raw AppleScript priority integer; the mapped `none`/`low`/`medium`/
+  `high` label is published as the top-level `priority`).
+- **Reclaim**: `category` (`PERSONAL`/`WORK`), `status` (Reclaim's own
+  scheduling status, e.g. `SCHEDULED`/`IN_PROGRESS`/`COMPLETE` — distinct
+  from the snapshot's open/completed/dropped status), `event_sub_type`,
+  `at_risk`, `time_required`, `time_spent`, `time_remaining`,
+  `minimum_chunk_size`, `maximum_chunk_size`, `always_private` — Reclaim's
+  chunk-based scheduling model doesn't reduce to a single
+  `estimated_minutes` value.
 - **Instapaper**: `folder` (reading-list folder, distinct from `project`,
-  which is a fixed configured value for all articles).
+  which is a fixed configured value for all articles), `progress` (0-1
+  reading progress), `starred`.
 - **Google Keep**: `stable_external_id_embedded` (whether the external ID
-  came from Keep's embedded marker vs. a freshly generated UUID).
-- **OmniFocus**, **Google Tasks**: no adapter-specific metadata today; all
-  currently-read fields fit the common schema.
+  came from Keep's embedded marker vs. a freshly generated UUID),
+  `note_id` (containing note identity), `list_path` (position in the nested
+  list structure).
+- **OmniFocus**: no adapter-specific metadata today; all currently-read
+  fields fit the common schema.
 
 ## Known gaps
 
+- The #223 enrichment pass only *added* top-level optional fields
+  (`completed_at` for GitHub/Google Tasks, `assignee` for GitHub) and new
+  keys under `metadata`. The one value change is Reminders `priority`, which
+  now carries the mapped `none`/`low`/`medium`/`high` label instead of the
+  raw AppleScript integer (kept in `metadata.priority_value`); no snapshot
+  carrying the old value has ever been published. `VERSION` stays `1` under
+  the payload versioning scheme: consumers must tolerate new keys within a
+  version.
 - `notes_preview` is intentionally **not** emitted by any adapter today. The
   publication contract (#215) requires note export to be opt-in per source via
   TaskBridge configuration, and that setting does not exist yet. Until it

@@ -40,8 +40,18 @@
 module Reminders
   # A representation of an Reminders reminder
   class Reminder < Base::SyncItem
+    # Reminders exposes priority through AppleScript as 0 (none), 1 (low),
+    # 5 (medium), or 9 (high). Map those to source labels; unknown values
+    # (including nil) publish no priority rather than a guess.
+    PRIORITY_LABELS = {
+      0 => "none",
+      1 => "low",
+      5 => "medium",
+      9 => "high"
+    }.freeze
+
     attr_accessor :reminder
-    attr_reader :list, :priority
+    attr_reader :list, :priority_value
 
     def read_original(only_modified_dates: false)
       super
@@ -55,7 +65,7 @@ module Reminders
       # AppleScript dictionary in macOS 13.1
       # @tags = read_external_attribute(reminder, :tags)
       # @tags = @tags.map { |tag| read_external_attribute(tag, :name) } unless @tags.nil?
-      @priority = read_external_attribute(reminder, :priority, only_modified_dates:)
+      @priority_value = read_external_attribute(reminder, :priority, only_modified_dates:)
       # Same with sub_items/subreminders - they are supported in the app
       # but don't seem to be accessible via Applescript
       # @subreminders = read_external_attribute(reminder, :reminders).map do |subreminder|
@@ -81,6 +91,10 @@ module Reminders
       true
     end
 
+    def priority
+      PRIORITY_LABELS[priority_value]
+    end
+
     def original_reminder
       service.reminders_app.lists[list].reminders.ID(external_id)
     end
@@ -97,10 +111,11 @@ module Reminders
       "#{provider}::Reminder:(#{external_id})#{title}"
     end
 
-    # Reminders lists don't generalize across sources (unlike the shared
-    # `project` field), so they stay in metadata.
+    # Reminders lists and the raw AppleScript priority value don't generalize
+    # across sources (unlike the shared `project` field and the mapped
+    # `priority` label), so they stay in metadata.
     def normalized_metadata
-      { list: }.compact
+      { list:, priority_value: }.compact
     end
 
     def patch_external_attributes(attributes)

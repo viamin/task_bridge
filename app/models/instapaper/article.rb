@@ -40,7 +40,7 @@
 module Instapaper
   class Article < Base::SyncItem
     attr_accessor :instapaper_article
-    attr_reader :folder, :project, :estimated_minutes
+    attr_reader :folder, :project, :estimated_minutes, :progress, :starred
 
     def read_original(only_modified_dates: false)
       super
@@ -49,6 +49,9 @@ module Instapaper
       timestamp = instapaper_article["progress_timestamp"]
       self.last_modified = timestamp ? Time.at(timestamp) : nil
       @estimated_minutes = nil
+      @progress = read_external_attribute(instapaper_article, "progress", only_modified_dates:)
+      starred = read_external_attribute(instapaper_article, "starred", only_modified_dates:)
+      @starred = starred.to_s == "1"
       self
     end
 
@@ -70,10 +73,11 @@ module Instapaper
       folder == "unread"
     end
 
-    # Instapaper's reading-list folder doesn't generalize to other sources,
-    # so it stays in metadata.
+    # Instapaper's reading-list folder and reading progress don't generalize
+    # to other sources, so they stay in metadata (`project` is a fixed
+    # configured value for all articles).
     def normalized_metadata
-      { folder: }.compact
+      { folder:, progress:, starred: }.compact
     end
 
     def friendly_title

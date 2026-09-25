@@ -72,10 +72,16 @@ module GoogleKeep
       @stable_external_id_embedded == true
     end
 
+    def note_id
+      read_external_attribute(keep_item[:note], :name)
+    end
+
     # Whether this item's external ID came from Keep's embedded marker
-    # (vs. a freshly generated UUID) doesn't generalize to other sources.
+    # (vs. a freshly generated UUID) doesn't generalize to other sources, and
+    # neither does the containing note's identity or the item's position in
+    # the nested list structure.
     def normalized_metadata
-      { stable_external_id_embedded: stable_external_id_embedded? }
+      { stable_external_id_embedded: stable_external_id_embedded?, note_id:, list_path: }.compact
     end
 
     def self.from_external(external_item)
@@ -137,6 +143,12 @@ module GoogleKeep
 
     def keep_path
       Array(keep_item[:path])
+    end
+
+    # The path of indexes from the note's root list item down to this item;
+    # empty when the item was built without a path.
+    def list_path
+      keep_path.presence
     end
 
     def note_last_modified

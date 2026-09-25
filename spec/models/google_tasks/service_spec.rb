@@ -33,7 +33,7 @@ RSpec.describe "GoogleTasks::Service" do
     let(:tasklists_response) { double("tasklists_response", items: [tasklist]) }
     let(:external_task) { instance_double(Google::Apis::TasksV1::Task, id: "google-task-id") }
     let(:tasks_response) { instance_double(Google::Apis::TasksV1::Tasks, items: [external_task]) }
-    let(:wrapped_task) { instance_double(GoogleTasks::Task, "google_task=": external_task) }
+    let(:wrapped_task) { instance_double(GoogleTasks::Task, "google_task=": external_task, "google_tasklist=": tasklist) }
 
     before do
       allow(tasks_service).to receive(:list_tasklists).and_return(tasklists_response)
@@ -56,6 +56,7 @@ RSpec.describe "GoogleTasks::Service" do
       items_to_sync
 
       expect(wrapped_task).to have_received(:refresh_from_external!).with(only_modified_dates: false)
+      expect(wrapped_task).to have_received(:google_tasklist=).with(tasklist)
       expect(items_to_sync).to eq([wrapped_task])
     end
 

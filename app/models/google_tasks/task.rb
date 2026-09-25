@@ -40,18 +40,40 @@
 module GoogleTasks
   # A representation of an Google task
   class Task < Base::SyncItem
-    attr_accessor :google_task
+    attr_accessor :google_task, :google_tasklist
+    attr_reader :parent_id, :web_view_link, :tasklist_title, :tasklist_id
+
+    def read_original(only_modified_dates: false)
+      super
+      @parent_id = read_external_attribute(google_task, "parent", only_modified_dates:)
+      @web_view_link = read_external_attribute(google_task, "web_view_link", only_modified_dates:)
+      @tasklist_title = read_external_attribute(google_tasklist, "title")
+      @tasklist_id = read_external_attribute(google_tasklist, "id")
+      self
+    end
 
     def external_data
       google_task
     end
 
     def chronic_attributes
-      %i[last_modified due_date]
+      %i[last_modified due_date completed_at]
     end
 
     def provider
       "GoogleTasks"
+    end
+
+    # The containing tasklist and parent task identity come from the service's
+    # target list and the payload's read-only parent field; they don't
+    # generalize across sources so they stay in metadata.
+    def normalized_metadata
+      {
+        list: tasklist_title,
+        list_id: tasklist_id,
+        parent: parent_id,
+        web_view_link:
+      }.compact
     end
 
     class << self
@@ -59,6 +81,7 @@ module GoogleTasks
         {
           url: "self_link",
           due_date: "due",
+          completed_at: "completed",
           item_type: "kind",
           last_modified: "updated"
         }

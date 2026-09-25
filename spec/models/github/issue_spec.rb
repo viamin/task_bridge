@@ -51,6 +51,12 @@ RSpec.describe "Github::Issue" do
   let(:labels) { [] }
   let(:start_date) { "Today" }
   let(:due_date) { "Tomorrow" }
+  let(:author) { { "login" => "viamin" } }
+  let(:assignee) { nil }
+  let(:assignees) { [] }
+  let(:milestone) { nil }
+  let(:comments) { 3 }
+  let(:closed_at) { nil }
   let(:properties) do
     {
       "id" => id,
@@ -60,7 +66,13 @@ RSpec.describe "Github::Issue" do
       "repository_url" => repo_url,
       "body" => body,
       "state" => status,
-      "labels" => labels
+      "labels" => labels,
+      "user" => author,
+      "assignee" => assignee,
+      "assignees" => assignees,
+      "milestone" => milestone,
+      "comments" => comments,
+      "closed_at" => closed_at
     }.compact
   end
 
@@ -77,8 +89,46 @@ RSpec.describe "Github::Issue" do
   end
 
   describe "#normalized_metadata" do
-    it "carries the GitHub-specific number and pull_request flag under metadata" do
-      expect(issue.normalized_metadata).to eq(number:, pull_request: false)
+    it "carries the GitHub-specific facts under metadata" do
+      expect(issue.normalized_metadata).to eq(
+        number:,
+        pull_request: false,
+        repository: "viamin/task_bridge",
+        author: "viamin",
+        assignees: [],
+        comments_count: 3
+      )
+    end
+
+    it "carries assignee, milestone, and PR draft details when present" do
+      issue.github_issue.merge!(
+        "assignee" => { "login" => "octocat" },
+        "assignees" => [{ "login" => "octocat" }, { "login" => "monalisa" }],
+        "milestone" => { "title" => "v1.0" },
+        "draft" => true,
+        "pull_request" => { "diff_url" => "#{repo_url}/pulls/#{number}.diff" }
+      )
+      issue.read_original
+
+      expect(issue.normalized_metadata).to include(
+        assignees: %w[octocat monalisa],
+        milestone: "v1.0",
+        draft: true,
+        pull_request: true
+      )
+      expect(issue.assignee).to eq("octocat")
+    end
+  end
+
+  describe "#normalized_snapshot" do
+    it "publishes the enriched fields for a closed issue" do
+      issue.github_issue.merge!("state" => "closed", "closed_at" => "2024-04-05T10:00:00Z")
+      issue.read_original
+      snapshot = issue.normalized_snapshot
+
+      expect(snapshot[:completed]).to be(true)
+      expect(snapshot[:completed_at]).to eq(Chronic.parse("2024-04-05T10:00:00Z"))
+      expect(snapshot[:metadata]).to eq(issue.normalized_metadata)
     end
   end
 
