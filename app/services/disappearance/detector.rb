@@ -43,7 +43,10 @@ module Disappearance
     def record!
       return [] unless eligible?
 
-      missing_items.filter_map { |item| record_item(item) }
+      observed_ids = observed_external_ids
+      persisted_items.find_each.filter_map do |item|
+        record_item(item) if missing?(item, observed_ids)
+      end
     end
 
     private
@@ -62,11 +65,8 @@ module Disappearance
       service.deletion_detection_strategy
     end
 
-    def missing_items
-      observed_ids = observed_external_ids
-      persisted_items.select do |item|
-        item.external_id.present? && !observed_ids.include?(item.external_id)
-      end
+    def missing?(item, observed_ids)
+      item.external_id.present? && !observed_ids.include?(item.external_id)
     end
 
     def persisted_items
