@@ -63,6 +63,21 @@ RSpec.describe "Reminders deletion detection" do
     expect(OutboxEntry.count).to eq(0)
   end
 
+  it "treats an AppleScript failure while enumerating lists as an unavailable scope" do
+    allow(service).to receive(:list_names).and_raise(make_connection_invalid_error)
+
+    expect(service.deletion_detection_scope_available?).to be(false)
+  end
+
+  it "emits nothing when the scope enumeration fails after a successful fetch" do
+    allow(service).to receive(:reminders_in_list).with("TaskBridge").and_return([])
+    allow(service).to receive(:list_names).and_raise(make_connection_invalid_error)
+    persisted_reminder("reminder-1")
+
+    expect { service.items_to_sync }.not_to raise_error
+    expect(OutboxEntry.count).to eq(0)
+  end
+
   it "emits nothing in pretend mode" do
     stub_lists(taskbridge_list)
     allow(taskbridge_list).to receive(:reminders).and_return(double(get: []))

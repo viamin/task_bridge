@@ -47,9 +47,12 @@ module Reminders
     def deletion_detection_scope_available?
       # A renamed or deleted Reminders list makes every reminder in it look
       # absent; tombstones are suppressed unless every mapped list was found.
+      # An unreadable enumeration (AppleScript failure) also counts as an
+      # unavailable scope rather than evidence of deletion (#220).
       return false unless authorized
 
-      mapped_list_names.all? { |name| list_names.include?(name) }
+      names = readable_list_names
+      mapped_list_names.all? { |name| names.include?(name) }
     end
 
     # Since Reminders via Applescript doesn't currently support tags, we use the mapping
@@ -128,6 +131,15 @@ module Reminders
 
     def list_names
       lists.map { |list| list.name.get }
+    end
+
+    # Fails closed: an AppleScript failure while enumerating the lists means
+    # the detection scope was not fully readable, so the whole detection run
+    # is suppressed instead of crashing items_to_sync (#220).
+    def readable_list_names
+      list_names
+    rescue Appscript::CommandError
+      []
     end
 
     def mapped_list_names

@@ -109,8 +109,8 @@ included). A previously observed reminder absent from all of them left
 TaskBridge's view, but deleted, "cleared completed", and moved-to-another-list
 are indistinguishable through AppleScript, so the weaker state applies.
 Guards: every mapped list must exist (a renamed list would otherwise look
-like mass deletion); AppleScript failures raise and abort the run before
-detection.
+like mass deletion), and an AppleScript failure while enumerating lists for
+the scope check suppresses the whole run rather than crashing it.
 
 ### OmniFocus — filtered with verification, high confidence
 
