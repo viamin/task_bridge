@@ -48,11 +48,14 @@ module Outbox
 
     # Best-effort FIFO by observed_at, honoring each row's retry backoff.
     # Every processed row leaves the due scope (delivered, failed, or
-    # scheduled for retry), so the loop always advances; the guard keeps a
-    # pathological no-op failure from spinning forever.
+    # scheduled for retry), so the loop always advances. Processed rows
+    # are also excluded inside the query so `limit` cannot re-select
+    # them — without that, a dry run (which touches no row state) would
+    # stall after its first batch.
     def next_batch
-      entries = due_entries.limit(config.batch_size).to_a
-      entries.reject! { |entry| @processed_ids.include?(entry.id) }
+      scope = due_entries
+      scope = scope.where.not(id: @processed_ids.to_a) if @processed_ids.any?
+      entries = scope.limit(config.batch_size).to_a
       @processed_ids.merge(entries.map(&:id))
       entries
     end
@@ -61,8 +64,44 @@ module Outbox
       OutboxEntry.due_for_publication(now).order(:observed_at, :id)
     end
 
-    def publish_batch(entries)
+    # A contract requires every row's version to match its enclosing body.
+    # Split each selected set into version-specific requests.
+    def publish_entries(entries, counts)
+      version_batches(entries).each do |version_entries|
+        return true if publish_with_splits(version_entries, counts)
+      end
+      false
+    end
+
+    # Publishes one homogeneous batch, halving it on a 413 (RDR #215:
+    # retryable after smaller batches). Rows are idempotent, so
+    # re-attempting the rejected set in halves — down to a single row —
+    # lets delivery proceed below the server's limit instead of
+    # re-sending the same oversized batch on every run; a single-row 413
+    # is an ordinary retryable row failure and stops the run.
+    def publish_with_splits(entries, counts)
+      counts[:batches] += 1
       response = @client.post_batch(Batch.new(entries, now:))
+      return split_entries(entries, counts) if halve_after_413?(entries, response)
+
+      outcome = reconcile_outcome(entries, response)
+      counts.merge!(outcome) { |_key, total, batch| total + batch }
+      outcome.key?(:stopped_reason)
+    end
+
+    def halve_after_413?(entries, response)
+      entries.size > 1 && response.outcome == Response::RETRYABLE && response.payload_too_large?
+    end
+
+    def split_entries(entries, counts)
+      midpoint = (entries.size + 1) / 2
+      [entries[0, midpoint], entries[midpoint..]].each do |half|
+        return true if publish_with_splits(half, counts)
+      end
+      false
+    end
+
+    def reconcile_outcome(entries, response)
       case response.outcome
       when Response::ROW_RESULTS
         Reconciler.apply(entries:, results: response.row_results, now:)
@@ -71,18 +110,6 @@ module Outbox
       else
         record_batch_failure(entries, response, retryable: false)
       end
-    end
-
-    # A contract requires every row's version to match its enclosing body.
-    # Split each selected set into version-specific requests.
-    def publish_entries(entries, counts)
-      version_batches(entries).each do |version_entries|
-        counts[:batches] += 1
-        outcome = publish_batch(version_entries)
-        counts.merge!(outcome) { |_key, total, batch| total + batch }
-        return true if outcome[:stopped_reason]
-      end
-      false
     end
 
     def record_batch_failure(entries, response, retryable:)
@@ -114,7 +141,10 @@ module Outbox
           batch = Batch.new(version_entries, now:)
           counts[:batches] += 1
           counts[:rows] += version_entries.size
-          $stdout.puts(JSON.pretty_generate(dry_run_payload(batch, version_entries)))
+          # One compact JSON object per line (NDJSON): a multi-batch run
+          # stays parseable line-by-line instead of concatenating
+          # documents.
+          $stdout.puts(JSON.generate(dry_run_payload(batch, version_entries)))
         end
       end
       counts.merge(status: "dry_run")

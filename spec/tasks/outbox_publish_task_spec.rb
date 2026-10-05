@@ -2,6 +2,7 @@
 
 require "rails_helper"
 require "rake"
+require "stringio"
 
 RSpec.describe "task_bridge:outbox:publish tasks" do
   before(:all) do
@@ -42,15 +43,29 @@ RSpec.describe "task_bridge:outbox:publish tasks" do
     expect(OutboxEntry.find_by(idempotency_key: "k1")).to be_delivered
   end
 
+  it "prints why an incomplete publication stopped" do
+    create_entry("k1")
+    config = Outbox::WebPublisher::Config.resolve("enabled" => true, "base_url" => "https://web.example.com", "api_key" => "key")
+    allow(Outbox::WebPublisher::Config).to receive(:resolve).and_return(config)
+    allow(Outbox::WebPublisher::Client).to receive(:new).and_return(client_for_retryable_batch)
+
+    output = capture_stdout { publish_task.invoke }
+
+    expect(output).to include("Outbox publication incomplete (stopped: http_503): " \
+                              "0 delivered, 1 awaiting retry, 0 failed across 1 batches")
+    expect(OutboxEntry.find_by(idempotency_key: "k1")).to be_pending
+  end
+
   it "renders batches without sending them in the dry-run task" do
     create_entry("k1")
     create_entry("k2")
 
-    output = capture_stdout { dry_run_task.invoke }
+    stdout, stderr = capture_output { dry_run_task.invoke }
 
-    expect(output).to include("Outbox dry run: would publish 2 rows across 1 batches (nothing was sent)")
-    expect(output).to include("dry_run")
-    expect(output).to include("k1")
+    expect(stdout.lines).to all(start_with("{"))
+    expect(stdout.lines.map { |line| JSON.parse(line) }.flat_map { |doc| doc["body"]["observations"].map { |row| row["idempotency_key"] } })
+      .to contain_exactly("k1", "k2")
+    expect(stderr).to include("Outbox dry run: would publish 2 rows across 1 batches (nothing was sent)")
     expect(OutboxEntry.pending.count).to eq(2)
   end
 
@@ -72,6 +87,20 @@ RSpec.describe "task_bridge:outbox:publish tasks" do
     $stdout = original
   end
 
+  def capture_output
+    original_stdout = $stdout
+    original_stderr = $stderr
+    captured_stdout = StringIO.new
+    captured_stderr = StringIO.new
+    $stdout = captured_stdout
+    $stderr = captured_stderr
+    yield
+    [captured_stdout.string, captured_stderr.string]
+  ensure
+    $stdout = original_stdout
+    $stderr = original_stderr
+  end
+
   def client_for_accepted_batch
     client = Object.new
     def client.post_batch(batch)
@@ -79,6 +108,14 @@ RSpec.describe "task_bridge:outbox:publish tasks" do
         200,
         { results: batch.entries.map { |entry| { idempotency_key: entry.idempotency_key, status: "accepted" } } }.to_json
       )
+    end
+    client
+  end
+
+  def client_for_retryable_batch
+    client = Object.new
+    def client.post_batch(_batch)
+      Outbox::WebPublisher::Response.from_http(503, '{"error": "down"}')
     end
     client
   end

@@ -844,6 +844,18 @@ RSpec.describe "task_bridge:sync task" do
       expect(stdout).not_to include("Published")
       expect(stderr).to include("enabled but missing its base URL or API key")
     end
+
+    it "reports why an incomplete publication stopped" do
+      allow(Outbox::WebPublisher).to receive(:run!).and_return(
+        publication_summary.merge(status: "incomplete", delivered: 0, retryable: 2, stopped_reason: "http_413")
+      )
+
+      stdout, = capture_output do
+        expect { invoke_task }.not_to raise_error
+      end
+
+      expect(stdout).to include("Published 0 outbox rows to TaskBridge Web (incomplete, stopped: http_413)")
+    end
   end
 
   def stub_sync_defaults(services:, quiet: false, primary_service: nil)

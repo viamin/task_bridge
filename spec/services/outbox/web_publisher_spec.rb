@@ -185,6 +185,63 @@ RSpec.describe Outbox::WebPublisher do
       expect(third.reload.next_retry_at).to be > now
     end
 
+    it "does not split a batch on retryable statuses other than 413" do
+      create_entry("k1")
+      create_entry("k2", observed_at: now - 1.minute)
+      allow(client).to receive(:post_batch) do |batch|
+        keys << batch.entries.map(&:idempotency_key)
+        Outbox::WebPublisher::Response.from_http(429, '{"error": "slow down"}')
+      end
+
+      summary = publish
+
+      expect(summary).to include(status: "incomplete", stopped_reason: "http_429", retryable: 2, batches: 1)
+      expect(keys).to eq([%w[k2 k1]])
+    end
+
+    it "halves a too-large batch down to the server's limit until every row is delivered" do
+      create_entry("k1")
+      create_entry("k2", observed_at: now - 1.minute)
+      create_entry("k3", observed_at: now - 2.minutes)
+      create_entry("k4", observed_at: now - 3.minutes)
+      allow(client).to receive(:post_batch) do |batch|
+        keys << batch.entries.map(&:idempotency_key)
+        if batch.entries.size > 1
+          Outbox::WebPublisher::Response.from_http(413, '{"error": {"message": "batch too large"}}')
+        else
+          ok(batch.entries.map { |entry| accepted(entry.idempotency_key) })
+        end
+      end
+
+      summary = publish
+
+      expect(summary).to include(status: "published", delivered: 4, retryable: 0, batches: 6)
+      expect(keys).to eq([%w[k4 k3], ["k4"], ["k3"], %w[k2 k1], ["k2"], ["k1"]])
+      expect(OutboxEntry.pending.count).to eq(0)
+      expect(OutboxEntry.delivered.count).to eq(4)
+    end
+
+    it "stops with a retryable row when even a single row is rejected as too large" do
+      untouched = create_entry("k1")
+      rejected = create_entry("k2", observed_at: now - 1.minute)
+      allow(client).to receive(:post_batch) do |batch|
+        keys << batch.entries.map(&:idempotency_key)
+        Outbox::WebPublisher::Response.from_http(413, '{"error": {"message": "batch too large"}}')
+      end
+
+      summary = publish
+
+      expect(summary).to include(status: "incomplete", stopped_reason: "http_413", retryable: 1, batches: 2)
+      expect(keys).to eq([%w[k2 k1], ["k2"]])
+      row = rejected.reload
+      expect(row).to be_pending
+      expect(row.attempts).to eq(1)
+      expect(row.next_retry_at).to be > now
+      expect(row.error_message).to eq("batch too large")
+      expect(untouched.reload).to be_pending
+      expect(untouched.reload.attempts).to eq(0)
+    end
+
     it "marks every row failed on a terminal failure such as an invalid API key" do
       entry = create_entry("k1")
       allow(client).to receive(:post_batch)
@@ -238,7 +295,8 @@ RSpec.describe Outbox::WebPublisher do
   describe "dry run" do
     let(:dry_config) do
       Outbox::WebPublisher::Config.resolve(
-        "enabled" => true, "dry_run" => true, "base_url" => "https://web.example.com"
+        "enabled" => true, "dry_run" => true, "base_url" => "https://web.example.com",
+        "batch_size" => 2
       )
     end
 
@@ -260,6 +318,23 @@ RSpec.describe Outbox::WebPublisher do
       expect(client).not_to have_received(:post_batch)
       expect(OutboxEntry.pending.count).to eq(2)
       expect(OutboxEntry.pending.map(&:attempts)).to all(eq(0))
+    end
+
+    it "emits one JSON object per line so multi-batch output stays pipeable" do
+      create_entry("k1")
+      create_entry("k2", observed_at: now - 1.minute)
+      create_entry("k3", observed_at: now - 2.minutes)
+
+      output = capture_stdout do
+        summary = described_class.run!(config: dry_config, client:, now:)
+        expect(summary).to include(status: "dry_run", batches: 2, rows: 3)
+      end
+
+      payloads = output.lines.map { |line| JSON.parse(line) }
+      expect(payloads).to all(include("dry_run" => true))
+      expect(payloads.map { |payload| payload["row_count"] }).to eq([2, 1])
+      expect(payloads.flat_map { |payload| payload["body"]["observations"].map { |row| row["idempotency_key"] } })
+        .to eq(%w[k3 k2 k1])
     end
 
     it "works without any base URL or API key configured" do

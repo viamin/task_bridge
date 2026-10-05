@@ -190,6 +190,7 @@ namespace :task_bridge do
     return warn("TaskBridge Web publication is enabled but missing its base URL or API key; outbox rows stay pending") if summary[:status] == "not_configured"
     return if options[:quiet] || %w[disabled dry_run].include?(summary[:status])
 
-    puts "Published #{summary[:delivered]} outbox rows to TaskBridge Web (#{summary[:status]})"
+    reason = ", stopped: #{summary[:stopped_reason]}" if summary[:stopped_reason]
+    puts "Published #{summary[:delivered]} outbox rows to TaskBridge Web (#{summary[:status]}#{reason})"
   end
 end

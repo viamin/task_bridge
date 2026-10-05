@@ -60,8 +60,12 @@ RSpec.describe Outbox::WebPublisher::Client do
     expect(response.summary_message).to eq("connection open timed out")
   end
 
-  it "reduces errno failures Net::HTTP re-raises for POST to retryable responses" do
-    [Errno::ECONNABORTED, Errno::EPIPE, Errno::ETIMEDOUT].each do |error_class|
+  it "reduces every errno failure to a retryable response" do
+    # SystemCallError covers all Errno::*: the classes Net::HTTP re-raises
+    # for a POST (ECONNABORTED, EPIPE, ETIMEDOUT) plus interface-down
+    # states a launchd run hits after waking from sleep.
+    [Errno::ECONNABORTED, Errno::EPIPE, Errno::ETIMEDOUT,
+     Errno::ENETDOWN, Errno::EHOSTDOWN, Errno::EADDRNOTAVAIL].each do |error_class|
       allow(transport).to receive(:post).and_raise(error_class, "transport failed")
 
       response = client.post_batch(batch)

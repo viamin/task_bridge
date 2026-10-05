@@ -32,6 +32,13 @@ RSpec.describe Outbox::WebPublisher::Response do
     expect(described_class.failure("Net::OpenTimeout", "timed out").outcome).to eq(:retryable)
   end
 
+  it "flags a 413 as a batch-size rejection so callers can send smaller batches" do
+    expect(http(413)).to be_payload_too_large
+    expect(http(413, '{"error": {"message": "batch too large"}}').summary_message).to eq("batch too large")
+    expect(http(429)).not_to be_payload_too_large
+    expect(described_class.failure("Net::OpenTimeout", "timed out")).not_to be_payload_too_large
+  end
+
   it "classifies contract and authentication failures as terminal" do
     expect(http(400).outcome).to eq(:terminal)
     expect(http(401).outcome).to eq(:terminal)

@@ -11,7 +11,8 @@ module Outbox
       TERMINAL = :terminal
 
       HTTP_OK = 200
-      RETRYABLE_STATUSES = [413, 429].freeze
+      PAYLOAD_TOO_LARGE = 413
+      RETRYABLE_STATUSES = [PAYLOAD_TOO_LARGE, 429].freeze
       MESSAGE_LIMIT = 300
 
       attr_reader :status, :error_class, :error_message
@@ -58,6 +59,12 @@ module Outbox
         return "http_#{status}" if status
 
         "unknown"
+      end
+
+      # A 413 rejects the batch size, not its rows (RDR #215): the rows
+      # stay valid and should be re-sent in a smaller batch.
+      def payload_too_large?
+        status == PAYLOAD_TOO_LARGE
       end
 
       def summary_message

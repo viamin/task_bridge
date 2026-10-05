@@ -11,7 +11,8 @@ namespace :task_bridge do
     desc "publish pending outbox entries to TaskBridge Web (retries rows whose next_retry_at is due)"
     task publish: :environment do
       summary = Outbox::WebPublisher.run!
-      puts "Outbox publication #{summary[:status]}: #{summary[:delivered]} delivered, " \
+      reason = " (stopped: #{summary[:stopped_reason]})" if summary[:stopped_reason]
+      puts "Outbox publication #{summary[:status]}#{reason}: #{summary[:delivered]} delivered, " \
            "#{summary[:retryable]} awaiting retry, #{summary[:failed]} failed " \
            "across #{summary[:batches]} batches"
     end
@@ -20,7 +21,10 @@ namespace :task_bridge do
     task publish_dry_run: :environment do
       config = Outbox::WebPublisher::Config.resolve("dry_run" => true)
       summary = Outbox::WebPublisher.run!(config:)
-      puts "Outbox dry run: would publish #{summary[:rows]} rows " \
+      # Batches go to stdout as one JSON object per line, so the stream
+      # stays pipeable (`rake ... | jq .`); this human summary goes to
+      # stderr to keep stdout pure NDJSON.
+      warn "Outbox dry run: would publish #{summary[:rows]} rows " \
            "across #{summary[:batches]} batches (nothing was sent)"
     end
   end
