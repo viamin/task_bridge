@@ -47,10 +47,24 @@ RSpec.describe "Github::Service" do
       allow(service).to receive(:sync_repositories).with(with_url: true).and_return(["https://api.github.com/repos/org/repo"])
       allow(service).to receive(:list_issues).and_return([external_issue])
       allow(service).to receive(:list_assigned).and_return([external_issue])
+      allow(service).to receive(:publish_activity_for)
     end
 
     it "loads external_id from the shared external attribute map" do
       expect(subject.map(&:external_id)).to eq([external_issue["id"].to_s])
+    end
+
+    it "returns items when publishing activity fails" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      allow(service).to receive(:refresh_issue).and_return(issue)
+      allow(service).to receive(:publish_activity_for).and_call_original
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2024-03-01T00:00:00Z"))
+      allow(service).to receive(:timeline_events).and_raise(Github::Service::ActivityFetchError, "rate limited")
+
+      items = nil
+      expect { items = subject }.to output("Github activity fetch failed: rate limited\n").to_stdout
+
+      expect(items).to eq([issue])
     end
   end
 
@@ -94,6 +108,299 @@ RSpec.describe "Github::Service" do
         RuntimeError,
         "Error loading Github issues - check repository name and access (response code: 500)"
       )
+    end
+  end
+
+  describe "GitHub activity retrieval" do
+    let(:activity_response) do
+      instance_double(HTTParty::Response, success?: true, body: [].to_json, headers: {})
+    end
+
+    before do
+      allow(HTTParty).to receive(:get).and_return(activity_response)
+      allow(service).to receive(:sync_repositories).and_return(["org/repo"])
+    end
+
+    it "uses a bounded first-page request for timeline activity" do
+      service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+
+      expect(HTTParty).to have_received(:get).with(
+        "https://api.github.com/repos/org/repo/issues/5/timeline",
+        hash_including(follow_redirects: false, query: { per_page: "100" })
+      )
+    end
+
+    it "does not request a response-supplied pagination URL" do
+      response = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [].to_json,
+        headers: { "link" => '<https://attacker.example/activity?page=2>; rel="last"' }
+      )
+      allow(HTTParty).to receive(:get).and_return(response)
+
+      service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+
+      expect(HTTParty).to have_received(:get).twice
+      expect(HTTParty).to have_received(:get).with(
+        "https://api.github.com/repos/org/repo/issues/5/timeline",
+        hash_including(query: { page: 2, per_page: "100" })
+      )
+    end
+
+    it "rejects pagination links that do not move backward" do
+      response = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=1>; rel="prev"' }
+      )
+      allow(HTTParty).to receive(:get).and_return(response)
+
+      expect do
+        service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+      end.to raise_error(
+        Github::Service::ActivityFetchError,
+        "Github activity pagination link does not move to an earlier page"
+      )
+    end
+
+    it "follows previous pages from the newest activity until it predates the cursor" do
+      first_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "1", "created_at" => "2026-10-05T09:00:00Z" }].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="next", <https://api.github.com/page?page=3>; rel="last"' }
+      )
+      middle_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "2", "created_at" => "2026-10-05T11:00:00Z" }].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=1>; rel="prev", <https://api.github.com/page?page=3>; rel="next"' }
+      )
+      newest_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "3", "created_at" => "2026-10-05T12:00:00Z" }].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="prev"' }
+      )
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(HTTParty).to receive(:get).and_return(first_page, newest_page, middle_page, first_page)
+
+      events = service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/repos/org/repo/issues/5/timeline", hash_including(query: hash_including(page: 3))).once
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/repos/org/repo/issues/5/timeline", hash_including(query: hash_including(page: 2))).once
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/repos/org/repo/issues/5/timeline", hash_including(query: hash_including(page: 1))).once
+      expect(events.pluck("id")).to eq(%w[3 2 1])
+    end
+
+    it "stops paging when old events include a timestamp-less commit event" do
+      first_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "1", "created_at" => "2026-10-05T09:00:00Z" }].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="next", <https://api.github.com/page?page=3>; rel="last"' }
+      )
+      old_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [
+          { "id" => "2", "event" => "committed" },
+          { "id" => "2a", "created_at" => "2026-10-05T09:00:00Z" }
+        ].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=1>; rel="prev"' }
+      )
+      newest_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "3", "created_at" => "2026-10-05T12:00:00Z" }].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="prev"' }
+      )
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(HTTParty).to receive(:get).and_return(first_page, newest_page, old_page)
+
+      events = service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+
+      expect(HTTParty).not_to have_received(:get).with("https://api.github.com/repos/org/repo/issues/5/timeline", hash_including(query: hash_including(page: 1)))
+      expect(events.pluck("id")).to eq(%w[3 2 2a])
+    end
+
+    it "continues paging past a page containing only timestamp-less commit events" do
+      first_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "1", "created_at" => "2026-10-05T11:00:00Z" }].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="next", <https://api.github.com/page?page=3>; rel="last"' }
+      )
+      commit_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "2", "event" => "committed" }].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=1>; rel="prev"' }
+      )
+      newest_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "3", "created_at" => "2026-10-05T12:00:00Z" }].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="prev"' }
+      )
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(HTTParty).to receive(:get).and_return(first_page, newest_page, commit_page, first_page)
+
+      events = service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/repos/org/repo/issues/5/timeline", hash_including(query: hash_including(page: 1))).once
+      expect(events.pluck("id")).to eq(%w[3 2 1])
+    end
+
+    it "raises when the first activity request fails so the sync is retried" do
+      failed_response = instance_double(HTTParty::Response, success?: false, code: 503)
+      allow(HTTParty).to receive(:get).and_return(failed_response)
+
+      expect do
+        service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+      end.to raise_error(
+        Github::Service::ActivityFetchError,
+        "Error loading Github activity from https://api.github.com/repos/org/repo/issues/5/timeline (response code: 503)"
+      )
+    end
+
+    it "raises when a paginated activity request fails so the sync is retried" do
+      first_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="last"' }
+      )
+      failed_response = instance_double(HTTParty::Response, success?: false, code: 429)
+      allow(HTTParty).to receive(:get).and_return(first_page, failed_response)
+
+      expect do
+        service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+      end.to raise_error(
+        Github::Service::ActivityFetchError,
+        "Error loading Github activity from https://api.github.com/repos/org/repo/issues/5/timeline (response code: 429)"
+      )
+    end
+
+    it "retrieves pull-request reviews but not reviews for issues" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      pull_request = instance_double(Github::Issue, persisted?: true, is_pr: true)
+      external_issue = { "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5 }
+      allow(service).to receive(:timeline_events).and_return([])
+      allow(service).to receive(:review_events).and_return([])
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(Github::ActivityEmitter).to receive(:emit_for)
+
+      service.send(:publish_activity_for, issue, external_issue)
+      service.send(:publish_activity_for, pull_request, external_issue)
+
+      expect(service).to have_received(:review_events).with(external_issue).once
+    end
+
+    it "does not retrieve activity for an item unchanged since the last sync" do
+      issue = instance_double(Github::Issue, persisted?: true)
+      external_issue = { "updated_at" => "2026-10-05T09:00:00Z" }
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      expect(service).not_to receive(:timeline_events)
+      expect(service).not_to receive(:review_events)
+      expect(Github::ActivityEmitter).not_to receive(:emit_for)
+
+      service.send(:publish_activity_for, issue, external_issue)
+    end
+
+    it "retrieves activity for an item updated at the sync cursor" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      external_issue = { "updated_at" => "2026-10-05T10:00:00Z" }
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(service).to receive(:timeline_events).and_return([])
+      allow(Github::ActivityEmitter).to receive(:emit_for)
+
+      service.send(:publish_activity_for, issue, external_issue)
+
+      expect(service).to have_received(:timeline_events).with(external_issue)
+      expect(Github::ActivityEmitter).to have_received(:emit_for).with(issue, events: [], since: service.send(:activity_since))
+    end
+
+    it "publishes an opened activity for a newly opened pull request" do
+      external_pr = {
+        "id" => 123,
+        "number" => 5,
+        "title" => "Ship activity feed",
+        "state" => "open",
+        "body" => "notes",
+        "html_url" => "https://github.com/org/repo/pull/5",
+        "created_at" => "2026-10-05T11:00:00Z",
+        "updated_at" => "2026-10-05T11:00:00Z",
+        "user" => { "login" => "octocat" },
+        "pull_request" => { "diff_url" => "https://github.com/org/repo/pull/5.diff" },
+        "repository_url" => "https://api.github.com/repos/org/repo",
+        "labels" => []
+      }
+      item = Github::Issue.new(
+        github_issue: external_pr,
+        options: { quiet: true, pretend: false, services: [], primary: "Omnifocus", tags: [] },
+        external_id: "123",
+        source_service_name: "github"
+      ).tap(&:refresh_from_external!)
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+
+      service.send(:publish_activity_for, item, external_pr)
+
+      activity = OutboxEntry.where(record_kind: "observation").where.not(event_type: "snapshot_seen")
+                            .sole.payload.fetch("activity")
+      expect(activity).to include("type" => "opened", "source_event_id" => "123-opened", "actor" => "octocat")
+    end
+
+    it "marks activity emit complete until a fetch fails" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      external_issue = { "updated_at" => "2026-10-05T11:00:00Z" }
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(service).to receive(:timeline_events).and_raise(Github::Service::ActivityFetchError, "rate limited")
+
+      expect(service.send(:activity_emit_complete?)).to be(false)
+      expect { service.send(:publish_activity_for, issue, external_issue) }.to output(/rate limited/).to_stdout
+      expect(service.send(:activity_emit_complete?)).to be(false)
+    end
+
+    it "marks activity emit complete after a successful retrieval" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      external_issue = { "updated_at" => "2026-10-05T11:00:00Z" }
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(service).to receive(:timeline_events).and_return([])
+      allow(Github::ActivityEmitter).to receive(:emit_for).and_return(true)
+
+      service.send(:publish_activity_for, issue, external_issue)
+
+      expect(service.send(:activity_emit_complete?)).to be(true)
+    end
+
+    it "marks activity emit incomplete when the emitter reports a failed write" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      external_issue = { "updated_at" => "2026-10-05T11:00:00Z" }
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(service).to receive(:timeline_events).and_return([])
+      allow(Github::ActivityEmitter).to receive(:emit_for).and_return(false)
+
+      service.send(:publish_activity_for, issue, external_issue)
+      expect(service.send(:activity_emit_complete?)).to be(false)
+    end
+
+    it "uses the activity-sync cursor when present" do
+      activity_cursor = Time.zone.parse("2026-09-01T00:00:00Z")
+      allow(service).to receive(:last_successful_activity_sync_at).and_return(activity_cursor)
+      allow(service).to receive(:last_successful_sync_at).and_return(Time.zone.parse("2026-08-01T00:00:00Z"))
+
+      expect(service.send(:activity_since)).to eq(activity_cursor)
+    end
+
+    it "falls back to the task-sync cursor when no activity cursor is recorded" do
+      fallback = Time.zone.parse("2026-08-01T00:00:00Z")
+      allow(service).to receive(:last_successful_activity_sync_at).and_return(nil)
+      allow(service).to receive(:last_successful_sync_at).and_return(fallback)
+
+      expect(service.send(:activity_since)).to eq(fallback)
     end
   end
 

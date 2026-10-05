@@ -698,6 +698,189 @@ RSpec.describe "task_bridge:sync task" do
     expect(state.last_successful_at).to eq(Time.zone.parse("2024-01-01T09:00:00.000000Z"))
   end
 
+  it "advances the activity-sync cursor when activity emit completes" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    github_service = instance_double(
+      "Github::Service",
+      friendly_name: "Github",
+      service_name: "Github",
+      items_to_sync: [],
+      sync_strategies: [:to_primary],
+      activity_emit_complete?: true
+    )
+
+    allow(github_service).to receive(:should_sync?).and_return(true)
+    allow(github_service).to receive(:sync_to_primary).with(primary_service, service_items: []).and_return(
+      {
+        service: "Github",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
+        items_synced: 1
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Github"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Github])
+    stub_service("Primary", primary_service)
+    stub_service("Github", github_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+    allow(SyncServiceState).to receive(:record_activity_sync!).and_call_original
+
+    capture_output { invoke_task }
+
+    expect(SyncServiceState).to have_received(:record_activity_sync!).with(service_name: "Github", at: kind_of(String))
+    state = SyncServiceState.find_by!(service_name: "Github")
+    expect(state.last_successful_activity_sync_at).to be_present
+  end
+
+  it "leaves the activity-sync cursor in place when activity emit fails" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    github_service = instance_double(
+      "Github::Service",
+      friendly_name: "Github",
+      service_name: "Github",
+      items_to_sync: [],
+      sync_strategies: [:to_primary],
+      activity_emit_complete?: false
+    )
+    existing_cursor = Time.zone.parse("2024-01-01T08:00:00Z")
+    SyncServiceState.create!(
+      service_name: "Github",
+      status: "success",
+      items_synced: 1,
+      last_successful_at: existing_cursor,
+      last_successful_activity_sync_at: existing_cursor
+    )
+
+    allow(github_service).to receive(:should_sync?).and_return(true)
+    allow(github_service).to receive(:sync_to_primary).with(primary_service, service_items: []).and_return(
+      {
+        service: "Github",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
+        items_synced: 1
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Github"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Github])
+    stub_service("Primary", primary_service)
+    stub_service("Github", github_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output { invoke_task }
+
+    state = SyncServiceState.find_by!(service_name: "Github")
+    expect(state.last_successful_activity_sync_at).to eq(existing_cursor)
+  end
+
+  it "does not advance the activity-sync cursor when GitHub sync is skipped" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    github_service = instance_double(
+      "Github::Service",
+      friendly_name: "Github",
+      service_name: "Github",
+      sync_strategies: [:to_primary],
+      activity_emit_complete?: false
+    )
+    existing_cursor = Time.zone.parse("2024-01-01T08:00:00Z")
+    SyncServiceState.create!(
+      service_name: "Github",
+      status: "success",
+      items_synced: 1,
+      last_successful_at: existing_cursor,
+      last_successful_activity_sync_at: existing_cursor
+    )
+
+    allow(github_service).to receive(:should_sync?).and_return(false)
+    allow(github_service).to receive(:items_to_sync)
+    allow(github_service).to receive(:sync_to_primary).with(primary_service).and_return(
+      {
+        service: "Github",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        items_synced: 0,
+        detail: "Sync not required"
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Github"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Github])
+    stub_service("Primary", primary_service)
+    stub_service("Github", github_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output { invoke_task }
+
+    expect(github_service).not_to have_received(:items_to_sync)
+    expect(SyncServiceState.find_by!(service_name: "Github").last_successful_activity_sync_at).to eq(existing_cursor)
+  end
+
+  it "does not advance the activity-sync cursor for services without an activity emitter" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    passing_service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      service_name: "Passing",
+      items_to_sync: [],
+      sync_strategies: [:from_primary]
+    )
+
+    allow(passing_service).to receive(:should_sync?).and_return(true)
+    allow(passing_service).to receive(:sync_from_primary).with(primary_service, service_items: []).and_return(
+      {
+        service: "Passing",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        last_successful: "2024-01-01T09:00:00.000000Z",
+        items_synced: 1
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    stub_service("Primary", primary_service)
+    stub_service("Passing", passing_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+    expect(SyncServiceState).not_to receive(:record_activity_sync!)
+
+    capture_output { invoke_task }
+  end
+
+  it "does not advance the activity-sync cursor when the service run itself failed" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    github_service = instance_double(
+      "Github::Service",
+      friendly_name: "Github",
+      service_name: "Github",
+      items_to_sync: [],
+      sync_strategies: [:to_primary],
+      activity_emit_complete?: true
+    )
+
+    allow(github_service).to receive(:should_sync?).and_return(true)
+    allow(github_service).to receive(:sync_to_primary).and_raise(RuntimeError, "github is down")
+
+    stub_sync_defaults(services: ["Github"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Github])
+    stub_service("Primary", primary_service)
+    stub_service("Github", github_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+    expect(SyncServiceState).not_to receive(:record_activity_sync!)
+
+    capture_output do
+      expect { invoke_task }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+    end
+  end
+
   it "preserves the previous successful sync timestamp when a later run fails" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)

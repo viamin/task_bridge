@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_021344) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_101800) do
   create_table "outbox_entries", force: :cascade do |t|
     t.string "idempotency_key", null: false
     t.string "record_kind", null: false
@@ -95,10 +95,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_021344) do
     t.integer "items_synced", default: 0, null: false
     t.datetime "last_attempted_at"
     t.datetime "last_failed_at"
+    t.datetime "last_successful_activity_sync_at"
     t.datetime "last_successful_at"
     t.string "service_name", null: false
     t.string "status"
     t.datetime "updated_at", null: false
+    t.index ["last_successful_activity_sync_at"], name: "index_sync_service_states_on_last_successful_activity_sync_at"
     t.index ["last_successful_at"], name: "index_sync_service_states_on_last_successful_at"
     t.index ["service_name"], name: "index_sync_service_states_on_service_name", unique: true
   end
