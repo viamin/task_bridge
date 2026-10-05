@@ -41,10 +41,7 @@ module Outbox
         entries = next_batch
         break if entries.empty?
 
-        counts[:batches] += 1
-        outcome = publish_batch(entries)
-        counts.merge!(outcome) { |_key, total, batch| total + batch }
-        break if outcome[:stopped_reason]
+        break if publish_entries(entries, counts)
       end
       counts.merge(status: counts.key?(:stopped_reason) ? "incomplete" : "published")
     end
@@ -76,6 +73,18 @@ module Outbox
       end
     end
 
+    # A contract requires every row's version to match its enclosing body.
+    # Split each selected set into version-specific requests.
+    def publish_entries(entries, counts)
+      version_batches(entries).each do |version_entries|
+        counts[:batches] += 1
+        outcome = publish_batch(version_entries)
+        counts.merge!(outcome) { |_key, total, batch| total + batch }
+        return true if outcome[:stopped_reason]
+      end
+      false
+    end
+
     def record_batch_failure(entries, response, retryable:)
       entries.each do |entry|
         entry.record_publication_failure!(
@@ -101,10 +110,12 @@ module Outbox
         entries = next_batch
         break if entries.empty?
 
-        batch = Batch.new(entries, now:)
-        counts[:batches] += 1
-        counts[:rows] += entries.size
-        $stdout.puts(JSON.pretty_generate(dry_run_payload(batch, entries)))
+        version_batches(entries).each do |version_entries|
+          batch = Batch.new(version_entries, now:)
+          counts[:batches] += 1
+          counts[:rows] += version_entries.size
+          $stdout.puts(JSON.pretty_generate(dry_run_payload(batch, version_entries)))
+        end
       end
       counts.merge(status: "dry_run")
     end
@@ -116,6 +127,10 @@ module Outbox
         row_count: entries.size,
         body: batch.body
       }
+    end
+
+    def version_batches(entries)
+      entries.group_by(&:payload_version).values
     end
 
     def summary(status)

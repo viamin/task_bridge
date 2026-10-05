@@ -15,7 +15,8 @@ RSpec.describe Outbox::WebPublisher do
   let(:client) { instance_double(Outbox::WebPublisher::Client) }
   let(:keys) { [] }
 
-  def create_entry(key, observed_at: now, next_retry_at: nil, status: "pending", attempts: 0)
+  def create_entry(key, observed_at: now, next_retry_at: nil, status: "pending",
+                   payload_version: OutboxEntry::PAYLOAD_VERSION)
     OutboxEntry.create!(
       idempotency_key: key,
       record_kind: "observation",
@@ -24,9 +25,10 @@ RSpec.describe Outbox::WebPublisher do
       service_instance: "test_service",
       external_id: key,
       observed_at:,
-      payload: { contract_version: 1, item_key: "test_service:#{key}" },
+      payload: { contract_version: payload_version, item_key: "test_service:#{key}" },
+      payload_version:,
       status:,
-      attempts:,
+      attempts: 0,
       next_retry_at:
     )
   end
@@ -116,6 +118,21 @@ RSpec.describe Outbox::WebPublisher do
       expect(summary).to include(batches: 1, delivered: 1)
       expect(keys).to eq([["k1"]])
       expect(OutboxEntry.find_by(idempotency_key: "k-later")).to be_pending
+    end
+
+    it "sends each payload version in a batch with its matching contract version" do
+      create_entry("v1", observed_at: now - 1.minute)
+      create_entry("v2", payload_version: 2)
+      versions = []
+      allow(client).to receive(:post_batch) do |batch|
+        versions << [batch.body[:contract_version], batch.body[:observations].map { |row| row["contract_version"] }]
+        ok(batch.entries.map { |entry| accepted(entry.idempotency_key) })
+      end
+
+      summary = publish
+
+      expect(summary).to include(batches: 2, delivered: 2)
+      expect(versions).to eq([[1, [1]], [2, [2]]])
     end
   end
 

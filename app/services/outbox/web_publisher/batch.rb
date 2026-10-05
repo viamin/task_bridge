@@ -25,8 +25,10 @@ module Outbox
 
       def initialize(entries, now: Time.current)
         raise ArgumentError, "cannot publish an empty batch" if entries.blank?
+        raise ArgumentError, "cannot publish mixed payload versions" if entries.map(&:payload_version).uniq.many?
 
         @entries = entries
+        @contract_version = entries.first.payload_version
         @batch_id = SecureRandom.uuid
         @sent_at = now.utc.iso8601(6)
       end
@@ -59,9 +61,7 @@ module Outbox
 
       private
 
-      def contract_version
-        OutboxEntry::PAYLOAD_VERSION
-      end
+      attr_reader :contract_version
 
       def publisher_instance
         Socket.gethostname.to_s.presence || PUBLISHER

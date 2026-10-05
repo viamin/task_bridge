@@ -78,20 +78,31 @@ RSpec.describe Outbox::WebPublisher::Batch do
       expect(row).not_to have_key(:item_key)
     end
 
-    it "uses the row's payload_version as its contract version" do
+    it "uses the row's payload_version as its batch and row contract version" do
       versioned = OutboxEntry.new(
         idempotency_key: "tb:v1:obs:test_service:obs-2:snapshot_seen:2026-10-05T10:00:00.000000Z",
         record_kind: "observation", service_type: "test_service",
         observed_at: now, payload_version: 2, payload: {}
       )
 
-      row = described_class.new([versioned], now:).body[:observations].first
+      batch = described_class.new([versioned], now:)
+      row = batch.body[:observations].first
 
+      expect(batch.body[:contract_version]).to eq(2)
+      expect(batch.headers(api_key: "secret")["X-TaskBridge-Contract-Version"]).to eq("2")
       expect(row["contract_version"]).to eq(2)
     end
   end
 
   it "refuses to build an empty batch" do
     expect { described_class.new([], now:) }.to raise_error(ArgumentError, /empty batch/)
+  end
+
+  it "refuses to build a batch with mixed payload versions" do
+    versioned = observation.dup
+    versioned.payload_version = 2
+
+    expect { described_class.new([observation, versioned], now:) }
+      .to raise_error(ArgumentError, /mixed payload versions/)
   end
 end
