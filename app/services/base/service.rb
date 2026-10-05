@@ -375,6 +375,7 @@ module Base
       end
       return unless collection
 
+      newly_linked_items = []
       collection_items.each do |item|
         persisted_item = persisted_sync_item_for(item)
         next if persisted_item.nil?
@@ -382,12 +383,15 @@ module Base
 
         persisted_item.sync_collection_id = collection.id
         persisted_item.observe_source! if persisted_item.respond_to?(:save!)
+        newly_linked_items << persisted_item
       end
 
-      collection.update_mapping_provenance!(
-        **(provenance || mapping_provenance_for(collection_items)),
-        observed_at: Time.current
-      )
+      resolved_provenance = provenance || mapping_provenance_for(collection_items)
+      prior_method = collection.mapping_method
+      prior_confidence = collection.mapping_confidence
+      collection.update_mapping_provenance!(**resolved_provenance, observed_at: Time.current)
+      provenance_changed = collection.mapping_method != prior_method || collection.mapping_confidence != prior_confidence
+      emit_mapping_observations(collection, newly_linked_items:, provenance_changed:)
       collection
     end
 
@@ -414,6 +418,7 @@ module Base
       return if existing_sync_id == source_item.external_id && existing_sync_url == source_item.try(:url)
 
       update_sync_data_for(source_service_name, target_item, source_item.external_id, source_item.try(:url))
+      emit_created_representation_observation_for(target_item)
     end
 
     def persisted_sync_target_for(target_service, source_item, created_item)
@@ -511,6 +516,29 @@ module Base
 
     def mapping_provenance_for(items)
       SyncMappingProvenance.preferred_for(items)
+    end
+
+    # Mapping observations (#219): a membership row is published whenever an
+    # item becomes a member of a SyncCollection, or the collection's mapping
+    # provenance meaningfully changed (e.g. confidence upgraded from a title
+    # match to a sync-id match). Write-only bookkeeping — never changes sync
+    # semantics, and --pretend is enforced inside OutboxEntry.enqueue.
+    def emit_mapping_observations(collection, newly_linked_items:, provenance_changed:)
+      members = newly_linked_items
+      members = (members + collection.sync_items.to_a).uniq if provenance_changed
+      Outbox::MappingEmitter.emit_for_members(collection, members:)
+    end
+
+    # First observation for a cross-service representation TaskBridge just
+    # created: emits `snapshot_seen` with created-by-sync provenance unless
+    # the representation was already observed (e.g. its own refresh already
+    # published the discovery), keeping discovery exactly-once per item.
+    def emit_created_representation_observation_for(target_item)
+      return if options[:pretend]
+      return unless target_item.persisted? && target_item.last_snapshot.blank?
+
+      Outbox::ObservationEmitter.emit_for_item(target_item, previous_snapshot: nil,
+                                                            discovery_detected_by: "created_by_sync")
     end
 
     def created_by_sync_provenance(source_item, target_service, target_item)

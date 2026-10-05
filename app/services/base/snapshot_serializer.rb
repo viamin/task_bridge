@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "openssl"
+
 module Base
   # Builds a deterministic, versioned, source-agnostic snapshot of a
   # Base::SyncItem's current state. This is the shared shape that change
@@ -48,27 +50,23 @@ module Base
     end
 
     def source_identity
-      {
-        # The publication contract (#215) calls for stable adapter-family
-        # identifiers (e.g. "asana", "google_tasks") rather than the display
-        # names each subclass's `provider` returns ("Asana", "GoogleTasks").
-        service_type: Base::Service.service_identifier_for(item.provider),
-        service_instance: item.source_service_instance,
-        external_id: item.source_external_id.presence || item.external_id,
-        source_url: item.source_url.presence || item.url
-      }
+      Outbox::SourceIdentity.for(item)
     end
 
     def lifecycle_fields
       {
         title: item.title,
         display_title: item.friendly_title,
-        # Notes are intentionally omitted: the publication contract (#215)
-        # requires `notes_preview` to be opt-in per source via TaskBridge
-        # configuration, and the per-source setting does not exist yet.
-        # Until then, emitting full notes here would silently leak source
-        # notes to any consumer of this snapshot. When the setting lands,
-        # gate this field behind it (as `notes_preview`, not `notes`).
+        # Notes content never leaves through the snapshot (#215): the
+        # per-source notes export setting does not exist yet. A keyed
+        # digest (HMAC-SHA256, see TaskBridge.digest_key) of the
+        # metadata-stripped notes (sync ID/URL lines removed) lets change
+        # detection (#219) observe note edits — and lets consumers compare
+        # notes across representations — without exposing the text itself:
+        # unlike a bare hash, it cannot be matched against offline guesses
+        # of short note text. Published as `notes_digest`, never as
+        # content.
+        notes_digest: notes_digest,
         status: status,
         completed: item.completed?,
         completed_at: item.completed_at || item.completed_on,
@@ -87,6 +85,11 @@ module Base
       return "completed" if item.completed?
 
       "open"
+    end
+
+    def notes_digest
+      content = item.notes_content.to_s if item.respond_to?(:notes_content)
+      OpenSSL::HMAC.hexdigest("SHA256", TaskBridge.digest_key, content) if content.present?
     end
 
     def scheduling_fields

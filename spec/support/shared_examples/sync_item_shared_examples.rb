@@ -37,11 +37,18 @@ RSpec.shared_examples "normalized_snapshot" do
       snapshot = item.normalized_snapshot
 
       expect(snapshot[:title]).to eq(item.title)
-      # Notes are opt-in per source under the publication contract (#215)
-      # and the per-source setting does not exist yet, so the snapshot must
-      # not carry any notes field today.
+      # Notes content is opt-in per source under the publication contract
+      # (#215) and the per-source setting does not exist yet, so the snapshot
+      # must not carry note text — only the keyed, one-way `notes_digest`
+      # (HMAC-SHA256 over the metadata-stripped notes; see
+      # TaskBridge.digest_key).
       expect(snapshot).not_to have_key(:notes)
       expect(snapshot).not_to have_key(:notes_preview)
+      if snapshot[:notes_digest]
+        expect(snapshot[:notes_digest]).to eq(
+          OpenSSL::HMAC.hexdigest("SHA256", TaskBridge.digest_key, item.notes_content)
+        )
+      end
       expect(snapshot[:status]).to be_in(%w[open completed dropped])
       expect(snapshot[:completed]).to eq(item.completed?)
       expect(snapshot[:tags]).to eq(Array(item.tags))

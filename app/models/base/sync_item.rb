@@ -15,6 +15,7 @@
 #  item_type          :string
 #  last_modified      :datetime
 #  last_observed_at   :datetime
+#  last_snapshot      :json
 #  notes              :text
 #  source_created_at  :datetime
 #  source_external_id :string
@@ -120,6 +121,7 @@ module Base
     end
 
     def refresh_from_external!(only_modified_dates: false)
+      previous_snapshot = read_attribute(:last_snapshot)
       read_original(only_modified_dates:)
       return self if options[:pretend]
 
@@ -128,6 +130,15 @@ module Base
       # diff. observe_source! saves unconditionally because it always bumps
       # last_observed_at, which keeps the record dirty.
       observe_source!
+      # Observation emission (#219) is bookkeeping after the refresh: it
+      # diffs the stored baseline against the newly observed snapshot and
+      # enqueues outbox rows without altering the refresh result. Outbox
+      # write failures (e.g. a transient SQLite lock) are isolated inside
+      # the emitter — retried, then reported and re-detected on the next
+      # refresh — so publication can never abort an otherwise successful
+      # sync.
+      Outbox::ObservationEmitter.emit_for_item(self, previous_snapshot:)
+      self
     end
 
     def read_notes

@@ -82,6 +82,15 @@ source does not expose the concept today, not that it never could.
   lands, omitting notes keeps full source note bodies from leaking through
   the snapshot. When the setting is added, the field should be exposed as
   `notes_preview` (matching the contract) rather than `notes`.
+  `notes_digest` — a keyed SHA-256 digest (HMAC-SHA256, keyed by the
+  deployment's `task_bridge.digest_key` setting, falling back to the app's
+  `secret_key_base`) of the metadata-stripped notes content — *is* emitted
+  so change detection (#219) and consumers can observe note edits without
+  the text ever leaving TaskBridge. It is one-way: comparing digests shows
+  whether notes are identical or different, nothing more. Because it is
+  keyed, a published digest cannot be matched against offline guesses of
+  note text; digests are only comparable within one deployment, and
+  rotating the key only re-baselines the digest.
 - `status` only ever resolves to `open` or `completed`. No adapter currently
   exposes an explicit "dropped"/abandoned state (OmniFocus models this via
   AppleScript's `dropped`/`effectively_dropped` properties, but TaskBridge
@@ -89,19 +98,62 @@ source does not expose the concept today, not that it never could.
 - `is_deleted` is always `false`. `Base::SyncItem` does not yet model
   deletion; tombstone/deletion semantics are left for the publication work
   under #214.
-- `source.service_instance` is only populated for items that have gone
-  through `capture_source_identity` (i.e. `observe_source!` /
-  `refresh_from_external!`). A freshly constructed, unsaved item may have a
-  `nil` `service_instance` even though `service_type` and `external_id` are
-  already known.
 
-## `source.service_type` format
+## `source` identity format
 
 `source.service_type` carries the stable adapter-family identifier from the
 publication contract (#215), not the display name returned by
 `Base::SyncItem#provider`. The serializer applies
 `Base::Service.service_identifier_for(provider)` so each value is the
 class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
-`github`, `instapaper`, `reminders`, `reclaim`, `google_keep`). The instance
-component (when present) belongs only in `source.service_instance` — see
-`app/services/base/snapshot_serializer.rb`.
+`github`, `instapaper`, `reminders`, `reclaim`, `google_keep`).
+
+`source.service_instance` is **always** populated — including for a
+freshly constructed item that has not gone through
+`capture_source_identity` — so consumers must not code for a nilable
+value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
+captured instance segment when one exists (`asana:work`,
+`omnifocus:default`), and yields the bare `service_type` (`asana`)
+otherwise; the per-instance component therefore belongs only in
+`source.service_instance`, never in `source.service_type`. Like `item_key`
+and idempotency keys, `service_instance` is opaque: consumers must not
+parse it by splitting on `:` because segments may themselves contain
+colons.
+
+## Observation emission (#219)
+
+Sync flows emit normalized observation and mapping rows into the local
+outbox (#218) by diffing snapshots. Emission is write-only bookkeeping: it
+runs after a refresh has already been observed and never changes sync
+semantics, return values, or error handling. `--pretend` runs never write
+outbox rows or advance the diff baseline.
+
+- **Baseline**: the last published snapshot per item is stored in
+  `sync_items.last_snapshot` (timestamps rendered as ISO 8601 UTC so JSON
+  round-trips stay diff-stable).
+- **Source observations** (`Outbox::ObservationEmitter`, hooked into
+  `Base::SyncItem#refresh_from_external!`): a first observation emits
+  `snapshot_seen` (with the full snapshot embedded); later refreshes emit
+  one `source_changed` row per field transition via `Outbox::SnapshotDiff`.
+  The diffed fields are `SnapshotDiff::OBSERVED_FIELDS` plus the
+  containment metadata keys (`metadata.folder`, `metadata.list`,
+  `metadata.list_id`, `metadata.section`). Volatile, derived, identity, and
+  provenance-only fields are excluded, so re-observation without a real
+  change emits nothing.
+- **Created representations** (`Base::Service#persist_created_sync_data_for`):
+  a cross-service representation created by sync emits its `snapshot_seen`
+  row with `provenance.detected_by: created_by_sync` unless its own refresh
+  already published the discovery.
+- **Mappings** (`Outbox::MappingEmitter`, hooked into
+  `Base::Service#persist_sync_collection_for`): a `representation_membership`
+  row is published for each item that joins a `SyncCollection`, and for
+  every member when the collection's mapping provenance meaningfully
+  changes (for example `title_fallback` upgrading to `source_sync_id`).
+  Internal confidence values map to the contract's vocabulary
+  (high → `confirmed`; medium/low → `tentative`).
+- **Key uniqueness**: when one observation yields several field transitions,
+  each row's idempotency key carries a sequence segment
+  (`Outbox::IdempotencyKey`), per the RDR #215 rule for colliding observed
+  timestamps. The baseline is only advanced after every row is enqueued, so
+  a failed enqueue can re-detect a transition (at-least-once) but never
+  silently swallows one.

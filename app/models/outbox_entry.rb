@@ -61,6 +61,7 @@ class OutboxEntry < ApplicationRecord
     observed_at
     payload_version
     idempotency_key
+    sequence
   ].freeze
 
   RETRY_BACKOFF_BASE = 1.minute

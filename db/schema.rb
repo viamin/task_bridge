@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_021344) do
   create_table "outbox_entries", force: :cascade do |t|
     t.string "idempotency_key", null: false
     t.string "record_kind", null: false
@@ -81,6 +81,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_000000) do
     t.string "type"
     t.datetime "updated_at", null: false
     t.string "url"
+    t.json "last_snapshot"
     t.index ["last_modified"], name: "index_sync_items_on_last_modified"
     t.index ["parent_item_id"], name: "index_sync_items_on_parent_item_id"
     t.index ["sync_collection_id", "source_service_name"], name: "index_sync_items_on_collection_id_and_source_service_name", unique: true, where: "((sync_collection_id IS NOT NULL) AND (source_service_name IS NOT NULL))"
