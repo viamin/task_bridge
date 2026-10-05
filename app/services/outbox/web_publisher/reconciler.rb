@@ -18,7 +18,7 @@ module Outbox
       end
 
       def initialize(entries, results, now)
-        @results_by_key = Array(results).index_by { |result| result["idempotency_key"] }
+        @results_by_key = Array(results).grep(Hash).index_by { |result| result["idempotency_key"] }
         @entries = entries
         @now = now
       end
