@@ -39,30 +39,13 @@ module Github
     end
 
     def items_to_sync(*, tags: nil, only_modified_dates: false)
-      tagged_issues = sync_repositories
-                      .map { |repo| list_issues(repo, tags) }
-                      .flatten
-                      .map do |external_issue|
-        issue = Issue.find_or_initialize_by_source(
-          service_name: service_name,
-          external_id: external_issue[Issue.external_attribute_map[:external_id]]
-        )
-        issue.options = self.class.build_options(issue.options, service_name)
-        issue.github_issue = external_issue
-        issue.refresh_from_external!(only_modified_dates:)
+      external_issues = sync_repositories.flat_map { |repo| list_issues(repo, tags) }
+      external_issues.concat(list_assigned.select { |issue| configured_issue?(issue) })
+      external_issues.uniq { |issue| issue[Issue.external_attribute_map[:external_id]] }.map do |external_issue|
+        refresh_issue(external_issue, only_modified_dates:).tap do |issue|
+          publish_activity_for(issue, external_issue)
+        end
       end
-      assigned_issues = list_assigned
-                        .filter { |issue| sync_repositories(with_url: true).include?(issue["repository_url"]) }
-                        .map do |external_issue|
-        issue = Issue.find_or_initialize_by_source(
-          service_name: service_name,
-          external_id: external_issue[Issue.external_attribute_map[:external_id]]
-        )
-        issue.options = self.class.build_options(issue.options, service_name)
-        issue.github_issue = external_issue
-        issue.refresh_from_external!(only_modified_dates:)
-      end
-      (tagged_issues + assigned_issues).uniq(&:external_id)
     end
 
     private
@@ -123,6 +106,80 @@ module Github
       raise "Error loading Github issues - check repository name and access (response code: #{response.code})" unless response.success?
 
       JSON.parse(response.body)
+    end
+
+    def refresh_issue(external_issue, only_modified_dates:)
+      issue = Issue.find_or_initialize_by_source(
+        service_name: service_name,
+        external_id: external_issue[Issue.external_attribute_map[:external_id]]
+      )
+      issue.options = self.class.build_options(issue.options, service_name)
+      issue.github_issue = external_issue
+      issue.refresh_from_external!(only_modified_dates:)
+    end
+
+    def publish_activity_for(issue, external_issue)
+      return unless issue.persisted?
+
+      events = timeline_events(external_issue)
+      events.concat(review_events(external_issue)) if issue.is_pr
+      ActivityEmitter.emit_for(issue, events:, since: activity_since)
+    end
+
+    # Timeline and review APIs do not accept a `since` filter. Fetch only the
+    # latest page (at most 100 records) and apply the service cursor locally;
+    # this is bounded even for very old, high-volume items.
+    def timeline_events(external_issue)
+      latest_page("#{issue_api_url(external_issue)}/timeline")
+    end
+
+    def review_events(external_issue)
+      latest_page("#{repository_api_url(external_issue)}/pulls/#{external_issue['number']}/reviews")
+        .map { |review| review.merge("activity_type" => "reviewed") }
+    end
+
+    def latest_page(url)
+      response = get_activity_page(url)
+      return [] unless response.success?
+
+      latest_url = last_page_url(response)
+      return parsed_activity_response(response) if latest_url.blank?
+
+      parsed_activity_response(get_paginated_activity_page(latest_url))
+    end
+
+    def get_activity_page(url)
+      HTTParty.get(url, authenticated_options.merge(query: { per_page: "100" }))
+    end
+
+    def get_paginated_activity_page(url)
+      HTTParty.get(url, authenticated_options)
+    end
+
+    def parsed_activity_response(response)
+      response.success? ? JSON.parse(response.body) : []
+    end
+
+    def last_page_url(response)
+      headers = response.headers || {}
+      link = headers["link"] || headers["Link"]
+      link.match(/<([^>]+)>;\s*rel="last"/)&.captures&.first if link
+    end
+
+    def activity_since
+      @activity_since ||= last_successful_sync_at || Chronic.parse("2 days ago")
+    end
+
+    def issue_api_url(issue)
+      issue["url"] || "#{repository_api_url(issue)}/issues/#{issue['number']}"
+    end
+
+    def repository_api_url(issue)
+      issue.fetch("repository_url")
+    end
+
+    def configured_issue?(issue)
+      sync_repositories(with_url: true).include?(issue["repository_url"])
     end
 
     def issue_labels(issue)

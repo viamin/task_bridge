@@ -47,6 +47,7 @@ RSpec.describe "Github::Service" do
       allow(service).to receive(:sync_repositories).with(with_url: true).and_return(["https://api.github.com/repos/org/repo"])
       allow(service).to receive(:list_issues).and_return([external_issue])
       allow(service).to receive(:list_assigned).and_return([external_issue])
+      allow(service).to receive(:publish_activity_for)
     end
 
     it "loads external_id from the shared external attribute map" do
@@ -94,6 +95,53 @@ RSpec.describe "Github::Service" do
         RuntimeError,
         "Error loading Github issues - check repository name and access (response code: 500)"
       )
+    end
+  end
+
+  describe "GitHub activity retrieval" do
+    let(:activity_response) do
+      instance_double(HTTParty::Response, success?: true, body: [].to_json, headers: {})
+    end
+
+    before { allow(HTTParty).to receive(:get).and_return(activity_response) }
+
+    it "uses a bounded latest-page request for timeline activity" do
+      service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+
+      expect(HTTParty).to have_received(:get).with(
+        "https://api.github.com/repos/org/repo/issues/5/timeline",
+        hash_including(query: { per_page: "100" })
+      )
+    end
+
+    it "follows only the final pagination link for an older item's activity" do
+      first_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [].to_json,
+        headers: { "link" => '<https://api.github.com/page/3>; rel="last"' }
+      )
+      last_page = instance_double(HTTParty::Response, success?: true, body: [].to_json)
+      allow(HTTParty).to receive(:get).and_return(first_page, last_page)
+
+      service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/page/3", hash_including(:headers)).once
+    end
+
+    it "retrieves pull-request reviews but not reviews for issues" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      pull_request = instance_double(Github::Issue, persisted?: true, is_pr: true)
+      external_issue = { "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5 }
+      allow(service).to receive(:timeline_events).and_return([])
+      allow(service).to receive(:review_events).and_return([])
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(Github::ActivityEmitter).to receive(:emit_for)
+
+      service.send(:publish_activity_for, issue, external_issue)
+      service.send(:publish_activity_for, pull_request, external_issue)
+
+      expect(service).to have_received(:review_events).with(external_issue).once
     end
   end
 
