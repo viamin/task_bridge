@@ -35,6 +35,12 @@ default: &default
       - Reclaim
       - Reminders
     update_ids_for_existing_items: false
+    outbox:
+      # The local outbox is a bounded queue for retries and troubleshooting,
+      # not a long-term history database — TaskBridge Web owns durable history.
+      retention:
+        delivered_days: 7
+        failed_days: 30
     sync:
       # use "0" to disable
       max_age: "0"
