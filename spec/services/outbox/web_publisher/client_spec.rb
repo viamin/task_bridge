@@ -60,6 +60,16 @@ RSpec.describe Outbox::WebPublisher::Client do
     expect(response.summary_message).to eq("connection open timed out")
   end
 
+  it "reduces malformed HTTP responses to retryable failures instead of raising" do
+    allow(transport).to receive(:post).and_raise(Net::HTTPBadResponse, "malformed status line")
+
+    response = client.post_batch(batch)
+
+    expect(response.outcome).to eq(:retryable)
+    expect(response.error_code).to eq("Net::HTTPBadResponse")
+    expect(response.summary_message).to eq("malformed status line")
+  end
+
   it "reduces every errno failure to a retryable response" do
     # SystemCallError covers all Errno::*: the classes Net::HTTP re-raises
     # for a POST (ECONNABORTED, EPIPE, ETIMEDOUT) plus interface-down

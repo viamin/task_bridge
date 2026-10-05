@@ -120,9 +120,9 @@ RSpec.describe Outbox::WebPublisher do
       expect(OutboxEntry.find_by(idempotency_key: "k-later")).to be_pending
     end
 
-    it "sends each payload version in a batch with its matching contract version" do
+    it "defers unsupported payload versions without posting them to the v1 endpoint" do
       create_entry("v1", observed_at: now - 1.minute)
-      create_entry("v2", payload_version: 2)
+      unsupported = create_entry("v2", payload_version: 2)
       versions = []
       allow(client).to receive(:post_batch) do |batch|
         versions << [batch.body[:contract_version], batch.body[:observations].map { |row| row["contract_version"] }]
@@ -131,8 +131,12 @@ RSpec.describe Outbox::WebPublisher do
 
       summary = publish
 
-      expect(summary).to include(batches: 2, delivered: 2)
-      expect(versions).to eq([[1, [1]], [2, [2]]])
+      expect(summary).to include(status: "incomplete", batches: 1, delivered: 1, retryable: 1,
+                                 stopped_reason: "unsupported_payload_version")
+      expect(versions).to eq([[1, [1]]])
+      expect(unsupported.reload).to be_pending
+      expect(unsupported.error_class).to eq("unsupported_payload_version")
+      expect(unsupported.next_retry_at).to be > now
     end
   end
 
@@ -335,6 +339,21 @@ RSpec.describe Outbox::WebPublisher do
       expect(payloads.map { |payload| payload["row_count"] }).to eq([2, 1])
       expect(payloads.flat_map { |payload| payload["body"]["observations"].map { |row| row["idempotency_key"] } })
         .to eq(%w[k3 k2 k1])
+    end
+
+    it "omits unsupported payload versions from the v1 endpoint preview" do
+      create_entry("v1")
+      create_entry("v2", payload_version: 2)
+
+      output = capture_stdout do
+        summary = described_class.run!(config: dry_config, client:, now:)
+        expect(summary).to include(status: "dry_run", batches: 1, rows: 1, unsupported: 1)
+      end
+
+      payload = JSON.parse(output)
+      expect(payload.dig("body", "contract_version")).to eq(1)
+      expect(payload.dig("body", "observations").map { |row| row["idempotency_key"] }).to eq(["v1"])
+      expect(OutboxEntry.find_by(idempotency_key: "v2")).to be_pending
     end
 
     it "works without any base URL or API key configured" do

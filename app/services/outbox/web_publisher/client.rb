@@ -50,6 +50,7 @@ module Outbox
           EOFError,
           SystemCallError,
           IOError,
+          Net::HTTPBadResponse,
           Net::OpenTimeout,
           Net::ReadTimeout,
           Net::WriteTimeout,

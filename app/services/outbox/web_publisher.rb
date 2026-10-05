@@ -10,7 +10,8 @@ module Outbox
   # never raises — a publication hiccup leaves rows pending for the next
   # sync run or the standalone retry task instead of failing sync.
   class WebPublisher
-    SUMMARY_KEYS = { batches: 0, delivered: 0, retryable: 0, failed: 0 }.freeze
+    SUMMARY_KEYS = { batches: 0, delivered: 0, retryable: 0, failed: 0, unsupported: 0 }.freeze
+    SUPPORTED_PAYLOAD_VERSIONS = [1].freeze
 
     def self.run!(config: Config.resolve, client: nil, now: Time.current)
       new(config:, client:, now:).run!
@@ -20,7 +21,7 @@ module Outbox
       @config = config
       @client = client || Client.new(config)
       @now = now
-      @processed_ids = Set.new
+      @cursor = nil
     end
 
     def run!
@@ -48,15 +49,16 @@ module Outbox
 
     # Best-effort FIFO by observed_at, honoring each row's retry backoff.
     # Every processed row leaves the due scope (delivered, failed, or
-    # scheduled for retry), so the loop always advances. Processed rows
-    # are also excluded inside the query so `limit` cannot re-select
-    # them — without that, a dry run (which touches no row state) would
-    # stall after its first batch.
+    # scheduled for retry). A forward keyset cursor also advances dry runs,
+    # which do not change row state, without growing an IN-list per batch.
     def next_batch
       scope = due_entries
-      scope = scope.where.not(id: @processed_ids.to_a) if @processed_ids.any?
+      if @cursor
+        scope = scope.where("observed_at > :observed_at OR (observed_at = :observed_at AND id > :id)",
+                            observed_at: @cursor.first, id: @cursor.last)
+      end
       entries = scope.limit(config.batch_size).to_a
-      @processed_ids.merge(entries.map(&:id))
+      @cursor = [entries.last.observed_at, entries.last.id] if entries.any?
       entries
     end
 
@@ -68,9 +70,22 @@ module Outbox
     # Split each selected set into version-specific requests.
     def publish_entries(entries, counts)
       version_batches(entries).each do |version_entries|
+        return defer_unsupported_version(version_entries, counts) unless supported_payload_version?(version_entries)
         return true if publish_with_splits(version_entries, counts)
       end
       false
+    end
+
+    # RDR #215 forbids sending a newer contract to the fixed v1 endpoint.
+    # Keep such rows pending for the compatible endpoint's rollout instead.
+    def defer_unsupported_version(entries, counts)
+      response = Response.failure("unsupported_payload_version", "payload version #{entries.first.payload_version} has no supported endpoint")
+      counts.merge!(record_batch_failure(entries, response, retryable: true)) { |_key, total, batch| total + batch }
+      true
+    end
+
+    def supported_payload_version?(entries)
+      SUPPORTED_PAYLOAD_VERSIONS.include?(entries.first.payload_version)
     end
 
     # Publishes one homogeneous batch, halving it on a 413 (RDR #215:
@@ -138,6 +153,11 @@ module Outbox
         break if entries.empty?
 
         version_batches(entries).each do |version_entries|
+          unless supported_payload_version?(version_entries)
+            counts[:unsupported] += version_entries.size
+            next
+          end
+
           batch = Batch.new(version_entries, now:)
           counts[:batches] += 1
           counts[:rows] += version_entries.size
