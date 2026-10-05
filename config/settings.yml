@@ -72,6 +72,15 @@ default: &default
       secrets_file: google_api_client_credentials.json
     credential_store: credentials.yaml
     tasks_list: My Tasks
+    calendar:
+      # Calendar IDs to observe. An empty list disables calendar ingestion.
+      calendar_ids: []
+      # `busy_only` publishes only availability. `event_details` additionally
+      # publishes title, location, and attendee response status.
+      privacy_mode: busy_only
+      # Bound reads so a configured calendar cannot become an unbounded export.
+      lookback_days: 7
+      lookahead_days: 30
 
   instapaper:
     oauth:
