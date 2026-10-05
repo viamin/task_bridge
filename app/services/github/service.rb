@@ -126,26 +126,41 @@ module Github
       ActivityEmitter.emit_for(issue, events:, since: activity_since)
     end
 
-    # Timeline and review APIs do not accept a `since` filter. Fetch only the
-    # latest page (at most 100 records) and apply the service cursor locally;
-    # this is bounded even for very old, high-volume items.
+    # Timeline and review APIs do not accept a `since` filter. Start at the
+    # newest page and follow `prev` links until the cursor bounds the search.
     def timeline_events(external_issue)
-      latest_page("#{issue_api_url(external_issue)}/timeline")
+      activity_events("#{issue_api_url(external_issue)}/timeline")
     end
 
     def review_events(external_issue)
-      latest_page("#{repository_api_url(external_issue)}/pulls/#{external_issue['number']}/reviews")
+      activity_events("#{repository_api_url(external_issue)}/pulls/#{external_issue['number']}/reviews")
         .map { |review| review.merge("activity_type" => "reviewed") }
     end
 
-    def latest_page(url)
+    def activity_events(url)
       response = get_activity_page(url)
       return [] unless response.success?
 
       latest_url = last_page_url(response)
       return parsed_activity_response(response) if latest_url.blank?
 
-      parsed_activity_response(get_paginated_activity_page(latest_url))
+      activity_pages_since(get_paginated_activity_page(latest_url))
+    end
+
+    def activity_pages_since(response)
+      events = []
+      loop do
+        page_events = parsed_activity_response(response)
+        events.concat(page_events)
+        break if page_before_activity_since?(page_events)
+
+        previous_url = previous_page_url(response)
+        break if previous_url.blank?
+
+        response = get_paginated_activity_page(previous_url)
+        break unless response.success?
+      end
+      events
     end
 
     def get_activity_page(url)
@@ -161,9 +176,25 @@ module Github
     end
 
     def last_page_url(response)
+      pagination_url(response, "last")
+    end
+
+    def previous_page_url(response)
+      pagination_url(response, "prev")
+    end
+
+    def pagination_url(response, relation)
       headers = response.headers || {}
       link = headers["link"] || headers["Link"]
-      link.match(/<([^>]+)>;\s*rel="last"/)&.captures&.first if link
+      link.match(/<([^>]+)>;\s*rel="#{relation}"/)&.captures&.first if link
+    end
+
+    def page_before_activity_since?(events)
+      events.all? { |event| event_occurred_at(event).present? && Time.iso8601(event_occurred_at(event)) < activity_since }
+    end
+
+    def event_occurred_at(event)
+      event["created_at"] || event["submitted_at"] || event["updated_at"]
     end
 
     def activity_since

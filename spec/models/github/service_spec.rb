@@ -114,19 +114,40 @@ RSpec.describe "Github::Service" do
       )
     end
 
-    it "follows only the final pagination link for an older item's activity" do
+    it "follows previous pages until activity predates the cursor" do
       first_page = instance_double(
         HTTParty::Response,
         success?: true,
         body: [].to_json,
         headers: { "link" => '<https://api.github.com/page/3>; rel="last"' }
       )
-      last_page = instance_double(HTTParty::Response, success?: true, body: [].to_json)
-      allow(HTTParty).to receive(:get).and_return(first_page, last_page)
+      last_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "3", "created_at" => "2026-10-05T12:00:00Z" }].to_json,
+        headers: { "link" => '<https://api.github.com/page/2>; rel="prev"' }
+      )
+      middle_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "2", "created_at" => "2026-10-05T11:00:00Z" }].to_json,
+        headers: { "link" => '<https://api.github.com/page/1>; rel="prev"' }
+      )
+      oldest_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "1", "created_at" => "2026-10-05T09:00:00Z" }].to_json,
+        headers: {}
+      )
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(HTTParty).to receive(:get).and_return(first_page, last_page, middle_page, oldest_page)
 
-      service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+      events = service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
 
       expect(HTTParty).to have_received(:get).with("https://api.github.com/page/3", hash_including(:headers)).once
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/page/2", hash_including(:headers)).once
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/page/1", hash_including(:headers)).once
+      expect(events.pluck("id")).to eq(%w[3 2 1])
     end
 
     it "retrieves pull-request reviews but not reviews for issues" do
