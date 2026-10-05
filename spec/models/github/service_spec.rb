@@ -116,31 +116,53 @@ RSpec.describe "Github::Service" do
       instance_double(HTTParty::Response, success?: true, body: [].to_json, headers: {})
     end
 
-    before { allow(HTTParty).to receive(:get).and_return(activity_response) }
+    before do
+      allow(HTTParty).to receive(:get).and_return(activity_response)
+      allow(service).to receive(:sync_repositories).and_return(["org/repo"])
+    end
 
     it "uses a bounded first-page request for timeline activity" do
       service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
 
       expect(HTTParty).to have_received(:get).with(
         "https://api.github.com/repos/org/repo/issues/5/timeline",
-        hash_including(query: { per_page: "100" })
+        hash_including(follow_redirects: false, query: { per_page: "100" })
       )
     end
 
-    it "refuses a pagination URL outside the GitHub API origin" do
+    it "does not request a response-supplied pagination URL" do
       response = instance_double(
         HTTParty::Response,
         success?: true,
         body: [].to_json,
-        headers: { "link" => '<https://attacker.example/activity>; rel="last"' }
+        headers: { "link" => '<https://attacker.example/activity?page=2>; rel="last"' }
+      )
+      allow(HTTParty).to receive(:get).and_return(response)
+
+      service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+
+      expect(HTTParty).to have_received(:get).twice
+      expect(HTTParty).to have_received(:get).with(
+        "https://api.github.com/repos/org/repo/issues/5/timeline",
+        hash_including(query: { page: 2, per_page: "100" })
+      )
+    end
+
+    it "rejects pagination links that do not move backward" do
+      response = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [].to_json,
+        headers: { "link" => '<https://api.github.com/page?page=1>; rel="prev"' }
       )
       allow(HTTParty).to receive(:get).and_return(response)
 
       expect do
         service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
-      end.to raise_error(Github::Service::ActivityFetchError, "Refusing activity request to a non-GitHub API URL")
-
-      expect(HTTParty).to have_received(:get).once
+      end.to raise_error(
+        Github::Service::ActivityFetchError,
+        "Github activity pagination link does not move to an earlier page"
+      )
     end
 
     it "follows previous pages from the newest activity until it predates the cursor" do
@@ -148,28 +170,28 @@ RSpec.describe "Github::Service" do
         HTTParty::Response,
         success?: true,
         body: [{ "id" => "1", "created_at" => "2026-10-05T09:00:00Z" }].to_json,
-        headers: { "link" => '<https://api.github.com/page/2>; rel="next", <https://api.github.com/page/3>; rel="last"' }
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="next", <https://api.github.com/page?page=3>; rel="last"' }
       )
       middle_page = instance_double(
         HTTParty::Response,
         success?: true,
         body: [{ "id" => "2", "created_at" => "2026-10-05T11:00:00Z" }].to_json,
-        headers: { "link" => '<https://api.github.com/page/1>; rel="prev", <https://api.github.com/page/3>; rel="next"' }
+        headers: { "link" => '<https://api.github.com/page?page=1>; rel="prev", <https://api.github.com/page?page=3>; rel="next"' }
       )
       newest_page = instance_double(
         HTTParty::Response,
         success?: true,
         body: [{ "id" => "3", "created_at" => "2026-10-05T12:00:00Z" }].to_json,
-        headers: { "link" => '<https://api.github.com/page/2>; rel="prev"' }
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="prev"' }
       )
       allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
       allow(HTTParty).to receive(:get).and_return(first_page, newest_page, middle_page, first_page)
 
       events = service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
 
-      expect(HTTParty).to have_received(:get).with("https://api.github.com/page/3", hash_including(:headers)).once
-      expect(HTTParty).to have_received(:get).with("https://api.github.com/page/2", hash_including(:headers)).once
-      expect(HTTParty).to have_received(:get).with("https://api.github.com/page/1", hash_including(:headers)).once
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/repos/org/repo/issues/5/timeline", hash_including(query: hash_including(page: 3))).once
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/repos/org/repo/issues/5/timeline", hash_including(query: hash_including(page: 2))).once
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/repos/org/repo/issues/5/timeline", hash_including(query: hash_including(page: 1))).once
       expect(events.pluck("id")).to eq(%w[3 2 1])
     end
 
@@ -178,7 +200,7 @@ RSpec.describe "Github::Service" do
         HTTParty::Response,
         success?: true,
         body: [{ "id" => "1", "created_at" => "2026-10-05T09:00:00Z" }].to_json,
-        headers: { "link" => '<https://api.github.com/page/2>; rel="next", <https://api.github.com/page/3>; rel="last"' }
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="next", <https://api.github.com/page?page=3>; rel="last"' }
       )
       old_page = instance_double(
         HTTParty::Response,
@@ -187,20 +209,20 @@ RSpec.describe "Github::Service" do
           { "id" => "2", "event" => "committed" },
           { "id" => "2a", "created_at" => "2026-10-05T09:00:00Z" }
         ].to_json,
-        headers: { "link" => '<https://api.github.com/page/1>; rel="prev"' }
+        headers: { "link" => '<https://api.github.com/page?page=1>; rel="prev"' }
       )
       newest_page = instance_double(
         HTTParty::Response,
         success?: true,
         body: [{ "id" => "3", "created_at" => "2026-10-05T12:00:00Z" }].to_json,
-        headers: { "link" => '<https://api.github.com/page/2>; rel="prev"' }
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="prev"' }
       )
       allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
       allow(HTTParty).to receive(:get).and_return(first_page, newest_page, old_page)
 
       events = service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
 
-      expect(HTTParty).not_to have_received(:get).with("https://api.github.com/page/1", hash_including(:headers))
+      expect(HTTParty).not_to have_received(:get).with("https://api.github.com/repos/org/repo/issues/5/timeline", hash_including(query: hash_including(page: 1)))
       expect(events.pluck("id")).to eq(%w[3 2 2a])
     end
 
@@ -209,26 +231,26 @@ RSpec.describe "Github::Service" do
         HTTParty::Response,
         success?: true,
         body: [{ "id" => "1", "created_at" => "2026-10-05T11:00:00Z" }].to_json,
-        headers: { "link" => '<https://api.github.com/page/2>; rel="next", <https://api.github.com/page/3>; rel="last"' }
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="next", <https://api.github.com/page?page=3>; rel="last"' }
       )
       commit_page = instance_double(
         HTTParty::Response,
         success?: true,
         body: [{ "id" => "2", "event" => "committed" }].to_json,
-        headers: { "link" => '<https://api.github.com/page/1>; rel="prev"' }
+        headers: { "link" => '<https://api.github.com/page?page=1>; rel="prev"' }
       )
       newest_page = instance_double(
         HTTParty::Response,
         success?: true,
         body: [{ "id" => "3", "created_at" => "2026-10-05T12:00:00Z" }].to_json,
-        headers: { "link" => '<https://api.github.com/page/2>; rel="prev"' }
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="prev"' }
       )
       allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
       allow(HTTParty).to receive(:get).and_return(first_page, newest_page, commit_page, first_page)
 
       events = service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
 
-      expect(HTTParty).to have_received(:get).with("https://api.github.com/page/1", hash_including(:headers)).once
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/repos/org/repo/issues/5/timeline", hash_including(query: hash_including(page: 1))).once
       expect(events.pluck("id")).to eq(%w[3 2 1])
     end
 
@@ -249,7 +271,7 @@ RSpec.describe "Github::Service" do
         HTTParty::Response,
         success?: true,
         body: [].to_json,
-        headers: { "link" => '<https://api.github.com/page/2>; rel="last"' }
+        headers: { "link" => '<https://api.github.com/page?page=2>; rel="last"' }
       )
       failed_response = instance_double(HTTParty::Response, success?: false, code: 429)
       allow(HTTParty).to receive(:get).and_return(first_page, failed_response)
@@ -258,7 +280,7 @@ RSpec.describe "Github::Service" do
         service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
       end.to raise_error(
         Github::Service::ActivityFetchError,
-        "Error loading Github activity from https://api.github.com/page/2 (response code: 429)"
+        "Error loading Github activity from https://api.github.com/repos/org/repo/issues/5/timeline (response code: 429)"
       )
     end
 

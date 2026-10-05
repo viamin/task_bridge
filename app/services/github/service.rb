@@ -3,6 +3,8 @@
 module Github
   # A service class to connect to the Github API
   class Service < Base::Service
+    GITHUB_API_URL = "https://api.github.com"
+
     class ActivityFetchError < StandardError; end
 
     include GlobalOptions
@@ -149,55 +151,42 @@ module Github
     # are oldest-first, so start at the newest page and follow `prev` links
     # until the cursor bounds the search.
     def timeline_events(external_issue)
-      activity_events("#{issue_api_url(external_issue)}/timeline")
+      activity_events(issue_activity_url(external_issue, "timeline"))
     end
 
     def review_events(external_issue)
-      activity_events("#{repository_api_url(external_issue)}/pulls/#{external_issue['number']}/reviews")
+      activity_events(issue_activity_url(external_issue, "reviews"))
         .map { |review| review.merge("activity_type" => "reviewed") }
     end
 
-    def activity_events(url)
-      response = get_activity_page(url)
-      ensure_activity_response!(response, url)
+    def activity_events(endpoint)
+      response = get_activity_page(endpoint)
+      ensure_activity_response!(response, endpoint)
 
-      if (last_url = pagination_url(response, "last"))
-        response = get_paginated_activity_page(last_url)
-        ensure_activity_response!(response, last_url)
+      if (last_page = pagination_page(response, "last"))
+        response = get_activity_page(endpoint, page: last_page)
+        ensure_activity_response!(response, endpoint)
       end
 
       events = parsed_activity_response(response)
-      while (prev_url = pagination_url(response, "prev"))
-        response = get_paginated_activity_page(prev_url)
-        ensure_activity_response!(response, prev_url)
+      current_page = last_page || 1
+      while (previous_page = pagination_page(response, "prev"))
+        ensure_previous_page!(previous_page, current_page)
+        response = get_activity_page(endpoint, page: previous_page)
+        ensure_activity_response!(response, endpoint)
         page_events = parsed_activity_response(response)
         events.concat(page_events)
         break if page_before_activity_since?(page_events)
+
+        current_page = previous_page
       end
       events
     end
 
-    def get_activity_page(url)
-      HTTParty.get(validated_activity_url(url), authenticated_options.merge(query: { per_page: "100" }))
-    end
-
-    def get_paginated_activity_page(url)
-      HTTParty.get(validated_activity_url(url), authenticated_options)
-    end
-
-    def validated_activity_url(url)
-      raise ActivityFetchError, "Refusing activity request with an invalid URL" unless url.is_a?(String)
-
-      uri = URI.parse(url)
-      return url if github_api_url?(uri)
-
-      raise ActivityFetchError, "Refusing activity request to a non-GitHub API URL"
-    rescue URI::InvalidURIError
-      raise ActivityFetchError, "Refusing activity request with an invalid URL"
-    end
-
-    def github_api_url?(uri)
-      uri.is_a?(URI::HTTPS) && uri.host == "api.github.com" && uri.port == 443 && uri.userinfo.blank?
+    def get_activity_page(endpoint, page: nil)
+      query = { per_page: "100" }
+      query[:page] = page if page
+      HTTParty.get(endpoint, authenticated_options.merge(follow_redirects: false, query:))
     end
 
     def parsed_activity_response(response)
@@ -214,6 +203,24 @@ module Github
       headers = response.headers || {}
       link = headers["link"] || headers["Link"]
       link.match(/<([^>]+)>;\s*rel="#{relation}"/)&.captures&.first if link
+    end
+
+    # Pagination links come from an HTTP response. Extract only their page
+    # number; every request still uses our fixed GitHub API endpoint.
+    def pagination_page(response, relation)
+      link = pagination_url(response, relation)
+      return if link.blank?
+
+      page = URI.decode_www_form(URI.parse(link).query.to_s).to_h.fetch("page")
+      Integer(page, 10).tap { |number| raise ArgumentError if number < 1 }
+    rescue URI::InvalidURIError, ArgumentError, KeyError
+      raise ActivityFetchError, "Github activity pagination link has an invalid page number"
+    end
+
+    def ensure_previous_page!(previous_page, current_page)
+      return if previous_page < current_page
+
+      raise ActivityFetchError, "Github activity pagination link does not move to an earlier page"
     end
 
     def page_before_activity_since?(events)
@@ -233,12 +240,19 @@ module Github
       sync_state&.last_successful_activity_sync_at
     end
 
-    def issue_api_url(issue)
-      issue["url"] || "#{repository_api_url(issue)}/issues/#{issue['number']}"
+    def issue_activity_url(issue, activity_type)
+      repository = configured_repository(issue)
+      issue_number = Integer(issue.fetch("number").to_s, 10)
+      path = activity_type == "timeline" ? "issues/#{issue_number}/timeline" : "pulls/#{issue_number}/reviews"
+      "#{GITHUB_API_URL}/repos/#{repository}/#{path}"
+    rescue ArgumentError, KeyError
+      raise ActivityFetchError, "Github activity has an invalid issue number"
     end
 
-    def repository_api_url(issue)
-      issue.fetch("repository_url")
+    def configured_repository(issue)
+      repository_url = issue.fetch("repository_url")
+      sync_repositories.find { |repository| "#{GITHUB_API_URL}/repos/#{repository}" == repository_url } ||
+        raise(ActivityFetchError, "Github activity is outside the configured repositories")
     end
 
     def configured_issue?(issue)
