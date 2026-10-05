@@ -5,6 +5,9 @@ module Github
   # observations. GitHub's item `updated_at` tells us which items merit a
   # lookup, while the source event ID is the stable identity of each fact.
   class ActivityEmitter
+    # The timeline endpoint reports state changes but has no event for the
+    # initial opening, so the `opened` activity is derived separately from
+    # the issue/PR response (see #opened_activity).
     EVENT_TYPES = {
       "commented" => "comment_added",
       "labeled" => "label_added",
@@ -32,12 +35,28 @@ module Github
     end
 
     def emit
-      meaningful_events.each { |event| enqueue(event) }
+      [opened_activity, *meaningful_events].compact.each { |activity| enqueue(activity) }
     end
 
     private
 
     attr_reader :item, :events, :since
+
+    # The issue/PR response is the only source for the opening fact: derive an
+    # activity from its `created_at` keyed by the stable issue ID.
+    def opened_activity
+      response = item.external_data
+      return if response.blank? || response["id"].blank? || response["created_at"].blank?
+
+      issue_id = response["id"]
+      activity = {
+        type: "opened",
+        source_event_id: "#{issue_id}-opened",
+        occurred_at: response["created_at"],
+        actor: response.dig("user", "login")
+      }.compact
+      recent?(activity) ? activity : nil
+    end
 
     def meaningful_events
       events.filter_map { |event| activity_for(event) }.select { |activity| recent?(activity) }

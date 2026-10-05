@@ -164,6 +164,36 @@ RSpec.describe "Github::Service" do
 
       expect(service).to have_received(:review_events).with(external_issue).once
     end
+
+    it "publishes an opened activity for a newly opened pull request" do
+      external_pr = {
+        "id" => 123,
+        "number" => 5,
+        "title" => "Ship activity feed",
+        "state" => "open",
+        "body" => "notes",
+        "html_url" => "https://github.com/org/repo/pull/5",
+        "created_at" => "2026-10-05T11:00:00Z",
+        "updated_at" => "2026-10-05T11:00:00Z",
+        "user" => { "login" => "octocat" },
+        "pull_request" => { "diff_url" => "https://github.com/org/repo/pull/5.diff" },
+        "repository_url" => "https://api.github.com/repos/org/repo",
+        "labels" => []
+      }
+      item = Github::Issue.new(
+        github_issue: external_pr,
+        options: { quiet: true, pretend: false, services: [], primary: "Omnifocus", tags: [] },
+        external_id: "123",
+        source_service_name: "github"
+      ).tap(&:refresh_from_external!)
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+
+      service.send(:publish_activity_for, item, external_pr)
+
+      activity = OutboxEntry.where(record_kind: "observation").where.not(event_type: "snapshot_seen")
+                            .sole.payload.fetch("activity")
+      expect(activity).to include("type" => "opened", "source_event_id" => "123-opened", "actor" => "octocat")
+    end
   end
 
   describe "#should_sync?" do

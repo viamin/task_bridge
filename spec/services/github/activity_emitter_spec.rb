@@ -75,4 +75,30 @@ RSpec.describe Github::ActivityEmitter do
                           .sole.payload.fetch("activity")
     expect(activity).to include("type" => "reviewed", "details" => { "review_state" => "APPROVED" })
   end
+
+  it "derives an idempotent opened activity from the issue response" do
+    opened_item = Github::Issue.new(
+      github_issue: github_issue.merge("created_at" => occurred_at, "user" => { "login" => "octocat" }),
+      options:, external_id: "123", source_service_name: "github"
+    ).tap(&:refresh_from_external!)
+
+    2.times { described_class.emit_for(opened_item, events: [], since:) }
+
+    row = OutboxEntry.where(record_kind: "observation").where.not(event_type: "snapshot_seen").sole
+    expect(row.idempotency_key).to end_with(":activity:123-opened")
+    expect(row.payload.fetch("activity")).to include(
+      "type" => "opened", "source_event_id" => "123-opened", "actor" => "octocat"
+    )
+  end
+
+  it "does not publish an opening that predates the cursor" do
+    stale_item = Github::Issue.new(
+      github_issue: github_issue.merge("created_at" => "2026-10-05T09:59:59Z", "user" => { "login" => "octocat" }),
+      options:, external_id: "123", source_service_name: "github"
+    ).tap(&:refresh_from_external!)
+
+    described_class.emit_for(stale_item, events: [], since:)
+
+    expect(OutboxEntry.where(record_kind: "observation").where.not(event_type: "snapshot_seen")).to be_empty
+  end
 end
