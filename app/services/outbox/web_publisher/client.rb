@@ -40,11 +40,18 @@ module Outbox
       # Net::HTTP transport for the ingestion endpoint. The base URL comes
       # from trusted deployment configuration (never from payload data).
       class HttpTransport
+        # Matches Net::HTTP's transient transport set (the errno classes it
+        # would retry internally for idempotent verbs but re-raises for a
+        # POST) plus connect-time failures, so every network hiccup is
+        # reduced to a retryable response instead of escaping post_batch.
         RETRYABLE_ERRORS = [
           EOFError,
+          Errno::ECONNABORTED,
           Errno::ECONNREFUSED,
           Errno::ECONNRESET,
           Errno::EHOSTUNREACH,
+          Errno::EPIPE,
+          Errno::ETIMEDOUT,
           Errno::ENETUNREACH,
           IOError,
           Net::OpenTimeout,

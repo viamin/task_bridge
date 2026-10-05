@@ -60,6 +60,17 @@ RSpec.describe Outbox::WebPublisher::Client do
     expect(response.summary_message).to eq("connection open timed out")
   end
 
+  it "reduces errno failures Net::HTTP re-raises for POST to retryable responses" do
+    [Errno::ECONNABORTED, Errno::EPIPE, Errno::ETIMEDOUT].each do |error_class|
+      allow(transport).to receive(:post).and_raise(error_class, "transport failed")
+
+      response = client.post_batch(batch)
+
+      expect(response.outcome).to eq(:retryable)
+      expect(response.error_code).to eq(error_class.name)
+    end
+  end
+
   describe "the default HTTP transport" do
     let(:http) { instance_double(Net::HTTP) }
     let(:raw_response) { instance_double(Net::HTTPResponse, code: "200", body: { results: [] }.to_json) }
