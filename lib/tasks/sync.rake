@@ -170,6 +170,26 @@ namespace :task_bridge do
       puts "Sync took #{end_time - start_time} seconds"
     end
 
+    # End-of-run publication (#221): one batched pass over everything this
+    # run (and any earlier run) enqueued. Publication is bookkeeping around
+    # sync — never part of it — so a TaskBridge Web outage leaves rows
+    # pending in the outbox, never fails this run, and never changes its
+    # exit status. Pretend runs enqueue nothing and must not publish.
+    publish_outbox_to_web unless options[:pretend]
+
     exit 1 if failed_services
+  end
+
+  def publish_outbox_to_web
+    report_publication(Outbox::WebPublisher.run!)
+  rescue StandardError => e
+    warn "Outbox publication failed; rows stay pending for retry (#{e.class}: #{e.message})"
+  end
+
+  def report_publication(summary)
+    return warn("TaskBridge Web publication is enabled but missing its base URL or API key; outbox rows stay pending") if summary[:status] == "not_configured"
+    return if options[:quiet] || %w[disabled dry_run].include?(summary[:status])
+
+    puts "Published #{summary[:delivered]} outbox rows to TaskBridge Web (#{summary[:status]})"
   end
 end

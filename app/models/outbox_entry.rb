@@ -197,7 +197,20 @@ class OutboxEntry < ApplicationRecord
   private
 
   def backoff_interval
-    interval = [RETRY_BACKOFF_BASE * (2**attempts), RETRY_BACKOFF_MAX].min
+    interval = [retry_backoff_base * (2**attempts), retry_backoff_max].min
     interval + (interval * rand * RETRY_JITTER_FRACTION)
+  end
+
+  # Retry policy is configurable for TaskBridge Web publication (#221):
+  # task_bridge.web.retry_backoff_*_seconds in config/settings.yml, with
+  # these constants as the fallback defaults.
+  def retry_backoff_base
+    configured = Chamber.dig(:task_bridge, :web, :retry_backoff_base_seconds)
+    configured.present? ? configured.seconds : RETRY_BACKOFF_BASE
+  end
+
+  def retry_backoff_max
+    configured = Chamber.dig(:task_bridge, :web, :retry_backoff_max_seconds)
+    configured.present? ? configured.seconds : RETRY_BACKOFF_MAX
   end
 end
