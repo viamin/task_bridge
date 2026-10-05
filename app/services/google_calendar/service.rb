@@ -12,12 +12,16 @@ module GoogleCalendar
 
     BUSY_ONLY = "busy_only"
     EVENT_DETAILS = "event_details"
+    CREDENTIAL_ID = "google_calendar"
     PRIVACY_MODES = [BUSY_ONLY, EVENT_DETAILS].freeze
 
     def initialize(options: nil, calendar_service: Google::Apis::CalendarV3::CalendarService.new, authorization: nil)
       @options = options || settings
       @calendar_service = calendar_service
-      @calendar_service.authorization = authorization || user_credentials_for(Google::Apis::CalendarV3::AUTH_CALENDAR_READONLY)
+      @calendar_service.authorization = authorization || user_credentials_for(
+        Google::Apis::CalendarV3::AUTH_CALENDAR_READONLY,
+        credential_id: CREDENTIAL_ID
+      )
     end
 
     def sync(observed_at: Time.current)
@@ -35,14 +39,31 @@ module GoogleCalendar
     end
 
     def events_for(calendar_id)
-      calendar_service.list_events(
-        calendar_id,
+      page_token = nil
+      events = []
+      time_min = window_start.iso8601
+      time_max = window_end.iso8601
+
+      loop do
+        response = events_page(calendar_id, page_token:, time_min:, time_max:)
+        events.concat(Array(response.items))
+        page_token = response.next_page_token
+        break if page_token.blank?
+      end
+
+      events
+    end
+
+    def events_page(calendar_id, page_token:, time_min:, time_max:)
+      request_options = {
         single_events: true,
         order_by: "startTime",
         show_deleted: true,
-        time_min: window_start.iso8601,
-        time_max: window_end.iso8601
-      ).items || []
+        time_min:,
+        time_max:
+      }
+      request_options[:page_token] = page_token if page_token.present?
+      calendar_service.list_events(calendar_id, **request_options)
     end
 
     def publish(event, calendar_id:, observed_at:)

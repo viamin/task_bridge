@@ -20,7 +20,7 @@ RSpec.describe GoogleCalendar::Service do
   end
 
   before do
-    allow(calendar_service).to receive(:list_events).and_return(double(items: [event]))
+    allow(calendar_service).to receive(:list_events).and_return(double(items: [event], next_page_token: nil))
   end
 
   it "publishes busy availability without private event fields by default" do
@@ -61,5 +61,21 @@ RSpec.describe GoogleCalendar::Service do
     service.sync(observed_at:)
 
     expect(OutboxEntry.last.payload.dig("event", "cancelled")).to be(true)
+  end
+
+  it "publishes events from every response page" do
+    next_event = Google::Apis::CalendarV3::Event.new(
+      id: "event-2", status: "confirmed", transparency: "opaque",
+      start: Google::Apis::CalendarV3::EventDateTime.new(date_time: Time.zone.parse("2026-10-05T12:00:00Z")),
+      end: Google::Apis::CalendarV3::EventDateTime.new(date_time: Time.zone.parse("2026-10-05T12:45:00Z")),
+      updated: Time.zone.parse("2026-10-01T12:00:00Z")
+    )
+    allow(calendar_service).to receive(:list_events).and_return(
+      double(items: [event], next_page_token: "next-page"),
+      double(items: [next_event], next_page_token: nil)
+    )
+
+    expect { service.sync(observed_at:) }.to change(OutboxEntry, :count).by(2)
+    expect(calendar_service).to have_received(:list_events).with("work@example.com", hash_including(page_token: "next-page"))
   end
 end

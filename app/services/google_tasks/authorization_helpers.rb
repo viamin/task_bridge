@@ -34,7 +34,7 @@ module GoogleTasks
       Google::Auth.get_application_default(scope)
     end
 
-    def user_credentials_for(scope)
+    def user_credentials_for(scope, credential_id: ENV.fetch("USER", "default"))
       FileUtils.mkdir_p(File.dirname(token_store_path))
 
       client_id = if Chamber.dig(:google, :client, :id)
@@ -45,16 +45,14 @@ module GoogleTasks
       token_store = Google::Auth::Stores::FileTokenStore.new(file: token_store_path)
       authorizer = Google::Auth::UserAuthorizer.new(client_id, scope, token_store)
 
-      user_id = ENV["USER"] || "default"
-
-      credentials = authorizer.get_credentials(user_id)
+      credentials = authorizer.get_credentials(credential_id)
       if credentials.nil?
         url = authorizer.get_authorization_url(base_url: OOB_URI)
         prompt_user("Open the following URL in your browser and authorize the application.")
         prompt_user(url)
         code = ask_user("Enter the authorization code:")
         credentials = authorizer.get_and_store_credentials_from_code(
-          user_id:, code:, base_url: OOB_URI
+          user_id: credential_id, code:, base_url: OOB_URI
         )
       elsif credentials.expired?
         credentials = credentials.fetch_access_token!
