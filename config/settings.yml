@@ -38,6 +38,23 @@ default: &default
       - Reclaim
       - Reminders
     update_ids_for_existing_items: false
+    # TaskBridge Web publication (RDR #215, issue #221). Disabled by
+    # default so sync behavior is unchanged until a deployment opts in.
+    # The ingest key can also be provided through a 1Password `op://`
+    # reference resolved by `op-cache` in the deployment's local scripts,
+    # never committed here.
+    web:
+      enabled: false
+      base_url: ~
+      api_key: ~
+      batch_size: 100
+      timeout_seconds: 30
+      retry_backoff_base_seconds: 60
+      retry_backoff_max_seconds: 3600
+      # Render batches (stdout) instead of sending them: development and
+      # backfill preview only — HTTP push is the sole production
+      # ingestion path (RDR #215).
+      dry_run: false
     outbox:
       # The local outbox is a bounded queue for retries and troubleshooting,
       # not a long-term history database — TaskBridge Web owns durable history.

@@ -772,6 +772,92 @@ RSpec.describe "task_bridge:sync task" do
     expect(SyncCollection).not_to have_received(:create)
   end
 
+  describe "outbox publication" do
+    let(:logger) { instance_double(StructuredLogger, save_service_log!: nil) }
+    let(:primary_service) { instance_double("Primary::Service") }
+    let(:service) do
+      service = instance_double("Passing::Service", friendly_name: "Passing", items_to_sync: [], sync_strategies: [:from_primary])
+      allow(service).to receive(:should_sync?).and_return(true)
+      allow(service).to receive(:sync_from_primary).and_return({ "service" => "Passing", "status" => "success", "items_synced" => 1 })
+      service
+    end
+    let(:publication_summary) do
+      { status: "published", batches: 1, delivered: 2, retryable: 0, failed: 0 }
+    end
+
+    before do
+      stub_logger_summary(logger)
+      allow(Outbox::WebPublisher).to receive(:run!).and_return(publication_summary)
+      stub_sync_defaults(services: ["Passing"])
+      allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+      stub_service("Primary", primary_service)
+      stub_service("Passing", service)
+      allow(StructuredLogger).to receive(:new).and_return(logger)
+    end
+
+    it "publishes the outbox at the end of the run" do
+      stdout, = capture_output do
+        expect { invoke_task }.not_to raise_error
+      end
+
+      expect(Outbox::WebPublisher).to have_received(:run!)
+      expect(stdout).to include("Published 2 outbox rows to TaskBridge Web (published)")
+    end
+
+    it "keeps the sync run green when publication fails" do
+      allow(Outbox::WebPublisher).to receive(:run!).and_raise(StandardError, "connection refused")
+
+      stdout, stderr = capture_output do
+        expect { invoke_task }.not_to raise_error
+      end
+
+      expect(stdout).not_to include("Published")
+      expect(stderr).to include("Outbox publication failed; rows stay pending for retry")
+      expect(SyncServiceState.find_by!(service_name: "Passing").status).to eq("success")
+    end
+
+    it "does not publish during pretend runs" do
+      capture_output do
+        expect { invoke_task("-x") }.not_to raise_error
+      end
+
+      expect(Outbox::WebPublisher).not_to have_received(:run!)
+    end
+
+    it "stays quiet about disabled publication" do
+      allow(Outbox::WebPublisher).to receive(:run!).and_return(publication_summary.merge(status: "disabled"))
+
+      stdout, = capture_output do
+        expect { invoke_task }.not_to raise_error
+      end
+
+      expect(stdout).not_to include("TaskBridge Web")
+    end
+
+    it "warns when publication is enabled but not configured" do
+      allow(Outbox::WebPublisher).to receive(:run!).and_return(publication_summary.merge(status: "not_configured"))
+
+      stdout, stderr = capture_output do
+        expect { invoke_task }.not_to raise_error
+      end
+
+      expect(stdout).not_to include("Published")
+      expect(stderr).to include("enabled but missing its base URL or API key")
+    end
+
+    it "reports why an incomplete publication stopped" do
+      allow(Outbox::WebPublisher).to receive(:run!).and_return(
+        publication_summary.merge(status: "incomplete", delivered: 0, retryable: 2, stopped_reason: "http_413")
+      )
+
+      stdout, = capture_output do
+        expect { invoke_task }.not_to raise_error
+      end
+
+      expect(stdout).to include("Published 0 outbox rows to TaskBridge Web (incomplete, stopped: http_413)")
+    end
+  end
+
   def stub_sync_defaults(services:, quiet: false, primary_service: nil)
     Thread.current[:global_options] = {
       primary: "Primary",

@@ -288,6 +288,43 @@ RSpec.describe OutboxEntry, type: :model do
       expect(entry.next_retry_at).to be_nil
       expect(entry.error_class).to eq("TaskBridgeWeb::ConflictError")
     end
+
+    it "uses configured retry_backoff_base_seconds when Chamber provides one" do
+      allow(Chamber).to receive(:dig)
+        .with(:task_bridge, :web, :retry_backoff_base_seconds).and_return(5)
+      allow(Chamber).to receive(:dig)
+        .with(:task_bridge, :web, :retry_backoff_max_seconds).and_return(60)
+      entry = enqueue_entry
+
+      entry.record_publication_failure!(error_class: "Error", error_message: "down", now:)
+
+      expect(entry.reload.next_retry_at).to be_between(now + 5.seconds, now + 6.seconds + 1)
+    end
+
+    it "caps retry intervals at the configured retry_backoff_max_seconds" do
+      allow(Chamber).to receive(:dig)
+        .with(:task_bridge, :web, :retry_backoff_base_seconds).and_return(60)
+      allow(Chamber).to receive(:dig)
+        .with(:task_bridge, :web, :retry_backoff_max_seconds).and_return(120)
+      entry = enqueue_entry
+
+      entry.record_publication_failure!(error_class: "Error", error_message: "first", now:)
+      entry.record_publication_failure!(error_class: "Error", error_message: "second", now:)
+      entry.record_publication_failure!(error_class: "Error", error_message: "third", now:)
+      entry.record_publication_failure!(error_class: "Error", error_message: "fourth", now:)
+
+      expect(entry.reload.next_retry_at).to be_between(now + 120.seconds, now + 150.seconds)
+    end
+
+    it "falls back to the constant defaults when Chamber has no override" do
+      allow(Chamber).to receive(:dig).with(:task_bridge, :web, :retry_backoff_base_seconds).and_return(nil)
+      allow(Chamber).to receive(:dig).with(:task_bridge, :web, :retry_backoff_max_seconds).and_return(nil)
+      entry = enqueue_entry
+
+      entry.record_publication_failure!(error_class: "Error", error_message: "down", now:)
+
+      expect(entry.reload.next_retry_at).to be_between(now + 1.minute, now + 75.seconds)
+    end
   end
 
   describe "#retry!" do
