@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "digest"
+require "openssl"
 
 module Base
   # Builds a deterministic, versioned, source-agnostic snapshot of a
@@ -58,11 +58,14 @@ module Base
         title: item.title,
         display_title: item.friendly_title,
         # Notes content never leaves through the snapshot (#215): the
-        # per-source notes export setting does not exist yet. The SHA-256
-        # digest of the metadata-stripped notes (sync ID/URL lines removed)
-        # lets change detection (#219) observe note edits — and lets
-        # consumers compare notes across representations — without exposing
-        # the text itself. Published as `notes_digest`, never as content.
+        # per-source notes export setting does not exist yet. A keyed
+        # digest (HMAC-SHA256, see TaskBridge.digest_key) of the
+        # metadata-stripped notes (sync ID/URL lines removed) lets change
+        # detection (#219) observe note edits — and lets consumers compare
+        # notes across representations — without exposing the text itself:
+        # unlike a bare hash, it cannot be matched against offline guesses
+        # of short note text. Published as `notes_digest`, never as
+        # content.
         notes_digest: notes_digest,
         status: status,
         completed: item.completed?,
@@ -86,7 +89,7 @@ module Base
 
     def notes_digest
       content = item.notes_content.to_s if item.respond_to?(:notes_content)
-      Digest::SHA256.hexdigest(content) if content.present?
+      OpenSSL::HMAC.hexdigest("SHA256", TaskBridge.digest_key, content) if content.present?
     end
 
     def scheduling_fields

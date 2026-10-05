@@ -82,10 +82,15 @@ source does not expose the concept today, not that it never could.
   lands, omitting notes keeps full source note bodies from leaking through
   the snapshot. When the setting is added, the field should be exposed as
   `notes_preview` (matching the contract) rather than `notes`.
-  `notes_digest` — a SHA-256 digest of the metadata-stripped notes content —
-  *is* emitted so change detection (#219) and consumers can observe note
-  edits without the text ever leaving TaskBridge. It is one-way: comparing
-  digests shows whether notes are identical or different, nothing more.
+  `notes_digest` — a keyed SHA-256 digest (HMAC-SHA256, keyed by the
+  deployment's `task_bridge.digest_key` setting, falling back to the app's
+  `secret_key_base`) of the metadata-stripped notes content — *is* emitted
+  so change detection (#219) and consumers can observe note edits without
+  the text ever leaving TaskBridge. It is one-way: comparing digests shows
+  whether notes are identical or different, nothing more. Because it is
+  keyed, a published digest cannot be matched against offline guesses of
+  note text; digests are only comparable within one deployment, and
+  rotating the key only re-baselines the digest.
 - `status` only ever resolves to `open` or `completed`. No adapter currently
   exposes an explicit "dropped"/abandoned state (OmniFocus models this via
   AppleScript's `dropped`/`effectively_dropped` properties, but TaskBridge
@@ -93,22 +98,27 @@ source does not expose the concept today, not that it never could.
 - `is_deleted` is always `false`. `Base::SyncItem` does not yet model
   deletion; tombstone/deletion semantics are left for the publication work
   under #214.
-- `source.service_instance` is only populated for items that have gone
-  through `capture_source_identity` (i.e. `observe_source!` /
-  `refresh_from_external!`). A freshly constructed, unsaved item may have a
-  `nil` `service_instance` even though `service_type` and `external_id` are
-  already known.
 
-## `source.service_type` format
+## `source` identity format
 
 `source.service_type` carries the stable adapter-family identifier from the
 publication contract (#215), not the display name returned by
 `Base::SyncItem#provider`. The serializer applies
 `Base::Service.service_identifier_for(provider)` so each value is the
 class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
-`github`, `instapaper`, `reminders`, `reclaim`, `google_keep`). The instance
-component (when present) belongs only in `source.service_instance` — see
-`app/services/base/snapshot_serializer.rb`.
+`github`, `instapaper`, `reminders`, `reclaim`, `google_keep`).
+
+`source.service_instance` is **always** populated — including for a
+freshly constructed item that has not gone through
+`capture_source_identity` — so consumers must not code for a nilable
+value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
+captured instance segment when one exists (`asana:work`,
+`omnifocus:default`), and yields the bare `service_type` (`asana`)
+otherwise; the per-instance component therefore belongs only in
+`source.service_instance`, never in `source.service_type`. Like `item_key`
+and idempotency keys, `service_instance` is opaque: consumers must not
+parse it by splitting on `:` because segments may themselves contain
+colons.
 
 ## Observation emission (#219)
 

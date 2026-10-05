@@ -13,6 +13,9 @@ default: &default
       - Reminders
     debug: false
     delete_completed: false
+    # HMAC key for the notes_digest published in normalized snapshots
+    # (#219). Leave nil to derive from the deployment's secret_key_base.
+    digest_key: ~
     personal_tags:
       - Personal
     work_tags: []
