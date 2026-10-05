@@ -175,6 +175,34 @@ RSpec.describe "Github::Service" do
       expect(events.pluck("id")).to eq(%w[2 1])
     end
 
+    it "continues paging past a page containing only timestamp-less commit events" do
+      first_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [].to_json,
+        headers: { "link" => '<https://api.github.com/page/2>; rel="last"' }
+      )
+      commit_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "2", "event" => "committed" }].to_json,
+        headers: { "link" => '<https://api.github.com/page/1>; rel="prev"' }
+      )
+      recent_event_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [{ "id" => "1", "created_at" => "2026-10-05T11:00:00Z" }].to_json,
+        headers: {}
+      )
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(HTTParty).to receive(:get).and_return(first_page, commit_page, recent_event_page)
+
+      events = service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+
+      expect(HTTParty).to have_received(:get).with("https://api.github.com/page/1", hash_including(:headers)).once
+      expect(events.pluck("id")).to eq(%w[2 1])
+    end
+
     it "raises when the first activity request fails so the sync is retried" do
       failed_response = instance_double(HTTParty::Response, success?: false, code: 503)
       allow(HTTParty).to receive(:get).and_return(failed_response)

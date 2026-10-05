@@ -203,10 +203,8 @@ module Github
     end
 
     def page_before_activity_since?(events)
-      events.all? do |event|
-        timestamp = event_occurred_at(event)
-        timestamp.blank? || Time.iso8601(timestamp) < activity_since
-      end
+      timestamps = events.filter_map { |event| event_occurred_at(event).presence }
+      timestamps.present? && timestamps.all? { |timestamp| Time.iso8601(timestamp) < activity_since }
     end
 
     def event_occurred_at(event)
