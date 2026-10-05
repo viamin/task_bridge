@@ -32,6 +32,26 @@ module Reminders
       %i[from_primary to_primary]
     end
 
+    def deletion_detection_strategy
+      # items_to_sync enumerates the complete configured lists, so a
+      # previously observed reminder absent from all of them left
+      # TaskBridge's view — but deleted, cleared, and moved-to-another-list
+      # are indistinguishable, hence the weaker no_longer_visible state
+      # (#220).
+      Disappearance::Strategy.full_list_absence(
+        state: Disappearance::States::NO_LONGER_VISIBLE,
+        confidence: "medium"
+      )
+    end
+
+    def deletion_detection_scope_available?
+      # A renamed or deleted Reminders list makes every reminder in it look
+      # absent; tombstones are suppressed unless every mapped list was found.
+      return false unless authorized
+
+      mapped_list_names.all? { |name| list_names.include?(name) }
+    end
+
     # Since Reminders via Applescript doesn't currently support tags, we use the mapping
     # REMINDERS_LIST_MAPPING=Reminder list 1~Primary list,Reminder list 2~Primary list 2
     def items_to_sync(*, **)
@@ -42,7 +62,7 @@ module Reminders
       reminders_lists = sync_maps.keys
       debug("reminders_lists: #{reminders_lists}", options[:debug])
       merged_reminders = reminders_lists.map { |reminders_list| reminders_in_list(reminders_list) }.flatten
-      merged_reminders.filter_map do |external_reminder|
+      items = merged_reminders.filter_map do |external_reminder|
         external_id = Reminder.read_external_attribute(external_reminder, Reminder.external_attribute_map[:external_id])
         next if external_id.blank?
 
@@ -51,6 +71,10 @@ module Reminders
         reminder.reminder = external_reminder
         reminder.refresh_from_external!(only_modified_dates: true)
       end
+      # The reminder list enumeration is always complete (only_modified_dates
+      # only narrows attribute reads), so detection runs on every fetch.
+      record_source_disappearances!(items, only_modified_dates: false)
+      items
     end
 
     def add_item(external_task, parent_object = nil)
@@ -97,9 +121,17 @@ module Reminders
     end
 
     def lists
-      return [] unless authorized
+      return [] unless authorized && reminders_app
 
       reminders_app.lists.get
+    end
+
+    def list_names
+      lists.map { |list| list.name.get }
+    end
+
+    def mapped_list_names
+      options[:reminders_mapping].split(",").map { |mapping| mapping.split("~").first.strip }
     end
 
     def reminders_in_list(list_name)

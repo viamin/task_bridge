@@ -23,6 +23,11 @@ TaskBridge only publishes observed facts. It never ranks, recommends, or
 infers what to work on (#214); mappings below (e.g. the Reminders priority
 label) translate the source's own enumerations, not TaskBridge judgments.
 
+The "Deletion/archival detection" row summarizes each adapter's
+`deletion_detection_strategy` from issue #220; the states, guards, and
+per-source rationale are documented in
+`docs/source-deletion-detection.md`.
+
 ## Matrix
 
 | Capability | OmniFocus | Asana | GitHub | Google Tasks | Reminders | Reclaim | Instapaper | Google Keep |
@@ -41,6 +46,7 @@ label) translate the source's own enumerations, not TaskBridge judgments.
 | Notes/description | yes (`note`) | yes (`notes`) | yes (`body`) | yes (`notes`) | yes (`body`) | yes (`notes`) | yes (description; full text fetched on demand) | yes (list item text is the title) |
 | Parent/sub-item relationships | yes (nested tasks; `sub_items`, `sub_item_count`) | yes (subtasks; `sub_items`, `sub_item_count`) | no (sub-issues not read) | yes (parent task id in `metadata`) | no (app supports them; AppleScript does not) | no | no | yes (`child_list_items`; `sub_items`, list path in `metadata`) |
 | Source activity timestamps | modification date only | modification date only | modification date; `comments_count` in `metadata` | modification date only | modification date only | `time_spent`/`time_remaining` in `metadata`; scheduled instances not published | `progress` (0-1) and `progress_timestamp` | note update time only |
+| Deletion/archival detection | partial (`filtered_with_verification`; direct ID lookup distinguishes deleted from tag-miss) | partial (`filtered_with_verification`; direct task GET distinguishes deleted/archived/moved) | no (label/assignee-filtered queries; no tombstones) | no (windowed reads; `deleted`/`hidden` flags not read yet) | partial (full-list absence → `no_longer_visible`) | no (status-filtered query, silent deletes) | no (limit-windowed folder reads) | yes (full-list absence after a successful note read → `source_deleted`) |
 
 ## Notes policy
 

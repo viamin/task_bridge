@@ -39,6 +39,14 @@ module GoogleTasks
       [:from_primary]
     end
 
+    def deletion_detection_strategy
+      # List reads are windowed by updated_min/completed_min, so absence is
+      # inconclusive. The API can prove deletion (deleted/hidden flags on a
+      # show_deleted read), but those flags are not read yet; detection stays
+      # disabled until they are (#220, #214).
+      Disappearance::Strategy.disabled
+    end
+
     def items_to_sync(*, only_modified_dates: false, **)
       debug("called", options[:debug])
       target_tasklist = tasklist!

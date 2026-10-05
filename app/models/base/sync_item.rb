@@ -58,6 +58,11 @@ module Base
 
     self.table_name = "sync_items"
 
+    # Marker key in source_metadata recording the last tombstone observation
+    # emitted for this item by Disappearance::Detector (#220). Cleared
+    # whenever the item is observed again, so a later absence is a new fact.
+    DISAPPEARANCE_MARKER_KEY = "disappearance"
+
     attr_reader :tags, :debug_data
 
     delegate :external_attribute_map, :attribute_map, :read_external_attribute, to: :class
@@ -362,6 +367,13 @@ module Base
       end
     end
 
+    # The recorded disappearance observation for this item, if any:
+    # {"state" => ..., "observed_at" => ..., "sync_run_id" => ...}.
+    def disappearance_observation
+      marker = source_metadata[DISAPPEARANCE_MARKER_KEY] if source_metadata.is_a?(Hash)
+      marker.is_a?(Hash) ? marker : nil
+    end
+
     def define_note_component_accessors(key)
       return if singleton_class.method_defined?(key.to_sym) && singleton_class.method_defined?(:"#{key}=")
 
@@ -512,6 +524,7 @@ module Base
       end
 
       public :inferred_service_name_for
+      public :stale_applescript_reference?
     end
 
     private
@@ -599,6 +612,12 @@ module Base
       self.first_observed_at ||= observed_at
       self.last_observed_at = observed_at
       self.source_metadata ||= {}
+      # Observing the item again invalidates any previously recorded
+      # disappearance (#220): it reappeared, so a later absence must be
+      # observable as a state change rather than suppressed as a repeat.
+      return unless source_metadata.key?(DISAPPEARANCE_MARKER_KEY)
+
+      self.source_metadata = source_metadata.except(DISAPPEARANCE_MARKER_KEY)
     end
   end
 end

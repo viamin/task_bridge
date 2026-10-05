@@ -35,22 +35,48 @@ module GoogleKeep
       %i[from_primary to_primary]
     end
 
+    def deletion_detection_strategy
+      # The configured note's list items are the complete item universe; a
+      # previously observed embedded ID that is gone after a successful note
+      # read was deleted in Keep (#220).
+      Disappearance::Strategy.full_list_absence(
+        state: Disappearance::States::SOURCE_DELETED,
+        confidence: "high"
+      )
+    end
+
+    def deletion_detection_scope_available?
+      # A missing note (renamed, deleted, or not yet rebuilt) says nothing
+      # about its items, so tombstones are suppressed for the whole run.
+      keep_note.present?
+    end
+
+    def disappearance_candidate?(item)
+      # Only items TaskBridge created carry the embedded stable ID; foreign
+      # items get a fresh UUID per fetch and must never be tombstoned.
+      item.source_metadata.is_a?(Hash) && item.source_metadata["stable_external_id_embedded"] == true
+    end
+
     def items_to_sync(*, only_modified_dates: false, **)
       debug("called", options[:debug])
       note = keep_note
       return [] if note.nil?
 
       @items_to_sync ||= {}
-      @items_to_sync[only_modified_dates] ||= list_items_for(note).each_with_index.filter_map do |list_item, index|
-        Item.new(
-          keep_item: {
-            item: list_item,
-            note: note,
-            note_title: note.title,
-            path: [index]
-          },
-          options:
-        ).tap { |item| item.read_original(only_modified_dates:) }
+      @items_to_sync[only_modified_dates] ||= begin
+        items = list_items_for(note).each_with_index.filter_map do |list_item, index|
+          Item.new(
+            keep_item: {
+              item: list_item,
+              note: note,
+              note_title: note.title,
+              path: [index]
+            },
+            options:
+          ).tap { |item| item.read_original(only_modified_dates:) }
+        end
+        record_source_disappearances!(items, only_modified_dates:)
+        items
       end
     end
 

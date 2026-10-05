@@ -29,6 +29,51 @@ module Asana
       [:two_way]
     end
 
+    def deletion_detection_strategy
+      # The project task list query is filtered (one-week completion window,
+      # active projects only, archived tasks excluded), so absence alone
+      # proves nothing. Each missing candidate is verified by direct task
+      # lookup, which distinguishes deletion, archival, and expected
+      # absences (#220).
+      Disappearance::Strategy.filtered_with_verification
+    end
+
+    def disappearance_candidate?(item)
+      # Completed tasks age out of the completed_since window after a week;
+      # their absence is expected and is not a disappearance.
+      !item.completed?
+    end
+
+    def verify_missing_item(item)
+      response = HTTParty.get(
+        "#{base_url}/tasks/#{item.external_id}",
+        authenticated_options.merge(query: { query: { opt_fields: "name,completed,archived" } })
+      )
+      return deleted_finding if [404, 410].include?(response.code)
+      return nil unless response.success?
+
+      task_data = JSON.parse(response.body)["data"]
+      return nil unless task_data.is_a?(Hash)
+
+      if task_data["archived"]
+        Disappearance::Finding.new(
+          state: Disappearance::States::SOURCE_ARCHIVED,
+          confidence: "high",
+          detail: { "lookup_status" => response.code }
+        )
+      elsif task_data["completed"]
+        nil # the task still exists; it simply aged out of the list query's completion window
+      else
+        Disappearance::Finding.new(
+          state: Disappearance::States::NO_LONGER_VISIBLE,
+          confidence: "medium",
+          detail: { "lookup_status" => response.code }
+        )
+      end
+    rescue JSON::ParserError
+      nil
+    end
+
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
     def items_to_sync(*, only_modified_dates: false, **)
       visible_project_gids = list_projects.map { |project| project["gid"] }
@@ -68,7 +113,9 @@ module Asana
           end
         end
       end
-      tasks.reject { |task| sub_item_ids.include?(task.external_id) }
+      tasks.reject { |task| sub_item_ids.include?(task.external_id) }.tap do |visible_tasks|
+        record_source_disappearances!(visible_tasks, only_modified_dates:)
+      end
     end
 
     def add_item(external_task, parent_task_gid = nil)
@@ -173,6 +220,13 @@ module Asana
     end
 
     private
+
+    def deleted_finding
+      Disappearance::Finding.new(
+        state: Disappearance::States::SOURCE_DELETED,
+        confidence: "high"
+      )
+    end
 
     # the minimum time we should wait between syncing tasks
     def min_sync_interval

@@ -37,7 +37,10 @@ module GoogleKeep
     end
 
     def external_data
-      keep_item.fetch(:item)
+      # Persisted rows are instantiated without a keep_item; return nil like
+      # the other adapters' external_data so note parsing stays a no-op
+      # instead of crashing on DB-loaded records.
+      keep_item&.fetch(:item, nil)
     end
 
     def provider
