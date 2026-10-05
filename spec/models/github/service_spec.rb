@@ -321,9 +321,21 @@ RSpec.describe "Github::Service" do
       allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
       allow(service).to receive(:timeline_events).and_raise(Github::Service::ActivityFetchError, "rate limited")
 
-      expect(service.send(:activity_emit_complete?)).to be(true)
+      expect(service.send(:activity_emit_complete?)).to be(false)
       expect { service.send(:publish_activity_for, issue, external_issue) }.to output(/rate limited/).to_stdout
       expect(service.send(:activity_emit_complete?)).to be(false)
+    end
+
+    it "marks activity emit complete after a successful retrieval" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      external_issue = { "updated_at" => "2026-10-05T11:00:00Z" }
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(service).to receive(:timeline_events).and_return([])
+      allow(Github::ActivityEmitter).to receive(:emit_for).and_return(true)
+
+      service.send(:publish_activity_for, issue, external_issue)
+
+      expect(service.send(:activity_emit_complete?)).to be(true)
     end
 
     it "marks activity emit incomplete when the emitter reports a failed write" do

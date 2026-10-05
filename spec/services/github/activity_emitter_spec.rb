@@ -70,13 +70,13 @@ RSpec.describe Github::ActivityEmitter do
     expect(described_class.emit_for(item, events: [], since:)).to be(true)
   end
 
-  it "does not advance the cursor when pretend mode skips the outbox write" do
+  it "reports an incomplete emission when pretend mode skips the outbox write" do
     pretend_item = Github::Issue.new(
       github_issue:, external_id: "123", source_service_name: "github",
       options: { quiet: true, pretend: true, services: [], primary: "Omnifocus", tags: [] }
     ).tap(&:refresh_from_external!)
 
-    expect(described_class.emit_for(pretend_item, events: [{ "id" => 456, "event" => "commented", "created_at" => occurred_at }], since:)).to be(true)
+    expect(described_class.emit_for(pretend_item, events: [{ "id" => 456, "event" => "commented", "created_at" => occurred_at }], since:)).to be(false)
     expect(OutboxEntry.where(record_kind: "observation")).to be_empty
   end
 

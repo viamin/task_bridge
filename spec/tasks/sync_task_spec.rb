@@ -778,6 +778,49 @@ RSpec.describe "task_bridge:sync task" do
     expect(state.last_successful_activity_sync_at).to eq(existing_cursor)
   end
 
+  it "does not advance the activity-sync cursor when GitHub sync is skipped" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    github_service = instance_double(
+      "Github::Service",
+      friendly_name: "Github",
+      service_name: "Github",
+      sync_strategies: [:to_primary],
+      activity_emit_complete?: false
+    )
+    existing_cursor = Time.zone.parse("2024-01-01T08:00:00Z")
+    SyncServiceState.create!(
+      service_name: "Github",
+      status: "success",
+      items_synced: 1,
+      last_successful_at: existing_cursor,
+      last_successful_activity_sync_at: existing_cursor
+    )
+
+    allow(github_service).to receive(:should_sync?).and_return(false)
+    allow(github_service).to receive(:items_to_sync)
+    allow(github_service).to receive(:sync_to_primary).with(primary_service).and_return(
+      {
+        service: "Github",
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        items_synced: 0,
+        detail: "Sync not required"
+      }.stringify_keys
+    )
+
+    stub_sync_defaults(services: ["Github"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Github])
+    stub_service("Primary", primary_service)
+    stub_service("Github", github_service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output { invoke_task }
+
+    expect(github_service).not_to have_received(:items_to_sync)
+    expect(SyncServiceState.find_by!(service_name: "Github").last_successful_activity_sync_at).to eq(existing_cursor)
+  end
+
   it "does not advance the activity-sync cursor for services without an activity emitter" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)

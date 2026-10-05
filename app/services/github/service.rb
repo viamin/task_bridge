@@ -11,15 +11,15 @@ module Github
 
     def initialize(options: nil)
       super
+      @activity_sync_retrieved = false
+      @activity_sync_succeeded = true
       @authentication = Authentication.new.authenticate!
       @authorized = true
-      @activity_sync_succeeded = true
     rescue StandardError => e
       # If authentication fails, skip the service
       puts "Github authentication failed: #{e.message}" unless self.options[:quiet]
       @authentication = nil
       @authorized = false
-      @activity_sync_succeeded = true
     end
 
     def item_class
@@ -52,13 +52,12 @@ module Github
       end
     end
 
-    # Whether every ActivityEmitter.emit_for call during this sync run
-    # completed without an ActivityFetchError or an outbox enqueue failure
-    # (#224). lib/tasks/sync.rake reads this to decide whether to advance
-    # the activity-sync cursor; one transient 503/429 or a busy outbox
-    # write must not silently drop the rest of the window.
+    # Whether this run retrieved activity and all related emissions completed
+    # without an ActivityFetchError or outbox enqueue failure (#224).
+    # lib/tasks/sync.rake reads this to decide whether to advance the
+    # activity-sync cursor; skipped task syncs must retain their window.
     def activity_emit_complete?
-      @activity_sync_succeeded
+      @activity_sync_retrieved && @activity_sync_succeeded
     end
 
     private
@@ -137,6 +136,7 @@ module Github
       updated_at = external_issue["updated_at"]
       return if updated_at.present? && Time.iso8601(updated_at) < activity_since
 
+      @activity_sync_retrieved = true
       events = timeline_events(external_issue)
       events.concat(review_events(external_issue)) if issue.is_pr
       @activity_sync_succeeded = false unless ActivityEmitter.emit_for(issue, events:, since: activity_since)

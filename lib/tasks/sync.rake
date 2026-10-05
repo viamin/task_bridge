@@ -158,12 +158,10 @@ namespace :task_bridge do
         )
       )
       # The activity-sync cursor is decoupled from the task-sync cursor
-      # (#224): advance it only when this service's items_to_sync completed
-      # and every ActivityEmitter.emit_for call returned without an
-      # ActivityFetchError or outbox enqueue failure. A single transient
-      # 503/429 — or a raise from items_to_sync that never reached
-      # publish_activity_for — must not permanently drop the window's
-      # observations.
+      # (#224): advance it only after this service retrieved activity and
+      # every ActivityEmitter.emit_for call completed without an
+      # ActivityFetchError or outbox enqueue failure. A skipped task sync,
+      # transient 503/429, or failed outbox write must retain the window.
       if !current_service_failed && service.respond_to?(:activity_emit_complete?) && service.activity_emit_complete?
         SyncServiceState.record_activity_sync!(
           service_name:,

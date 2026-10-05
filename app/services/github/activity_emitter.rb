@@ -33,7 +33,7 @@ module Github
     end
 
     def emit
-      return true if item.options[:pretend]
+      return false if item.options[:pretend]
 
       [opened_activity, *meaningful_events].compact.all? { |activity| enqueue(activity) }
     end
