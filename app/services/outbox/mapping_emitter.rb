@@ -4,7 +4,10 @@ module Outbox
   # Emits `mapping` rows (RDR #215) into the local outbox whenever sync
   # establishes or updates a SyncCollection membership (#219). Mapping facts
   # are published separately from item observations so TaskBridge Web can
-  # track cross-system representations without diffing snapshots.
+  # track cross-system representations without diffing snapshots. Write
+  # failures are isolated per member via Outbox::IsolatedWrite: one
+  # member's failed row never blocks the others and never propagates into
+  # the sync flow.
   class MappingEmitter
     MAPPING_TYPE = "representation_membership"
     MEMBERSHIP_ROLE = "member"
@@ -26,12 +29,14 @@ module Outbox
 
     def self.emit_for_members(collection, members:, observed_at: Time.current)
       Array(members).select { |member| eligible?(member) }.each do |member|
-        identity = Outbox::SourceIdentity.for(member)
-        OutboxEntry.enqueue(
-          record_kind: :mapping,
-          payload: payload(collection, member, identity, observed_at),
-          **enqueue_context(identity, collection, observed_at)
-        )
+        Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
+          identity = Outbox::SourceIdentity.for(member)
+          OutboxEntry.enqueue(
+            record_kind: :mapping,
+            payload: payload(collection, member, identity, observed_at),
+            **enqueue_context(identity, collection, observed_at)
+          )
+        end
       end
     end
 

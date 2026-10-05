@@ -132,7 +132,11 @@ module Base
       observe_source!
       # Observation emission (#219) is bookkeeping after the refresh: it
       # diffs the stored baseline against the newly observed snapshot and
-      # enqueues outbox rows without altering the refresh result.
+      # enqueues outbox rows without altering the refresh result. Outbox
+      # write failures (e.g. a transient SQLite lock) are isolated inside
+      # the emitter — retried, then reported and re-detected on the next
+      # refresh — so publication can never abort an otherwise successful
+      # sync.
       Outbox::ObservationEmitter.emit_for_item(self, previous_snapshot:)
       self
     end

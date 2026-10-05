@@ -7,6 +7,9 @@ module Outbox
   # been observed and never changes sync semantics. The diff baseline is
   # advanced only once every row is enqueued, so a publication hiccup can
   # re-detect (at-least-once) but never silently swallow a transition.
+  # Write failures (e.g. a transient SQLite lock) are isolated, retried,
+  # and reported via Outbox::IsolatedWrite so they never propagate into
+  # the sync flow.
   class ObservationEmitter
     SNAPSHOT_SEEN = "snapshot_seen"
     SOURCE_CHANGED = "source_changed"
@@ -15,7 +18,9 @@ module Outbox
 
     def self.emit_for_item(item, previous_snapshot: nil, observed_at: nil,
                            discovery_detected_by: DEFAULT_DISCOVERY_DETECTED_BY)
-      new(item, previous_snapshot:, observed_at:, discovery_detected_by:).emit
+      Outbox::IsolatedWrite.call("observation for #{item.item_key}") do
+        new(item, previous_snapshot:, observed_at:, discovery_detected_by:).emit
+      end
     end
 
     def initialize(item, previous_snapshot:, observed_at:, discovery_detected_by:)

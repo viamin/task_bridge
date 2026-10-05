@@ -113,6 +113,25 @@ RSpec.describe Outbox::MappingEmitter do
 
       expect(OutboxEntry.where(record_kind: "mapping")).to be_empty
     end
+
+    it "isolates a failing member write and still publishes the remaining members" do
+      second_member = member_class.create!(
+        title: "Release checklist",
+        external_id: "issue-99",
+        options: { service_name: "Github:repo-1", services: [], primary: "PrimaryService", tags: [] }
+      )
+      allow(OutboxEntry).to receive(:enqueue).and_wrap_original do |original, record_kind:, payload:, **context|
+        raise ActiveRecord::ActiveRecordError, "simulated outbox failure" if context[:external_id] == "issue-42"
+
+        original.call(record_kind:, payload:, **context)
+      end
+
+      expect do
+        described_class.emit_for_members(collection, members: [member, second_member], observed_at:)
+      end.to output(/dropping mapping for github_repo_1:issue-42/).to_stderr
+
+      expect(OutboxEntry.where(record_kind: "mapping").map(&:external_id)).to eq(["issue-99"])
+    end
   end
 
   describe "sync flow integration" do

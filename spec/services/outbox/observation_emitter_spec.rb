@@ -165,6 +165,35 @@ RSpec.describe Outbox::ObservationEmitter do
     end
   end
 
+  describe "outbox write failures" do
+    before do
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
+    end
+
+    it "does not abort the refresh when enqueue fails, and retains the baseline for re-detection" do
+      allow(OutboxEntry).to receive(:enqueue).and_raise(ActiveRecord::ActiveRecordError, "simulated outbox failure")
+
+      expect do
+        refresh_with({ "title" => "Buy oat milk", "completed" => false }, at: first_observed_at + 1.hour)
+      end.not_to raise_error
+      expect(item.reload.last_snapshot).to include("title" => "Buy milk")
+
+      allow(OutboxEntry).to receive(:enqueue).and_call_original
+      refresh_with({ "title" => "Buy oat milk", "completed" => false }, at: first_observed_at + 2.hours)
+
+      expect(observation_rows(field: "title").length).to eq(1)
+      expect(item.reload.last_snapshot).to include("title" => "Buy oat milk")
+    end
+
+    it "reports the dropped observation" do
+      allow(OutboxEntry).to receive(:enqueue).and_raise(ActiveRecord::ActiveRecordError, "simulated outbox failure")
+
+      expect do
+        refresh_with({ "title" => "Buy oat milk", "completed" => false }, at: first_observed_at + 1.hour)
+      end.to output(/dropping observation for test_service:obs-1/).to_stderr
+    end
+  end
+
   describe "guard clauses" do
     it "emits nothing and keeps the baseline untouched in pretend mode" do
       refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
