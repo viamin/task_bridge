@@ -165,6 +165,30 @@ RSpec.describe "Github::Service" do
       expect(service).to have_received(:review_events).with(external_issue).once
     end
 
+    it "does not retrieve activity for an item unchanged since the last sync" do
+      issue = instance_double(Github::Issue, persisted?: true)
+      external_issue = { "updated_at" => "2026-10-05T09:00:00Z" }
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      expect(service).not_to receive(:timeline_events)
+      expect(service).not_to receive(:review_events)
+      expect(Github::ActivityEmitter).not_to receive(:emit_for)
+
+      service.send(:publish_activity_for, issue, external_issue)
+    end
+
+    it "retrieves activity for an item updated at the sync cursor" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      external_issue = { "updated_at" => "2026-10-05T10:00:00Z" }
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(service).to receive(:timeline_events).and_return([])
+      allow(Github::ActivityEmitter).to receive(:emit_for)
+
+      service.send(:publish_activity_for, issue, external_issue)
+
+      expect(service).to have_received(:timeline_events).with(external_issue)
+      expect(Github::ActivityEmitter).to have_received(:emit_for).with(issue, events: [], since: service.send(:activity_since))
+    end
+
     it "publishes an opened activity for a newly opened pull request" do
       external_pr = {
         "id" => 123,

@@ -121,6 +121,9 @@ module Github
     def publish_activity_for(issue, external_issue)
       return unless issue.persisted?
 
+      updated_at = external_issue["updated_at"]
+      return if updated_at.present? && Time.iso8601(updated_at) < activity_since
+
       events = timeline_events(external_issue)
       events.concat(review_events(external_issue)) if issue.is_pr
       ActivityEmitter.emit_for(issue, events:, since: activity_since)
