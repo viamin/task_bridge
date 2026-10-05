@@ -178,11 +178,26 @@ module Github
     end
 
     def get_activity_page(url)
-      HTTParty.get(url, authenticated_options.merge(query: { per_page: "100" }))
+      HTTParty.get(validated_activity_url(url), authenticated_options.merge(query: { per_page: "100" }))
     end
 
     def get_paginated_activity_page(url)
-      HTTParty.get(url, authenticated_options)
+      HTTParty.get(validated_activity_url(url), authenticated_options)
+    end
+
+    def validated_activity_url(url)
+      raise ActivityFetchError, "Refusing activity request with an invalid URL" unless url.is_a?(String)
+
+      uri = URI.parse(url)
+      return url if github_api_url?(uri)
+
+      raise ActivityFetchError, "Refusing activity request to a non-GitHub API URL"
+    rescue URI::InvalidURIError
+      raise ActivityFetchError, "Refusing activity request with an invalid URL"
+    end
+
+    def github_api_url?(uri)
+      uri.is_a?(URI::HTTPS) && uri.host == "api.github.com" && uri.port == 443 && uri.userinfo.blank?
     end
 
     def parsed_activity_response(response)

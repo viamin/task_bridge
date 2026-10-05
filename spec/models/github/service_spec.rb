@@ -127,6 +127,22 @@ RSpec.describe "Github::Service" do
       )
     end
 
+    it "refuses a pagination URL outside the GitHub API origin" do
+      response = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [].to_json,
+        headers: { "link" => '<https://attacker.example/activity>; rel="last"' }
+      )
+      allow(HTTParty).to receive(:get).and_return(response)
+
+      expect do
+        service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+      end.to raise_error(Github::Service::ActivityFetchError, "Refusing activity request to a non-GitHub API URL")
+
+      expect(HTTParty).to have_received(:get).once
+    end
+
     it "follows previous pages from the newest activity until it predates the cursor" do
       first_page = instance_double(
         HTTParty::Response,
