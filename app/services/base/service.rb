@@ -525,7 +525,7 @@ module Base
     # semantics, and --pretend is enforced inside OutboxEntry.enqueue.
     def emit_mapping_observations(collection, newly_linked_items:, provenance_changed:)
       members = newly_linked_items
-      members = collection.sync_items.to_a if members.empty? && provenance_changed
+      members = (members + collection.sync_items.to_a).uniq if provenance_changed
       Outbox::MappingEmitter.emit_for_members(collection, members:)
     end
 

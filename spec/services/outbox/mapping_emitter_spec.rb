@@ -88,6 +88,7 @@ RSpec.describe Outbox::MappingEmitter do
         "service_instance" => "github:repo-1",
         "external_id" => "issue-42"
       )
+      expect(member.normalized_snapshot[:source]).to eq(Outbox::SourceIdentity.for(member))
       expect(row.payload["provenance"]).to include("method" => "manual_backfill", "confidence" => "low")
     end
 
@@ -130,9 +131,27 @@ RSpec.describe Outbox::MappingEmitter do
         end
       end)
     end
+    let(:additional_peer_class) do
+      stub_const("MappingAdditionalPeerSpecItem", Class.new(Base::SyncItem) do
+        def self.attribute_map
+          {}
+        end
+
+        def provider
+          "AdditionalService"
+        end
+
+        def external_data
+          {}
+        end
+      end)
+    end
     let(:peer_item) { peer_class.create!(title: "Release checklist", external_id: "primary-42") }
 
-    before { peer_class }
+    before do
+      peer_class
+      additional_peer_class
+    end
 
     it "emits mapping rows when two representations join the same sync collection" do
       travel_to(observed_at) do
@@ -163,6 +182,22 @@ RSpec.describe Outbox::MappingEmitter do
       end.to change { OutboxEntry.where(record_kind: "mapping").count }.by(2)
 
       upgraded = OutboxEntry.where(record_kind: "mapping").last(2)
+      expect(upgraded.map { |row| row.payload["mapping_source"] }).to all(eq("sync_id_note"))
+    end
+
+    it "re-emits existing members when an upgrade also links a new member" do
+      travel_to(observed_at) { service.send(:persist_sync_collection_for, member, peer_item) }
+
+      member.update!(notes: "primary_service_id: primary-42")
+      member.read_notes
+      new_peer = additional_peer_class.create!(title: "Release checklist", external_id: "additional-43")
+
+      expect do
+        travel_to(observed_at + 1.hour) { service.send(:persist_sync_collection_for, member, peer_item, new_peer) }
+      end.to change { OutboxEntry.where(record_kind: "mapping").count }.by(3)
+
+      upgraded = OutboxEntry.where(record_kind: "mapping").last(3)
+      expect(upgraded.map(&:external_id)).to contain_exactly("issue-42", "primary-42", "additional-43")
       expect(upgraded.map { |row| row.payload["mapping_source"] }).to all(eq("sync_id_note"))
     end
   end

@@ -50,15 +50,7 @@ module Base
     end
 
     def source_identity
-      {
-        # The publication contract (#215) calls for stable adapter-family
-        # identifiers (e.g. "asana", "google_tasks") rather than the display
-        # names each subclass's `provider` returns ("Asana", "GoogleTasks").
-        service_type: Base::Service.service_identifier_for(item.provider),
-        service_instance: item.source_service_instance,
-        external_id: item.source_external_id.presence || item.external_id,
-        source_url: item.source_url.presence || item.url
-      }
+      Outbox::SourceIdentity.for(item)
     end
 
     def lifecycle_fields
