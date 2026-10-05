@@ -33,6 +33,9 @@ module GoogleKeep
       @sub_item_count = @sub_items.length
       @stable_external_id_embedded = stable_external_id.present?
       self.external_id = stable_external_id || external_id.presence || SecureRandom.uuid
+      self.source_metadata = source_metadata_hash.merge(
+        "stable_external_id_embedded" => stable_external_id_embedded?
+      )
       self
     end
 
@@ -143,6 +146,10 @@ module GoogleKeep
     end
 
     private
+
+    def source_metadata_hash
+      source_metadata.is_a?(Hash) ? source_metadata : {}
+    end
 
     def keep_path
       Array(keep_item[:path])

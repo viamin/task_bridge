@@ -100,6 +100,50 @@ RSpec.describe "Asana::Service" do
       )
     end
 
+    it "follows every page of a full project read" do
+      first_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: { data: [{ "gid" => "asana-first" }], next_page: { offset: "second-page" } }.to_json
+      )
+      second_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: { data: [{ "gid" => "asana-second" }], next_page: nil }.to_json
+      )
+      allow(HTTParty).to receive(:get).and_return(first_page, second_page)
+
+      tasks = service.send(:list_project_tasks, "project-gid", only_modified_dates: false)
+
+      expect(tasks.pluck("gid")).to eq(%w[asana-first asana-second])
+      expect(HTTParty).to have_received(:get).with(
+        "https://app.asana.com/api/1.0/projects/project-gid/tasks",
+        hash_including(query: hash_including(offset: "second-page"))
+      )
+    end
+
+    it "follows every page of a full subtask read" do
+      first_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: { data: [{ "gid" => "asana-first" }], next_page: { offset: "second-page" } }.to_json
+      )
+      second_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: { data: [{ "gid" => "asana-second" }], next_page: nil }.to_json
+      )
+      allow(HTTParty).to receive(:get).and_return(first_page, second_page)
+
+      tasks = service.send(:list_task_sub_items, "parent-gid", only_modified_dates: false)
+
+      expect(tasks.pluck("gid")).to eq(%w[asana-first asana-second])
+      expect(HTTParty).to have_received(:get).with(
+        "https://app.asana.com/api/1.0/tasks/parent-gid/subtasks",
+        hash_including(query: hash_including(offset: "second-page"))
+      )
+    end
+
     it "does not apply modified_since to full subtask reads" do
       service.send(:list_task_sub_items, "task-gid", only_modified_dates: false)
 

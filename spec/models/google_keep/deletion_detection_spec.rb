@@ -65,6 +65,20 @@ RSpec.describe "Google Keep deletion detection" do
   end
 
   describe "a successful note read" do
+    it "persists embedded-id provenance so a later absence is detected" do
+      stub_notes(keep_note_with("keep-1"))
+
+      service.items_to_sync
+
+      observed_item = GoogleKeep::Item.find_by!(external_id: "keep-1")
+      expect(observed_item.source_metadata).to include("stable_external_id_embedded" => true)
+
+      stub_notes(keep_note_with)
+      described_service.new(options:, keep_service:, authorization: {}).items_to_sync
+
+      expect(tombstones.pluck(:external_id)).to contain_exactly("keep-1")
+    end
+
     it "enqueues a source_deleted tombstone for the vanished embedded id" do
       stub_notes(keep_note_with("keep-1"))
       vanished = persisted_keep_item("keep-2")

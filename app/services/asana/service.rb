@@ -314,10 +314,33 @@ module Asana
       # lightweight date-only path. Full reads need the complete comparison set.
       query[:query][:modified_since] = last_sync_time.iso8601 if only_modified_dates && last_sync_time.present?
 
-      response = HTTParty.get("#{base_url}/projects/#{project_gid}/tasks", authenticated_options.merge(query))
-      raise "Error loading Asana tasks - check personal access token" unless response.success?
+      paginated_tasks("projects/#{project_gid}/tasks", query)
+    end
 
-      JSON.parse(response.body)["data"]
+    def paginated_tasks(endpoint, query)
+      tasks = []
+      offset = nil
+
+      loop do
+        response = HTTParty.get(
+          "#{base_url}/#{endpoint}",
+          authenticated_options.merge(query_with_offset(query, offset))
+        )
+        raise "Error loading Asana tasks - check personal access token" unless response.success?
+
+        body = JSON.parse(response.body)
+        tasks.concat(Array(body["data"]))
+        offset = body.dig("next_page", "offset")
+        break if offset.blank?
+      end
+
+      tasks
+    end
+
+    def query_with_offset(query, offset)
+      return query if offset.blank?
+
+      query.deep_merge(query: { offset: })
     end
 
     def list_task_sub_items(task_gid, only_modified_dates: false)
@@ -332,10 +355,7 @@ module Asana
       # constrain the remote fetch cursor.
       query[:query][:modified_since] = last_sync_time.iso8601 if only_modified_dates && last_sync_time.present?
 
-      response = HTTParty.get("#{base_url}/tasks/#{task_gid}/subtasks", authenticated_options.merge(query))
-      raise "Error loading Asana task subtasks - check personal access token" unless response.success?
-
-      JSON.parse(response.body)["data"]
+      paginated_tasks("tasks/#{task_gid}/subtasks", query)
     end
 
     def move_task_to_section(section_gid, task_gid)

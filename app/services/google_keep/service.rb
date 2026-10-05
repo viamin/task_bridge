@@ -65,7 +65,7 @@ module GoogleKeep
       @items_to_sync ||= {}
       @items_to_sync[only_modified_dates] ||= begin
         items = list_items_for(note).each_with_index.filter_map do |list_item, index|
-          Item.new(
+          item = Item.new(
             keep_item: {
               item: list_item,
               note: note,
@@ -73,7 +73,11 @@ module GoogleKeep
               path: [index]
             },
             options:
-          ).tap { |item| item.read_original(only_modified_dates:) }
+          ).tap { |keep_item| keep_item.read_original(only_modified_dates:) }
+          item = Item.find_or_initialize_by_source(service_name:, external_id: item.external_id)
+          item.keep_item = keep_item_payload(list_item, note, index)
+          item.options = self.class.build_options(options, service_name)
+          refresh_item_tree!(item, only_modified_dates:)
         end
         record_source_disappearances!(items, only_modified_dates:)
         items
@@ -108,6 +112,19 @@ module GoogleKeep
     end
 
     private
+
+    def refresh_item_tree!(item, only_modified_dates:)
+      item.read_original(only_modified_dates:)
+      return item unless item.stable_external_id_embedded?
+
+      item.observe_source!
+      item.sub_items.each { |sub_item| refresh_item_tree!(sub_item, only_modified_dates:) }
+      item
+    end
+
+    def keep_item_payload(list_item, note, index)
+      { item: list_item, note:, note_title: note.title, path: [index] }
+    end
 
     def min_sync_interval
       30.minutes.to_i
