@@ -364,5 +364,20 @@ RSpec.describe Outbox::WebPublisher do
         described_class.run!(config: bare_config, client:, now:)
       end.to output(/dry_run/).to_stdout
     end
+
+    it "renders a single-slash URL even when the base URL has a trailing slash" do
+      create_entry("k1")
+      prefixed_config = Outbox::WebPublisher::Config.resolve(
+        "enabled" => true, "dry_run" => true, "base_url" => "https://web.example.com/tb/",
+        "batch_size" => 2
+      )
+
+      output = capture_stdout do
+        described_class.run!(config: prefixed_config, client:, now:)
+      end
+
+      payload = JSON.parse(output)
+      expect(payload["url"]).to eq("https://web.example.com/tb#{Outbox::WebPublisher::Batch::ENDPOINT_PATH}")
+    end
   end
 end

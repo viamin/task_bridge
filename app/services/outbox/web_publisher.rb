@@ -173,7 +173,7 @@ module Outbox
     def dry_run_payload(batch, entries)
       {
         dry_run: true,
-        url: "#{config.base_url}#{Batch::ENDPOINT_PATH}",
+        url: "#{config.base_url.to_s.chomp('/')}#{Batch::ENDPOINT_PATH}",
         row_count: entries.size,
         body: batch.body
       }
