@@ -146,7 +146,7 @@ module Github
     end
 
     # Timeline and review APIs do not accept a `since` filter. Start at the
-    # newest page and follow `prev` links until the cursor bounds the search.
+    # newest page and follow `next` links until the cursor bounds the search.
     def timeline_events(external_issue)
       activity_events("#{issue_api_url(external_issue)}/timeline")
     end
@@ -160,26 +160,13 @@ module Github
       response = get_activity_page(url)
       ensure_activity_response!(response, url)
 
-      latest_url = last_page_url(response)
-      return parsed_activity_response(response) if latest_url.blank?
-
-      latest_response = get_paginated_activity_page(latest_url)
-      ensure_activity_response!(latest_response, latest_url)
-      activity_pages_since(latest_response)
-    end
-
-    def activity_pages_since(response)
-      events = []
-      loop do
+      events = parsed_activity_response(response)
+      while (next_url = pagination_url(response, "next"))
+        response = get_paginated_activity_page(next_url)
+        ensure_activity_response!(response, next_url)
         page_events = parsed_activity_response(response)
         events.concat(page_events)
         break if page_before_activity_since?(page_events)
-
-        previous_url = previous_page_url(response)
-        break if previous_url.blank?
-
-        response = get_paginated_activity_page(previous_url)
-        ensure_activity_response!(response, previous_url)
       end
       events
     end
@@ -200,14 +187,6 @@ module Github
       return if response.success?
 
       raise ActivityFetchError, "Error loading Github activity from #{url} (response code: #{response.code})"
-    end
-
-    def last_page_url(response)
-      pagination_url(response, "last")
-    end
-
-    def previous_page_url(response)
-      pagination_url(response, "prev")
     end
 
     def pagination_url(response, relation)
