@@ -3,6 +3,8 @@
 module Github
   # A service class to connect to the Github API
   class Service < Base::Service
+    class ActivityFetchError < StandardError; end
+
     include GlobalOptions
 
     attr_reader :authentication, :authorized
@@ -142,12 +144,14 @@ module Github
 
     def activity_events(url)
       response = get_activity_page(url)
-      return [] unless response.success?
+      ensure_activity_response!(response, url)
 
       latest_url = last_page_url(response)
       return parsed_activity_response(response) if latest_url.blank?
 
-      activity_pages_since(get_paginated_activity_page(latest_url))
+      latest_response = get_paginated_activity_page(latest_url)
+      ensure_activity_response!(latest_response, latest_url)
+      activity_pages_since(latest_response)
     end
 
     def activity_pages_since(response)
@@ -161,7 +165,7 @@ module Github
         break if previous_url.blank?
 
         response = get_paginated_activity_page(previous_url)
-        break unless response.success?
+        ensure_activity_response!(response, previous_url)
       end
       events
     end
@@ -175,7 +179,13 @@ module Github
     end
 
     def parsed_activity_response(response)
-      response.success? ? JSON.parse(response.body) : []
+      JSON.parse(response.body)
+    end
+
+    def ensure_activity_response!(response, url)
+      return if response.success?
+
+      raise ActivityFetchError, "Error loading Github activity from #{url} (response code: #{response.code})"
     end
 
     def last_page_url(response)
@@ -193,7 +203,10 @@ module Github
     end
 
     def page_before_activity_since?(events)
-      events.all? { |event| event_occurred_at(event).present? && Time.iso8601(event_occurred_at(event)) < activity_since }
+      events.all? do |event|
+        timestamp = event_occurred_at(event)
+        timestamp.blank? || Time.iso8601(timestamp) < activity_since
+      end
     end
 
     def event_occurred_at(event)

@@ -150,6 +150,61 @@ RSpec.describe "Github::Service" do
       expect(events.pluck("id")).to eq(%w[3 2 1])
     end
 
+    it "stops paging when old events include a timestamp-less commit event" do
+      first_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [].to_json,
+        headers: { "link" => '<https://api.github.com/page/2>; rel="last"' }
+      )
+      last_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [
+          { "id" => "2", "event" => "committed" },
+          { "id" => "1", "created_at" => "2026-10-05T09:00:00Z" }
+        ].to_json,
+        headers: { "link" => '<https://api.github.com/page/1>; rel="prev"' }
+      )
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(HTTParty).to receive(:get).and_return(first_page, last_page)
+
+      events = service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+
+      expect(HTTParty).not_to have_received(:get).with("https://api.github.com/page/1", hash_including(:headers))
+      expect(events.pluck("id")).to eq(%w[2 1])
+    end
+
+    it "raises when the first activity request fails so the sync is retried" do
+      failed_response = instance_double(HTTParty::Response, success?: false, code: 503)
+      allow(HTTParty).to receive(:get).and_return(failed_response)
+
+      expect do
+        service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+      end.to raise_error(
+        Github::Service::ActivityFetchError,
+        "Error loading Github activity from https://api.github.com/repos/org/repo/issues/5/timeline (response code: 503)"
+      )
+    end
+
+    it "raises when a paginated activity request fails so the sync is retried" do
+      first_page = instance_double(
+        HTTParty::Response,
+        success?: true,
+        body: [].to_json,
+        headers: { "link" => '<https://api.github.com/page/2>; rel="last"' }
+      )
+      failed_response = instance_double(HTTParty::Response, success?: false, code: 429)
+      allow(HTTParty).to receive(:get).and_return(first_page, failed_response)
+
+      expect do
+        service.send(:timeline_events, "repository_url" => "https://api.github.com/repos/org/repo", "number" => 5)
+      end.to raise_error(
+        Github::Service::ActivityFetchError,
+        "Error loading Github activity from https://api.github.com/page/2 (response code: 429)"
+      )
+    end
+
     it "retrieves pull-request reviews but not reviews for issues" do
       issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
       pull_request = instance_double(Github::Issue, persisted?: true, is_pr: true)
