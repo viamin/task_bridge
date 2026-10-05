@@ -149,13 +149,28 @@ namespace :task_bridge do
       end
       failed_services ||= @service_logs.any? { |log| log["status"] == "failed" }
       options[:logger].save_service_log!(@service_logs)
+      service_name = service.respond_to?(:service_name) ? service.service_name : service.friendly_name
+      current_service_failed = @service_logs.any? { |log| log["status"] == "failed" }
       SyncServiceState.record_summary!(
         options[:logger].summarize_service_run(
-          service_name: service.respond_to?(:service_name) ? service.service_name : service.friendly_name,
+          service_name:,
           logs: @service_logs
         )
       )
-      next if @service_logs.any? { |log| log["status"] == "failed" }
+      # The activity-sync cursor is decoupled from the task-sync cursor
+      # (#224): advance it only when this service's items_to_sync completed
+      # and every ActivityEmitter.emit_for call returned without an
+      # ActivityFetchError or outbox enqueue failure. A single transient
+      # 503/429 — or a raise from items_to_sync that never reached
+      # publish_activity_for — must not permanently drop the window's
+      # observations.
+      if !current_service_failed && service.respond_to?(:activity_emit_complete?) && service.activity_emit_complete?
+        SyncServiceState.record_activity_sync!(
+          service_name:,
+          at: options[:sync_started_at]
+        )
+      end
+      next if current_service_failed
 
       touched_collection_ids = @service_logs.flat_map do |log|
         Array(log["touched_collection_ids"] || log[:touched_collection_ids])

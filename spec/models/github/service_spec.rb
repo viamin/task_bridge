@@ -314,6 +314,44 @@ RSpec.describe "Github::Service" do
                             .sole.payload.fetch("activity")
       expect(activity).to include("type" => "opened", "source_event_id" => "123-opened", "actor" => "octocat")
     end
+
+    it "marks activity emit complete until a fetch fails" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      external_issue = { "updated_at" => "2026-10-05T11:00:00Z" }
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(service).to receive(:timeline_events).and_raise(Github::Service::ActivityFetchError, "rate limited")
+
+      expect(service.send(:activity_emit_complete?)).to be(true)
+      expect { service.send(:publish_activity_for, issue, external_issue) }.to output(/rate limited/).to_stdout
+      expect(service.send(:activity_emit_complete?)).to be(false)
+    end
+
+    it "marks activity emit incomplete when the emitter reports a failed write" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      external_issue = { "updated_at" => "2026-10-05T11:00:00Z" }
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2026-10-05T10:00:00Z"))
+      allow(service).to receive(:timeline_events).and_return([])
+      allow(Github::ActivityEmitter).to receive(:emit_for).and_return(false)
+
+      service.send(:publish_activity_for, issue, external_issue)
+      expect(service.send(:activity_emit_complete?)).to be(false)
+    end
+
+    it "uses the activity-sync cursor when present" do
+      activity_cursor = Time.zone.parse("2026-09-01T00:00:00Z")
+      allow(service).to receive(:last_successful_activity_sync_at).and_return(activity_cursor)
+      allow(service).to receive(:last_successful_sync_at).and_return(Time.zone.parse("2026-08-01T00:00:00Z"))
+
+      expect(service.send(:activity_since)).to eq(activity_cursor)
+    end
+
+    it "falls back to the task-sync cursor when no activity cursor is recorded" do
+      fallback = Time.zone.parse("2026-08-01T00:00:00Z")
+      allow(service).to receive(:last_successful_activity_sync_at).and_return(nil)
+      allow(service).to receive(:last_successful_sync_at).and_return(fallback)
+
+      expect(service.send(:activity_since)).to eq(fallback)
+    end
   end
 
   describe "#should_sync?" do

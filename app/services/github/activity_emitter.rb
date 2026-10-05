@@ -33,7 +33,9 @@ module Github
     end
 
     def emit
-      [opened_activity, *meaningful_events].compact.each { |activity| enqueue(activity) }
+      return true if item.options[:pretend]
+
+      [opened_activity, *meaningful_events].compact.all? { |activity| enqueue(activity) }
     end
 
     private
@@ -79,17 +81,28 @@ module Github
 
     def enqueue(activity)
       identity = Outbox::SourceIdentity.for(item)
-      OutboxEntry.enqueue(
-        record_kind: :observation,
-        event_type: Outbox::ObservationEmitter::SOURCE_CHANGED,
-        payload: payload_for(activity, identity),
-        service_type: identity[:service_type],
-        service_instance: identity[:service_instance],
-        external_id: identity[:external_id],
-        observed_at: Time.iso8601(activity[:occurred_at]),
-        source_updated_at: Time.iso8601(activity[:occurred_at]),
-        idempotency_key: activity_key(identity, activity)
-      )
+      # Outbox publication is bookkeeping around sync flows (#219): a failed
+      # outbox write must never change the sync result that produced it. Wrap
+      # the enqueue in Outbox::IsolatedWrite so a transient SQLite lock is
+      # retried and reported instead of aborting the Github run, mirroring
+      # Outbox::ObservationEmitter (#224). The wrapper returns the block's
+      # value on success or nil once retries are exhausted; we treat nil as
+      # a failure so callers can decide whether the activity-sync cursor
+      # should advance.
+      enqueued = Outbox::IsolatedWrite.call("github activity for #{item.item_key}") do
+        OutboxEntry.enqueue(
+          record_kind: :observation,
+          event_type: Outbox::ObservationEmitter::SOURCE_CHANGED,
+          payload: payload_for(activity, identity),
+          service_type: identity[:service_type],
+          service_instance: identity[:service_instance],
+          external_id: identity[:external_id],
+          observed_at: Time.iso8601(activity[:occurred_at]),
+          source_updated_at: Time.iso8601(activity[:occurred_at]),
+          idempotency_key: activity_key(identity, activity)
+        )
+      end
+      !enqueued.nil?
     end
 
     def payload_for(activity, identity)

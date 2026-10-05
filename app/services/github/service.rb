@@ -13,11 +13,13 @@ module Github
       super
       @authentication = Authentication.new.authenticate!
       @authorized = true
+      @activity_sync_succeeded = true
     rescue StandardError => e
       # If authentication fails, skip the service
       puts "Github authentication failed: #{e.message}" unless self.options[:quiet]
       @authentication = nil
       @authorized = false
+      @activity_sync_succeeded = true
     end
 
     def item_class
@@ -48,6 +50,15 @@ module Github
           publish_activity_for(issue, external_issue)
         end
       end
+    end
+
+    # Whether every ActivityEmitter.emit_for call during this sync run
+    # completed without an ActivityFetchError or an outbox enqueue failure
+    # (#224). lib/tasks/sync.rake reads this to decide whether to advance
+    # the activity-sync cursor; one transient 503/429 or a busy outbox
+    # write must not silently drop the rest of the window.
+    def activity_emit_complete?
+      @activity_sync_succeeded
     end
 
     private
@@ -128,8 +139,9 @@ module Github
 
       events = timeline_events(external_issue)
       events.concat(review_events(external_issue)) if issue.is_pr
-      ActivityEmitter.emit_for(issue, events:, since: activity_since)
+      @activity_sync_succeeded = false unless ActivityEmitter.emit_for(issue, events:, since: activity_since)
     rescue ActivityFetchError => e
+      @activity_sync_succeeded = false
       puts "Github activity fetch failed: #{e.message}" unless options[:quiet]
     end
 
@@ -214,7 +226,11 @@ module Github
     end
 
     def activity_since
-      @activity_since ||= last_successful_sync_at || Chronic.parse("2 days ago")
+      @activity_since ||= last_successful_activity_sync_at || last_successful_sync_at || Chronic.parse("2 days ago")
+    end
+
+    def last_successful_activity_sync_at
+      sync_state&.last_successful_activity_sync_at
     end
 
     def issue_api_url(issue)

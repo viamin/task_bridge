@@ -18,6 +18,20 @@ class SyncServiceState < ApplicationRecord
     state
   end
 
+  # Advances the activity-sync cursor for a service. The activity cursor is
+  # decoupled from the task-sync cursor (#224) so that an isolated activity
+  # fetch failure cannot silently skip the observation window: callers
+  # advance it only when every ActivityEmitter.emit_for call for the run
+  # completed without raising.
+  def self.record_activity_sync!(service_name:, at:)
+    return if service_name.blank? || at.blank?
+
+    state = find_or_initialize_by(service_name: service_name)
+    state.last_successful_activity_sync_at = parse_timestamp(at)
+    state.save!
+    state
+  end
+
   def to_log_hash
     {
       "service" => service_name,
@@ -25,6 +39,7 @@ class SyncServiceState < ApplicationRecord
       "items_synced" => items_synced,
       "last_attempted" => formatted_timestamp(last_attempted_at),
       "last_successful" => formatted_timestamp(last_successful_at),
+      "last_successful_activity_sync" => formatted_timestamp(last_successful_activity_sync_at),
       "last_failed" => formatted_timestamp(last_failed_at),
       "detail" => detail
     }.compact

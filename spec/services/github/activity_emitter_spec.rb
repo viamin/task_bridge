@@ -46,12 +46,38 @@ RSpec.describe Github::ActivityEmitter do
     expect(row.payload.to_json).not_to include("this must never leave the adapter")
   end
 
-  it "propagates an activity write failure so the sync cursor is not advanced" do
+  it "isolates an outbox write failure so the sync run keeps going" do
     events = [{ "id" => 456, "event" => "commented", "created_at" => occurred_at }]
     failure = ActiveRecord::StatementInvalid.new("database is locked")
     allow(OutboxEntry).to receive(:enqueue).and_raise(failure)
 
-    expect { described_class.emit_for(item, events:, since:) }.to raise_error(failure)
+    expect { described_class.emit_for(item, events:, since:) }.not_to raise_error
+    expect(described_class.emit_for(item, events:, since:)).to be(false)
+  end
+
+  it "returns true when an isolated write retries and then succeeds" do
+    events = [{ "id" => 456, "event" => "commented", "created_at" => occurred_at }]
+    attempts = 0
+    allow(OutboxEntry).to receive(:enqueue) do
+      attempts += 1
+      raise ActiveRecord::StatementInvalid, "database is locked" if attempts < 2
+    end.and_call_original
+
+    expect(described_class.emit_for(item, events:, since:)).to be(true)
+  end
+
+  it "treats an empty activity window as a successful emission" do
+    expect(described_class.emit_for(item, events: [], since:)).to be(true)
+  end
+
+  it "does not advance the cursor when pretend mode skips the outbox write" do
+    pretend_item = Github::Issue.new(
+      github_issue:, external_id: "123", source_service_name: "github",
+      options: { quiet: true, pretend: true, services: [], primary: "Omnifocus", tags: [] }
+    ).tap(&:refresh_from_external!)
+
+    expect(described_class.emit_for(pretend_item, events: [{ "id" => 456, "event" => "commented", "created_at" => occurred_at }], since:)).to be(true)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
   end
 
   it "publishes meaningful issue state changes but ignores events before the cursor" do
