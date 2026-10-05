@@ -129,6 +129,8 @@ module Github
       events = timeline_events(external_issue)
       events.concat(review_events(external_issue)) if issue.is_pr
       ActivityEmitter.emit_for(issue, events:, since: activity_since)
+    rescue ActivityFetchError => e
+      puts "Github activity fetch failed: #{e.message}" unless options[:quiet]
     end
 
     # Timeline and review APIs do not accept a `since` filter. Start at the

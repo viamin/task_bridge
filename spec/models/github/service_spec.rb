@@ -53,6 +53,19 @@ RSpec.describe "Github::Service" do
     it "loads external_id from the shared external attribute map" do
       expect(subject.map(&:external_id)).to eq([external_issue["id"].to_s])
     end
+
+    it "returns items when publishing activity fails" do
+      issue = instance_double(Github::Issue, persisted?: true, is_pr: false)
+      allow(service).to receive(:refresh_issue).and_return(issue)
+      allow(service).to receive(:publish_activity_for).and_call_original
+      allow(service).to receive(:activity_since).and_return(Time.zone.parse("2024-03-01T00:00:00Z"))
+      allow(service).to receive(:timeline_events).and_raise(Github::Service::ActivityFetchError, "rate limited")
+
+      items = nil
+      expect { items = subject }.to output("Github activity fetch failed: rate limited\n").to_stdout
+
+      expect(items).to eq([issue])
+    end
   end
 
   describe "#list_issues" do
