@@ -37,7 +37,11 @@ module Outbox
       rows.each_with_index do |payload, index|
         enqueue(payload, sequence: rows.many? ? index + 1 : nil)
       end
-      advance_baseline
+      # Rows is empty exactly when the new snapshot is diff-equivalent to
+      # the stored baseline (SnapshotDiff.transitions found nothing), so
+      # skipping advance_baseline here avoids a redundant UPDATE on every
+      # unchanged hourly refresh.
+      advance_baseline if rows.any?
       rows
     end
 

@@ -94,6 +94,18 @@ RSpec.describe Outbox::ObservationEmitter do
       expect(observation_rows.length).to eq(1)
       expect(observation_rows.first.event_type).to eq("snapshot_seen")
     end
+
+    it "skips the baseline UPDATE when no observed fields changed" do
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
+      baseline_after_discovery = item.reload.last_snapshot
+
+      expect(item).not_to receive(:update_column)
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at + 1.hour)
+
+      expect(observation_rows.length).to eq(1)
+      expect(observation_rows.first.event_type).to eq("snapshot_seen")
+      expect(item.reload.last_snapshot).to eq(baseline_after_discovery)
+    end
   end
 
   describe "source changes" do
