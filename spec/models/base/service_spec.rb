@@ -320,6 +320,60 @@ RSpec.describe Base::Service do
       expect(created_primary_item.test_service_id).to eq(persisted_service_item.external_id)
     end
 
+    it "emits a snapshot_seen observation for a newly created cross-service representation" do
+      persisted_service_item = sync_item_class.create!(
+        title: "Newly observed primary task",
+        external_id: "service-observe-123",
+        completed: false,
+        last_modified: Time.current - 1.minute
+      )
+
+      allow(service).to receive(:items_to_sync).and_return([persisted_service_item])
+      allow(service).to receive(:should_sync?).with(persisted_service_item.last_modified).and_return(true)
+      allow(service).to receive(:existing_items).with(primary_service).and_return([])
+      allow(persisted_service_item).to receive(:find_matching_item_in).with([]).and_return(nil)
+      allow(primary_service).to receive(:item_class).and_return(primary_sync_item_class)
+      allow(primary_service).to receive(:add_item) do
+        persisted_service_item.define_singleton_method(:primary_service_id) { "primary-observe-123" }
+      end
+
+      service.sync_to_primary(primary_service)
+
+      row = OutboxEntry.find_by(record_kind: "observation", external_id: "primary-observe-123")
+      expect(row.event_type).to eq("snapshot_seen")
+      expect(row.payload["provenance"]["detected_by"]).to eq("created_by_sync")
+      expect(row.payload["snapshot"]["title"]).to eq("Newly observed primary task")
+      created_primary_item = primary_sync_item_class.find_by!(external_id: "primary-observe-123")
+      expect(created_primary_item.last_snapshot).to be_present
+    end
+
+    it "emits mapping observations when representations join the same sync collection" do
+      persisted_service_item = sync_item_class.create!(
+        title: "Mapped service task",
+        external_id: "service-map-123",
+        completed: false,
+        last_modified: Time.current - 1.minute
+      )
+      persisted_primary_item = primary_sync_item_class.create!(
+        title: "Mapped primary task",
+        external_id: "primary-map-123",
+        completed: false,
+        last_modified: Time.current - 2.minutes
+      )
+
+      allow(service).to receive(:items_to_sync).and_return([persisted_service_item])
+      allow(service).to receive(:should_sync?).with(persisted_service_item.last_modified).and_return(true)
+      allow(service).to receive(:existing_items).with(primary_service).and_return([persisted_primary_item])
+      allow(persisted_service_item).to receive(:find_matching_item_in).with([persisted_primary_item]).and_return(persisted_primary_item)
+
+      service.sync_to_primary(primary_service)
+
+      mapping_rows = OutboxEntry.where(record_kind: "mapping")
+      expect(mapping_rows.map(&:external_id)).to contain_exactly("service-map-123", "primary-map-123")
+      expect(mapping_rows.map(&:sync_collection_id)).to all(eq(persisted_service_item.reload.sync_collection_id))
+      expect(mapping_rows.map { |row| row.payload["mapping_type"] }).to all(eq("representation_membership"))
+    end
+
     it "does not mark a collection as touched when the provider update returns a failure message" do
       persisted_service_item = sync_item_class.create!(
         title: "Provider failure service task",

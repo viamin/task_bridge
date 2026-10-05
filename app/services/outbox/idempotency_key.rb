@@ -19,8 +19,7 @@ module Outbox
         [PREFIX, "item", identity.fetch(:service_instance), identity.fetch(:external_id),
          "snapshot", stamp(observed_at)].join(":")
       when "observation"
-        [PREFIX, "obs", identity.fetch(:service_instance), identity.fetch(:external_id),
-         identity.fetch(:event_type), stamp(observed_at)].join(":")
+        observation_key(observed_at:, **identity)
       when "mapping"
         [PREFIX, "map", "sync_collection:#{identity.fetch(:sync_collection_id)}", "membership",
          identity.fetch(:service_instance), identity.fetch(:external_id), stamp(observed_at)].join(":")
@@ -31,9 +30,23 @@ module Outbox
       end
     end
 
-    def self.stamp(observed_at)
-      observed_at.utc.iso8601(6)
+    class << self
+      private
+
+      # RDR #215: when one observation yields several field transitions, each
+      # row needs a distinct key, so a sequence segment is appended whenever
+      # observed timestamps collide within one emission. Identity segments
+      # are fetched (not declared as keywords) so a missing segment raises
+      # KeyError, the enqueue contract's missing-identity signal.
+      def observation_key(observed_at:, **identity)
+        key = [PREFIX, "obs", identity.fetch(:service_instance), identity.fetch(:external_id),
+               identity.fetch(:event_type), stamp(observed_at)].join(":")
+        identity[:sequence] ? "#{key}:#{identity[:sequence]}" : key
+      end
+
+      def stamp(observed_at)
+        observed_at.utc.iso8601(6)
+      end
     end
-    private_class_method :stamp
   end
 end
