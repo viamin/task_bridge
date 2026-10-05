@@ -313,6 +313,53 @@ module Base
       false
     end
 
+    # -- Source disappearance detection (#220) ------------------------------
+    # These hooks power Disappearance::Detector; each adapter's strategy,
+    # confidence, and rationale are documented in
+    # docs/source-deletion-detection.md.
+
+    # How this adapter may infer that a previously observed item disappeared
+    # from its source. Disabled by default: only adapters whose fetch
+    # semantics make absence meaningful override this.
+    def deletion_detection_strategy
+      Disappearance::Strategy.disabled
+    end
+
+    # Whether the scope a detection run covers was fully readable. Returning
+    # false suppresses tombstones for the whole run (e.g. the Google Keep
+    # note or a configured Reminders list was not found, so absence carries
+    # no information about the items).
+    def deletion_detection_scope_available?
+      true
+    end
+
+    # Whether a persisted item missing from the fetch should be considered
+    # for detection at all (e.g. Asana tasks completed long ago are expected
+    # to be absent from the completion-windowed query).
+    def disappearance_candidate?(_item)
+      true
+    end
+
+    # Verifies a missing candidate directly against the source for
+    # filtered_with_verification strategies. Returns a
+    # Disappearance::Finding, or nil when verification is inconclusive
+    # (outage, auth failure, or an expected absence) and no tombstone may be
+    # emitted.
+    def verify_missing_item(_item)
+      raise "not implemented in #{self.class.name} (strategy: #{deletion_detection_strategy.mode})"
+    end
+
+    # Entry point adapters call at the end of their canonical fetch with the
+    # items that fetch returned. Partial fetches (only_modified_dates) never
+    # produce tombstones: absence from a partial sync proves nothing.
+    def record_source_disappearances!(observed_items, only_modified_dates:)
+      Disappearance::Detector.record!(
+        service: self,
+        observed_items:,
+        complete_fetch: !only_modified_dates
+      )
+    end
+
     private
 
     def last_synced_before?(item_updated_at)

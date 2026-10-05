@@ -29,6 +29,54 @@ module Asana
       [:two_way]
     end
 
+    def deletion_detection_strategy
+      # The project task list query is filtered (one-week completion window,
+      # active projects only, archived tasks excluded), so absence alone
+      # proves nothing. Each missing candidate is verified by direct task
+      # lookup, which distinguishes deletion, archival, and expected
+      # absences (#220).
+      Disappearance::Strategy.filtered_with_verification
+    end
+
+    def disappearance_candidate?(item)
+      # Completed tasks age out of the completed_since window after a week;
+      # their absence is expected and is not a disappearance.
+      !item.completed?
+    end
+
+    def verify_missing_item(item)
+      response = HTTParty.get(
+        "#{base_url}/tasks/#{item.external_id}",
+        authenticated_options.merge(query: { query: { opt_fields: "name,completed,archived" } })
+      )
+      return deleted_finding if [404, 410].include?(response.code)
+      return nil unless response.success?
+
+      task_data = JSON.parse(response.body)["data"]
+      return nil unless task_data.is_a?(Hash)
+
+      if task_data["archived"]
+        Disappearance::Finding.new(
+          state: Disappearance::States::SOURCE_ARCHIVED,
+          confidence: "high",
+          detail: { "lookup_status" => response.code }
+        )
+      elsif task_data["completed"]
+        nil # the task still exists; it simply aged out of the list query's completion window
+      else
+        Disappearance::Finding.new(
+          state: Disappearance::States::NO_LONGER_VISIBLE,
+          confidence: "medium",
+          detail: { "lookup_status" => response.code }
+        )
+      end
+    # A direct lookup is evidence only when it completes successfully. Network
+    # failures and malformed responses are inconclusive, so leave the item
+    # untouched and let a later whole-sync retry verify it (#220).
+    rescue StandardError
+      nil
+    end
+
     # Asana doesn't use tags or an inbox, so just get all tasks in the requested project
     def items_to_sync(*, only_modified_dates: false, **)
       visible_project_gids = list_projects.map { |project| project["gid"] }
@@ -68,7 +116,9 @@ module Asana
           end
         end
       end
-      tasks.reject { |task| sub_item_ids.include?(task.external_id) }
+      tasks.reject { |task| sub_item_ids.include?(task.external_id) }.tap do |visible_tasks|
+        record_source_disappearances!(visible_tasks, only_modified_dates:)
+      end
     end
 
     def add_item(external_task, parent_task_gid = nil)
@@ -174,6 +224,13 @@ module Asana
 
     private
 
+    def deleted_finding
+      Disappearance::Finding.new(
+        state: Disappearance::States::SOURCE_DELETED,
+        confidence: "high"
+      )
+    end
+
     # the minimum time we should wait between syncing tasks
     def min_sync_interval
       30.minutes.to_i
@@ -260,10 +317,33 @@ module Asana
       # lightweight date-only path. Full reads need the complete comparison set.
       query[:query][:modified_since] = last_sync_time.iso8601 if only_modified_dates && last_sync_time.present?
 
-      response = HTTParty.get("#{base_url}/projects/#{project_gid}/tasks", authenticated_options.merge(query))
-      raise "Error loading Asana tasks - check personal access token" unless response.success?
+      paginated_tasks("projects/#{project_gid}/tasks", query)
+    end
 
-      JSON.parse(response.body)["data"]
+    def paginated_tasks(endpoint, query)
+      tasks = []
+      offset = nil
+
+      loop do
+        response = HTTParty.get(
+          "#{base_url}/#{endpoint}",
+          authenticated_options.merge(query_with_offset(query, offset))
+        )
+        raise "Error loading Asana tasks - check personal access token" unless response.success?
+
+        body = JSON.parse(response.body)
+        tasks.concat(Array(body["data"]))
+        offset = body.dig("next_page", "offset")
+        break if offset.blank?
+      end
+
+      tasks
+    end
+
+    def query_with_offset(query, offset)
+      return query if offset.blank?
+
+      query.deep_merge(query: { offset: })
     end
 
     def list_task_sub_items(task_gid, only_modified_dates: false)
@@ -278,10 +358,7 @@ module Asana
       # constrain the remote fetch cursor.
       query[:query][:modified_since] = last_sync_time.iso8601 if only_modified_dates && last_sync_time.present?
 
-      response = HTTParty.get("#{base_url}/tasks/#{task_gid}/subtasks", authenticated_options.merge(query))
-      raise "Error loading Asana task subtasks - check personal access token" unless response.success?
-
-      JSON.parse(response.body)["data"]
+      paginated_tasks("tasks/#{task_gid}/subtasks", query)
     end
 
     def move_task_to_section(section_gid, task_gid)

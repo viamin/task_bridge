@@ -30,6 +30,14 @@ module Github
       [:to_primary]
     end
 
+    def deletion_detection_strategy
+      # Issue queries are filtered (labels, updated-since window) and the
+      # assigned-issues endpoint is known-incomplete, so absence proves
+      # nothing. GitHub provides no tombstone or per-issue deletion event to
+      # verify against, so detection stays disabled (#220).
+      Disappearance::Strategy.disabled
+    end
+
     def items_to_sync(*, tags: nil, only_modified_dates: false)
       tagged_issues = sync_repositories
                       .map { |repo| list_issues(repo, tags) }

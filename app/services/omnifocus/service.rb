@@ -31,6 +31,40 @@ module Omnifocus
       [:from_primary]
     end
 
+    def deletion_detection_strategy
+      # The canonical fetch (configured sync tags + inbox) is TaskBridge's
+      # whole OmniFocus universe, but a task can also leave it by losing a
+      # tag or being filed out of the inbox, so every candidate is verified
+      # by direct ID lookup before any tombstone is emitted (#220).
+      Disappearance::Strategy.filtered_with_verification
+    end
+
+    def deletion_detection_scope_available?
+      # A missing sync tag empties the tagged query without saying anything
+      # about the tasks themselves, so absence would be meaningless.
+      return false unless authorized
+
+      configured_tags = Array(options[:tags])
+      return false if configured_tags.empty?
+
+      configured_tags.all? { |name| tag(name).present? }
+    end
+
+    def verify_missing_item(item)
+      case task_lookup_status(item.external_id)
+      when :found
+        Disappearance::Finding.new(
+          state: Disappearance::States::NO_LONGER_MATCHES_QUERY,
+          confidence: "high"
+        )
+      when :not_found
+        Disappearance::Finding.new(
+          state: Disappearance::States::SOURCE_DELETED,
+          confidence: "high"
+        )
+      end
+    end
+
     def items_to_sync(tags: options[:tags], inbox: true, only_modified_dates: false)
       return [] unless authorized
 
@@ -50,6 +84,8 @@ module Omnifocus
       tasks_with_sub_items = tasks.select { |task| task.sub_item_count.positive? }
       sub_item_ids = tasks_with_sub_items.map(&:sub_items).flatten.map(&:external_id)
       tasks.delete_if { |task| sub_item_ids.include?(task.external_id) }
+      record_source_disappearances!(tasks, only_modified_dates:) if canonical_item_scope?(tags)
+      tasks
     end
 
     def matching_items_for(service_items, tag:)
@@ -275,6 +311,36 @@ module Omnifocus
       task.get
     rescue StandardError
       nil
+    end
+
+    # Distinguishes "the task no longer exists" (:not_found) from "the lookup
+    # layer is unavailable" (:unavailable) for disappearance detection
+    # (#220): AppleScript/web failures must never look like deletions, so
+    # they produce no finding at all.
+    def task_lookup_status(external_id)
+      flattened_tasks = omnifocus_app.flattened_tasks
+      task = if flattened_tasks.respond_to?(:find_by_id)
+        flattened_tasks.find_by_id(external_id)
+      else
+        flattened_tasks.ID(external_id)
+      end
+      return :not_found if task.nil?
+
+      task.get
+      :found
+    rescue Appscript::CommandError => e
+      Base::SyncItem.stale_applescript_reference?(e) ? :not_found : :unavailable
+    rescue StandardError
+      :unavailable
+    end
+
+    # Absence is only meaningful for the canonical universe fetch (the
+    # configured sync tags). Per-service tag queries (e.g. existing_items or
+    # primary-side fetches with tags: [service_name]) cover narrower scopes
+    # and must not drive detection (#220).
+    def canonical_item_scope?(tags)
+      configured_tags = Array(options[:tags])
+      configured_tags.present? && Array(tags).sort == configured_tags.sort
     end
 
     def external_data_for_summary(task_summary, source_provider:)

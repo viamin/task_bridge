@@ -35,22 +35,52 @@ module GoogleKeep
       %i[from_primary to_primary]
     end
 
+    def deletion_detection_strategy
+      # The configured note's list items are the complete item universe; a
+      # previously observed embedded ID that is gone after a successful note
+      # read was deleted in Keep (#220).
+      Disappearance::Strategy.full_list_absence(
+        state: Disappearance::States::SOURCE_DELETED,
+        confidence: "high"
+      )
+    end
+
+    def deletion_detection_scope_available?
+      # A missing note (renamed, deleted, or not yet rebuilt) says nothing
+      # about its items, so tombstones are suppressed for the whole run.
+      keep_note.present?
+    end
+
+    def disappearance_candidate?(item)
+      # Only items TaskBridge created carry the embedded stable ID; foreign
+      # items get a fresh UUID per fetch and must never be tombstoned.
+      item.source_metadata.is_a?(Hash) && item.source_metadata["stable_external_id_embedded"] == true
+    end
+
     def items_to_sync(*, only_modified_dates: false, **)
       debug("called", options[:debug])
       note = keep_note
       return [] if note.nil?
 
       @items_to_sync ||= {}
-      @items_to_sync[only_modified_dates] ||= list_items_for(note).each_with_index.filter_map do |list_item, index|
-        Item.new(
-          keep_item: {
-            item: list_item,
-            note: note,
-            note_title: note.title,
-            path: [index]
-          },
-          options:
-        ).tap { |item| item.read_original(only_modified_dates:) }
+      @items_to_sync[only_modified_dates] ||= begin
+        items = list_items_for(note).each_with_index.filter_map do |list_item, index|
+          item = Item.new(
+            keep_item: {
+              item: list_item,
+              note: note,
+              note_title: note.title,
+              path: [index]
+            },
+            options:
+          ).tap { |keep_item| keep_item.read_original(only_modified_dates:) }
+          item = Item.find_or_initialize_by_source(service_name:, external_id: item.external_id)
+          item.keep_item = keep_item_payload(list_item, note, index)
+          item.options = self.class.build_options(options, service_name)
+          refresh_item_tree!(item, only_modified_dates:)
+        end
+        record_source_disappearances!(items, only_modified_dates:)
+        items
       end
     end
 
@@ -82,6 +112,24 @@ module GoogleKeep
     end
 
     private
+
+    def refresh_item_tree!(item, only_modified_dates:)
+      item.read_original(only_modified_dates:)
+      return item unless item.stable_external_id_embedded?
+
+      item.observe_source!
+      item.sub_items.each do |sub_item|
+        keep_item = sub_item.keep_item
+        sub_item = Item.find_or_initialize_by_source(service_name:, external_id: sub_item.external_id)
+        sub_item.keep_item ||= keep_item
+        refresh_item_tree!(sub_item, only_modified_dates:)
+      end
+      item
+    end
+
+    def keep_item_payload(list_item, note, index)
+      { item: list_item, note:, note_title: note.title, path: [index] }
+    end
 
     def min_sync_interval
       30.minutes.to_i

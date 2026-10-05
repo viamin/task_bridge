@@ -23,6 +23,14 @@ module Reclaim
       [:from_primary]
     end
 
+    def deletion_detection_strategy
+      # The task list query is status-filtered (COMPLETE,NEW,SCHEDULED,
+      # IN_PROGRESS) and deleted tasks vanish from it silently; the API
+      # provides no tombstones or events to verify by. Detection stays
+      # disabled (#220).
+      Disappearance::Strategy.disabled
+    end
+
     # Reclaim doesn't use tags or an inbox, so just get all tasks that the user has access to
     def items_to_sync(*, only_modified_dates: false, **)
       list_tasks.map do |reclaim_task|

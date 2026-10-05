@@ -66,6 +66,15 @@ RSpec.describe GoogleKeep::Service do
       expect(items_to_sync.first.sub_items.first.title).to eq("Chives")
     end
 
+    it "reuses persisted nested items with stable ids on a later sync" do
+      items_to_sync
+
+      later_service = described_class.new(options:, keep_service:, authorization: {})
+
+      expect { later_service.items_to_sync }.not_to raise_error
+      expect(GoogleKeep::Item.where(external_id: [root_keep_id, nested_keep_id]).count).to eq(2)
+    end
+
     it "searches across every page for the configured note" do
       second_page_response = double("notes_response_page_2", notes: [note], next_page_token: nil)
       first_page_response = double("notes_response_page_1", notes: [], next_page_token: "page-2")

@@ -62,10 +62,13 @@ RSpec.describe "Reminders::Service" do
       let(:stale_id) { double("StaleReminderId") }
       let(:stale_reminder) { double("StaleReminder", id_: stale_id) }
       let(:valid_reminder) { double("ValidReminder", id_: double(get: "reminder-ok")) }
-      let(:wrapped_reminder) { instance_double(Reminders::Reminder, "reminder=": nil) }
+      let(:wrapped_reminder) { instance_double(Reminders::Reminder, "reminder=": nil, external_id: "reminder-ok") }
 
       before do
         allow(service).to receive(:authorized).and_return(true)
+        # Keep the detection scope check off AppleScript: this spec is about
+        # stale-reference handling, and a real app reference exists on macOS.
+        allow(service).to receive(:list_names).and_return(["TaskBridge"])
         allow(stale_id).to receive(:get).and_raise(make_stale_reference_error(command: "id_.get"))
         allow(service).to receive(:reminders_in_list).with("TaskBridge").and_return([stale_reminder, valid_reminder])
         allow(Reminders::Reminder).to receive(:find_or_initialize_by_source).with(

@@ -33,6 +33,14 @@ module Instapaper
       [:to_primary]
     end
 
+    def deletion_detection_strategy
+      # Folder reads are limit-windowed (50 unread, 25 archived), so a
+      # bookmark can age out of either window without being deleted, and the
+      # API has no single-bookmark fetch to verify by ID. Detection stays
+      # disabled (#220).
+      Disappearance::Strategy.disabled
+    end
+
     def items_to_sync(*, **)
       (unread_articles + recently_archived_articles).uniq(&:external_id)
     end
