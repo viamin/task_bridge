@@ -93,6 +93,12 @@ RSpec.describe Omnifocus::Service, :full_options do
 
       expect(service.deletion_detection_scope_available?).to be(false)
     end
+
+    it "is unavailable without configured tags" do
+      unscoped_service = described_class.new(options: options.merge(tags: []))
+
+      expect(unscoped_service.deletion_detection_scope_available?).to be(false)
+    end
   end
 
   describe "#items_to_sync canonical scope gate" do

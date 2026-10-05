@@ -70,7 +70,10 @@ module Asana
           detail: { "lookup_status" => response.code }
         )
       end
-    rescue JSON::ParserError
+    # A direct lookup is evidence only when it completes successfully. Network
+    # failures and malformed responses are inconclusive, so leave the item
+    # untouched and let a later whole-sync retry verify it (#220).
+    rescue StandardError
       nil
     end
 

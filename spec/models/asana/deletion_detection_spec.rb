@@ -98,6 +98,16 @@ RSpec.describe "Asana deletion detection" do
     expect(tombstones.count).to eq(0)
   end
 
+  it "emits nothing when verification raises a transport error" do
+    persisted_asana_task("asana-unreachable")
+    allow(HTTParty).to receive(:get)
+      .with("https://app.asana.com/api/1.0/tasks/asana-unreachable", kind_of(Hash))
+      .and_raise(SocketError, "connection refused")
+
+    expect { service.items_to_sync }.not_to raise_error
+    expect(tombstones.count).to eq(0)
+  end
+
   it "does not verify or emit for locally completed tasks (completion window aging)" do
     persisted_asana_task("asana-old-complete", completed_at: Time.current - 2.weeks)
 

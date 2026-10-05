@@ -118,7 +118,12 @@ module GoogleKeep
       return item unless item.stable_external_id_embedded?
 
       item.observe_source!
-      item.sub_items.each { |sub_item| refresh_item_tree!(sub_item, only_modified_dates:) }
+      item.sub_items.each do |sub_item|
+        keep_item = sub_item.keep_item
+        sub_item = Item.find_or_initialize_by_source(service_name:, external_id: sub_item.external_id)
+        sub_item.keep_item ||= keep_item
+        refresh_item_tree!(sub_item, only_modified_dates:)
+      end
       item
     end
 

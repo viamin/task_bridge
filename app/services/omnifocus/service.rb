@@ -44,7 +44,10 @@ module Omnifocus
       # about the tasks themselves, so absence would be meaningless.
       return false unless authorized
 
-      Array(options[:tags]).all? { |name| tag(name).present? }
+      configured_tags = Array(options[:tags])
+      return false if configured_tags.empty?
+
+      configured_tags.all? { |name| tag(name).present? }
     end
 
     def verify_missing_item(item)
@@ -336,7 +339,8 @@ module Omnifocus
     # primary-side fetches with tags: [service_name]) cover narrower scopes
     # and must not drive detection (#220).
     def canonical_item_scope?(tags)
-      Array(tags).sort == Array(options[:tags]).sort
+      configured_tags = Array(options[:tags])
+      configured_tags.present? && Array(tags).sort == configured_tags.sort
     end
 
     def external_data_for_summary(task_summary, source_provider:)
