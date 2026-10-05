@@ -10,7 +10,34 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_094249) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_000000) do
+  create_table "outbox_entries", force: :cascade do |t|
+    t.string "idempotency_key", null: false
+    t.string "record_kind", null: false
+    t.integer "payload_version", default: 1, null: false
+    t.string "event_type"
+    t.string "service_type", null: false
+    t.string "service_instance"
+    t.string "external_id"
+    t.integer "sync_collection_id"
+    t.datetime "observed_at", null: false
+    t.datetime "source_updated_at"
+    t.json "payload", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "attempts", default: 0, null: false
+    t.datetime "published_at"
+    t.datetime "next_retry_at"
+    t.string "error_class"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["idempotency_key"], name: "index_outbox_entries_on_idempotency_key", unique: true
+    t.index ["observed_at"], name: "index_outbox_entries_on_observed_at"
+    t.index ["observed_at"], name: "index_outbox_entries_pending_publication", where: "status = 'pending'"
+    t.index ["service_type", "service_instance", "external_id"], name: "index_outbox_entries_on_source_identity"
+    t.index ["sync_collection_id"], name: "index_outbox_entries_on_sync_collection_id"
+  end
+
   create_table "sync_collections", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "last_synced"
@@ -75,6 +102,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_094249) do
     t.index ["service_name"], name: "index_sync_service_states_on_service_name", unique: true
   end
 
+  add_foreign_key "outbox_entries", "sync_collections"
   add_foreign_key "sync_items", "sync_collections"
   add_foreign_key "sync_items", "sync_items", column: "parent_item_id"
 end
