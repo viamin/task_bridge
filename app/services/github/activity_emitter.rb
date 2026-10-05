@@ -23,9 +23,7 @@ module Github
     }.freeze
 
     def self.emit_for(item, events:, since:)
-      Outbox::IsolatedWrite.call("GitHub activity for #{item.item_key}") do
-        new(item, events:, since:).emit
-      end
+      new(item, events:, since:).emit
     end
 
     def initialize(item, events:, since:)

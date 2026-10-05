@@ -46,6 +46,14 @@ RSpec.describe Github::ActivityEmitter do
     expect(row.payload.to_json).not_to include("this must never leave the adapter")
   end
 
+  it "propagates an activity write failure so the sync cursor is not advanced" do
+    events = [{ "id" => 456, "event" => "commented", "created_at" => occurred_at }]
+    failure = ActiveRecord::StatementInvalid.new("database is locked")
+    allow(OutboxEntry).to receive(:enqueue).and_raise(failure)
+
+    expect { described_class.emit_for(item, events:, since:) }.to raise_error(failure)
+  end
+
   it "publishes meaningful issue state changes but ignores events before the cursor" do
     events = [
       { "id" => 1, "event" => "labeled", "created_at" => "2026-10-05T09:59:59Z" },
