@@ -67,7 +67,7 @@ gem "google-apis-calendar_v3", "~> 0.30"
 gem "google-apis-keep_v1", "~> 0.18"
 
 # https://github.com/jnunemaker/httparty
-gem "httparty", "~> 0.21"
+gem "httparty", "~> 0.24"
 
 # https://github.com/flavorjones/loofah
 gem "loofah", "~> 2.25"
