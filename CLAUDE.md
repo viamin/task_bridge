@@ -30,6 +30,13 @@ bundle exec rspec spec/lib/omnifocus/service_spec.rb
 bundle exec rspec --tag focus
 ```
 
+### Pact consumer contract tests
+Regenerate the committed pact for TaskBridge Web ingestion by running the
+whole contract spec file (see docs/pact-consumer-contract-testing.md):
+```bash
+bundle exec rspec spec/services/outbox/web_publisher/task_bridge_web_contract_spec.rb
+```
+
 ### Code Quality
 ```bash
 bundle exec rubocop
