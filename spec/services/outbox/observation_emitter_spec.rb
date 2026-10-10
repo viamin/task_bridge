@@ -177,6 +177,74 @@ RSpec.describe Outbox::ObservationEmitter do
     end
   end
 
+  describe "item snapshot rows" do
+    def item_rows
+      OutboxEntry.where(record_kind: "item").order(:observed_at)
+    end
+
+    it "publishes the current-state document alongside the first observation" do
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
+
+      expect(item_rows.count).to eq(1)
+      row = item_rows.first
+      expect(row.idempotency_key).to eq(
+        "tb:v1:item:test_service:obs-1:snapshot:2026-10-05T10:00:00.000000Z"
+      )
+      expect(row.service_type).to eq("test_service")
+      expect(row.service_instance).to eq("test_service")
+      expect(row.external_id).to eq("obs-1")
+      expect(row.observed_at).to eq(first_observed_at)
+      expect(row.payload).to include(
+        "item_key" => "test_service:obs-1",
+        "entity_type" => "task",
+        "observed_at" => "2026-10-05T10:00:00.000000Z",
+        "title" => "Buy milk",
+        "status" => "open",
+        "is_deleted" => false,
+        "started_at" => nil,
+        "parent" => { "external_id" => nil, "item_key" => nil },
+        "source_metadata" => {}
+      )
+      expect(row.payload["source"]).to include(
+        "service_type" => "test_service",
+        "service_instance" => "test_service",
+        "external_id" => "obs-1"
+      )
+      expect(row.payload).not_to have_key("metadata")
+      expect(row.payload).not_to have_key("parent_item_id")
+    end
+
+    it "republishes the current state whenever a change is observed" do
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
+      refresh_with({ "title" => "Buy oat milk", "completed" => false }, at: first_observed_at + 1.hour)
+
+      expect(item_rows.count).to eq(2)
+      expect(item_rows.last.payload["title"]).to eq("Buy oat milk")
+      expect(item_rows.last.idempotency_key).to eq(
+        "tb:v1:item:test_service:obs-1:snapshot:2026-10-05T11:00:00.000000Z"
+      )
+    end
+
+    it "does not republish unchanged items" do
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at + 1.hour)
+
+      expect(item_rows.count).to eq(1)
+    end
+
+    it "carries the sync collection as the contract's mapping reference" do
+      collection = SyncCollection.create!(title: "Buy milk")
+      item.sync_collection_id = collection.id
+
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
+
+      row = OutboxEntry.where(record_kind: "item").first
+      expect(row.sync_collection_id).to eq(collection.id)
+      expect(row.payload["sync_collection"]).to eq("sync_collection_id" => collection.id)
+      expect(row.payload).not_to have_key("sync_collection_id")
+    end
+  end
+
   describe "outbox write failures" do
     before do
       refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
