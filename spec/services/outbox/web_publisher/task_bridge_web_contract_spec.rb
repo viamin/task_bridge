@@ -15,7 +15,11 @@ require "pact_helper"
 # serializes; the committed pact file
 # (spec/pacts/taskbridge-taskbridge_web.json) therefore pins the full v1
 # wire shape for provider verification (viamin/task-bridge-web#189).
-RSpec.describe "TaskBridge Web ingestion batches", pact: true do
+# RDR #215 requires regenerating the committed pact by running this whole
+# file (docs/pact-consumer-contract-testing.md). Pact writes interactions in
+# execution order, so pin the group to declaration order: a random global
+# order would churn the committed pact file on every suite run.
+RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined do
   let(:now) { Time.zone.parse("2026-10-05T12:00:00Z") }
   let(:api_key) { "pact-ingest-key" }
   let(:revoked_api_key) { "revoked-ingest-key" }

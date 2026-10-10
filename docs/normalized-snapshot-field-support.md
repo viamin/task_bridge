@@ -151,6 +151,14 @@ outbox rows or advance the diff baseline.
   changes (for example `title_fallback` upgrading to `source_sync_id`).
   Internal confidence values map to the contract's vocabulary
   (high → `confirmed`; medium/low → `tentative`).
+- **Sync-run summaries** (`Outbox::SyncRunEmitter`, hooked into the sync
+  task beside `SyncServiceState.record_summary!`): one `sync_run` row per
+  service run with status `success` or `failed` — skipped and idle
+  services publish nothing, per RDR #215. Run-summary keys map to the
+  contract's `*_at` names; failure detail is published as a sanitized
+  `error` (credential fragments redacted, whitespace collapsed, length
+  bounded) and successful runs never carry one. Emission is idempotent
+  per `sync_run_id`, so re-running the same run cannot duplicate rows.
 - **Key uniqueness**: when one observation yields several field transitions,
   each row's idempotency key carries a sequence segment
   (`Outbox::IdempotencyKey`), per the RDR #215 rule for colliding observed
