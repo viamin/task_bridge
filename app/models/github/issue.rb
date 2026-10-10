@@ -74,7 +74,7 @@ module Github
     end
 
     def friendly_title
-      "#{project}-##{number}: #{'[PR] ' if is_pr}#{title.strip}"
+      "#{project}-##{number}: #{'[PR] ' if is_pr}#{title.to_s.strip}"
     end
 
     def sync_notes
@@ -88,6 +88,8 @@ module Github
     # Issue number, PR flag, and other GitHub-specific identity/classification
     # details are not part of the common normalized_snapshot schema.
     def normalized_metadata
+      return {} if github_issue.blank?
+
       {
         number:,
         pull_request: is_pr,

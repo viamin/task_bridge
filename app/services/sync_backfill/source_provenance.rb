@@ -6,6 +6,20 @@ module SyncBackfill
       new.run!
     end
 
+    # The provenance the backfill would record for a collection, computed
+    # without writing anything. Shared with the outbox baseline backfill
+    # (#222) so its dry run can summarize mapping confidence before any
+    # data is touched.
+    def self.inferred_provenance_for(collection)
+      items = collection.sync_items.to_a.compact
+      default_metadata = { "sync_item_ids" => items.filter_map(&:id) }
+      return { method: "manual_backfill", confidence: "low", metadata: default_metadata } if items.length < 2
+
+      provenance = SyncMappingProvenance.preferred_for(items)
+
+      provenance.merge(metadata: default_metadata.merge(provenance.fetch(:metadata)))
+    end
+
     def run!
       backfill_sync_items
       backfill_sync_collections
@@ -32,23 +46,8 @@ module SyncBackfill
         next if collection.mapping_method.present?
 
         observed_at = collection.updated_at || collection.created_at || Time.current
-        provenance = inferred_provenance_for(collection)
-        collection.update_mapping_provenance!(**provenance, observed_at:)
+        collection.update_mapping_provenance!(**self.class.inferred_provenance_for(collection), observed_at:)
       end
-    end
-
-    def inferred_provenance_for(collection)
-      items = collection.sync_items.to_a.compact
-      default_metadata = { "sync_item_ids" => items.filter_map(&:id) }
-      return { method: "manual_backfill", confidence: "low", metadata: default_metadata } if items.length < 2
-
-      provenance = preferred_provenance(items)
-
-      provenance.merge(metadata: default_metadata.merge(provenance.fetch(:metadata)))
-    end
-
-    def preferred_provenance(items)
-      SyncMappingProvenance.preferred_for(items)
     end
   end
 end
