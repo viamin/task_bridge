@@ -24,9 +24,20 @@ module Disappearance
       private
 
       # RDR #215 sync-run scope, e.g. "sync-run-20260814T192000Z-asana".
+      # Derived from the run-scope sync_started_at when detection runs inside
+      # a sync run so tombstones correlate with observation provenance and
+      # sync-run summaries; falls back to the detection time for standalone
+      # invocation.
       def sync_run_id_for(service, at:)
-        identifier = Base::Service.service_identifier_for(service.service_name)
-        "sync-run-#{at.utc.strftime('%Y%m%dT%H%M%SZ')}-#{identifier}"
+        started_at = service.options[:sync_started_at].presence
+        at = Time.zone.parse(started_at) if started_at
+        Outbox::SyncRunId.for(service_identifier_for(service), at)
+      end
+
+      def service_identifier_for(service)
+        Base::Service.service_identifier_for(
+          service.respond_to?(:friendly_name) ? service.friendly_name : service.service_name
+        )
       end
     end
 

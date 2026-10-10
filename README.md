@@ -24,6 +24,7 @@ Supported services and their tags:
 |---------|-----
 | Asana | Asana
 | Github | Github
+| Google Keep | Google Keep
 | Google Tasks | Google Tasks
 | Instapaper | Instapaper
 | Reclaim.ai | Reclaim
@@ -73,3 +74,33 @@ To run the cleanup task:
 * `cp com.github.viamin.task_bridge.cleanup.plist ~/Library/LaunchAgents/`
 * May need to remove the old one first `launchctl remove com.github.viamin.task_bridge.cleanup`
 * `launchctl load -w ~/Library/LaunchAgents/com.github.viamin.task_bridge.cleanup.plist`
+
+## Publishing observations to TaskBridge Web
+
+TaskBridge can act as the deterministic observation layer for a [TaskBridge Web](https://github.com/viamin/task-bridge-web) deployment: while it syncs, it also detects normalized facts about your items — current-state snapshots, field-level changes, cross-service mappings, disappearances, and per-run health summaries — and pushes them to TaskBridge Web over authenticated HTTP for durable history and analytics. Publication never changes sync behavior; if TaskBridge Web is down, rows wait in a local outbox and are retried with backoff.
+
+This is disabled by default. To enable it, set the `task_bridge.web` settings in `config/settings.yml` (or the `TASK_BRIDGE_WEB_*` environment variables, see `.env.example`):
+
+```yaml
+task_bridge:
+  web:
+    enabled: true
+    base_url: https://your-taskbridge-web.example.com
+    api_key: <ingestion key generated in TaskBridge Web>
+```
+
+Facts are delivered in versioned batches to `POST /api/task_bridge/v1/ingestion/batches` with per-record idempotency keys, so retries are safe. Details of the wire contract are in `docs/rdr-215-taskbridge-observation-publication-contract.md`.
+
+Useful tasks:
+
+* `bin/rails task_bridge:outbox:publish` — publish pending outbox rows now (also runs automatically after each sync)
+* `bin/rails task_bridge:outbox:publish_dry_run` — render the batches as NDJSON on stdout without sending anything
+* `bin/rails task_bridge:outbox:prune` — prune delivered rows and reviewed terminal failures past their retention windows
+
+Privacy notes:
+
+* Note content never leaves TaskBridge by default; snapshots carry only a keyed `notes_digest` so edits are still detected (see `docs/normalized-snapshot-field-support.md`).
+* Google Calendar ingestion (`google.calendar` settings, run via `bin/rails task_bridge:sync_calendar`) is read-only and publishes busy/free availability only; event details require an explicit `privacy_mode: event_details` opt-in.
+* The local outbox is a bounded queue (default retention: 7 days delivered / 30 days failed), not an archive — TaskBridge Web owns durable history.
+
+Per-source field support is documented in `docs/source-capability-matrix.md`; deletion/disappearance detection semantics per adapter are in `docs/source-deletion-detection.md`.

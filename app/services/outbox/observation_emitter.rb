@@ -78,9 +78,17 @@ module Outbox
 
     def provenance(detected_by)
       { detected_by: }.tap do |provenance|
-        sync_run_id = item.options[:sync_started_at]
-        provenance[:sync_run_id] = "sync-run-#{sync_run_id}" if sync_run_id.present?
+        started = run_started_at
+        provenance[:sync_run_id] = Outbox::SyncRunId.for(source_identity[:service_type], started) if started
       end
+    end
+
+    # The run-scope start recorded in options, parsed. Sync-run summaries
+    # derive their id from the same value, so observations and the run row
+    # they belong to correlate on TaskBridge Web.
+    def run_started_at
+      started_at = item.options[:sync_started_at].presence
+      Time.zone.parse(started_at) if started_at
     end
 
     def enqueue(payload, sequence:)
