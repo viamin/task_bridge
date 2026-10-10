@@ -112,13 +112,16 @@ class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
 freshly constructed item that has not gone through
 `capture_source_identity` — so consumers must not code for a nilable
 value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
-captured instance segment when one exists (`asana:work`,
-`omnifocus:default`), and yields the bare `service_type` (`asana`)
-otherwise; the per-instance component therefore belongs only in
-`source.service_instance`, never in `source.service_type`. Like `item_key`
-and idempotency keys, `service_instance` is opaque: consumers must not
-parse it by splitting on `:` because segments may themselves contain
-colons.
+captured instance segment when one exists (`asana:work`), and falls back
+to the fixed `default` token otherwise (`omnifocus:default`), matching
+the RDR #215 example `asana:workspace-12345:default`. The token is
+permanent — it is embedded in idempotency keys — and the baseline
+backfill (#222) and the live pipeline (#219-#221) resolve it in the same
+place so backfilled and live rows share identities. The per-instance
+component therefore belongs only in `source.service_instance`, never in
+`source.service_type`. Like `item_key` and idempotency keys,
+`service_instance` is opaque: consumers must not parse it by splitting on
+`:` because segments may themselves contain colons.
 
 ## Observation emission (#219)
 
