@@ -151,11 +151,22 @@ namespace :task_bridge do
       options[:logger].save_service_log!(@service_logs)
       service_name = service.respond_to?(:service_name) ? service.service_name : service.friendly_name
       current_service_failed = @service_logs.any? { |log| log["status"] == "failed" }
-      SyncServiceState.record_summary!(
-        options[:logger].summarize_service_run(
-          service_name:,
-          logs: @service_logs
-        )
+      touched_collection_ids = @service_logs.flat_map do |log|
+        Array(log["touched_collection_ids"] || log[:touched_collection_ids])
+      end.uniq
+      run_summary = options[:logger].summarize_service_run(service_name:, logs: @service_logs)
+      SyncServiceState.record_summary!(run_summary)
+      # Sync-run summaries (RDR #215) are outbox bookkeeping like every
+      # other emission: a skipped or idle service publishes nothing, and an
+      # outbox write failure never changes the run outcome it describes.
+      Outbox::SyncRunEmitter.emit_for(
+        service_name:,
+        summary: run_summary.merge(
+          "touched_collection_ids" => touched_collection_ids,
+          "error" => failure_detail_from(@service_logs)
+        ),
+        started_at: options[:sync_started_at],
+        finished_at: Time.current
       )
       # The activity-sync cursor is decoupled from the task-sync cursor
       # (#224): advance it only after this service retrieved activity and
@@ -170,10 +181,7 @@ namespace :task_bridge do
       end
       next if current_service_failed
 
-      touched_collection_ids = @service_logs.flat_map do |log|
-        Array(log["touched_collection_ids"] || log[:touched_collection_ids])
-      end
-      touched_collection_ids.uniq.each do |collection_id|
+      touched_collection_ids.each do |collection_id|
         SyncCollection.find_by(id: collection_id)&.update(last_synced: Time.current)
       end
     end
@@ -197,6 +205,20 @@ namespace :task_bridge do
     report_publication(Outbox::WebPublisher.run!)
   rescue StandardError => e
     warn "Outbox publication failed; rows stay pending for retry (#{e.class}: #{e.message})"
+  end
+
+  # Structured error for the sync-run summary row, from the failed service
+  # log entry. Sync runs are not automatically retried, so `retryable`
+  # reports false (RDR #215: it must match the retry policy used).
+  def failure_detail_from(service_logs)
+    failed_entry = service_logs.reverse.find { |log| log["error_class"].present? || log["error_message"].present? }
+    return unless failed_entry
+
+    {
+      class: failed_entry["error_class"].presence || "SyncError",
+      message: failed_entry["error_message"].presence,
+      retryable: false
+    }
   end
 
   def report_publication(summary)

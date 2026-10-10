@@ -18,5 +18,18 @@ module Outbox
         source_url: item.source_url.presence || item.url
       }
     end
+
+    # Service-level identity for records that are not tied to one item, such
+    # as sync-run summaries: the adapter-family identifier plus the
+    # configured instance, matching the item-level shape above so rows from
+    # the same service correlate downstream.
+    def for_service_name(service_name)
+      class_identifier = Base::Service.service_identifier_for(Base::Service.class_name_for(service_name))
+
+      {
+        service_type: class_identifier,
+        service_instance: [class_identifier, Base::Service.instance_name_for(service_name)].compact.join(":")
+      }
+    end
   end
 end

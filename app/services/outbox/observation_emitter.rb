@@ -34,14 +34,17 @@ module Outbox
       return [] if item.options[:pretend] || !item.persisted? || item.external_id.blank?
 
       rows = observation_rows
+      return rows if rows.empty?
+
       rows.each_with_index do |payload, index|
         enqueue(payload, sequence: rows.many? ? index + 1 : nil)
       end
-      # Rows is empty exactly when the new snapshot is diff-equivalent to
-      # the stored baseline (SnapshotDiff.transitions found nothing), so
-      # skipping advance_baseline here avoids a redundant UPDATE on every
-      # unchanged hourly refresh.
-      advance_baseline if rows.any?
+      enqueue_item_snapshot
+      # The new snapshot only becomes the diff baseline once every row —
+      # the observations above and the current-state item document — is
+      # enqueued, so a publication hiccup can re-detect (at-least-once) but
+      # never silently swallow a transition.
+      advance_baseline
       rows
     end
 
@@ -95,6 +98,52 @@ module Outbox
       }
       context[:sequence] = sequence if sequence
       OutboxEntry.enqueue(record_kind: :observation, payload:, **context)
+    end
+
+    # RDR #215 minimum normalized item snapshot: the current-state document
+    # for this source item, enqueued whenever the observations above
+    # advanced the diff baseline so TaskBridge Web can materialize current
+    # state from the latest item row instead of folding source_changed
+    # transitions. The serializer's shared shape already carries the
+    # contract's required fields (item_key, entity_type, title, status,
+    # is_deleted, source); the contract-named optional spellings are added
+    # and their snapshot-internal twins removed.
+    def enqueue_item_snapshot
+      OutboxEntry.enqueue(
+        record_kind: :item,
+        payload: item_payload,
+        service_type: source_identity[:service_type],
+        service_instance: source_identity[:service_instance],
+        external_id: source_identity[:external_id],
+        sync_collection_id: item.sync_collection_id,
+        source_updated_at: item.source_updated_at || item.last_modified,
+        observed_at:
+      )
+    end
+
+    def item_payload
+      published_snapshot
+        .except(:metadata, :parent_item_id, :sync_collection_id)
+        .merge(
+          contract_version: OutboxEntry::PAYLOAD_VERSION,
+          started_at: item.start_at || item.start_date,
+          parent: parent_payload,
+          source_metadata: published_snapshot[:metadata]
+        )
+        .then { |payload| merge_sync_collection(payload) }
+    end
+
+    def parent_payload
+      parent_id = item.parent_item_id
+      return { external_id: nil, item_key: nil } if parent_id.blank?
+
+      { external_id: parent_id, item_key: [item.service_key, parent_id].join(":") }
+    end
+
+    def merge_sync_collection(payload)
+      return payload if item.sync_collection_id.blank?
+
+      payload.merge(sync_collection: { sync_collection_id: item.sync_collection_id })
     end
 
     def advance_baseline
