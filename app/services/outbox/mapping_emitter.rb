@@ -16,9 +16,14 @@ module Outbox
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
     # values. Unknown values pass through unchanged: version 1 consumers
     # must ignore unknown values rather than break.
+    #
+    # `medium` maps to `inferred` (issue #222's resolution of RDR #215's
+    # low-confidence backfill question): a title match is real evidence,
+    # just weaker than a sync-id match. Only `low` stays `tentative`, and
+    # tentative rows are the ones the backfill withholds.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -58,7 +63,7 @@ module Outbox
           },
           member: identity.merge(item_key: member.item_key),
           membership_role: MEMBERSHIP_ROLE,
-          mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
+          mapping_confidence: contract_confidence_for(collection),
           mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
           provenance: {
             method: collection.mapping_method,
@@ -76,6 +81,21 @@ module Outbox
           sync_collection_id: collection.id,
           observed_at:
         }
+      end
+
+      public
+
+      # The payload for one membership row. Shared with the backfill (#222)
+      # so backfilled and live mapping rows keep the same shape.
+      def payload_for(collection, member, observed_at)
+        payload(collection, member, Outbox::SourceIdentity.for(member), observed_at)
+      end
+
+      # The collection's mapping confidence translated to the contract's
+      # vocabulary (`high` -> confirmed, `medium` -> inferred, `low` ->
+      # tentative; unknown values pass through).
+      def contract_confidence_for(collection)
+        CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence)
       end
     end
   end
