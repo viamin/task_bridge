@@ -151,12 +151,9 @@ namespace :task_bridge do
       options[:logger].save_service_log!(@service_logs)
       service_name = service.respond_to?(:service_name) ? service.service_name : service.friendly_name
       current_service_failed = @service_logs.any? { |log| log["status"] == "failed" }
-      SyncServiceState.record_summary!(
-        options[:logger].summarize_service_run(
-          service_name:,
-          logs: @service_logs
-        )
-      )
+      run_summary = options[:logger].summarize_service_run(service_name:, logs: @service_logs)
+      SyncServiceState.record_summary!(run_summary)
+      emit_sync_run_observation(service_name:, summary: run_summary, logs: @service_logs)
       # The activity-sync cursor is decoupled from the task-sync cursor
       # (#224): advance it only after this service retrieved activity and
       # every ActivityEmitter.emit_for call completed without an
@@ -197,6 +194,19 @@ namespace :task_bridge do
     report_publication(Outbox::WebPublisher.run!)
   rescue StandardError => e
     warn "Outbox publication failed; rows stay pending for retry (#{e.class}: #{e.message})"
+  end
+
+  # One sync-run summary row per service run (RDR #215): operational
+  # bookkeeping after the run, never part of its outcome. Pretend runs
+  # publish nothing, and OutboxEntry.enqueue's idempotency makes re-running
+  # a summary for the same run a no-op.
+  def emit_sync_run_observation(service_name:, summary:, logs:)
+    return if options[:pretend]
+
+    Outbox::SyncRunEmitter.emit_for_run(
+      summary:, logs:, service_name:,
+      started_at: options[:sync_started_at]
+    )
   end
 
   def report_publication(summary)

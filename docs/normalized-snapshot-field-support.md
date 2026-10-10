@@ -157,3 +157,10 @@ outbox rows or advance the diff baseline.
   timestamps. The baseline is only advanced after every row is enqueued, so
   a failed enqueue can re-detect a transition (at-least-once) but never
   silently swallows one.
+- **Sync-run summaries** (`Outbox::SyncRunEmitter`, hooked into
+  `task_bridge:sync`): one `sync_run` row per service run, derived from the
+  same `StructuredLogger` run summary persisted through `SyncServiceState`.
+  Skipped and idle services publish nothing; failed runs carry
+  `error.retryable: true`, matching the next-scheduled-run retry policy.
+  The sync-run id (`sync-run-<timestamp>-<service>`) uses the same scope
+  format as `Disappearance::Detector`.

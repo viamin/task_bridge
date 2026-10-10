@@ -71,5 +71,51 @@ To run the cleanup task:
 
 * Update the `WorkingDirectory` value in `com.github.viamin.task_bridge.cleanup.plist` to point to the script directory on your computer
 * `cp com.github.viamin.task_bridge.cleanup.plist ~/Library/LaunchAgents/`
-* May need to remove the old one first `launchctl remove com.github.viamin.task_bridge.cleanup`
+* May need to remove the old one first `launchctl remove com.github.viamin.task_bridge`
 * `launchctl load -w ~/Library/LaunchAgents/com.github.viamin.task_bridge.cleanup.plist`
+
+## TaskBridge Web publication
+
+Besides synchronizing services, TaskBridge observes its sources and publishes
+normalized, idempotent facts (item snapshots, change observations, cross-system
+mappings, deletion tombstones, GitHub activity, calendar context, and one
+sync-run summary per service run) to [TaskBridge Web](https://github.com/viamin/task-bridge-web)
+for durable history, analytics, and retrieval. TaskBridge stays the
+deterministic integration layer; reasoning over the published facts belongs to
+TaskBridge Web.
+
+During every sync, detected observations are written to a local outbox
+(`outbox_entries`). Publication is decoupled from sync: rows are pushed to
+TaskBridge Web in versioned batches at the end of each run (and by the retry
+task below) with per-row idempotency keys, retries with exponential backoff,
+and partial-success reconciliation, so a TaskBridge Web outage never fails a
+sync. Delivered rows are pruned after a retention window — TaskBridge Web owns
+durable history.
+
+Publication is **disabled by default**. To enable it, configure `task_bridge.web`
+in `config/settings.yml` (or the `TASK_BRIDGE_WEB_*` environment variables, see
+`.env.example`):
+
+```yaml
+task_bridge:
+  web:
+    enabled: true
+    base_url: https://your-task-bridge-web-instance
+    api_key: <ingest key>
+```
+
+Available rake tasks:
+
+* `bin/rails task_bridge:outbox:publish` — publish pending rows (retries rows whose backoff is due)
+* `bin/rails task_bridge:outbox:publish_dry_run` — render the pending batches to stdout as NDJSON without sending anything (development/backfill preview)
+* `bin/rails task_bridge:outbox:prune` — prune delivered and terminal-failure rows past their retention windows
+* `bin/rails task_bridge:sync_calendar` — publish read-only Google Calendar context (busy/free by default)
+
+Notes are never published as text: snapshots carry a keyed `notes_digest` so
+changes are observable without the content leaving TaskBridge. A `notes_preview`
+export remains opt-in per source and is not enabled by any current setting.
+The full publication contract — record schemas, idempotency-key rules, failure
+semantics, and privacy constraints — is specified in
+`docs/rdr-215-taskbridge-observation-publication-contract.md`, and the consumer
+contract tests against TaskBridge Web are described in
+`docs/pact-consumer-contract-testing.md`.
