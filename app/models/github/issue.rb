@@ -86,17 +86,21 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. Every
+    # read is nil-safe because snapshots are also built for rows loaded
+    # from sync_items alone (baseline backfill, #222), where the raw
+    # `github_issue` payload is not present.
     def normalized_metadata
+      comments = github_issue&.[]("comments")
       {
         number:,
         pull_request: is_pr,
         repository: full_repo_name,
-        author: github_issue.dig("user", "login"),
+        author: github_issue&.dig("user", "login"),
         assignees: assignee_logins,
-        milestone: github_issue.dig("milestone", "title"),
-        comments_count: github_issue["comments"].presence,
-        draft: (github_issue["draft"] if is_pr)
+        milestone: github_issue&.dig("milestone", "title"),
+        comments_count: comments.presence,
+        draft: (github_issue&.[]("draft") if is_pr)
       }.compact
     end
 
@@ -121,11 +125,12 @@ module Github
     end
 
     def full_repo_name
-      github_issue["repository_url"]&.split("repos/")&.last
+      repository_url = github_issue&.[]("repository_url")
+      repository_url&.split("repos/")&.last
     end
 
     def assignee_logins
-      Array(github_issue["assignees"]).filter_map { |assignee| assignee["login"] }
+      Array(github_issue&.[]("assignees")).filter_map { |assignee| assignee["login"] }
     end
 
     # Raw:

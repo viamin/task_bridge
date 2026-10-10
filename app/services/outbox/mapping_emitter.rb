@@ -33,11 +33,35 @@ module Outbox
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
+            payload: payload_for(collection, member, identity, observed_at),
             **enqueue_context(identity, collection, observed_at)
           )
         end
       end
+    end
+
+    # Public so the baseline backfill (#222) publishes memberships in the
+    # exact contract shape sync runs emit; its confidence translation and
+    # withholding policy deliberately differ (see SyncBackfill::OutboxBaseline).
+    def self.payload_for(collection, member, identity, observed_at)
+      {
+        contract_version: OutboxEntry::PAYLOAD_VERSION,
+        mapping_type: MAPPING_TYPE,
+        observed_at: observed_at.utc.iso8601(6),
+        sync_collection: {
+          sync_collection_id: collection.id,
+          title: collection.title
+        },
+        member: identity.merge(item_key: member.item_key),
+        membership_role: MEMBERSHIP_ROLE,
+        mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
+        mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
+        provenance: {
+          method: collection.mapping_method,
+          confidence: collection.mapping_confidence,
+          metadata: collection.mapping_metadata
+        }
+      }
     end
 
     class << self
@@ -45,27 +69,6 @@ module Outbox
 
       def eligible?(member)
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
-      end
-
-      def payload(collection, member, identity, observed_at)
-        {
-          contract_version: OutboxEntry::PAYLOAD_VERSION,
-          mapping_type: MAPPING_TYPE,
-          observed_at: observed_at.utc.iso8601(6),
-          sync_collection: {
-            sync_collection_id: collection.id,
-            title: collection.title
-          },
-          member: identity.merge(item_key: member.item_key),
-          membership_role: MEMBERSHIP_ROLE,
-          mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
-          mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
-          provenance: {
-            method: collection.mapping_method,
-            confidence: collection.mapping_confidence,
-            metadata: collection.mapping_metadata
-          }
-        }
       end
 
       def enqueue_context(identity, collection, observed_at)
