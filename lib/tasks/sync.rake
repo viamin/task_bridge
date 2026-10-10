@@ -151,11 +151,19 @@ namespace :task_bridge do
       options[:logger].save_service_log!(@service_logs)
       service_name = service.respond_to?(:service_name) ? service.service_name : service.friendly_name
       current_service_failed = @service_logs.any? { |log| log["status"] == "failed" }
-      SyncServiceState.record_summary!(
-        options[:logger].summarize_service_run(
-          service_name:,
-          logs: @service_logs
-        )
+      run_summary = options[:logger].summarize_service_run(service_name:, logs: @service_logs)
+      SyncServiceState.record_summary!(run_summary)
+      # One sync-run summary per service run (RDR #215): TaskBridge Web
+      # correlates item observations with operational health. Skipped/idle
+      # runs are not published. Bookkeeping only — IsolatedWrite keeps an
+      # outbox failure from changing this run's outcome, and --pretend is
+      # enforced inside OutboxEntry.enqueue.
+      Outbox::SyncRunEmitter.emit_for_run(
+        service:,
+        summary: run_summary,
+        logs: @service_logs,
+        sync_run_id: "sync-run-#{options[:sync_started_at]}",
+        started_at: options[:sync_started_at]
       )
       # The activity-sync cursor is decoupled from the task-sync cursor
       # (#224): advance it only after this service retrieved activity and

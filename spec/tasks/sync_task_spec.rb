@@ -492,6 +492,87 @@ RSpec.describe "task_bridge:sync task" do
     expect(state.detail).to eq("Pruned completed items")
   end
 
+  it "enqueues a sync-run summary outbox row for a completed service run" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      sync_strategies: [:to_primary]
+    )
+
+    allow(service).to receive(:should_sync?).and_return(true)
+    allow(service).to receive(:items_to_sync).with(tags: [], only_modified_dates: true).and_return([])
+    allow(service).to receive(:sync_to_primary).with(primary_service, service_items: []).and_return(
+      {
+        "service" => "Passing",
+        "last_attempted" => "2024-01-01T09:00:00.000000Z",
+        "last_successful" => "2024-01-01T09:00:00.000000Z",
+        "items_synced" => 1,
+        "touched_collection_ids" => [84]
+      }
+    )
+
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    stub_service("Primary", primary_service)
+    stub_service("Passing", service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task("--only-to-primary") }.not_to raise_error
+    end
+
+    row = OutboxEntry.find_by(record_kind: "sync_run")
+    expect(row).to be_present
+    expect(row.idempotency_key).to match(/\Atb:v1:sync_run:passing:sync-run-/)
+    expect(row.service_type).to eq("passing")
+    expect(row.payload).to include(
+      "service_type" => "passing",
+      "service_instance" => "passing",
+      "status" => "success",
+      "items_synced" => 1,
+      "touched_collection_ids" => [84],
+      "error" => nil
+    )
+    expect(row.payload["sync_run_id"]).to start_with("sync-run-")
+    expect(row.payload["started_at"]).to be_present
+    expect(row.payload["finished_at"]).to be_present
+  end
+
+  it "does not enqueue a sync-run summary for skipped services" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      sync_strategies: [:from_primary]
+    )
+
+    allow(service).to receive(:should_sync?).and_return(false)
+    allow(service).to receive(:sync_from_primary).with(primary_service).and_return(
+      {
+        "service" => "Passing",
+        "last_attempted" => "2024-01-01T09:00:00.000000Z",
+        "detail" => "Sync not required"
+      }
+    )
+
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    stub_service("Primary", primary_service)
+    stub_service("Passing", service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task("--only-from-primary") }.not_to raise_error
+    end
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
   it "passes loaded service items through to sync_to_primary without refetching" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)
@@ -1112,10 +1193,13 @@ RSpec.describe "task_bridge:sync task" do
     allow(logger).to receive(:summarize_service_run) do |service_name:, logs:|
       normalized_logs = Array(logs)
       failed = normalized_logs.any? { |entry| entry["status"] == "failed" }
+      successful = normalized_logs.any? { |entry| entry["status"] == "success" || entry["last_successful"].present? }
       status = if failed
         "failed"
-      elsif normalized_logs.any?
+      elsif successful
         "success"
+      elsif normalized_logs.any?
+        "skipped"
       else
         "idle"
       end
