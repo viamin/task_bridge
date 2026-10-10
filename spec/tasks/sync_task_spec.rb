@@ -492,6 +492,38 @@ RSpec.describe "task_bridge:sync task" do
     expect(state.detail).to eq("Pruned completed items")
   end
 
+  it "enqueues a sync_run summary row for each completed service run" do
+    logger = instance_double(StructuredLogger, save_service_log!: nil)
+    stub_logger_summary(logger)
+    primary_service = instance_double("Primary::Service")
+    service = instance_double(
+      "Passing::Service",
+      friendly_name: "Passing",
+      sync_strategies: [:from_primary],
+      prune: nil
+    )
+
+    stub_sync_defaults(services: ["Passing"])
+    allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+    stub_service("Primary", primary_service)
+    stub_service("Passing", service)
+    allow(StructuredLogger).to receive(:new).and_return(logger)
+
+    capture_output do
+      expect { invoke_task("--delete") }.not_to raise_error
+    end
+
+    entry = OutboxEntry.find_by!(record_kind: "sync_run")
+    expect(entry.service_type).to eq("passing")
+    expect(entry.idempotency_key).to start_with("tb:v1:sync_run:passing:sync-run-")
+    expect(entry.payload).to include(
+      "status" => "success",
+      "items_synced" => 0,
+      "detail" => "Pruned completed items",
+      "error" => nil
+    )
+  end
+
   it "passes loaded service items through to sync_to_primary without refetching" do
     logger = instance_double(StructuredLogger, save_service_log!: nil)
     stub_logger_summary(logger)

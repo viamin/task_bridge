@@ -157,3 +157,18 @@ outbox rows or advance the diff baseline.
   timestamps. The baseline is only advanced after every row is enqueued, so
   a failed enqueue can re-detect a transition (at-least-once) but never
   silently swallows one.
+
+## Sync-run summaries
+
+`Outbox::SyncRunEmitter` (hooked into the `task_bridge:sync` rake task,
+alongside `SyncServiceState.record_summary!`) publishes one `sync_run` row
+per service run so TaskBridge Web can correlate item observations with
+operational health. The row reuses the facts `StructuredLogger` already
+summarizes, renamed to the contract's explicit `*_at` timestamp fields
+(`last_attempted` → `last_attempted_at`, and so on). Skipped and idle
+services publish nothing. Failed runs carry `error` with
+`retryable: true`, matching the run-level retry policy TaskBridge actually
+uses (every failed service is retried on the next scheduled sync). The
+`sync_run_id` mirrors `Disappearance::Detector`'s run scope
+(`sync-run-<timestamp>-<service>`), and emission is isolated bookkeeping:
+a failed write never changes the run's own result.
