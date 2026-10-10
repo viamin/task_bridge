@@ -9,9 +9,9 @@
 Every issue-tree area under the epic was verified against the shipped code,
 its tests, and its documentation on this branch. Closed child issues were not
 treated as sufficient evidence: each area below names the implementing files,
-the covering specs, and the documenting file, all re-checked directly. One
-required gap was found and corrected as part of this audit (see "Corrections
-applied").
+the covering specs, and the documenting file, all re-checked directly. Two
+required gaps were found and corrected as part of this audit (see
+"Corrections applied").
 
 ## Area-by-area verification
 
@@ -28,7 +28,7 @@ applied").
 | Sync-run summaries | `Outbox::SyncRunEmitter` (added by this audit), wired into `task_bridge:sync` after `SyncServiceState.record_summary!` | `spec/services/outbox/sync_run_emitter_spec.rb`, `spec/tasks/sync_task_spec.rb` | RDR #215 schema; `docs/normalized-snapshot-field-support.md` | Corrected during audit |
 | Source metadata gaps (#223) | per-adapter `normalized_metadata` (section names/ids, repo, number, lists, priority, reading progress, …) | per-adapter model specs | `docs/source-capability-matrix.md`, `docs/normalized-snapshot-field-support.md` | Verified |
 | GitHub activity (#224) | `Github::ActivityEmitter` (timeline + review facts, per-event idempotency, cursor via `SyncServiceState.record_activity_sync!`) | `spec/services/github/activity_emitter_spec.rb`, `spec/tasks/sync_task_spec.rb` (cursor advance/retain) | `docs/source-capability-matrix.md` | Verified |
-| Calendar context | `GoogleCalendar::Service` (read-only, busy/free default, bounded window, `privacy_mode` gate for details) | `spec/services/google_calendar/service_spec.rb` | RDR #215 privacy constraints; `config/settings.yml` | Verified |
+| Calendar context | `GoogleCalendar::Service` (read-only, busy/free default, bounded window, `privacy_mode` gate for details); rows carry the RDR-required `item_key` and `source` identity (corrected during this audit) | `spec/services/google_calendar/service_spec.rb` (privacy, idempotency, identity conformance) | RDR #215 privacy constraints; `config/settings.yml` | Corrected during audit |
 | Backfills | identity/mapping backfill (`SyncBackfill::SourceProvenance`); observation baselines seed organically — the first refresh of each item emits `snapshot_seen` with the full snapshot embedded; `task_bridge:outbox:publish_dry_run` renders backfill batches without sending | `spec/tasks/backfill_sync_provenance_task_spec.rb`, `observation_emitter_spec.rb` (first-observation), `outbox_publish_task_spec.rb` (dry run) | RDR #215 migration notes | Verified (see "Deferred with rationale") |
 | Tests / observability / privacy / docs | failure isolation (`Outbox::IsolatedWrite`), `--pretend` never writes, Pact consumer contract + committed pact (`spec/pacts/taskbridge-taskbridge_web.json`), notes never published as text (HMAC `notes_digest` only) | `spec/services/outbox/isolated_write_spec.rb`, `spec/services/outbox/web_publisher/task_bridge_web_contract_spec.rb`, emitters' pretend specs | `docs/pact-consumer-contract-testing.md` | Verified |
 
@@ -44,7 +44,8 @@ applied").
    by default (`task_bridge.web.enabled: false`), emission paths are
    write-only bookkeeping wrapped in `Outbox::IsolatedWrite`, `--pretend`
    never writes, and the publisher runs after sync and never changes its
-   exit status. The full suite (716 examples pre-audit) passes unchanged.
+   exit status. The full suite (716 examples pre-audit) passes unchanged,
+   plus the new audit specs.
 4. **Normalized, idempotent facts publishable without source-specific API
    knowledge** — items/observations/mappings/sync_runs are published under
    the versioned batch contract with deterministic idempotency keys and
@@ -68,6 +69,18 @@ applied").
    and privacy defaults.
 3. **Docs gap** — sync-run emission is now described in
    `docs/normalized-snapshot-field-support.md` alongside the other emitters.
+4. **Calendar observations violated the v1 observation schema.** RDR #215
+   makes `item_key` and `source.{service_type, service_instance,
+   external_id}` required on every observation row ("In v1, every
+   observation is item-scoped, so `item_key` must be present"), but
+   `GoogleCalendar::Service#payload_for` emitted only `calendar`/`event`
+   structures — a TaskBridge Web implementation conforming to the contract
+   would have to reject every calendar row as a non-retryable validation
+   error, so calendar context could never be aggregated. Calendar rows now
+   carry `item_key` (`google_calendar:<calendar_id>:<event_id>`) and a
+   `source` block using the same service-qualified instance vocabulary as
+   the other adapters, with the spec pinning the conformance. Busy-only
+   privacy defaults are unchanged.
 
 ## Deferred with rationale (not required gaps)
 
@@ -90,6 +103,7 @@ applied").
 ## Outcome
 
 All issue-tree areas under epic #214 are implemented, tested, and documented
-against RDR #215, with the one required gap (sync-run summary production)
-corrected during this audit and no remaining required gaps known. The epic's
-acceptance criteria are met on this branch.
+against RDR #215. Two required gaps were found by this audit and corrected in
+this changeset (sync-run summary production; calendar observation schema
+conformance), and no remaining required gaps are known. The epic's acceptance
+criteria are met on this branch.

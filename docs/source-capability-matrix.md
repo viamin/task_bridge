@@ -31,7 +31,11 @@ its failures therefore cannot alter task synchronization. Configure the
 calendar IDs and privacy mode under `google.calendar` in `config/settings.yml`.
 An empty `calendar_ids` list disables it. The default `busy_only` mode emits
 calendar identity, event ID/status/cancellation, busy/free availability,
-start/end, and source update time. It deliberately omits titles, locations,
+start/end, and source update time. Every calendar observation carries the
+RDR #215 required identity fields — `item_key`
+(`google_calendar:<calendar_id>:<event_id>`) and a `source` block with
+`service_type`, `service_instance` (`google_calendar:<calendar_id>`), and
+`external_id`. It deliberately omits titles, locations,
 and attendee metadata. `event_details` is an explicit per-deployment opt-in
 for those fields. Calendar descriptions and attendee identities are never
 published.

@@ -34,6 +34,22 @@ RSpec.describe GoogleCalendar::Service do
     expect(payload.dig("event", "attendee_response_statuses")).to be_nil
   end
 
+  it "carries the RDR #215 required observation identity fields" do
+    service.sync(observed_at:)
+
+    row = OutboxEntry.sole
+    payload = row.payload
+    expect(payload["item_key"]).to eq("google_calendar:work@example.com:event-1")
+    expect(payload["source"]).to eq(
+      "service_type" => "google_calendar",
+      "service_instance" => "google_calendar:work@example.com",
+      "external_id" => "event-1"
+    )
+    expect(row.service_type).to eq("google_calendar")
+    expect(row.service_instance).to eq("google_calendar:work@example.com")
+    expect(row.external_id).to eq("event-1")
+  end
+
   it "publishes explicitly enabled event details" do
     options[:privacy_mode] = "event_details"
 

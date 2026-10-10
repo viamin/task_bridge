@@ -14,6 +14,7 @@ module GoogleCalendar
     EVENT_DETAILS = "event_details"
     CREDENTIAL_ID = "google_calendar"
     PRIVACY_MODES = [BUSY_ONLY, EVENT_DETAILS].freeze
+    SERVICE_TYPE = "google_calendar"
 
     def initialize(options: nil, calendar_service: Google::Apis::CalendarV3::CalendarService.new, authorization: nil)
       @options = options || settings
@@ -71,8 +72,8 @@ module GoogleCalendar
       OutboxEntry.enqueue(
         record_kind: :observation,
         event_type: "snapshot_seen",
-        service_type: "google_calendar",
-        service_instance: calendar_id,
+        service_type: SERVICE_TYPE,
+        service_instance: service_instance(calendar_id),
         external_id: event.id,
         observed_at:,
         source_updated_at: event.updated,
@@ -88,7 +89,13 @@ module GoogleCalendar
         event_type: "snapshot_seen",
         observed_at: timestamp(observed_at),
         fact_type: "calendar_event",
-        calendar: { service_type: "google_calendar", calendar_id: },
+        item_key: item_key(calendar_id, event.id),
+        source: {
+          service_type: SERVICE_TYPE,
+          service_instance: service_instance(calendar_id),
+          external_id: event.id
+        },
+        calendar: { service_type: SERVICE_TYPE, calendar_id: },
         event: {
           id: event.id,
           status: event.status,
@@ -121,7 +128,22 @@ module GoogleCalendar
       # its own deterministic publication.
       stable_payload = payload.deep_dup.except(:observed_at)
       digest = Digest::SHA256.hexdigest(stable_payload.to_json)
-      ["tb:v1", "calendar", payload.dig(:calendar, :calendar_id), event.fetch(:id), digest].join(":")
+      calendar_id = payload.dig(:calendar, :calendar_id)
+      ["tb:v1", "calendar", calendar_id, event.fetch(:id), digest].join(":")
+    end
+
+    # RDR #215 requires every observation row to be item-scoped: item_key
+    # plus source.service_type/service_instance/external_id. Calendar
+    # events are not tasks, but they still travel as observations, so they
+    # carry the same required identity fields.
+    def item_key(calendar_id, event_id)
+      [SERVICE_TYPE, calendar_id, event_id].join(":")
+    end
+
+    # Matches the instance vocabulary other adapters publish (e.g.
+    # "asana:work"): service-qualified and stable per configured calendar.
+    def service_instance(calendar_id)
+      [SERVICE_TYPE, calendar_id].join(":")
     end
 
     def event_time(value)
