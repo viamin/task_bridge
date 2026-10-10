@@ -151,6 +151,17 @@ outbox rows or advance the diff baseline.
   changes (for example `title_fallback` upgrading to `source_sync_id`).
   Internal confidence values map to the contract's vocabulary
   (high → `confirmed`; medium/low → `tentative`).
+- **Sync-run summaries** (`Outbox::SyncRunEmitter`, hooked into the
+  `task_bridge:sync` rake task next to `SyncServiceState.record_summary!`):
+  one `sync_run` row per service run this invocation actually attempted, so
+  TaskBridge Web can correlate a run's observations with operational health.
+  Skipped and idle services publish nothing (RDR #215): a skipped sync
+  replays its previous summary whose `last_attempted` predates this run, and
+  republishing it would fabricate a run that never happened. The
+  `sync_run_id` matches the run scope `Outbox::ObservationEmitter` stamps
+  into observation provenance, and the identity follows
+  `Outbox::SourceIdentity` (`service_type` is the bare adapter identifier;
+  the instance segment lives only in `service_instance`).
 - **Key uniqueness**: when one observation yields several field transitions,
   each row's idempotency key carries a sequence segment
   (`Outbox::IdempotencyKey`), per the RDR #215 rule for colliding observed

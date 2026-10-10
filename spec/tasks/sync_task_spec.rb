@@ -956,6 +956,8 @@ RSpec.describe "task_bridge:sync task" do
   end
 
   describe "outbox publication" do
+    include ActiveSupport::Testing::TimeHelpers
+
     let(:logger) { instance_double(StructuredLogger, save_service_log!: nil) }
     let(:primary_service) { instance_double("Primary::Service") }
     let(:service) do
@@ -1005,6 +1007,45 @@ RSpec.describe "task_bridge:sync task" do
       end
 
       expect(Outbox::WebPublisher).not_to have_received(:run!)
+    end
+
+    it "enqueues a sync-run summary outbox row for attempted services" do
+      allow(service).to receive(:sync_from_primary).and_return(
+        {
+          "service" => "Passing",
+          "last_attempted" => "2024-01-01T09:00:00.000000Z",
+          "last_successful" => "2024-01-01T09:00:00.000000Z",
+          "items_synced" => 1,
+          "touched_collection_ids" => [7]
+        }.stringify_keys
+      )
+
+      travel_to(Time.zone.parse("2024-01-01T09:00:00Z")) do
+        capture_output { expect { invoke_task }.not_to raise_error }
+      end
+
+      row = OutboxEntry.find_by(record_kind: "sync_run")
+      expect(row).to have_attributes(service_type: "passing", service_instance: "passing")
+      expect(row.idempotency_key).to eq("tb:v1:sync_run:passing:sync-run-2024-01-01T09:00:00.000000Z")
+      expect(row.payload).to include("status" => "success", "items_synced" => 1, "touched_collection_ids" => [7])
+    end
+
+    it "does not enqueue a sync-run summary for skipped services" do
+      allow(service).to receive(:should_sync?).and_return(false)
+      allow(service).to receive(:sync_from_primary).and_return(
+        {
+          "service" => "Passing",
+          "last_attempted" => "2023-12-31T09:00:00.000000Z",
+          "items_synced" => 0,
+          "detail" => "Sync not required"
+        }.stringify_keys
+      )
+
+      travel_to(Time.zone.parse("2024-01-01T09:00:00Z")) do
+        capture_output { expect { invoke_task }.not_to raise_error }
+      end
+
+      expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
     end
 
     it "stays quiet about disabled publication" do
