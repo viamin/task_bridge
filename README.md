@@ -12,6 +12,39 @@ Run `bin/rails task_bridge:sync -- --help` to see available command line options
 
 The command line option will take precedence over the settings in the configuration file.
 
+## Publishing observations to TaskBridge Web
+
+TaskBridge is the deterministic observation layer for your productivity
+systems: while it syncs, it also records normalized facts — current-state
+snapshots, change observations, deletion tombstones, cross-system
+mappings, and one summary per service sync run — into a local outbox
+(`outbox_entries`). Those rows are published over authenticated HTTP to
+[TaskBridge Web](https://github.com/viamin/task-bridge-web), which owns
+durable history, analytics, and any LLM-facing behavior. The contract is
+defined in [RDR 215](docs/rdr-215-taskbridge-observation-publication-contract.md).
+
+Publication is disabled by default, so sync behavior is unchanged until a
+deployment opts in. Configure the `task_bridge.web` settings in
+`config/settings.yml` or via `TASK_BRIDGE_WEB_*` environment variables
+(see `.env.example`): `enabled`, `base_url`, `api_key` (generate the ingest
+key in TaskBridge Web), `batch_size`, `timeout_seconds`, and retry backoff
+tuning. The API key can also be a 1Password `op://` reference resolved by
+your deployment scripts — never commit it.
+
+Publication runs automatically at the end of `task_bridge:sync`, and these
+tasks are also available:
+
+* `bin/rails task_bridge:outbox:publish` — publish pending rows (retries rows whose backoff is due)
+* `bin/rails task_bridge:outbox:prune` — prune delivered and reviewed terminal rows past the retention windows (`task_bridge.outbox.retention`)
+* `bin/rails task_bridge:outbox:publish_dry_run` — render the exact batches to stdout without sending anything (development/backfill preview)
+* `bin/rails task_bridge:sync_calendar` — publish read-only Google Calendar availability observations
+
+Privacy defaults: notes and descriptions never leave TaskBridge through
+the observation contract — change detection publishes only a keyed digest.
+Calendar ingestion defaults to `busy_only` availability; publishing event
+details requires an explicit per-source opt-in
+(`task_bridge.google.calendar.privacy_mode`).
+
 ## OmniFocus Setup
 
 TaskBridge supports both the local Mac app and OmniFocus for the Web. If you run the hosted/web path, set the `omnifocus_web_*` settings in `config/settings.yml` or via your environment. Otherwise, OmniFocus needs to be installed on the computer you're running this script on so AppleScript can talk to it.
@@ -24,6 +57,7 @@ Supported services and their tags:
 |---------|-----
 | Asana | Asana
 | Github | Github
+| Google Keep | Google Keep
 | Google Tasks | Google Tasks
 | Instapaper | Instapaper
 | Reclaim.ai | Reclaim
