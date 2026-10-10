@@ -68,12 +68,12 @@ RSpec.describe Outbox::MappingEmitter do
       expect(row).to have_attributes(
         external_id: "issue-42",
         service_type: "github",
-        service_instance: "github:repo-1",
+        service_instance: "github:repo-1:default",
         sync_collection_id: collection.id,
         observed_at:
       )
       expect(row.idempotency_key).to eq(
-        "tb:v1:map:sync_collection:#{collection.id}:membership:github:repo-1:issue-42:2026-10-05T10:00:00.000000Z"
+        "tb:v1:map:sync_collection:#{collection.id}:membership:github:repo-1:default:issue-42:2026-10-05T10:00:00.000000Z"
       )
       expect(row.payload).to include(
         "mapping_type" => "representation_membership",
@@ -85,7 +85,7 @@ RSpec.describe Outbox::MappingEmitter do
       expect(row.payload["member"]).to include(
         "item_key" => "github_repo_1:issue-42",
         "service_type" => "github",
-        "service_instance" => "github:repo-1",
+        "service_instance" => "github:repo-1:default",
         "external_id" => "issue-42"
       )
       expect(member.normalized_snapshot[:source]).to eq(Outbox::SourceIdentity.for(member))
