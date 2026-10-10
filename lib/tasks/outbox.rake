@@ -27,5 +27,43 @@ namespace :task_bridge do
       warn "Outbox dry run: would publish #{summary[:rows]} rows " \
            "across #{summary[:batches]} batches (nothing was sent)"
     end
+
+    desc "backfill baseline item snapshots and mapping rows into the outbox for existing sync data (#222)"
+    task backfill_baseline: :environment do
+      puts backfill_summary_text(Outbox::Backfill.run!)
+    end
+
+    desc "preview the baseline backfill counts without writing any outbox rows (#222)"
+    task backfill_baseline_dry_run: :environment do
+      puts backfill_summary_text(Outbox::Backfill.run!(dry_run: true))
+    end
   end
+end
+
+# Rendering helper shared by the backfill tasks; defined at the rake file's
+# top level so both tasks (and their specs) see the same output shape.
+def backfill_summary_text(summary)
+  lines = ["Outbox baseline backfill #{summary[:status]}:"]
+  lines << "  items: #{counts(summary[:items])}"
+  summary[:items][:by_service].each do |service, service_counts|
+    lines << "    item #{service}: #{counts(service_counts)}"
+  end
+  lines << "  mappings: #{counts(summary[:mappings])}"
+  summary[:mappings][:by_service].each do |service, service_counts|
+    lines << "    mapping #{service}: #{counts(service_counts)}"
+  end
+  lines << "  mapping confidence: #{tally(summary[:mappings][:by_confidence])}"
+  lines << "  skipped reasons: #{tally(summary[:skipped_reasons])}"
+  lines.join("\n")
+end
+
+def counts(counts)
+  counts.reject { |_outcome, count| count.is_a?(Hash) }
+        .map { |outcome, count| "#{outcome}=#{count}" }.join(" ")
+end
+
+def tally(counts)
+  return "none" if counts.empty?
+
+  counts.map { |value, count| "#{value}=#{count}" }.join(" ")
 end

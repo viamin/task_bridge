@@ -74,6 +74,11 @@ module Github
     end
 
     def friendly_title
+      # External reads may be absent (e.g. database-loaded rows in the
+      # baseline backfill, #222), so fall back to the bare title rather
+      # than rendering a placeholder number.
+      return title.to_s.strip if number.blank?
+
       "#{project}-##{number}: #{'[PR] ' if is_pr}#{title.strip}"
     end
 
@@ -86,17 +91,20 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. External
+    # reads may be absent (e.g. rows loaded from the database by the baseline
+    # backfill, #222), so every external-data lookup stays nil-safe and
+    # `compact` drops what cannot be resolved.
     def normalized_metadata
       {
         number:,
         pull_request: is_pr,
         repository: full_repo_name,
-        author: github_issue.dig("user", "login"),
+        author: github_issue&.dig("user", "login"),
         assignees: assignee_logins,
-        milestone: github_issue.dig("milestone", "title"),
-        comments_count: github_issue["comments"].presence,
-        draft: (github_issue["draft"] if is_pr)
+        milestone: github_issue&.dig("milestone", "title"),
+        comments_count: github_issue&.dig("comments").presence,
+        draft: (github_issue&.dig("draft") if is_pr)
       }.compact
     end
 
@@ -121,11 +129,12 @@ module Github
     end
 
     def full_repo_name
-      github_issue["repository_url"]&.split("repos/")&.last
+      repository_url = github_issue&.dig("repository_url")
+      repository_url&.split("repos/")&.last
     end
 
     def assignee_logins
-      Array(github_issue["assignees"]).filter_map { |assignee| assignee["login"] }
+      Array(github_issue && github_issue["assignees"]).filter_map { |assignee| assignee["login"] }
     end
 
     # Raw:
