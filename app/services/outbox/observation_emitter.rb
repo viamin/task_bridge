@@ -16,18 +16,24 @@ module Outbox
     SYNC_COMPARE = "sync_compare"
     DEFAULT_DISCOVERY_DETECTED_BY = "source_refresh"
 
+    # `provenance` fully replaces the options-derived provenance (which
+    # attributes the row to the current sync run). Backfills (#222) pass a
+    # static hash — `detected_by: "baseline_backfill"` — so a baseline row
+    # never claims a sync run that did not happen and its payload stays
+    # deterministic across reruns.
     def self.emit_for_item(item, previous_snapshot: nil, observed_at: nil,
-                           discovery_detected_by: DEFAULT_DISCOVERY_DETECTED_BY)
+                           discovery_detected_by: DEFAULT_DISCOVERY_DETECTED_BY, provenance: nil)
       Outbox::IsolatedWrite.call("observation for #{item.item_key}") do
-        new(item, previous_snapshot:, observed_at:, discovery_detected_by:).emit
+        new(item, previous_snapshot:, observed_at:, discovery_detected_by:, provenance:).emit
       end
     end
 
-    def initialize(item, previous_snapshot:, observed_at:, discovery_detected_by:)
+    def initialize(item, previous_snapshot:, observed_at:, discovery_detected_by:, provenance:)
       @item = item
       @previous_snapshot = previous_snapshot
       @observed_at = observed_at || item.last_observed_at || Time.current
       @discovery_detected_by = discovery_detected_by
+      @provenance = provenance
     end
 
     def emit
@@ -77,6 +83,8 @@ module Outbox
     end
 
     def provenance(detected_by)
+      return @provenance.deep_stringify_keys if @provenance.present?
+
       { detected_by: }.tap do |provenance|
         sync_run_id = item.options[:sync_started_at]
         provenance[:sync_run_id] = "sync-run-#{sync_run_id}" if sync_run_id.present?
