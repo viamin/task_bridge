@@ -56,6 +56,23 @@ Download the JSON credentials to `google_api_client_credentials.json` (or whatev
 Run the script and follow the instructions to get an auth token
 By default the token will be saved to `~/.config/google/credentials.yaml` - copy it to the script directory or update your `.env` to point to the credentials file. You can use multiple credentials files for different Google accounts, if you desire.
 
+## TaskBridge Web publication
+
+During every sync, TaskBridge records normalized observations of your items
+(changes, deletions, cross-service mappings, and per-run summaries) into a
+local outbox and can publish them to a
+[TaskBridge Web](https://github.com/viamin/task-bridge-web) instance, which
+keeps the durable history, analytics, and retrieval layers.
+
+This is disabled by default. To enable it, set the `task_bridge.web` settings
+in `config/settings.yml` (`enabled`, `base_url`, `api_key`). Failed
+deliveries stay in the outbox and retry with backoff; publication never
+affects sync itself. See
+[`docs/rdr-215-taskbridge-observation-publication-contract.md`](docs/rdr-215-taskbridge-observation-publication-contract.md)
+for the contract, and `bin/rails task_bridge:outbox:publish_dry_run` to
+preview the exact batches without sending anything. Notes and calendar
+details never leave TaskBridge unless you explicitly opt in per source.
+
 ## Running automatically (on a Mac)
 
 Scripts are included to run this automatically on a Mac, assuming you have `ruby` installed.
