@@ -987,6 +987,33 @@ RSpec.describe "task_bridge:sync task" do
       expect(stdout).to include("Published 2 outbox rows to TaskBridge Web (published)")
     end
 
+    it "enqueues a sync-run summary row for the service run" do
+      pending "lands with the sync-run summary producer (#221, #214)"
+
+      capture_output do
+        expect { invoke_task }.not_to raise_error
+      end
+
+      row = OutboxEntry.find_by(record_kind: "sync_run")
+      expect(row).to have_attributes(service_type: "passing", service_instance: "passing")
+      expect(row.idempotency_key).to start_with("tb:v1:sync_run:passing:sync-run-")
+      expect(row.payload).to include(
+        "service_instance" => "passing",
+        "status" => "success",
+        "items_synced" => 1,
+        "error" => nil
+      )
+      expect(row.payload["started_at"]).to match(/\A\d{4}-\d{2}-\d{2}T/)
+    end
+
+    it "does not enqueue sync-run rows during pretend runs" do
+      capture_output do
+        expect { invoke_task("-x") }.not_to raise_error
+      end
+
+      expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    end
+
     it "keeps the sync run green when publication fails" do
       allow(Outbox::WebPublisher).to receive(:run!).and_raise(StandardError, "connection refused")
 
