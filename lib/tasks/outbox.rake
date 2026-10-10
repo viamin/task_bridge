@@ -2,6 +2,13 @@
 
 namespace :task_bridge do
   namespace :outbox do
+    desc "seed baseline item snapshots and confirmed mapping rows for existing synchronized data (RDR #215 backfill)"
+    task backfill: :environment do
+      summary = SyncBackfill::Baseline.run!
+      puts "Backfilled #{summary[:items]} item snapshot rows and " \
+           "#{summary[:mappings]} confirmed mapping rows into the outbox"
+    end
+
     desc "prune delivered and terminal-failure outbox entries past their retention windows"
     task prune: :environment do
       pruned = Outbox::Prune.run!

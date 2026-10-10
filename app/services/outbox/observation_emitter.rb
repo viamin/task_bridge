@@ -78,8 +78,8 @@ module Outbox
 
     def provenance(detected_by)
       { detected_by: }.tap do |provenance|
-        sync_run_id = item.options[:sync_started_at]
-        provenance[:sync_run_id] = "sync-run-#{sync_run_id}" if sync_run_id.present?
+        run_started_at = item.options[:sync_started_at]
+        provenance[:sync_run_id] = Outbox::SyncRunId.for(item.service_name, at: run_started_at) if run_started_at.present?
       end
     end
 
