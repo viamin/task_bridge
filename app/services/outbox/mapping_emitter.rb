@@ -15,10 +15,13 @@ module Outbox
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
     # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # must ignore unknown values rather than break. `medium` maps to
+    # `inferred` (title-derived evidence, RDR #215 open question resolved
+    # with #222); `low` maps to `tentative`, which the backfill withholds
+    # from publication entirely.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -27,17 +30,29 @@ module Outbox
       "manual_backfill" => "manual"
     }.freeze
 
-    def self.emit_for_members(collection, members:, observed_at: Time.current)
-      Array(members).select { |member| eligible?(member) }.each do |member|
+    # `provenance_extras` merges additional provenance facts (e.g. the
+    # backfill's `detected_by`/`backfilled_at` markers from #222) into each
+    # row's provenance without changing the mapping payload shape. Returns
+    # the rows that were enqueued (skipped or isolated-write-failed members
+    # are absent), which the backfill uses for its summary counts.
+    def self.emit_for_members(collection, members:, observed_at: Time.current, provenance_extras: {})
+      Array(members).select { |member| eligible?(member) }.filter_map do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
+            payload: payload(collection, member, identity, observed_at, provenance_extras),
             **enqueue_context(identity, collection, observed_at)
           )
         end
       end
+    end
+
+    # Translates an internal SyncCollection#mapping_confidence to the
+    # contract's enum value. Shared with the #222 backfill so backfilled and
+    # live mapping rows always agree on the vocabulary.
+    def self.confidence_for(internal_confidence)
+      CONFIDENCE.fetch(internal_confidence, internal_confidence)
     end
 
     class << self
@@ -47,7 +62,7 @@ module Outbox
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
       end
 
-      def payload(collection, member, identity, observed_at)
+      def payload(collection, member, identity, observed_at, provenance_extras)
         {
           contract_version: OutboxEntry::PAYLOAD_VERSION,
           mapping_type: MAPPING_TYPE,
@@ -58,13 +73,13 @@ module Outbox
           },
           member: identity.merge(item_key: member.item_key),
           membership_role: MEMBERSHIP_ROLE,
-          mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
+          mapping_confidence: confidence_for(collection.mapping_confidence),
           mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
           provenance: {
             method: collection.mapping_method,
             confidence: collection.mapping_confidence,
             metadata: collection.mapping_metadata
-          }
+          }.merge(provenance_extras)
         }
       end
 

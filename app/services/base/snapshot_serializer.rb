@@ -31,12 +31,21 @@ module Base
         .merge(scheduling_fields)
         .merge(classification_fields)
         .merge(relationship_fields)
-        .merge(metadata: item.normalized_metadata)
+        .merge(metadata: metadata)
     end
 
     private
 
     attr_reader :item
+
+    # Source-specific metadata is read from the item's transient external
+    # payload, which only exists while an item is being synced. Rows loaded
+    # outside a sync — e.g. the #222 baseline backfill — have no payload,
+    # and several adapters' accessors would crash on nil, so the section is
+    # omitted entirely rather than every adapter guarding itself.
+    def metadata
+      item.external_data.blank? ? {} : item.normalized_metadata
+    end
 
     def identity_fields
       {
