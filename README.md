@@ -24,6 +24,7 @@ Supported services and their tags:
 |---------|-----
 | Asana | Asana
 | Github | Github
+| Google Keep | Google Keep
 | Google Tasks | Google Tasks
 | Instapaper | Instapaper
 | Reclaim.ai | Reclaim
@@ -55,6 +56,51 @@ Download the JSON credentials to `google_api_client_credentials.json` (or whatev
 
 Run the script and follow the instructions to get an auth token
 By default the token will be saved to `~/.config/google/credentials.yaml` - copy it to the script directory or update your `.env` to point to the credentials file. You can use multiple credentials files for different Google accounts, if you desire.
+
+## Publishing observations to TaskBridge Web
+
+TaskBridge is the deterministic observation layer: while it syncs, it records
+normalized facts (item snapshots, changes, deletions, cross-system mappings,
+sync-run summaries) into a local outbox and can publish them to a
+[TaskBridge Web](https://github.com/viamin/task-bridge-web) deployment, which
+owns durable history, analytics, and any LLM-facing behavior. The contract is
+versioned and idempotent — see
+`docs/rdr-215-taskbridge-observation-publication-contract.md`.
+
+Publication is **disabled by default**; sync behavior is unchanged until a
+deployment opts in. Configure it under `task_bridge.web` in
+`config/settings.yml` (or the `TASK_BRIDGE_WEB_*` environment variables in
+`.env.example`):
+
+```yaml
+task_bridge:
+  web:
+    enabled: true
+    base_url: https://your-task-bridge-web.example.com
+    api_key: <ingestion key generated in TaskBridge Web>
+```
+
+Rows are only marked delivered after TaskBridge Web accepts them; retryable
+failures back off and are retried on later runs, and terminal failures stay
+in the outbox for operator review. Delivered rows and reviewed terminal
+failures are pruned after the `task_bridge.outbox.retention` windows.
+
+Related tasks:
+
+```bash
+bundle exec rake task_bridge:outbox:publish         # drain pending rows now
+bundle exec rake task_bridge:outbox:publish_dry_run # render batches to stdout without sending
+bundle exec rake task_bridge:outbox:prune           # prune per retention windows
+bundle exec rake task_bridge:sync_calendar          # read-only calendar availability observations
+```
+
+Privacy defaults: raw notes and descriptions never leave TaskBridge — change
+detection uses a keyed digest instead, and `notes_preview` publication waits
+on an explicit per-source opt-in setting. Calendar ingestion defaults to
+busy/free availability only (`google.calendar.privacy_mode: busy_only`);
+titles, locations, and attendee response statuses require the explicit
+`event_details` opt-in, and descriptions or attendee identities are never
+published.
 
 ## Running automatically (on a Mac)
 

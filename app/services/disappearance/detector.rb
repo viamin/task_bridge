@@ -17,16 +17,8 @@ module Disappearance
 
     class << self
       def record!(service:, observed_items:, complete_fetch:, observed_at: Time.current)
-        sync_run_id = sync_run_id_for(service, at: observed_at)
+        sync_run_id = Outbox::SyncRunId.for(service.service_name, at: observed_at)
         new(service:, observed_items:, sync_run_id:, observed_at:, complete_fetch:).record!
-      end
-
-      private
-
-      # RDR #215 sync-run scope, e.g. "sync-run-20260814T192000Z-asana".
-      def sync_run_id_for(service, at:)
-        identifier = Base::Service.service_identifier_for(service.service_name)
-        "sync-run-#{at.utc.strftime('%Y%m%dT%H%M%SZ')}-#{identifier}"
       end
     end
 
