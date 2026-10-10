@@ -56,6 +56,36 @@ Download the JSON credentials to `google_api_client_credentials.json` (or whatev
 Run the script and follow the instructions to get an auth token
 By default the token will be saved to `~/.config/google/credentials.yaml` - copy it to the script directory or update your `.env` to point to the credentials file. You can use multiple credentials files for different Google accounts, if you desire.
 
+## Publishing observations to TaskBridge Web
+
+TaskBridge is the deterministic observation layer for your productivity data: during every sync it records normalized, source-agnostic facts into a local outbox — current-state item snapshots and field-level changes, cross-system mapping memberships, deletion tombstones, GitHub issue/PR activity, and one summary per service run. Publication to TaskBridge Web is opt-in and fully decoupled from sync: an unavailable Web instance never fails a sync run.
+
+Enable it under `task_bridge.web` in `config/settings.yml` (or the `TASK_BRIDGE_WEB_*` environment variables):
+
+```yaml
+task_bridge:
+  web:
+    enabled: true
+    base_url: https://taskbridge-web.example.com
+    api_key: <ingestion key generated in TaskBridge Web>
+```
+
+Delivery is at-least-once with deterministic per-row idempotency keys: accepted or replayed rows are marked delivered, retryable failures back off exponentially, and terminal failures stay in the outbox for operator review. Delivered rows are pruned after the configured retention window — TaskBridge Web owns durable history; the local outbox is only a bounded delivery queue.
+
+Notes are never published: snapshots carry a keyed `notes_digest` instead, so note edits remain observable without the text leaving TaskBridge.
+
+Useful tasks:
+
+```bash
+bin/rails task_bridge:outbox:publish           # publish pending outbox rows now
+bin/rails task_bridge:outbox:publish_dry_run   # render pending batches as NDJSON without sending
+bin/rails task_bridge:outbox:prune             # prune rows past the retention windows
+bin/rails task_bridge:backfill_sync_provenance # seed source identity/mapping provenance for existing data
+bin/rails task_bridge:sync_calendar            # read-only calendar availability observations
+```
+
+The full publication contract is specified in [docs/rdr-215-taskbridge-observation-publication-contract.md](docs/rdr-215-taskbridge-observation-publication-contract.md).
+
 ## Running automatically (on a Mac)
 
 Scripts are included to run this automatically on a Mac, assuming you have `ruby` installed.
