@@ -155,6 +155,20 @@ RSpec.describe Disappearance::Detector do
       )
     end
 
+    it "stamps tombstones with the run-scoped id when detection runs inside a sync run" do
+      persisted_item("det-missing")
+      run_scoped_service = service_class.new(options: options.merge(sync_started_at: "2026-10-05T19:20:00.000000Z"))
+      run_scoped_service.detector_strategy = strategy
+      run_scoped_service.scope_available = true
+      run_scoped_service.verifier = verifier
+
+      entry = described_class.record!(
+        service: run_scoped_service, observed_items: [], complete_fetch: true, observed_at: observed_at
+      ).first
+
+      expect(entry.payload["provenance"]["sync_run_id"]).to eq("sync-run-20261005T192000Z-detector_service")
+    end
+
     it "does not re-emit the same state on a later run" do
       persisted_item("det-missing")
       record_with([])

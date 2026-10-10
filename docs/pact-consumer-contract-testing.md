@@ -56,6 +56,10 @@ bundle exec rspec spec/services/outbox/web_publisher/task_bridge_web_contract_sp
 - The pact file is rewritten from the run's verified interactions
   (`pactfile_write_mode: overwrite`). Run the **whole file**, not
   `--example` subsets, before committing it.
+- Interactions are sorted by description at write time
+  (`spec/pact_helper.rb`), so regeneration is deterministic: whatever the
+  RSpec seed, the same specs produce the same bytes and the committed
+  file only changes when the contract actually changes.
 - CI runs it with the rest of the suite (`bundle exec rspec --tag ~no_ci`).
 - Mock-service logs land in `log/` (gitignored).
 

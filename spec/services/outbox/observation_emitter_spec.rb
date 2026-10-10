@@ -79,7 +79,7 @@ RSpec.describe Outbox::ObservationEmitter do
       expect(row.payload["snapshot"]["title"]).to eq("Buy milk")
       expect(row.payload["provenance"]).to include(
         "detected_by" => "source_refresh",
-        "sync_run_id" => "sync-run-2026-10-05T10:00:00.000000Z"
+        "sync_run_id" => "sync-run-20261005T100000Z-test_service"
       )
       expect(row.idempotency_key).to eq(
         "tb:v1:obs:test_service:obs-1:snapshot_seen:2026-10-05T10:00:00.000000Z"
