@@ -115,6 +115,8 @@ Every item or observation must identify the source record with:
 
 TaskBridge owns the `service_instance` format. It must be stable for the life of that configuration and unique within one TaskBridge deployment.
 
+Services configured without an instance suffix (OmniFocus, Reminders, and other single-instance services) resolve `service_instance` to `<service_type>:default`, such as `omnifocus:default` (decided with issue #222). The `default` token is permanent — it is embedded in idempotency keys — and both the live pipeline and the baseline backfill resolve it identically so their rows share identities.
+
 For v1 item and observation records, `source.service_type`, `source.service_instance`, and `source.external_id` are required. `source_url` and `source_collection_keys` remain optional because some providers cannot supply them reliably.
 
 `service_instance` and `item_key` are opaque identifiers. Consumers must not parse them by splitting on `:` because provider- or deployment-defined segments may themselves contain colons.
@@ -685,7 +687,8 @@ Rules:
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remained unresolved pending further product guidance, and until resolution implementation issues under #214 were required to default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+  - **Resolved (2026-10-10, issue #222 clarification)**: withhold `tentative` memberships from backfill publication. Internal confidence maps to the contract enum as `high` → `confirmed` and `medium` → `inferred`; `low`/`tentative` rows stay local, remaining identifiable through the backfill dry-run summary counts by confidence until a later sync upgrades their evidence or they are cleaned up manually. Whether TaskBridge Web should ever *accept* backfilled `tentative` rows remains a product-owner decision point; nothing in the contract itself changes.
 
 ## Rejected Alternatives
 

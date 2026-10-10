@@ -116,7 +116,7 @@ RSpec.describe Disappearance::Detector do
       expect(entry.payload["source"]).to match(
         hash_including(
           "service_type" => "detector_service",
-          "service_instance" => service.service_name,
+          "service_instance" => "detector_service:default",
           "external_id" => "det-missing"
         )
       )

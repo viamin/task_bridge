@@ -102,26 +102,27 @@ module Disappearance
     end
 
     def enqueue_tombstone(item, finding)
+      identity = Outbox::SourceIdentity.for(item)
       OutboxEntry.enqueue(
         record_kind: :observation,
         event_type: "deleted",
-        service_type: service_type_for(item),
-        service_instance: service.service_name,
-        external_id: item.external_id,
+        service_type: identity[:service_type],
+        service_instance: identity[:service_instance],
+        external_id: identity[:external_id],
         sync_collection_id: item.sync_collection_id,
         source_updated_at: item.source_updated_at,
         observed_at:,
-        payload: payload_for(item, finding)
+        payload: payload_for(item, finding, identity)
       )
     end
 
-    def payload_for(item, finding)
+    def payload_for(item, finding, identity)
       {
         "contract_version" => OutboxEntry::PAYLOAD_VERSION,
         "event_type" => "deleted",
         "observed_at" => observed_at.utc.iso8601(6),
         "item_key" => item.item_key,
-        "source" => source_payload(item),
+        "source" => source_payload(item, identity),
         "last_known" => last_known_payload(item),
         "is_deleted" => Disappearance::States.deletion?(finding.state),
         "disappearance_state" => finding.state,
@@ -129,11 +130,15 @@ module Disappearance
       }
     end
 
-    def source_payload(item)
+    # Source identity comes from the shared Outbox::SourceIdentity builder
+    # so tombstones reference the same item identity — including the fixed
+    # `:default` instance token — as observations, mappings, and the
+    # baseline backfill (#222).
+    def source_payload(item, identity)
       {
-        "service_type" => service_type_for(item),
-        "service_instance" => service.service_name,
-        "external_id" => item.external_id,
+        "service_type" => identity[:service_type],
+        "service_instance" => identity[:service_instance],
+        "external_id" => identity[:external_id],
         "source_url" => item.source_url.presence || item.url
       }.compact
     end
@@ -154,10 +159,6 @@ module Disappearance
         "detection_strategy" => strategy.mode.to_s,
         "sync_run_id" => sync_run_id
       }.merge(finding.detail || {})
-    end
-
-    def service_type_for(item)
-      Base::Service.service_identifier_for(item.provider)
     end
 
     def recorded_state_for(item)

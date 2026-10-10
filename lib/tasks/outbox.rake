@@ -2,6 +2,16 @@
 
 namespace :task_bridge do
   namespace :outbox do
+    desc "seed the outbox with baseline item snapshots and collection mappings for existing sync data (#222; idempotent)"
+    task backfill_baseline: :environment do
+      SyncBackfill::OutboxBaseline.run!
+    end
+
+    desc "preview the baseline outbox backfill counts by service and confidence without enqueuing anything"
+    task backfill_baseline_dry_run: :environment do
+      SyncBackfill::OutboxBaseline.run!(dry_run: true)
+    end
+
     desc "prune delivered and terminal-failure outbox entries past their retention windows"
     task prune: :environment do
       pruned = Outbox::Prune.run!

@@ -7,7 +7,9 @@ module Outbox
   # track cross-system representations without diffing snapshots. Write
   # failures are isolated per member via Outbox::IsolatedWrite: one
   # member's failed row never blocks the others and never propagates into
-  # the sync flow.
+  # the sync flow. Returns the rows that were written (or found already
+  # enqueued), so callers such as the baseline backfill (#222) can count
+  # what actually landed; dropped writes are absent from the result.
   class MappingEmitter
     MAPPING_TYPE = "representation_membership"
     MEMBERSHIP_ROLE = "member"
@@ -15,10 +17,13 @@ module Outbox
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
     # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # must ignore unknown values rather than break. `medium` maps to
+    # `inferred` (title-derived evidence) per the #222 clarification of
+    # RDR #215's open question; `low` stays `tentative`, which the baseline
+    # backfill withholds from publication entirely.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -27,17 +32,24 @@ module Outbox
       "manual_backfill" => "manual"
     }.freeze
 
-    def self.emit_for_members(collection, members:, observed_at: Time.current)
-      Array(members).select { |member| eligible?(member) }.each do |member|
+    def self.emit_for_members(collection, members:, observed_at: Time.current, provenance_extras: {})
+      Array(members).select { |member| eligible?(member) }.filter_map do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
+            payload: payload(collection, member, identity, observed_at, provenance_extras:),
             **enqueue_context(identity, collection, observed_at)
           )
         end
       end
+    end
+
+    # The contract confidence for a collection's current mapping evidence.
+    # Shared with the baseline backfill (#222) so it withholds exactly the
+    # rows this emitter would publish as `tentative`.
+    def self.translated_confidence(collection)
+      CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence)
     end
 
     class << self
@@ -47,7 +59,10 @@ module Outbox
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
       end
 
-      def payload(collection, member, identity, observed_at)
+      # `provenance_extras` lets a caller mark how the mapping row was
+      # produced (e.g. the backfill's detected_by/backfilled_at) without
+      # changing the shape live emitters publish.
+      def payload(collection, member, identity, observed_at, provenance_extras: {})
         {
           contract_version: OutboxEntry::PAYLOAD_VERSION,
           mapping_type: MAPPING_TYPE,
@@ -58,13 +73,13 @@ module Outbox
           },
           member: identity.merge(item_key: member.item_key),
           membership_role: MEMBERSHIP_ROLE,
-          mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
+          mapping_confidence: translated_confidence(collection),
           mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
           provenance: {
             method: collection.mapping_method,
             confidence: collection.mapping_confidence,
             metadata: collection.mapping_metadata
-          }
+          }.merge(provenance_extras)
         }
       end
 
