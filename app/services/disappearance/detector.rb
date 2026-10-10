@@ -102,12 +102,13 @@ module Disappearance
     end
 
     def enqueue_tombstone(item, finding)
+      identity = source_identity_for(item)
       OutboxEntry.enqueue(
         record_kind: :observation,
         event_type: "deleted",
-        service_type: service_type_for(item),
-        service_instance: service.service_name,
-        external_id: item.external_id,
+        service_type: identity[:service_type],
+        service_instance: identity[:service_instance],
+        external_id: identity[:external_id],
         sync_collection_id: item.sync_collection_id,
         source_updated_at: item.source_updated_at,
         observed_at:,
@@ -129,13 +130,16 @@ module Disappearance
       }
     end
 
+    # Tombstones share the item's canonical source identity (including the
+    # permanent `:default` instance token, #222) with observation, mapping,
+    # and backfilled item rows so TaskBridge Web correlates them as one
+    # representation.
     def source_payload(item)
-      {
-        "service_type" => service_type_for(item),
-        "service_instance" => service.service_name,
-        "external_id" => item.external_id,
-        "source_url" => item.source_url.presence || item.url
-      }.compact
+      source_identity_for(item).compact
+    end
+
+    def source_identity_for(item)
+      Outbox::SourceIdentity.for(item)
     end
 
     def last_known_payload(item)
@@ -154,10 +158,6 @@ module Disappearance
         "detection_strategy" => strategy.mode.to_s,
         "sync_run_id" => sync_run_id
       }.merge(finding.detail || {})
-    end
-
-    def service_type_for(item)
-      Base::Service.service_identifier_for(item.provider)
     end
 
     def recorded_state_for(item)

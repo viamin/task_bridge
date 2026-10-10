@@ -86,17 +86,20 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. Reads
+    # stay nil-safe: consumers such as the outbox backfill (#222) build
+    # snapshots from persisted rows alone, with no external payload loaded.
     def normalized_metadata
+      issue = external_issue
       {
         number:,
         pull_request: is_pr,
         repository: full_repo_name,
-        author: github_issue.dig("user", "login"),
+        author: issue.dig("user", "login"),
         assignees: assignee_logins,
-        milestone: github_issue.dig("milestone", "title"),
-        comments_count: github_issue["comments"].presence,
-        draft: (github_issue["draft"] if is_pr)
+        milestone: issue.dig("milestone", "title"),
+        comments_count: issue["comments"].presence,
+        draft: (issue["draft"] if is_pr)
       }.compact
     end
 
@@ -121,11 +124,16 @@ module Github
     end
 
     def full_repo_name
-      github_issue["repository_url"]&.split("repos/")&.last
+      external_issue["repository_url"]&.split("repos/")&.last
     end
 
     def assignee_logins
-      Array(github_issue["assignees"]).filter_map { |assignee| assignee["login"] }
+      Array(external_issue["assignees"]).filter_map { |assignee| assignee["login"] }
+    end
+
+    # The loaded API payload when present; persisted-only rows have none.
+    def external_issue
+      github_issue.is_a?(Hash) ? github_issue : {}
     end
 
     # Raw:
