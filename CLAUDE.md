@@ -37,6 +37,14 @@ whole contract spec file (see docs/pact-consumer-contract-testing.md):
 bundle exec rspec spec/services/outbox/web_publisher/task_bridge_web_contract_spec.rb
 ```
 
+### Outbox baseline backfill
+Run before enabling publication to TaskBridge Web
+(see docs/backfill-outbox-baseline.md):
+```bash
+bundle exec rake task_bridge:outbox:backfill_dry_run
+bundle exec rake task_bridge:outbox:backfill
+```
+
 ### Code Quality
 ```bash
 bundle exec rubocop
