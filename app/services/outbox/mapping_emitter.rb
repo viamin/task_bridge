@@ -15,10 +15,15 @@ module Outbox
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
     # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # must ignore unknown values rather than break. High confidence (a
+    # sync-id match or explicit sync creation) publishes as `confirmed`;
+    # title-derived medium confidence publishes as `inferred` (#222
+    # resolution of RDR #215's open question). Low-confidence rows publish
+    # as `tentative`; the backfill withholds them from publication and
+    # surfaces them through its dry-run summary instead.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {

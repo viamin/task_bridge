@@ -92,7 +92,7 @@ RSpec.describe Outbox::MappingEmitter do
       expect(row.payload["provenance"]).to include("method" => "manual_backfill", "confidence" => "low")
     end
 
-    it "translates sync-id and created-by-sync provenance to confirmed mappings" do
+    it "translates internal provenance to the contract's confidence vocabulary" do
       aggregate_failures do
         collection.update!(mapping_method: "source_sync_id", mapping_confidence: "high")
         described_class.emit_for_members(collection, members: [member], observed_at:)
@@ -103,6 +103,13 @@ RSpec.describe Outbox::MappingEmitter do
         described_class.emit_for_members(collection, members: [member], observed_at: observed_at + 1.minute)
         expect(OutboxEntry.where(record_kind: "mapping").last.payload.values_at("mapping_confidence", "mapping_source"))
           .to eq(%w[confirmed created_by_sync])
+
+        # Title-derived matches publish as `inferred` (#222 resolution of
+        # RDR #215's open question); only low confidence stays `tentative`.
+        collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+        described_class.emit_for_members(collection, members: [member], observed_at: observed_at + 2.minutes)
+        expect(OutboxEntry.where(record_kind: "mapping").last.payload.values_at("mapping_confidence", "mapping_source"))
+          .to eq(%w[inferred title_match])
       end
     end
 

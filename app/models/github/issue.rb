@@ -87,7 +87,11 @@ module Github
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
     # details are not part of the common normalized_snapshot schema.
+    # External data is not persisted, so rows loaded from the database (for
+    # example by the outbox backfill) carry no metadata rather than failing.
     def normalized_metadata
+      return {} if github_issue.blank?
+
       {
         number:,
         pull_request: is_pr,
