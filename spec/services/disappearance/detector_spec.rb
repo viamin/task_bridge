@@ -155,6 +155,15 @@ RSpec.describe Disappearance::Detector do
       )
     end
 
+    it "derives the sync run id from the run-scope start so tombstones correlate with other run rows" do
+      persisted_item("det-missing")
+      service.options = options.merge(sync_started_at: "2026-10-05T08:00:00.000000Z")
+
+      entry = record_with([]).first
+
+      expect(entry.payload["provenance"]["sync_run_id"]).to eq("sync-run-20261005T080000Z-detector_service")
+    end
+
     it "does not re-emit the same state on a later run" do
       persisted_item("det-missing")
       record_with([])

@@ -955,6 +955,80 @@ RSpec.describe "task_bridge:sync task" do
     expect(SyncCollection).not_to have_received(:create)
   end
 
+  describe "sync-run summaries" do
+    let(:logger) { instance_double(StructuredLogger, save_service_log!: nil) }
+    let(:primary_service) { instance_double("Primary::Service") }
+    let(:passing_service) do
+      service = instance_double("Passing::Service", friendly_name: "Passing", items_to_sync: [], sync_strategies: [:from_primary])
+      allow(service).to receive(:should_sync?).and_return(true)
+      allow(service).to receive(:sync_from_primary).and_return(
+        {
+          "service" => "Passing",
+          "items_synced" => 1,
+          "last_attempted" => "2026-10-05T10:00:00.000000Z",
+          "last_successful" => "2026-10-05T10:00:00.000000Z",
+          "touched_collection_ids" => [4]
+        }.stringify_keys
+      )
+      service
+    end
+    let(:failing_service) do
+      service = instance_double("Failing::Service", friendly_name: "Failing", items_to_sync: [], sync_strategies: [:from_primary])
+      allow(service).to receive(:should_sync?).and_return(true)
+      allow(service).to receive(:sync_from_primary).and_raise(RuntimeError, "boom")
+      service
+    end
+
+    before do
+      stub_logger_summary(logger)
+      stub_sync_defaults(services: %w[Failing Passing])
+      allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Failing Passing])
+      stub_service("Primary", primary_service)
+      stub_service("Failing", failing_service)
+      stub_service("Passing", passing_service)
+      allow(StructuredLogger).to receive(:new).and_return(logger)
+    end
+
+    it "enqueues one sync_run outbox row per completed service run" do
+      capture_output do
+        expect { invoke_task }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+      end
+
+      rows = OutboxEntry.where(record_kind: "sync_run")
+      expect(rows.map(&:service_type)).to contain_exactly("failing", "passing")
+
+      passing_row = rows.find { |row| row.service_type == "passing" }
+      expect(passing_row.payload).to match(
+        hash_including(
+          "status" => "success",
+          "items_synced" => 1,
+          "touched_collection_ids" => [4],
+          "error" => nil,
+          "sync_run_id" => a_string_starting_with("sync-run-")
+        )
+      )
+
+      failing_row = rows.find { |row| row.service_type == "failing" }
+      expect(failing_row.payload).to match(
+        hash_including(
+          "status" => "failed",
+          "error" => hash_including("class" => "RuntimeError", "message" => "boom", "retryable" => true)
+        )
+      )
+    end
+
+    it "keeps the sync run green when the summary enqueue fails" do
+      allow(Outbox::SyncRunEmitter).to receive(:emit_for_run).and_raise(ActiveRecord::ActiveRecordError, "locked")
+
+      stdout, stderr = capture_output do
+        expect { invoke_task }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+      end
+
+      expect(stderr).to include("dropping sync-run summary for Failing")
+      expect(stdout).to include("Finished sync")
+    end
+  end
+
   describe "outbox publication" do
     let(:logger) { instance_double(StructuredLogger, save_service_log!: nil) }
     let(:primary_service) { instance_double("Primary::Service") }

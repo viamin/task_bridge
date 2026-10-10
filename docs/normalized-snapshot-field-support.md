@@ -157,3 +157,11 @@ outbox rows or advance the diff baseline.
   timestamps. The baseline is only advanced after every row is enqueued, so
   a failed enqueue can re-detect a transition (at-least-once) but never
   silently swallows one.
+- **Sync-run summaries** (`Outbox::SyncRunEmitter`, hooked into
+  `lib/tasks/sync.rake`): one `sync_run` row per service run, built from the
+  same `StructuredLogger#summarize_service_run` facts that feed
+  `SyncServiceState`, so TaskBridge Web can correlate observations with
+  operational health. Skipped or idle services publish nothing (RDR #215).
+  Every producer that references a run derives the same deterministic
+  `sync_run_id` from the run-scope `sync_started_at` option via
+  `Outbox::SyncRunId` (`sync-run-<compact UTC stamp>-<service_type>`).
