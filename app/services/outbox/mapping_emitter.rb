@@ -14,11 +14,13 @@ module Outbox
 
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
-    # values. Unknown values pass through unchanged: version 1 consumers
+    # values: high/medium/low map 1:1 onto confirmed/inferred/tentative
+    # (#222 resolves the RDR #215 open question in favor of that mapping).
+    # Unknown values pass through unchanged: version 1 consumers
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -27,8 +29,13 @@ module Outbox
       "manual_backfill" => "manual"
     }.freeze
 
+    # Enqueues one mapping row per eligible member and returns the rows
+    # OutboxEntry.enqueue produced — newly created or already present — so
+    # callers such as the baseline backfill (#222) can distinguish fresh
+    # writes from rerun dedupes. Members whose isolated write failed are
+    # dropped from the result after IsolatedWrite reports them.
     def self.emit_for_members(collection, members:, observed_at: Time.current)
-      Array(members).select { |member| eligible?(member) }.each do |member|
+      Array(members).select { |member| eligible?(member) }.filter_map do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(

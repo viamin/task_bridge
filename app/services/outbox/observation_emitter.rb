@@ -101,13 +101,10 @@ module Outbox
       item.update_column(:last_snapshot, published_snapshot)
     end
 
-    # The published and stored form of the snapshot: identical to
-    # normalized_snapshot but with timestamps rendered as ISO 8601 UTC so
-    # JSON round-trips keep microsecond precision and stay diff-stable.
+    # The published and stored form of the snapshot, shared with the
+    # baseline backfill (#222) through Base::SnapshotSerializer.published.
     def published_snapshot
-      @published_snapshot ||= item.normalized_snapshot.deep_transform_values do |value|
-        value.respond_to?(:utc) ? iso_timestamp(value) : value
-      end
+      @published_snapshot ||= Base::SnapshotSerializer.published(item)
     end
 
     def source_identity
