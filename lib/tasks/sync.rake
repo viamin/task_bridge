@@ -150,12 +150,20 @@ namespace :task_bridge do
       failed_services ||= @service_logs.any? { |log| log["status"] == "failed" }
       options[:logger].save_service_log!(@service_logs)
       service_name = service.respond_to?(:service_name) ? service.service_name : service.friendly_name
+      run_summary = options[:logger].summarize_service_run(
+        service_name:,
+        logs: @service_logs
+      )
+      SyncServiceState.record_summary!(run_summary)
       current_service_failed = @service_logs.any? { |log| log["status"] == "failed" }
-      SyncServiceState.record_summary!(
-        options[:logger].summarize_service_run(
-          service_name:,
-          logs: @service_logs
-        )
+      # One sync-run summary per service run (RDR #215): skipped and idle
+      # services publish nothing, and emission is isolated bookkeeping that
+      # never changes this run's result.
+      Outbox::SyncRunEmitter.emit_for_run(
+        run_summary,
+        service_name:,
+        started_at: options[:sync_started_at],
+        logs: @service_logs
       )
       # The activity-sync cursor is decoupled from the task-sync cursor
       # (#224): advance it only after this service retrieved activity and
