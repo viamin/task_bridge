@@ -27,6 +27,16 @@ RSpec.describe Outbox::WebPublisher::Batch do
       payload: { contract_version: 1, mapping_type: "representation_membership" }
     )
   end
+  let(:sync_run) do
+    OutboxEntry.new(
+      idempotency_key: "tb:v1:sync_run:test_service:sync-run-20261005T100000Z-test_service",
+      record_kind: "sync_run",
+      service_type: "test_service",
+      service_instance: "test_service",
+      observed_at: now,
+      payload: { contract_version: 1, status: "success", items_synced: 1 }
+    )
+  end
 
   describe "#headers" do
     it "sends the contract's auth and transport headers" do
@@ -44,13 +54,13 @@ RSpec.describe Outbox::WebPublisher::Batch do
 
   describe "#body" do
     it "groups rows into the contract's top-level arrays by record kind" do
-      body = described_class.new([observation, mapping], now:).body
+      body = described_class.new([observation, mapping, sync_run], now:).body
 
       expect(body).to include(
         contract_version: 1,
         items: [],
         mappings: [hash_including("idempotency_key" => mapping.idempotency_key)],
-        sync_runs: []
+        sync_runs: [hash_including("idempotency_key" => sync_run.idempotency_key, "status" => "success")]
       )
       expect(body[:observations]).to contain_exactly(hash_including("item_key" => "test_service:obs-1"))
     end

@@ -1039,6 +1039,39 @@ RSpec.describe "task_bridge:sync task" do
 
       expect(stdout).to include("Published 0 outbox rows to TaskBridge Web (incomplete, stopped: http_413)")
     end
+
+    it "enqueues a sync-run summary for the service run" do
+      capture_output do
+        expect { invoke_task }.not_to raise_error
+      end
+
+      row = OutboxEntry.find_by!(record_kind: "sync_run")
+      expect(row.service_type).to eq("passing")
+      expect(row.idempotency_key).to start_with("tb:v1:sync_run:passing:sync-run-")
+      expect(row.payload).to include(
+        "service_instance" => "passing",
+        "status" => "success",
+        "items_synced" => 1,
+        "last_attempted_at" => kind_of(String)
+      )
+      expect(row.payload["sync_run_id"]).to start_with("sync-run-")
+    end
+
+    it "does not enqueue a sync-run summary for skipped services" do
+      allow(logger).to receive(:summarize_service_run).and_return(
+        service: "Passing",
+        status: "skipped",
+        items_synced: 0,
+        last_attempted: "2024-01-01T09:00:00.000000Z",
+        detail: "Sync not required"
+      )
+
+      capture_output do
+        expect { invoke_task }.not_to raise_error
+      end
+
+      expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    end
   end
 
   def stub_sync_defaults(services:, quiet: false, primary_service: nil)
