@@ -14,11 +14,14 @@ module Outbox
 
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
-    # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # values (#222 clarification): `high` maps to `confirmed`, `medium`
+    # (title-derived) maps to `inferred`, `low` maps to `tentative`. The
+    # backfill (#222) withholds `low` rows entirely; the live pipeline
+    # still publishes them. Unknown values pass through unchanged: version
+    # 1 consumers must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -27,13 +30,19 @@ module Outbox
       "manual_backfill" => "manual"
     }.freeze
 
-    def self.emit_for_members(collection, members:, observed_at: Time.current)
-      Array(members).select { |member| eligible?(member) }.each do |member|
+    # Returns the enqueued OutboxEntry rows (newly created or deduped by
+    # idempotency key); members whose write was isolated as a failure are
+    # omitted. Publication is still bookkeeping: callers may ignore the
+    # return value. `provenance` adds extra provenance fields (e.g. the
+    # baseline markers the backfill stamps on its rows); it never replaces
+    # the collection's mapping evidence.
+    def self.emit_for_members(collection, members:, observed_at: Time.current, provenance: {})
+      Array(members).select { |member| eligible?(member) }.filter_map do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
+            payload: payload(collection, member, identity, observed_at, provenance),
             **enqueue_context(identity, collection, observed_at)
           )
         end
@@ -47,7 +56,7 @@ module Outbox
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
       end
 
-      def payload(collection, member, identity, observed_at)
+      def payload(collection, member, identity, observed_at, extra_provenance)
         {
           contract_version: OutboxEntry::PAYLOAD_VERSION,
           mapping_type: MAPPING_TYPE,
@@ -64,7 +73,7 @@ module Outbox
             method: collection.mapping_method,
             confidence: collection.mapping_confidence,
             metadata: collection.mapping_metadata
-          }
+          }.merge(extra_provenance)
         }
       end
 
