@@ -111,14 +111,18 @@ class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
 `source.service_instance` is **always** populated — including for a
 freshly constructed item that has not gone through
 `capture_source_identity` — so consumers must not code for a nilable
-value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
-captured instance segment when one exists (`asana:work`,
-`omnifocus:default`), and yields the bare `service_type` (`asana`)
-otherwise; the per-instance component therefore belongs only in
-`source.service_instance`, never in `source.service_type`. Like `item_key`
-and idempotency keys, `service_instance` is opaque: consumers must not
-parse it by splitting on `:` because segments may themselves contain
-colons.
+value. `Outbox::SourceIdentity` embeds the `service_type` followed by
+the captured instance segment when one exists (`asana:work`,
+`github:repo-1`) and falls back to the permanent `default` token for
+services configured without an instance suffix (`omnifocus:default`,
+`google_tasks:default`); the per-instance component therefore belongs
+only in `source.service_instance`, never in `source.service_type`. The
+default token is embedded in idempotency keys, so it can never change;
+the baseline backfill (#222, see
+docs/backfill-taskbridge-web-baseline.md) and live rows share it. Like
+`item_key` and idempotency keys, `service_instance` is opaque: consumers
+must not parse it by splitting on `:` because segments may themselves
+contain colons.
 
 ## Observation emission (#219)
 
@@ -157,3 +161,17 @@ outbox rows or advance the diff baseline.
   timestamps. The baseline is only advanced after every row is enqueued, so
   a failed enqueue can re-detect a transition (at-least-once) but never
   silently swallows one.
+
+## Baseline backfill (#222)
+
+Existing `sync_items` and `sync_collections` rows are seeded into the
+outbox as baseline current state — one `item` snapshot per item and one
+`mapping` row per membership, all marked
+`provenance.detected_by: "backfill"` — by
+`SyncBackfill::OutboxBaseline` (rake task
+`task_bridge:backfill_outbox_baseline`). The backfill's mapping policy
+differs from the live emitter by design: `high` publishes as
+`confirmed` and `medium` as `inferred`, while `low`-confidence
+memberships are withheld from publication and only counted in the
+dry-run summary. See docs/backfill-taskbridge-web-baseline.md for the
+full runbook.

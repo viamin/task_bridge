@@ -19,6 +19,7 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
 - The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- Backfill follow-up (#222, 2026-10-10): the low-confidence mapping backfill policy is resolved for the backfill — publish `high` confidence as `confirmed` and `medium` as `inferred`, withhold `low`-confidence memberships (they stay reviewable through the backfill dry-run summary); the backfill emits one `item` snapshot per existing item marked `provenance.detected_by: "backfill"` plus `backfilled_at` and no `snapshot_seen` observation rows; single-instance services publish under a permanent `default` instance token (e.g. `omnifocus:default`); and the backfill writes no `sync_run` rows because reliable per-run timestamps do not exist (see Migration and Backfill Implications, Open Questions, and docs/backfill-taskbridge-web-baseline.md).
 
 ## Decision
 
@@ -685,7 +686,7 @@ Rules:
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. Resolved for the backfill by #222's clarified decision (2026-10-10): publish only `confirmed` and `inferred` mappings and withhold `low`/`tentative` ones, per this RDR's stated default; whether *live* publication of `tentative` mapping rows should follow the same policy remains open for the live pipeline issues.
 
 ## Rejected Alternatives
 
