@@ -151,12 +151,12 @@ namespace :task_bridge do
       options[:logger].save_service_log!(@service_logs)
       service_name = service.respond_to?(:service_name) ? service.service_name : service.friendly_name
       current_service_failed = @service_logs.any? { |log| log["status"] == "failed" }
-      SyncServiceState.record_summary!(
-        options[:logger].summarize_service_run(
-          service_name:,
-          logs: @service_logs
-        )
-      )
+      service_run_summary = options[:logger].summarize_service_run(service_name:, logs: @service_logs)
+      SyncServiceState.record_summary!(service_run_summary)
+      # Publish the run's summary as an outbox sync_run row (RDR #215).
+      # Bookkeeping like every other outbox producer: isolated so a write
+      # failure never changes the run outcome it describes.
+      emit_sync_run_summary(service_run_summary, logs: @service_logs)
       # The activity-sync cursor is decoupled from the task-sync cursor
       # (#224): advance it only after this service retrieved activity and
       # every ActivityEmitter.emit_for call completed without an
@@ -170,10 +170,7 @@ namespace :task_bridge do
       end
       next if current_service_failed
 
-      touched_collection_ids = @service_logs.flat_map do |log|
-        Array(log["touched_collection_ids"] || log[:touched_collection_ids])
-      end
-      touched_collection_ids.uniq.each do |collection_id|
+      touched_collection_ids_from(@service_logs).each do |collection_id|
         SyncCollection.find_by(id: collection_id)&.update(last_synced: Time.current)
       end
     end
@@ -197,6 +194,23 @@ namespace :task_bridge do
     report_publication(Outbox::WebPublisher.run!)
   rescue StandardError => e
     warn "Outbox publication failed; rows stay pending for retry (#{e.class}: #{e.message})"
+  end
+
+  def emit_sync_run_summary(summary, logs:)
+    failed_entry = Array(logs).reverse.find do |entry|
+      entry["error_class"].present? || entry["error_message"].present?
+    end
+    Outbox::SyncRunEmitter.emit_for_run(
+      summary:,
+      started_at: options[:sync_started_at],
+      finished_at: Time.current,
+      error: failed_entry && { "class" => failed_entry["error_class"], "message" => failed_entry["error_message"] },
+      touched_collection_ids: touched_collection_ids_from(logs)
+    )
+  end
+
+  def touched_collection_ids_from(logs)
+    Array(logs).flat_map { |log| Array(log["touched_collection_ids"] || log[:touched_collection_ids]) }.uniq
   end
 
   def report_publication(summary)

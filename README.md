@@ -6,6 +6,19 @@ Originally created to help me sync my Omnifocus tasks to [reclaim.ai](https://re
 
 Run `bundle install` to install dependencies. You may need an account for some of the services to work. Check below for requirements for each service you want to use.
 
+## TaskBridge Web publication
+
+Besides syncing, TaskBridge observes what it sees in every source and can publish those facts to [TaskBridge Web](https://github.com/viamin/task-bridge-web) for durable history and analytics. During each sync it records normalized item snapshots, detected changes, cross-system mappings, deletion tombstones, GitHub activity, and one sync-run summary per service into a local outbox, then pushes them over authenticated HTTP (`task_bridge.web` in `config/settings.yml`; disabled by default). Delivery is idempotent and retried with backoff, and TaskBridge Web owns the durable history — the local outbox is pruned after a retention window.
+
+Useful tasks:
+
+* `bin/rails task_bridge:outbox:publish` — push pending outbox rows (also runs automatically at the end of every sync)
+* `bin/rails task_bridge:outbox:publish_dry_run` — render the batches without sending them
+* `bin/rails task_bridge:outbox:prune` — prune delivered/terminal rows past their retention windows
+* `bin/rails task_bridge:backfill_sync_provenance` — seed source identity and mapping provenance for existing data
+
+Raw note bodies never leave TaskBridge; snapshots carry only a keyed digest until a per-source note export setting exists. The full publication contract is specified in `docs/rdr-215-taskbridge-observation-publication-contract.md`.
+
 ## Configuration
 
 Run `bin/rails task_bridge:sync -- --help` to see available command line options. Many command line default settings can be configured in the `config/settings.yml` file.
