@@ -193,10 +193,10 @@ Every tombstone is a RDR #215 observation with `event_type: deleted`:
   "contract_version": 1,
   "event_type": "deleted",
   "observed_at": "2026-10-05T19:30:00.000000Z",
-  "item_key": "google_keep:My Tasks:11111111-2222-3333-4444-555555555555",
+  "item_key": "google_keep:11111111-2222-3333-4444-555555555555",
   "source": {
     "service_type": "google_keep",
-    "service_instance": "GoogleKeep",
+    "service_instance": "google_keep",
     "external_id": "11111111-2222-3333-4444-555555555555"
   },
   "last_known": {

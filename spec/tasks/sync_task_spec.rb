@@ -1041,6 +1041,96 @@ RSpec.describe "task_bridge:sync task" do
     end
   end
 
+  describe "sync-run summary publication" do
+    let(:logger) { instance_double(StructuredLogger, save_service_log!: nil) }
+    let(:primary_service) { instance_double("Primary::Service") }
+    let(:service) do
+      service = instance_double("Passing::Service", friendly_name: "Passing", items_to_sync: [], sync_strategies: [:from_primary])
+      allow(service).to receive(:should_sync?).and_return(true)
+      allow(service).to receive(:sync_from_primary).and_return(
+        {
+          "service" => "Passing",
+          "status" => "success",
+          "last_attempted" => "2026-10-05T10:00:00.000000Z",
+          "last_successful" => "2026-10-05T10:00:00.000000Z",
+          "items_synced" => 3,
+          "touched_collection_ids" => [7]
+        }.stringify_keys
+      )
+      service
+    end
+
+    before do
+      stub_logger_summary(logger)
+      stub_sync_defaults(services: ["Passing"])
+      allow(Chamber).to receive(:dig!).with(:task_bridge, :all_supported_services).and_return(%w[Primary Passing])
+      stub_service("Primary", primary_service)
+      stub_service("Passing", service)
+      allow(StructuredLogger).to receive(:new).and_return(logger)
+      allow(Outbox::WebPublisher).to receive(:run!).and_return({ status: "disabled" })
+    end
+
+    it "enqueues one sync_run row per successful service run" do
+      capture_output { invoke_task }
+
+      row = OutboxEntry.find_by(record_kind: "sync_run", service_type: "passing")
+      expect(row.payload).to include(
+        "service_type" => "passing",
+        "service_instance" => "passing",
+        "status" => "success",
+        "items_synced" => 3,
+        "touched_collection_ids" => [7]
+      )
+      expect(row.payload["sync_run_id"]).to start_with("sync-run-")
+      expect(row.idempotency_key).to eq("tb:v1:sync_run:passing:#{row.payload['sync_run_id']}")
+    end
+
+    it "carries the failure on failed runs" do
+      allow(service).to receive(:sync_from_primary).and_return(
+        {
+          "service" => "Passing",
+          "status" => "failed",
+          "last_attempted" => "2026-10-05T10:00:00.000000Z",
+          "items_synced" => 0,
+          "error_class" => "ProviderError",
+          "error_message" => "401 unauthorized"
+        }.stringify_keys
+      )
+
+      capture_output do
+        expect { invoke_task }.to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+      end
+
+      row = OutboxEntry.find_by(record_kind: "sync_run", service_type: "passing")
+      expect(row.payload["status"]).to eq("failed")
+      expect(row.payload["error"]).to include("class" => "ProviderError", "message" => "401 unauthorized")
+    end
+
+    it "does not publish skipped or idle services" do
+      allow(logger).to receive(:summarize_service_run).and_return(
+        {
+          service: "Passing",
+          status: "skipped",
+          items_synced: 0,
+          last_attempted: "2026-10-05T10:00:00.000000Z",
+          last_successful: nil,
+          last_failed: nil,
+          detail: "Sync not required"
+        }
+      )
+
+      capture_output { invoke_task }
+
+      expect(OutboxEntry.where(record_kind: "sync_run", service_type: "passing")).to be_empty
+    end
+
+    it "does not enqueue a summary during pretend runs" do
+      capture_output { invoke_task("-x") }
+
+      expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    end
+  end
+
   def stub_sync_defaults(services:, quiet: false, primary_service: nil)
     Thread.current[:global_options] = {
       primary: "Primary",

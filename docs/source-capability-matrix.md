@@ -111,8 +111,9 @@ and that setting does not exist yet. When it lands it will surface as
 - The containing task list is known from the service configuration; its
   title and id are published in `metadata` as `list`/`list_id`, along with
   the read-only `parent` task id and the web UI deep link.
-- `deleted`/`hidden` flags exist on the payload but are not published
-  (TaskBridge does not yet model deletion; see #214).
+- `deleted`/`hidden` flags exist on the payload but are not read, so
+  deletion detection for Google Tasks stays disabled (see
+  `docs/source-deletion-detection.md`).
 
 ### Reminders
 
