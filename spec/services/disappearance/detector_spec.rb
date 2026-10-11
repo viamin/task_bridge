@@ -116,10 +116,11 @@ RSpec.describe Disappearance::Detector do
       expect(entry.payload["source"]).to match(
         hash_including(
           "service_type" => "detector_service",
-          "service_instance" => service.service_name,
+          "service_instance" => "detector_service:default",
           "external_id" => "det-missing"
         )
       )
+      expect(entry.service_instance).to eq("detector_service:default")
     end
 
     it "preserves the local row and records the marker instead of deleting" do
