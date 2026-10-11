@@ -106,6 +106,14 @@ RSpec.describe Outbox::MappingEmitter do
       end
     end
 
+    it "translates medium confidence to inferred" do
+      collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+      described_class.emit_for_members(collection, members: [member], observed_at:)
+
+      expect(OutboxEntry.find_by(record_kind: "mapping").payload.values_at("mapping_confidence", "mapping_source"))
+        .to eq(%w[inferred title_match])
+    end
+
     it "skips members that are not persisted sync items" do
       transient = member_class.new(external_id: "issue-43")
 

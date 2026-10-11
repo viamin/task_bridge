@@ -19,6 +19,7 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
 - The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- Baseline backfill decisions (2026-10-11, issue #222): the backfill emits one `item` snapshot per known source item (marked `provenance.detected_by: "backfill"` plus `backfilled_at`), no `snapshot_seen` observation rows, and no `sync_run` summaries; internal mapping confidence translates as `high` → `confirmed`, `medium` → `inferred`, `low` → `tentative`; the backfill withholds `tentative` mappings from publication (resolving the open question below in favor of the safer default), and services without an instance suffix publish `service_instance` as `<service_type>:default` (a permanent default shared with the live pipeline through `Outbox::SourceIdentity`). See docs/backfill-baseline-outbox.md.
 
 ## Decision
 
@@ -685,7 +686,7 @@ Rules:
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. ~~This remains unresolved pending further product guidance.~~ **Resolved for the backfill under #222 (2026-10-11): the backfill withholds `tentative` memberships — it enqueues only `confirmed` and `inferred` rows and surfaces withheld counts by confidence in its dry-run summary.** Whether live (non-backfill) syncs should also withhold newly observed low-confidence mappings remains open; the live emitters currently publish them with `mapping_confidence: tentative`.
 
 ## Rejected Alternatives
 
