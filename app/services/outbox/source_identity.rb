@@ -6,6 +6,8 @@ module Outbox
   # The values are opaque to consumers: they must not be parsed by splitting
   # on `:` because segments may themselves contain colons.
   module SourceIdentity
+    DEFAULT_INSTANCE = "default"
+
     module_function
 
     def for(item)
@@ -13,7 +15,7 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        service_instance: [service_type, item.source_service_instance.presence || DEFAULT_INSTANCE].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
