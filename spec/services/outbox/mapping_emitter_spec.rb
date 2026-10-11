@@ -6,7 +6,7 @@ RSpec.describe Outbox::MappingEmitter do
   include ActiveSupport::Testing::TimeHelpers
 
   let(:observed_at) { Time.zone.parse("2026-10-05T10:00:00Z") }
-  let(:collection) { SyncCollection.create!(title: "Release checklist", mapping_method: "manual_backfill", mapping_confidence: "low") }
+  let(:collection) { SyncCollection.create!(title: "Release checklist", mapping_method: "title_fallback", mapping_confidence: "medium") }
   let(:member_class) do
     stub_const("MappingSpecItem", Class.new(Base::SyncItem) do
       def self.attribute_map
@@ -78,8 +78,8 @@ RSpec.describe Outbox::MappingEmitter do
       expect(row.payload).to include(
         "mapping_type" => "representation_membership",
         "membership_role" => "member",
-        "mapping_confidence" => "tentative",
-        "mapping_source" => "manual"
+        "mapping_confidence" => "inferred",
+        "mapping_source" => "title_match"
       )
       expect(row.payload["sync_collection"]).to include("sync_collection_id" => collection.id, "title" => "Release checklist")
       expect(row.payload["member"]).to include(
@@ -89,7 +89,15 @@ RSpec.describe Outbox::MappingEmitter do
         "external_id" => "issue-42"
       )
       expect(member.normalized_snapshot[:source]).to eq(Outbox::SourceIdentity.for(member))
-      expect(row.payload["provenance"]).to include("method" => "manual_backfill", "confidence" => "low")
+      expect(row.payload["provenance"]).to include("method" => "title_fallback", "confidence" => "medium")
+    end
+
+    it "withholds low-confidence memberships" do
+      collection.update!(mapping_method: "manual_backfill", mapping_confidence: "low")
+
+      described_class.emit_for_members(collection, members: [member], observed_at:)
+
+      expect(OutboxEntry.where(record_kind: "mapping")).to be_empty
     end
 
     it "translates sync-id and created-by-sync provenance to confirmed mappings" do
