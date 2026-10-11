@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -26,6 +26,13 @@ module Outbox
       "title_fallback" => "title_match",
       "manual_backfill" => "manual"
     }.freeze
+
+    # Internal confidence value withheld from baseline-backfill publication
+    # (#222, resolving the RDR #215 open question toward the RDR's stated
+    # default): backfill publishes only `confirmed` and `inferred` mappings;
+    # low-confidence memberships stay identifiable in the backfill summary
+    # for manual cleanup. Live sync-time emission is unaffected.
+    WITHHELD_INTERNAL_CONFIDENCE = "low"
 
     def self.emit_for_members(collection, members:, observed_at: Time.current)
       Array(members).select { |member| eligible?(member) }.each do |member|
@@ -41,6 +48,23 @@ module Outbox
     end
 
     class << self
+      # Contract vocabulary for a raw internal confidence value, shared with
+      # the baseline backfill (#222) so item snapshots and mapping rows agree.
+      def contract_confidence_for(confidence)
+        CONFIDENCE.fetch(confidence, confidence)
+      end
+
+      def contract_source_for(method)
+        SOURCE.fetch(method, method)
+      end
+
+      # Whether an internal mapping confidence may be published by the
+      # baseline backfill. Unknown/nil provenance is not publishable: it
+      # indicates the mapping evidence was never resolved.
+      def publishable_confidence?(confidence)
+        confidence.present? && confidence != WITHHELD_INTERNAL_CONFIDENCE
+      end
+
       private
 
       def eligible?(member)
@@ -58,8 +82,8 @@ module Outbox
           },
           member: identity.merge(item_key: member.item_key),
           membership_role: MEMBERSHIP_ROLE,
-          mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
-          mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
+          mapping_confidence: contract_confidence_for(collection.mapping_confidence),
+          mapping_source: contract_source_for(collection.mapping_method),
           provenance: {
             method: collection.mapping_method,
             confidence: collection.mapping_confidence,

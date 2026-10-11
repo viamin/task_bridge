@@ -86,8 +86,12 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. Rows
+    # loaded from the database carry no `github_issue` payload, so they
+    # publish no source-specific metadata (e.g. the baseline backfill, #222).
     def normalized_metadata
+      return {} if github_issue.blank?
+
       {
         number:,
         pull_request: is_pr,
