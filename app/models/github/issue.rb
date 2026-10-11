@@ -86,17 +86,19 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. Reads
+    # are nil-safe so persisted rows (no in-memory github_issue payload)
+    # can still be serialized, e.g. by the #222 baseline backfill.
     def normalized_metadata
       {
         number:,
         pull_request: is_pr,
         repository: full_repo_name,
-        author: github_issue.dig("user", "login"),
+        author: github_issue&.dig("user", "login"),
         assignees: assignee_logins,
-        milestone: github_issue.dig("milestone", "title"),
-        comments_count: github_issue["comments"].presence,
-        draft: (github_issue["draft"] if is_pr)
+        milestone: github_issue&.dig("milestone", "title"),
+        comments_count: github_issue&.dig("comments")&.presence,
+        draft: (github_issue&.dig("draft") if is_pr)
       }.compact
     end
 
@@ -121,11 +123,16 @@ module Github
     end
 
     def full_repo_name
-      github_issue["repository_url"]&.split("repos/")&.last
+      repository_url&.split("repos/")&.last
+    end
+
+    # Nil-safe for persisted rows that have no in-memory GitHub payload.
+    def repository_url
+      github_issue&.dig("repository_url")
     end
 
     def assignee_logins
-      Array(github_issue["assignees"]).filter_map { |assignee| assignee["login"] }
+      Array(github_issue&.dig("assignees")).filter_map { |assignee| assignee["login"] }
     end
 
     # Raw:
