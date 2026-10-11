@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -40,11 +40,31 @@ module Outbox
       end
     end
 
+    # Backfills establish current state, not historical mapping events. Low
+    # confidence memberships remain local for manual review (RDR #215 / #222).
+    def self.emit_baseline_for_members(collection, members:, observed_at:)
+      publishable_members = Array(members).select { |member| eligible?(member) && publishable_baseline?(collection) }
+      publishable_members.each do |member|
+        Outbox::IsolatedWrite.call("baseline mapping for #{member.item_key}") do
+          identity = Outbox::SourceIdentity.for(member)
+          OutboxEntry.enqueue(
+            record_kind: :mapping,
+            payload: baseline_payload(collection, member, identity, observed_at),
+            **enqueue_context(identity, collection, observed_at)
+          )
+        end
+      end
+    end
+
     class << self
       private
 
       def eligible?(member)
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
+      end
+
+      def publishable_baseline?(collection)
+        %w[high medium].include?(collection.mapping_confidence)
       end
 
       def payload(collection, member, identity, observed_at)
@@ -76,6 +96,16 @@ module Outbox
           sync_collection_id: collection.id,
           observed_at:
         }
+      end
+
+      def baseline_payload(collection, member, identity, observed_at)
+        mapping_payload = payload(collection, member, identity, observed_at)
+        mapping_payload.merge(
+          provenance: mapping_payload.fetch(:provenance).merge(
+            detected_by: "backfill",
+            backfilled_at: observed_at.utc.iso8601(6)
+          )
+        )
       end
     end
   end
