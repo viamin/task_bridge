@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -28,7 +28,7 @@ module Outbox
     }.freeze
 
     def self.emit_for_members(collection, members:, observed_at: Time.current)
-      Array(members).select { |member| eligible?(member) }.each do |member|
+      Array(members).select { |member| eligible?(collection, member) }.each do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
@@ -43,8 +43,13 @@ module Outbox
     class << self
       private
 
-      def eligible?(member)
-        member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
+      def eligible?(collection, member)
+        member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present? &&
+          collection_confident?(collection)
+      end
+
+      def collection_confident?(collection)
+        collection&.mapping_confidence.in?(%w[high medium])
       end
 
       def payload(collection, member, identity, observed_at)
