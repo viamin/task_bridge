@@ -47,7 +47,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     other_item_class
   end
 
-  it "backfills explicit source and mapping provenance idempotently" do
+  it "backfills provenance and baseline outbox rows idempotently" do
     collection = SyncCollection.create!(title: "Buy milk")
     source_item = test_item_class.create!(
       options: options.merge(service_name: "Asana:work"),
@@ -124,5 +124,51 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.first.payload["provenance"]).to include("detected_by" => "backfill", "baseline" => true)
+  end
+
+  it "uses a stable default instance for single-instance providers" do
+    item = other_item_class.create!(
+      options: options.merge(service_name: "Omnifocus"), title: "Buy milk", external_id: "of-456"
+    )
+
+    task.invoke
+
+    expect(item.reload.source_service_instance).to eq("default")
+    expect(OutboxEntry.find_by(external_id: "of-456").service_instance).to eq("omnifocus:default")
+  end
+
+  it "backfills representative OmniFocus, Asana, GitHub, and Google Tasks records" do
+    items = [
+      Omnifocus::Task.create!(options: options.merge(service_name: "Omnifocus"), title: "Omni", external_id: "of-1"),
+      Asana::Task.create!(options: options.merge(service_name: "Asana"), title: "Asana", external_id: "asana-1"),
+      Github::Issue.create!(options: options.merge(service_name: "Github"), title: "GitHub", external_id: "gh-1",
+                            status: "open", github_issue: {}),
+      GoogleTasks::Task.create!(options: options.merge(service_name: "GoogleTasks"), title: "Google", external_id: "gt-1",
+                                google_task: {}, google_tasklist: {})
+    ]
+
+    task.invoke
+
+    expect(OutboxEntry.where(record_kind: "item").pluck(:service_type)).to contain_exactly(
+      "omnifocus", "asana", "github", "google_tasks"
+    )
+    expect(items.map { |item| item.reload.source_service_instance }).to all(eq("default"))
+  end
+
+  it "reports but does not enqueue low-confidence memberships during a dry run" do
+    collection = SyncCollection.create!(title: "Ambiguous", mapping_method: "manual_backfill", mapping_confidence: "low")
+    test_item_class.create!(options: options.merge(service_name: "Asana"), title: "Ambiguous", external_id: "asana-1",
+                            sync_collection: collection)
+
+    ENV["DRY_RUN"] = "1"
+
+    expect { task.invoke }.to output(/mappings_withheld_low/).to_stdout
+    expect(OutboxEntry.count).to eq(0)
+  ensure
+    ENV.delete("DRY_RUN")
   end
 end
