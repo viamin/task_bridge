@@ -682,10 +682,17 @@ Rules:
   - deletion tombstones only where deletion can be stated confidently.
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
+- Before enabling TaskBridge Web publication, run `bundle exec rake task_bridge:backfill_sync_observations`.
+  Use `DRY_RUN=1 bundle exec rake task_bridge:backfill_sync_observations` first to print
+  counts by service and mapping confidence. Baseline item rows are marked with
+  `provenance.detected_by: backfill`; no historical observation or sync-run rows are created.
+  Low-confidence (`tentative`) mappings are withheld and reported by the dry run.
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: resolved for the initial rollout. Backfill
+  publishes only `confirmed` and `inferred` mappings; `tentative` mappings are withheld
+  and reported in the dry-run summary for later review.
 
 ## Rejected Alternatives
 
