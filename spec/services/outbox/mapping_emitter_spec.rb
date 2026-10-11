@@ -6,7 +6,7 @@ RSpec.describe Outbox::MappingEmitter do
   include ActiveSupport::Testing::TimeHelpers
 
   let(:observed_at) { Time.zone.parse("2026-10-05T10:00:00Z") }
-  let(:collection) { SyncCollection.create!(title: "Release checklist", mapping_method: "manual_backfill", mapping_confidence: "low") }
+  let(:collection) { SyncCollection.create!(title: "Release checklist", mapping_method: "source_sync_id", mapping_confidence: "high") }
   let(:member_class) do
     stub_const("MappingSpecItem", Class.new(Base::SyncItem) do
       def self.attribute_map
@@ -78,8 +78,8 @@ RSpec.describe Outbox::MappingEmitter do
       expect(row.payload).to include(
         "mapping_type" => "representation_membership",
         "membership_role" => "member",
-        "mapping_confidence" => "tentative",
-        "mapping_source" => "manual"
+        "mapping_confidence" => "confirmed",
+        "mapping_source" => "sync_id_note"
       )
       expect(row.payload["sync_collection"]).to include("sync_collection_id" => collection.id, "title" => "Release checklist")
       expect(row.payload["member"]).to include(
@@ -89,7 +89,7 @@ RSpec.describe Outbox::MappingEmitter do
         "external_id" => "issue-42"
       )
       expect(member.normalized_snapshot[:source]).to eq(Outbox::SourceIdentity.for(member))
-      expect(row.payload["provenance"]).to include("method" => "manual_backfill", "confidence" => "low")
+      expect(row.payload["provenance"]).to include("method" => "source_sync_id", "confidence" => "high")
     end
 
     it "translates sync-id and created-by-sync provenance to confirmed mappings" do
@@ -104,6 +104,14 @@ RSpec.describe Outbox::MappingEmitter do
         expect(OutboxEntry.where(record_kind: "mapping").last.payload.values_at("mapping_confidence", "mapping_source"))
           .to eq(%w[confirmed created_by_sync])
       end
+    end
+
+    it "translates title-derived provenance to inferred mappings" do
+      collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+
+      described_class.emit_for_members(collection, members: [member], observed_at:)
+
+      expect(OutboxEntry.find_by(record_kind: "mapping").payload["mapping_confidence"]).to eq("inferred")
     end
 
     it "skips members that are not persisted sync items" do
