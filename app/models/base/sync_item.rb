@@ -103,6 +103,13 @@ module Base
 
     validates :external_id, uniqueness: { scope: %i[type source_service_name] }
 
+    # Rows whose STI type is missing or the base class cannot resolve a
+    # provider and crash on instantiation (external_data raises), so
+    # whole-table iteration (#217/#222 backfills) reads typed rows and
+    # counts the rest separately instead of instantiating them.
+    scope :typed, -> { where.not(type: [nil, "Base::SyncItem"]) }
+    scope :untyped, -> { where(type: [nil, "Base::SyncItem"]) }
+
     def read_original(only_modified_dates: false)
       values_hash = external_attribute_map.each_with_object({}) do |(attribute_key, attribute_value), hash|
         next if only_modified_dates &&

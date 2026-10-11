@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -40,12 +40,19 @@ module Outbox
       end
     end
 
+    # Whether the member produces a mapping row. Public so the backfill
+    # (#222) counts the same membership set the live emitter publishes.
+    def self.eligible?(member)
+      member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
+    end
+
+    # The contract confidence a collection's mapping would publish as.
+    def self.confidence_for(collection)
+      CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence)
+    end
+
     class << self
       private
-
-      def eligible?(member)
-        member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
-      end
 
       def payload(collection, member, identity, observed_at)
         {
@@ -58,7 +65,7 @@ module Outbox
           },
           member: identity.merge(item_key: member.item_key),
           membership_role: MEMBERSHIP_ROLE,
-          mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
+          mapping_confidence: confidence_for(collection),
           mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
           provenance: {
             method: collection.mapping_method,

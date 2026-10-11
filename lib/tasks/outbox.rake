@@ -27,5 +27,18 @@ namespace :task_bridge do
       warn "Outbox dry run: would publish #{summary[:rows]} rows " \
            "across #{summary[:batches]} batches (nothing was sent)"
     end
+
+    desc "seed baseline outbox rows for existing sync items and collections " \
+         "(idempotent; run before enabling publication to TaskBridge Web)"
+    task backfill: :environment do
+      summary = Outbox::Backfill.run!
+      puts "Outbox backfill: #{JSON.generate(summary)}"
+    end
+
+    desc "preview the outbox backfill without writing rows (counts by service, confidence, and skipped records)"
+    task backfill_dry_run: :environment do
+      summary = Outbox::Backfill.run!(dry_run: true)
+      puts "Outbox backfill dry run (nothing was written): #{JSON.generate(summary)}"
+    end
   end
 end

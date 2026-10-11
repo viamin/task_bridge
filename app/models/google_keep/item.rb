@@ -79,7 +79,10 @@ module GoogleKeep
     end
 
     def note_id
-      read_external_attribute(keep_item[:note], :name)
+      # Safe navigation keeps the normalized snapshot buildable from
+      # persisted rows alone (e.g. the outbox backfill, #222) where no
+      # Keep payload is attached.
+      read_external_attribute(keep_item&.dig(:note), :name)
     end
 
     # Whether this item's external ID came from Keep's embedded marker
