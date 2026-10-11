@@ -73,3 +73,17 @@ To run the cleanup task:
 * `cp com.github.viamin.task_bridge.cleanup.plist ~/Library/LaunchAgents/`
 * May need to remove the old one first `launchctl remove com.github.viamin.task_bridge.cleanup`
 * `launchctl load -w ~/Library/LaunchAgents/com.github.viamin.task_bridge.cleanup.plist`
+# TaskBridge Web baseline backfill
+
+Before enabling TaskBridge Web publication, seed the local outbox from the
+existing synchronized data:
+
+```sh
+bundle exec rake task_bridge:backfill_sync_provenance
+```
+
+Preview the local-only operation first with `DRY_RUN=1`. The summary groups
+item rows by service and mapping rows by confidence; low-confidence mappings
+are reported but deliberately withheld from publication. The task only reads
+and updates TaskBridge's local database—it never contacts source services.
+

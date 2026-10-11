@@ -604,7 +604,10 @@ module Base
       )
 
       self.source_service_name = resolved_service_name
-      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name)
+      # The contract embeds this value in idempotency keys, including for
+      # single-instance adapters.  Persist a stable token instead of leaving
+      # those adapters with a nil identity segment.
+      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name) || "default"
       self.source_service_type = provider.presence || self.class.name.deconstantize
       self.source_external_id = external_id if external_id.present?
       self.source_url = url if url.present?

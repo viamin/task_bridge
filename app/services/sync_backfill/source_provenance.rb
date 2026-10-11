@@ -2,8 +2,16 @@
 
 module SyncBackfill
   class SourceProvenance
-    def self.run!
-      new.run!
+    def self.run!(dry_run: false)
+      new(dry_run:).run!
+    end
+
+    def self.inferred_mapping_provenance_for(collection)
+      new.send(:inferred_provenance_for, collection)
+    end
+
+    def initialize(dry_run: false)
+      @dry_run = dry_run
     end
 
     def run!
@@ -19,9 +27,11 @@ module SyncBackfill
       # rather than using a loaded association, so preloading sync_items
       # here would not save any queries.
       Base::SyncItem.find_each do |item|
-        next if item.last_observed_at.present?
+        next unless needs_source_backfill?(item)
 
         observed_at = item.updated_at || item.created_at || Time.current
+        next if @dry_run
+
         item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
         item.observe_source!(observed_at:)
       end
@@ -29,7 +39,7 @@ module SyncBackfill
 
     def backfill_sync_collections
       SyncCollection.includes(:sync_items).find_each do |collection|
-        next if collection.mapping_method.present?
+        next if collection.mapping_method.present? || @dry_run
 
         observed_at = collection.updated_at || collection.created_at || Time.current
         provenance = inferred_provenance_for(collection)
@@ -45,6 +55,12 @@ module SyncBackfill
       provenance = preferred_provenance(items)
 
       provenance.merge(metadata: default_metadata.merge(provenance.fetch(:metadata)))
+    end
+
+    def needs_source_backfill?(item)
+      item.source_service_name.blank? || item.source_service_instance.blank? ||
+        item.source_service_type.blank? || item.source_external_id.blank? ||
+        item.first_observed_at.blank? || item.last_observed_at.blank?
     end
 
     def preferred_provenance(items)
