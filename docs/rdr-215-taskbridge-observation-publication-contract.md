@@ -685,7 +685,7 @@ Rules:
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: backfill publishes only `confirmed` and `inferred` `sync_collection` memberships. It withholds `tentative`/low-confidence memberships and reports them in the dry-run summary for manual cleanup or review.
 
 ## Rejected Alternatives
 
