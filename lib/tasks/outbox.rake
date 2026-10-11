@@ -1,7 +1,16 @@
 # frozen_string_literal: true
 
 namespace :task_bridge do
+  desc "seed baseline item snapshots and confirmed/inferred mappings into the outbox (DRY_RUN=1 previews only)"
+  task backfill_outbox: :environment do
+    dry_run = ENV["DRY_RUN"] == "1"
+    summary = SyncBackfill::OutboxBaseline.run!(dry_run:)
+    puts JSON.generate(summary) unless dry_run
+  end
+
   namespace :outbox do
+    task backfill: :backfill_outbox
+
     desc "prune delivered and terminal-failure outbox entries past their retention windows"
     task prune: :environment do
       pruned = Outbox::Prune.run!

@@ -13,7 +13,11 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # Single-instance adapters still need a permanent instance segment:
+        # this value is part of every idempotency key. Do not replace this
+        # default later or the same provider record would acquire a new
+        # identity in TaskBridge Web.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
