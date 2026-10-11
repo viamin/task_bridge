@@ -14,11 +14,13 @@ module Outbox
 
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
-    # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # values (#222): high (sync-id or sync-created) → confirmed, medium
+    # (title-derived) → inferred, low (no evidence) → tentative. Unknown
+    # values pass through unchanged: version 1 consumers must ignore
+    # unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {

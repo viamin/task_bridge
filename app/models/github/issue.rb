@@ -86,8 +86,13 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. The
+    # external payload is only in memory during a sync: rows loaded from the
+    # database (e.g. the outbox backfill) have no `github_issue`, so there is
+    # no GitHub-specific metadata to publish.
     def normalized_metadata
+      return {} if github_issue.nil?
+
       {
         number:,
         pull_request: is_pr,

@@ -6,6 +6,14 @@ module Outbox
   # The values are opaque to consumers: they must not be parsed by splitting
   # on `:` because segments may themselves contain colons.
   module SourceIdentity
+    # Permanent default segment for single-instance services (#222):
+    # `service_instance` is required on every row and embedded in
+    # idempotency keys, so services without a configured instance suffix
+    # (Omnifocus, Reminders, ...) get `<service_type>:default` — the same
+    # shape as the RDR's `asana:workspace-12345:default` example. The
+    # token can never change without breaking every published identity.
+    DEFAULT_INSTANCE = "default"
+
     module_function
 
     def for(item)
@@ -13,7 +21,7 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        service_instance: [service_type, item.source_service_instance.presence || DEFAULT_INSTANCE].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
