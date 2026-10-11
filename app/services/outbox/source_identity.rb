@@ -6,6 +6,12 @@ module Outbox
   # The values are opaque to consumers: they must not be parsed by splitting
   # on `:` because segments may themselves contain colons.
   module SourceIdentity
+    # Services configured without an instance suffix (Omnifocus, Github,
+    # Google Tasks, ...) still need a stable, permanent service_instance:
+    # it is embedded in idempotency keys and can never change without
+    # breaking retry dedupe (#222 clarification; RDR #215 "Identity Model").
+    DEFAULT_INSTANCE = "default"
+
     module_function
 
     def for(item)
@@ -13,7 +19,7 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        service_instance: [service_type, item.source_service_instance.presence || DEFAULT_INSTANCE].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }

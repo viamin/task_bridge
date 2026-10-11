@@ -27,5 +27,15 @@ namespace :task_bridge do
       warn "Outbox dry run: would publish #{summary[:rows]} rows " \
            "across #{summary[:batches]} batches (nothing was sent)"
     end
+
+    desc "seed the outbox with baseline item snapshots and mapping rows for existing sync data (#222)"
+    task backfill: :environment do
+      puts SyncBackfill::BaselineOutbox.run!
+    end
+
+    desc "summarize the baseline outbox backfill without writing anything (#222)"
+    task backfill_dry_run: :environment do
+      puts SyncBackfill::BaselineOutbox.run!(dry_run: true)
+    end
   end
 end

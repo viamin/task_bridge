@@ -106,6 +106,28 @@ RSpec.describe Outbox::MappingEmitter do
       end
     end
 
+    it "publishes title-derived medium-confidence mappings as inferred" do
+      collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+
+      described_class.emit_for_members(collection, members: [member], observed_at:)
+
+      expect(OutboxEntry.find_by(record_kind: "mapping").payload.values_at("mapping_confidence", "mapping_source"))
+        .to eq(%w[inferred title_match])
+    end
+
+    it "merges provenance extras so producers can mark how the row was emitted" do
+      backfilled_at = "2026-10-05T10:00:00.000000Z"
+      described_class.emit_for_members(
+        collection,
+        members: [member],
+        observed_at:,
+        provenance_extras: { detected_by: "backfill", backfilled_at: }
+      )
+
+      expect(OutboxEntry.find_by(record_kind: "mapping").payload["provenance"])
+        .to include("method" => "manual_backfill", "detected_by" => "backfill", "backfilled_at" => backfilled_at)
+    end
+
     it "skips members that are not persisted sync items" do
       transient = member_class.new(external_id: "issue-43")
 
