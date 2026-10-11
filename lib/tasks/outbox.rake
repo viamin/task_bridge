@@ -27,5 +27,15 @@ namespace :task_bridge do
       warn "Outbox dry run: would publish #{summary[:rows]} rows " \
            "across #{summary[:batches]} batches (nothing was sent)"
     end
+
+    desc "backfill baseline item snapshots and confirmed/inferred mappings (DRY_RUN=1 previews only)"
+    task backfill: :environment do
+      dry_run = ActiveModel::Type::Boolean.new.cast(ENV.fetch("DRY_RUN", false))
+      summary = Outbox::Backfill.run!(dry_run:)
+      mode = dry_run ? "Dry run: would backfill" : "Backfill complete: queued"
+      puts "#{mode} items by service: #{summary[:items_by_service]}"
+      puts "Mappings by confidence: #{summary[:mappings_by_confidence]}"
+      puts "Skipped or incomplete: #{summary[:skipped_or_incomplete]}"
+    end
   end
 end
