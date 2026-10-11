@@ -13,7 +13,11 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # The instance segment is part of the durable idempotency identity.
+        # Single-instance adapters therefore use a stable explicit token,
+        # rather than an absent segment which would make backfilled and live
+        # identities differ.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
