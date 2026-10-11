@@ -15,10 +15,14 @@ module Outbox
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
     # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # must ignore unknown values rather than break. `medium` (a title
+    # match) maps to `inferred` and only `low` maps to `tentative`
+    # (#222): the contract's three confidence values line up one-to-one
+    # with TaskBridge's evidence ranking, and the backfill publishes only
+    # `confirmed` and `inferred` memberships (Outbox::Backfill).
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {

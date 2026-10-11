@@ -17,8 +17,11 @@ module SyncBackfill
       # Base::SyncItem.inferred_service_name_for reads peer notes via
       # peer_sync_id_keys_for, which plucks a fresh notes column per item
       # rather than using a loaded association, so preloading sync_items
-      # here would not save any queries.
-      Base::SyncItem.find_each do |item|
+      # here would not save any queries. Iteration is grouped by STI type
+      # so a row referencing a removed adapter class — or a typeless row,
+      # which cannot resolve a provider — is skipped rather than aborting
+      # the run (#222).
+      SyncBackfill::StiTypes.each_item do |item|
         next if item.last_observed_at.present?
 
         observed_at = item.updated_at || item.created_at || Time.current
