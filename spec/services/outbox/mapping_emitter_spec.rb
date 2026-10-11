@@ -92,12 +92,22 @@ RSpec.describe Outbox::MappingEmitter do
       expect(row.payload["provenance"]).to include("method" => "manual_backfill", "confidence" => "low")
     end
 
+    it "withholds low-confidence mappings during a baseline backfill" do
+      described_class.emit_backfill_for_members(collection, members: [member], observed_at:)
+
+      expect(OutboxEntry.where(record_kind: "mapping")).to be_empty
+    end
+
     it "translates sync-id and created-by-sync provenance to confirmed mappings" do
       aggregate_failures do
         collection.update!(mapping_method: "source_sync_id", mapping_confidence: "high")
         described_class.emit_for_members(collection, members: [member], observed_at:)
         expect(OutboxEntry.find_by(record_kind: "mapping").payload.values_at("mapping_confidence", "mapping_source"))
           .to eq(%w[confirmed sync_id_note])
+
+        collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+        described_class.emit_backfill_for_members(collection, members: [member], observed_at: observed_at + 30.seconds)
+        expect(OutboxEntry.where(record_kind: "mapping").last.payload["mapping_confidence"]).to eq("inferred")
 
         collection.update!(mapping_method: "created_by_sync", mapping_confidence: "high")
         described_class.emit_for_members(collection, members: [member], observed_at: observed_at + 1.minute)
