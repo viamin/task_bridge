@@ -27,5 +27,16 @@ namespace :task_bridge do
       warn "Outbox dry run: would publish #{summary[:rows]} rows " \
            "across #{summary[:batches]} batches (nothing was sent)"
     end
+
+    # Baseline backfill (#222): seeds item snapshots and mapping rows for
+    # pre-publication sync data so TaskBridge Web starts from known current
+    # state. Run DRY_RUN=1 first to preview counts; see
+    # docs/backfill-taskbridge-web-baseline.md for the full runbook.
+    desc "backfill baseline item snapshots and mapping rows for existing sync data (DRY_RUN=1 previews without writing)"
+    task backfill_baseline: :environment do
+      dry_run = %w[1 true yes].include?(ENV["DRY_RUN"].to_s.downcase)
+      report = SyncBackfill::OutboxBaseline.run!(dry_run:)
+      puts SyncBackfill::OutboxBaseline::Summary.render(report)
+    end
   end
 end

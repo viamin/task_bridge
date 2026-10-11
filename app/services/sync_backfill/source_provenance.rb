@@ -11,6 +11,19 @@ module SyncBackfill
       backfill_sync_collections
     end
 
+    # Pure inference (no writes) so callers such as OutboxBaseline's dry run
+    # can determine what mapping provenance a collection would carry after
+    # this backfill ran.
+    def inferred_provenance_for(collection)
+      items = collection.sync_items.to_a.compact
+      default_metadata = { "sync_item_ids" => items.filter_map(&:id) }
+      return { method: "manual_backfill", confidence: "low", metadata: default_metadata } if items.length < 2
+
+      provenance = SyncMappingProvenance.preferred_for(items)
+
+      provenance.merge(metadata: default_metadata.merge(provenance.fetch(:metadata)))
+    end
+
     private
 
     def backfill_sync_items
@@ -19,6 +32,9 @@ module SyncBackfill
       # rather than using a loaded association, so preloading sync_items
       # here would not save any queries.
       Base::SyncItem.find_each do |item|
+        # Rows without an STI type have no provider to infer identity from;
+        # the outbox baseline backfill reports them as skipped instead.
+        next if item.instance_of?(Base::SyncItem)
         next if item.last_observed_at.present?
 
         observed_at = item.updated_at || item.created_at || Time.current
@@ -35,20 +51,6 @@ module SyncBackfill
         provenance = inferred_provenance_for(collection)
         collection.update_mapping_provenance!(**provenance, observed_at:)
       end
-    end
-
-    def inferred_provenance_for(collection)
-      items = collection.sync_items.to_a.compact
-      default_metadata = { "sync_item_ids" => items.filter_map(&:id) }
-      return { method: "manual_backfill", confidence: "low", metadata: default_metadata } if items.length < 2
-
-      provenance = preferred_provenance(items)
-
-      provenance.merge(metadata: default_metadata.merge(provenance.fetch(:metadata)))
-    end
-
-    def preferred_provenance(items)
-      SyncMappingProvenance.preferred_for(items)
     end
   end
 end

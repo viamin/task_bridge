@@ -86,17 +86,19 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. Built
+    # from a nil-safe payload copy because rows loaded from the database
+    # (e.g. the outbox backfill) carry no attached API response.
     def normalized_metadata
       {
         number:,
         pull_request: is_pr,
         repository: full_repo_name,
-        author: github_issue.dig("user", "login"),
+        author: external_payload.dig("user", "login"),
         assignees: assignee_logins,
-        milestone: github_issue.dig("milestone", "title"),
-        comments_count: github_issue["comments"].presence,
-        draft: (github_issue["draft"] if is_pr)
+        milestone: external_payload.dig("milestone", "title"),
+        comments_count: external_payload["comments"].presence,
+        draft: (external_payload["draft"] if is_pr)
       }.compact
     end
 
@@ -116,16 +118,22 @@ module Github
 
     private
 
+    # The attached API response, or an empty payload for persisted rows
+    # that have not been refreshed from the source in this process.
+    def external_payload
+      github_issue || {}
+    end
+
     def short_repo_name(github_issue)
       github_issue["repository_url"]&.split("/")&.last || "unknown"
     end
 
     def full_repo_name
-      github_issue["repository_url"]&.split("repos/")&.last
+      external_payload["repository_url"]&.split("repos/")&.last
     end
 
     def assignee_logins
-      Array(github_issue["assignees"]).filter_map { |assignee| assignee["login"] }
+      Array(external_payload["assignees"]).filter_map { |assignee| assignee["login"] }
     end
 
     # Raw:
