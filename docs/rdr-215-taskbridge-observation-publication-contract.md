@@ -18,7 +18,8 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- The backfill policy for mappings TaskBridge holds at low confidence is now resolved: backfill publishes only `confirmed` and `inferred` mappings and withholds `tentative` ones, which stay reviewable in the backfill dry-run summary (decided with #222, 2026-10-11; see Open Questions).
+- Services without a configured instance suffix use the permanent `:default` service-instance token (e.g. `omnifocus:default`), embedded in idempotency keys and shared by the backfill and the live pipeline (decided with #222, 2026-10-11).
 
 ## Decision
 
@@ -685,7 +686,7 @@ Rules:
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: resolved 2026-10-11 with issue #222. Backfill publishes only `confirmed` and `inferred` mappings; `tentative` (low-confidence) memberships are withheld from publication and listed in the backfill dry-run summary for manual cleanup or Web-side review. `high` maps to `confirmed` and `medium` maps to `inferred`; only `low` maps to `tentative`.
 
 ## Rejected Alternatives
 
