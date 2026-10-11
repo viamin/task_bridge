@@ -79,7 +79,7 @@ module GoogleKeep
     end
 
     def note_id
-      read_external_attribute(keep_item[:note], :name)
+      read_external_attribute(keep_item&.fetch(:note, nil), :name)
     end
 
     # Whether this item's external ID came from Keep's embedded marker
@@ -151,8 +151,11 @@ module GoogleKeep
       source_metadata.is_a?(Hash) ? source_metadata : {}
     end
 
+    # The path of indexes from the note's root list item down to this item;
+    # empty when the item was built without a path (or loaded from the
+    # database, where transient Keep structure is not persisted).
     def keep_path
-      Array(keep_item[:path])
+      Array(keep_item&.fetch(:path, nil))
     end
 
     # The path of indexes from the note's root list item down to this item;

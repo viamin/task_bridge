@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -40,32 +40,35 @@ module Outbox
       end
     end
 
+    # The canonical mapping row payload. Public so the baseline backfill
+    # (#222) publishes the exact same row shape live sync does instead of
+    # duplicating the mapping vocabulary here.
+    def self.payload(collection, member, identity, observed_at)
+      {
+        contract_version: OutboxEntry::PAYLOAD_VERSION,
+        mapping_type: MAPPING_TYPE,
+        observed_at: observed_at.utc.iso8601(6),
+        sync_collection: {
+          sync_collection_id: collection.id,
+          title: collection.title
+        },
+        member: identity.merge(item_key: member.item_key),
+        membership_role: MEMBERSHIP_ROLE,
+        mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
+        mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
+        provenance: {
+          method: collection.mapping_method,
+          confidence: collection.mapping_confidence,
+          metadata: collection.mapping_metadata
+        }
+      }
+    end
+
     class << self
       private
 
       def eligible?(member)
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
-      end
-
-      def payload(collection, member, identity, observed_at)
-        {
-          contract_version: OutboxEntry::PAYLOAD_VERSION,
-          mapping_type: MAPPING_TYPE,
-          observed_at: observed_at.utc.iso8601(6),
-          sync_collection: {
-            sync_collection_id: collection.id,
-            title: collection.title
-          },
-          member: identity.merge(item_key: member.item_key),
-          membership_role: MEMBERSHIP_ROLE,
-          mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
-          mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
-          provenance: {
-            method: collection.mapping_method,
-            confidence: collection.mapping_confidence,
-            metadata: collection.mapping_metadata
-          }
-        }
       end
 
       def enqueue_context(identity, collection, observed_at)

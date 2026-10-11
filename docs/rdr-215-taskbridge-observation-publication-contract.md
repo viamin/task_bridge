@@ -18,7 +18,7 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- The backfill policy for mappings TaskBridge holds at low confidence was resolved with #222: backfill publishes only `confirmed` and `inferred` mappings and withholds `tentative` ones, which stay identifiable through backfill summary counts. Internal confidence maps `high` → `confirmed` and `medium` → `inferred` (see Open Questions).
 
 ## Decision
 
@@ -682,10 +682,13 @@ Rules:
   - deletion tombstones only where deletion can be stated confidently.
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
+- The delivered backfill (#222) — item snapshots, withheld low-confidence mappings, and the permanent `:default` service-instance token for single-instance services — is documented in docs/outbox-backfill.md.
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- ~~**Low-confidence mapping backfill policy**~~: resolved with #222. Backfill publishes only `confirmed` and `inferred` mappings and withholds `tentative` ones (see Follow-up Decisions). Withheld memberships remain identifiable through the backfill's dry-run summary counts by confidence; live sync (#219) still publishes every membership it (re-)establishes, including tentative ones.
+
+No open questions remain for v1.
 
 ## Rejected Alternatives
 
