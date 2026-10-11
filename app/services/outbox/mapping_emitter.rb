@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -28,6 +28,18 @@ module Outbox
     }.freeze
 
     def self.emit_for_members(collection, members:, observed_at: Time.current)
+      emit(collection, members:, observed_at:)
+    end
+
+    # Migration backfills deliberately do not publish tentative memberships.
+    # They remain visible in the backfill report for later review.
+    def self.emit_backfill_for_members(collection, members:, observed_at: Time.current)
+      return unless %w[high medium].include?(collection.mapping_confidence)
+
+      emit(collection, members:, observed_at:)
+    end
+
+    def self.emit(collection, members:, observed_at:)
       Array(members).select { |member| eligible?(member) }.each do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
