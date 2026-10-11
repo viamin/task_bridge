@@ -18,7 +18,7 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- Backfill publishes confirmed and inferred mappings; it withholds tentative mappings for manual review (see Migration and Backfill Implications).
 
 ## Decision
 
@@ -682,10 +682,9 @@ Rules:
   - deletion tombstones only where deletion can be stated confidently.
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
-
-## Open Questions
-
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- Backfilled item rows are baseline current-state snapshots, not historical observation events. They carry `provenance.detected_by: backfill`, `provenance.baseline: true`, and `provenance.backfilled_at`.
+- Backfill publishes `confirmed` and `inferred` mapping memberships only. `tentative` mappings remain in TaskBridge and are reported by the dry-run summary for manual cleanup or review.
+- Backfill emits no sync-run rows because the retained service state has no reliable per-run start and finish timestamps.
 
 ## Rejected Alternatives
 
