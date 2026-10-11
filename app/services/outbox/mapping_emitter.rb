@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -33,11 +33,15 @@ module Outbox
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
+            payload: payload_for(collection, member, observed_at:),
             **enqueue_context(identity, collection, observed_at)
           )
         end
       end
+    end
+
+    def self.payload_for(collection, member, observed_at:)
+      payload(collection, member, Outbox::SourceIdentity.for(member), observed_at)
     end
 
     class << self
