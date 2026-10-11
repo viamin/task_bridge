@@ -66,13 +66,13 @@ RSpec.describe Outbox::ObservationEmitter do
       expect(row.event_type).to eq("snapshot_seen")
       expect(row.external_id).to eq("obs-1")
       expect(row.service_type).to eq("test_service")
-      expect(row.service_instance).to eq("test_service")
+      expect(row.service_instance).to eq("test_service:default")
       expect(row.observed_at).to eq(first_observed_at)
       expect(row.payload["event_type"]).to eq("snapshot_seen")
       expect(row.payload["item_key"]).to eq("test_service:obs-1")
       expect(row.payload["source"]).to include(
         "service_type" => "test_service",
-        "service_instance" => "test_service",
+        "service_instance" => "test_service:default",
         "external_id" => "obs-1"
       )
       expect(row.payload["change"]).to be_nil
@@ -82,7 +82,7 @@ RSpec.describe Outbox::ObservationEmitter do
         "sync_run_id" => "sync-run-2026-10-05T10:00:00.000000Z"
       )
       expect(row.idempotency_key).to eq(
-        "tb:v1:obs:test_service:obs-1:snapshot_seen:2026-10-05T10:00:00.000000Z"
+        "tb:v1:obs:test_service:default:obs-1:snapshot_seen:2026-10-05T10:00:00.000000Z"
       )
       expect(item.reload.last_snapshot).to include("title" => "Buy milk")
     end
