@@ -18,7 +18,7 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- The backfill policy for mappings TaskBridge holds at low confidence is resolved by #222 (see Open Questions): low-confidence memberships are withheld from publication.
 
 ## Decision
 
@@ -685,7 +685,7 @@ Rules:
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy** (resolved by #222): whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. Resolved in favor of withholding: backfill publishes only `confirmed` (`high`) and `inferred` (`medium`) mappings, both as standalone `mapping` rows and as the `sync_collection` field nested inside a baseline item snapshot. `low`/`tentative` memberships are never enqueued; they stay identifiable only through the backfill's dry-run summary (`skipped["low_confidence_withheld"]`) for manual cleanup, pending any future product guidance that revisits this. See `docs/backfill-outbox-baseline.md`.
 
 ## Rejected Alternatives
 
