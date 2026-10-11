@@ -19,9 +19,9 @@ module SyncBackfill
       # rather than using a loaded association, so preloading sync_items
       # here would not save any queries.
       Base::SyncItem.find_each do |item|
-        next if item.last_observed_at.present?
+        next unless source_provenance_incomplete?(item)
 
-        observed_at = item.updated_at || item.created_at || Time.current
+        observed_at = item.last_observed_at || item.last_modified || item.updated_at || item.created_at || Time.current
         item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
         item.observe_source!(observed_at:)
       end
@@ -29,9 +29,9 @@ module SyncBackfill
 
     def backfill_sync_collections
       SyncCollection.includes(:sync_items).find_each do |collection|
-        next if collection.mapping_method.present?
+        next unless mapping_provenance_incomplete?(collection)
 
-        observed_at = collection.updated_at || collection.created_at || Time.current
+        observed_at = collection.mapping_last_observed_at || collection.updated_at || collection.created_at || Time.current
         provenance = inferred_provenance_for(collection)
         collection.update_mapping_provenance!(**provenance, observed_at:)
       end
@@ -49,6 +49,17 @@ module SyncBackfill
 
     def preferred_provenance(items)
       SyncMappingProvenance.preferred_for(items)
+    end
+
+    def source_provenance_incomplete?(item)
+      item.last_observed_at.blank? || item.source_service_name.blank? ||
+        item.source_service_type.blank? || item.source_external_id.blank?
+    end
+
+    def mapping_provenance_incomplete?(collection)
+      collection.mapping_method.blank? || collection.mapping_confidence.blank? ||
+        collection.mapping_metadata.blank? || collection.mapping_established_at.blank? ||
+        collection.mapping_last_observed_at.blank?
     end
   end
 end

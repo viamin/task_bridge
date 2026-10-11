@@ -10,10 +10,11 @@ module Outbox
 
     def for(item)
       service_type = Base::Service.service_identifier_for(item.provider)
+      instance_name = item.source_service_instance.presence || "default"
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        service_instance: [service_type, instance_name].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
