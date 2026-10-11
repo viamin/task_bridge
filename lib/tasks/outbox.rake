@@ -2,6 +2,15 @@
 
 namespace :task_bridge do
   namespace :outbox do
+    desc "backfill baseline item snapshots and confirmed/inferred mappings into the outbox"
+    task backfill: :environment do
+      print_backfill_summary(SyncBackfill::OutboxBaseline.run!)
+    end
+
+    desc "preview baseline backfill counts without changing data or the outbox"
+    task backfill_dry_run: :environment do
+      print_backfill_summary(SyncBackfill::OutboxBaseline.run!(dry_run: true))
+    end
     desc "prune delivered and terminal-failure outbox entries past their retention windows"
     task prune: :environment do
       pruned = Outbox::Prune.run!
@@ -26,6 +35,13 @@ namespace :task_bridge do
       # stderr to keep stdout pure NDJSON.
       warn "Outbox dry run: would publish #{summary[:rows]} rows " \
            "across #{summary[:batches]} batches (nothing was sent)"
+    end
+
+    def print_backfill_summary(summary)
+      summary.sort_by { |(kind, service, confidence), _| [kind.to_s, service, confidence.to_s] }.each do |(kind, service, confidence), count|
+        suffix = " confidence=#{confidence}" if confidence
+        puts "#{kind} service=#{service}#{suffix}: #{count}"
+      end
     end
   end
 end
