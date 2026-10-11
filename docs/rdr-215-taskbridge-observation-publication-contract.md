@@ -20,6 +20,13 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
 - The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
 
+Additional decisions confirmed during backfill implementation (#222, 2026-10-11):
+
+- Low-confidence (`low`/`tentative`) memberships are withheld from backfill publication; only `confirmed` (`high`) and `inferred` (`medium`) mappings are enqueued, with withheld counts surfaced in the backfill summary (resolves the Open Question below in favor of this section's stated default; see `docs/outbox-backfill.md`).
+- The backfill writes one `item` snapshot per existing sync item, marked `provenance.detected_by: "backfill"` plus a `backfilled_at` timestamp; it writes no `snapshot_seen` observation rows.
+- Services without a configured instance use the permanent default token `<service_type>:default` (e.g. `omnifocus:default`) in `service_instance`, embedded forever in idempotency keys; the live pipeline resolves the same default through `Outbox::SourceIdentity`.
+- The backfill writes no `sync_run` rows: `sync_service_states` has no reliable per-run start/end timestamps.
+
 ## Decision
 
 Use a versioned Rails-native HTTP push contract with these responsibilities:
@@ -685,7 +692,7 @@ Rules:
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. **Resolved for the backfill (2026-10-11, #222): withhold `tentative` rows; publish only `confirmed` and `inferred`** (see Follow-up Decisions and `docs/outbox-backfill.md`). Whether TaskBridge Web should later accept backfilled `tentative` mappings remains a product-owner decision point; the backfill can be rerun unchanged if that decision flips.
 
 ## Rejected Alternatives
 
