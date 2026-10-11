@@ -13,7 +13,10 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # The instance segment participates in every idempotency key.  A
+        # single-instance service therefore needs a permanent explicit value,
+        # rather than an empty segment which cannot later be changed safely.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
