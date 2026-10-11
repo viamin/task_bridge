@@ -18,7 +18,8 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- The backfill policy for low-confidence mappings is resolved (#222): `SyncBackfill::BaselineMappings` withholds `low`/`tentative` memberships from publication, matching this RDR's stated default (see Open Questions and Migration and Backfill Implications). The confidence crosswalk is `high -> confirmed`, `medium -> inferred`, `low -> tentative` (`Outbox::MappingEmitter::CONFIDENCE`).
+- `service_instance` for a service with no configured instance is the permanent default token `<service_type>:default` (for example `omnifocus:default`), embedded in idempotency keys by both the live pipeline (`Outbox::SourceIdentity`) and the backfill (#222) so they share identities.
 
 ## Decision
 
@@ -416,7 +417,7 @@ Required fields:
     "external_id": "issue-42"
   },
   "membership_role": "member",
-  "mapping_confidence": "tentative",
+  "mapping_confidence": "inferred",
   "mapping_source": "title_match",
   "provenance": {
     "matched_fields": ["title"],
@@ -682,10 +683,17 @@ Rules:
   - deletion tombstones only where deletion can be stated confidently.
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
+- Implemented by #222 (`SyncBackfill::BaselineSnapshots`, `SyncBackfill::BaselineMappings`; see
+  `docs/backfill-baseline-observations.md`) as item-snapshot and mapping rows only — no
+  `snapshot_seen` observation rows and no `sync_run` rows, since `sync_service_states` has no
+  reliable per-run start/end timestamps (see Open Questions).
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- ~~**Low-confidence mapping backfill policy**~~ — resolved by #222: backfill publishes only
+  `confirmed` and `inferred` mapping rows and withholds `tentative` (`low`-confidence) ones,
+  which remain identifiable in the backfill's dry-run summary for manual cleanup or Web-side
+  review (`SyncBackfill::BaselineMappings`).
 
 ## Rejected Alternatives
 

@@ -118,6 +118,13 @@ RSpec.describe "Github::Issue" do
       )
       expect(issue.assignee).to eq("octocat")
     end
+
+    it "is empty rather than raising when github_issue was never loaded (#222 baseline backfill)" do
+      persisted_only = Github::Issue.new
+
+      expect(persisted_only.github_issue).to be_nil
+      expect(persisted_only.normalized_metadata).to eq({})
+    end
   end
 
   describe "#normalized_snapshot" do

@@ -111,10 +111,12 @@ class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
 `source.service_instance` is **always** populated — including for a
 freshly constructed item that has not gone through
 `capture_source_identity` — so consumers must not code for a nilable
-value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
-captured instance segment when one exists (`asana:work`,
-`omnifocus:default`), and yields the bare `service_type` (`asana`)
-otherwise; the per-instance component therefore belongs only in
+value. `Outbox::SourceIdentity` embeds the `service_type` followed by
+either the captured instance segment (`asana:work`) or, when no instance
+is configured, the permanent default token `default` (`omnifocus:default`,
+`asana:default`) — never the bare `service_type` on its own. This default
+is embedded in idempotency keys and so can never change once chosen
+(#222); the per-instance component therefore belongs only in
 `source.service_instance`, never in `source.service_type`. Like `item_key`
 and idempotency keys, `service_instance` is opaque: consumers must not
 parse it by splitting on `:` because segments may themselves contain
@@ -150,10 +152,23 @@ outbox rows or advance the diff baseline.
   every member when the collection's mapping provenance meaningfully
   changes (for example `title_fallback` upgrading to `source_sync_id`).
   Internal confidence values map to the contract's vocabulary
-  (high → `confirmed`; medium/low → `tentative`).
+  (high → `confirmed`; medium → `inferred`; low → `tentative`).
 - **Key uniqueness**: when one observation yields several field transitions,
   each row's idempotency key carries a sequence segment
   (`Outbox::IdempotencyKey`), per the RDR #215 rule for colliding observed
   timestamps. The baseline is only advanced after every row is enqueued, so
   a failed enqueue can re-detect a transition (at-least-once) but never
   silently swallows one.
+
+## Baseline backfill (#222)
+
+Existing `sync_items` and `sync_collections` predate the outbox and never
+went through `Outbox::ObservationEmitter`/`Outbox::MappingEmitter`, so they
+need a one-time seed rather than live diffing. `SyncBackfill::BaselineSnapshots`
+and `SyncBackfill::BaselineMappings` (see
+`docs/backfill-baseline-observations.md`) emit `item` and `mapping` rows
+for that existing data using `Outbox::ItemSnapshotEmitter` and the same
+`Outbox::MappingEmitter` the live pipeline uses — they never emit
+`snapshot_seen` or `sync_run` rows. Every backfilled `item` row carries
+`provenance.detected_by: "backfill"` and `provenance.backfilled_at` so
+TaskBridge Web never mistakes existing data for a just-happened change.
