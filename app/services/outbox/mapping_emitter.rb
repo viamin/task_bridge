@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -38,6 +38,15 @@ module Outbox
           )
         end
       end
+    end
+
+    # Baselines deliberately omit tentative mappings.  A title-only or manual
+    # grouping is useful local evidence, but must be reviewed before Web sees
+    # it as a cross-system relationship (RDR #215 / #222).
+    def self.emit_backfill_for_members(collection, members:, observed_at: Time.current)
+      return unless %w[high medium].include?(collection.mapping_confidence)
+
+      emit_for_members(collection, members:, observed_at:)
     end
 
     class << self
