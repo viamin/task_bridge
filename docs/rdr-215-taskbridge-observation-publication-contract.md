@@ -19,6 +19,7 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
 - The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- Backfill low-confidence mapping policy (resolved 2026-10-11 via #222): the baseline backfill publishes only `confirmed` and `inferred` mappings — internal confidence `high` maps to `confirmed` and `medium` maps to `inferred` — and withholds `low`/`tentative` membership rows; low-confidence memberships stay identifiable through the backfill dry-run summary counts by confidence and method (see Migration and Backfill Implications and docs/outbox-baseline-backfill.md). The backfill also emits no `snapshot_seen` observations and no sync-run rows, and marks every baseline item snapshot with `provenance.detected_by: "backfill"` plus a `backfilled_at` timestamp.
 
 ## Decision
 
@@ -682,10 +683,12 @@ Rules:
   - deletion tombstones only where deletion can be stated confidently.
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
+- Backfilled item snapshots are baseline facts, not historical change events: they carry `provenance.detected_by: "backfill"` and a `backfilled_at` timestamp, and the backfill emits no `snapshot_seen` observation rows — the first live observation of each item is published by the regular sync pipeline (resolved in #222; see docs/outbox-baseline-backfill.md).
+- Single-instance services without a configured instance suffix publish the permanent default token (for example `omnifocus:default`) as `service_instance`, shared by the backfill and the live pipeline so seeded and live rows claim the same identity (#222).
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. Resolved for the backfill (2026-10-11, #222): the backfill withholds `low`/`tentative` rows — see Follow-up Decisions. Whether the live pipeline should also withhold newly observed low-confidence mappings (rather than publishing them as `tentative`) remains open.
 
 ## Rejected Alternatives
 
