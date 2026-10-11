@@ -13,7 +13,10 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # A configured instance is preferred, but a stable default is needed
+        # for single-instance adapters. This value is part of the idempotency
+        # key, so it must never depend on a transient nil value.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }

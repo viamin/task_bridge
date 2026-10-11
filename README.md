@@ -73,3 +73,28 @@ To run the cleanup task:
 * `cp com.github.viamin.task_bridge.cleanup.plist ~/Library/LaunchAgents/`
 * May need to remove the old one first `launchctl remove com.github.viamin.task_bridge.cleanup`
 * `launchctl load -w ~/Library/LaunchAgents/com.github.viamin.task_bridge.cleanup.plist`
+
+## Seeding TaskBridge Web from existing sync data
+
+Before enabling TaskBridge Web publication for an existing installation, seed
+the local outbox. Preview first; the preview performs no writes and reports
+items by service, mapping confidence, and incomplete records:
+
+```sh
+bundle exec rake task_bridge:backfill_task_bridge_web DRY_RUN=1
+```
+
+Then seed the baseline rows:
+
+```sh
+bundle exec rake task_bridge:backfill_task_bridge_web
+```
+
+The task backfills local identity and mapping provenance, writes one current
+state `item` snapshot per known source item, and writes mappings only for high
+or medium confidence memberships. Low-confidence mappings are withheld and
+called out in the summary for manual cleanup or review. It never contacts or
+mutates external source systems, creates no historical change observations or
+sync-run rows, and is safe to rerun because every outbox row has a deterministic
+idempotency key. Run the normal outbox publication task only after reviewing
+the preview and baseline summary.
