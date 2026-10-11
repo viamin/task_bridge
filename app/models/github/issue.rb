@@ -87,7 +87,14 @@ module Github
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
     # details are not part of the common normalized_snapshot schema.
+    #
+    # github_issue is a transient attr_accessor (never persisted), so a row
+    # reloaded from the database without a fresh API read (e.g. the
+    # baseline backfill, #222) has it nil; guard rather than raise so
+    # normalized_snapshot stays callable on persisted-only data.
     def normalized_metadata
+      return {} if github_issue.blank?
+
       {
         number:,
         pull_request: is_pr,

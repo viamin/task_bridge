@@ -15,10 +15,14 @@ module Outbox
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
     # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # must ignore unknown values rather than break. The crosswalk resolves
+    # RDR #215's open backfill question (#222): high -> confirmed,
+    # medium -> inferred, low -> tentative. SyncBackfill::BaselineMappings
+    # withholds `low`/`tentative` rows from publication entirely rather
+    # than enqueueing them here.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
