@@ -18,7 +18,9 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- ~~The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).~~ Resolved 2026-10-11 for the backfill (#222): publish only `confirmed` and `inferred` mappings and withhold `tentative` ones (see Open Questions).
+- Backfill emits one current-state `item` snapshot per existing sync item, marked as baseline via `provenance.detected_by: "backfill"` and `provenance.backfilled_at`, and no `snapshot_seen` observation rows (#222).
+- Backfill writes no `sync_run` summaries: `sync_service_states` has no reliable per-run start/end timestamps (#222).
 
 ## Decision
 
@@ -685,7 +687,7 @@ Rules:
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: RESOLVED (2026-10-11, #222). Backfill publishes only `confirmed` and `inferred` mappings (`high` → `confirmed`, `medium` → `inferred`) and withholds `tentative` (`low`) ones. Withheld memberships stay identifiable through the backfill summary counts by confidence. Live sync may still publish upgraded mappings as evidence improves.
 
 ## Rejected Alternatives
 
