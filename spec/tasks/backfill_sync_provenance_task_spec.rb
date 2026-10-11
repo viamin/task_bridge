@@ -124,5 +124,41 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    expect(OutboxEntry.where(record_kind: "item").first.payload["provenance"])
+      .to include("detected_by" => "backfill", "backfilled_at" => be_present)
+  end
+
+  it "previews representative services without writing records" do
+    %w[Omnifocus Asana Github GoogleTasks].each_with_index do |provider, index|
+      klass = stub_const("Backfill#{provider}Item", Class.new(Base::SyncItem) do
+        define_method(:provider) { provider }
+
+        define_method(:external_data) { {} }
+
+        define_singleton_method(:attribute_map) { {} }
+      end)
+      klass.create!(title: provider, external_id: "#{provider}-#{index}", options: options)
+    end
+
+    output = StringIO.new
+    summary = SyncBackfill::SourceProvenance.run!(dry_run: true, output:)
+
+    expect(OutboxEntry.count).to eq(0)
+    expect(summary[:services]).to include("omnifocus" => 1, "asana" => 1, "github" => 1, "google_tasks" => 1)
+    expect(output.string).to include("dry run", "services:")
+  end
+
+  it "withholds low-confidence mappings while reporting them" do
+    collection = SyncCollection.create!(title: "Unverified")
+    test_item_class.create!(title: "Unverified", external_id: "only-one", sync_collection: collection, options: options)
+
+    summary = SyncBackfill::SourceProvenance.run!(output: StringIO.new)
+
+    expect(OutboxEntry.where(record_kind: "mapping")).to be_empty
+    expect(summary[:counts][:low_confidence_mappings]).to eq(1)
   end
 end
