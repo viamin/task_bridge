@@ -92,18 +92,32 @@ RSpec.describe Outbox::MappingEmitter do
       expect(row.payload["provenance"]).to include("method" => "manual_backfill", "confidence" => "low")
     end
 
-    it "translates sync-id and created-by-sync provenance to confirmed mappings" do
+    it "translates internal provenance to the contract confidence vocabulary" do
       aggregate_failures do
         collection.update!(mapping_method: "source_sync_id", mapping_confidence: "high")
         described_class.emit_for_members(collection, members: [member], observed_at:)
         expect(OutboxEntry.find_by(record_kind: "mapping").payload.values_at("mapping_confidence", "mapping_source"))
           .to eq(%w[confirmed sync_id_note])
 
-        collection.update!(mapping_method: "created_by_sync", mapping_confidence: "high")
+        collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
         described_class.emit_for_members(collection, members: [member], observed_at: observed_at + 1.minute)
+        expect(OutboxEntry.where(record_kind: "mapping").last.payload.values_at("mapping_confidence", "mapping_source"))
+          .to eq(%w[inferred title_match])
+
+        collection.update!(mapping_method: "created_by_sync", mapping_confidence: "high")
+        described_class.emit_for_members(collection, members: [member], observed_at: observed_at + 2.minutes)
         expect(OutboxEntry.where(record_kind: "mapping").last.payload.values_at("mapping_confidence", "mapping_source"))
           .to eq(%w[confirmed created_by_sync])
       end
+    end
+
+    it "keeps low confidence tentative and reports which confidences the backfill may publish" do
+      expect(Outbox::MappingEmitter.publishable_confidence?(nil)).to be(false)
+      expect(Outbox::MappingEmitter.publishable_confidence?("low")).to be(false)
+      expect(Outbox::MappingEmitter.publishable_confidence?("medium")).to be(true)
+      expect(Outbox::MappingEmitter.publishable_confidence?("high")).to be(true)
+      expect(Outbox::MappingEmitter.contract_confidence_for("medium")).to eq("inferred")
+      expect(Outbox::MappingEmitter.contract_confidence_for("low")).to eq("tentative")
     end
 
     it "skips members that are not persisted sync items" do
