@@ -27,5 +27,20 @@ namespace :task_bridge do
       warn "Outbox dry run: would publish #{summary[:rows]} rows " \
            "across #{summary[:batches]} batches (nothing was sent)"
     end
+
+    desc "preview the #222 baseline backfill (counts by service/confidence/skip reason; writes nothing)"
+    task backfill_dry_run: :environment do
+      summary = SyncBackfill::ObservationBackfill.run!(dry_run: true)
+      puts JSON.pretty_generate(summary)
+    end
+
+    desc "backfill baseline item snapshots and confirmed/inferred mapping rows for existing sync data (#222)"
+    task backfill: :environment do
+      summary = SyncBackfill::ObservationBackfill.run!(dry_run: false)
+      puts "Backfilled #{summary[:items][:enqueued]} item snapshots and " \
+           "#{summary[:mappings][:enqueued]} mapping rows " \
+           "(#{summary[:mappings][:skipped]['low_confidence_withheld'].to_i} low-confidence mappings withheld)"
+      puts JSON.pretty_generate(summary)
+    end
   end
 end
