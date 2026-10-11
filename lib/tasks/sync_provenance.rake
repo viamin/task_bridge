@@ -5,4 +5,11 @@ namespace :task_bridge do
   task backfill_sync_provenance: :environment do
     SyncBackfill::SourceProvenance.run!
   end
+
+  desc "seed baseline item snapshots and confirmed mappings into the outbox (DRY_RUN=1 previews only)"
+  task backfill_outbox: :environment do
+    dry_run = ActiveModel::Type::Boolean.new.cast(ENV.fetch("DRY_RUN", false))
+    summary = SyncBackfill::Outbox.run!(dry_run:)
+    puts JSON.pretty_generate(summary)
+  end
 end
