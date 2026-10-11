@@ -92,6 +92,14 @@ RSpec.describe Outbox::MappingEmitter do
       expect(row.payload["provenance"]).to include("method" => "manual_backfill", "confidence" => "low")
     end
 
+    it "translates title provenance to an inferred mapping" do
+      collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+
+      described_class.emit_for_members(collection, members: [member], observed_at:)
+
+      expect(OutboxEntry.find_by(record_kind: "mapping").payload["mapping_confidence"]).to eq("inferred")
+    end
+
     it "translates sync-id and created-by-sync provenance to confirmed mappings" do
       aggregate_failures do
         collection.update!(mapping_method: "source_sync_id", mapping_confidence: "high")
