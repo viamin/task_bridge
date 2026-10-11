@@ -685,7 +685,7 @@ Rules:
   - deletion tombstones only where deletion can be stated confidently.
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
-- The implemented backfill (#222) follows these rules: it emits item snapshots and `confirmed`/`inferred` mapping rows only, withholds `low`-confidence mappings, and fabricates neither observations nor sync-run summaries. See [backfill-baseline-outbox.md](backfill-baseline-outbox.md) for how to run it before enabling publication.
+- The implemented backfill (#222) follows these rules: it emits item snapshots and `confirmed`/`inferred` mapping rows only, withholds `low`-confidence mappings, and fabricates neither observations nor sync-run summaries. See [outbox-baseline-backfill.md](outbox-baseline-backfill.md) for how to run it before enabling publication.
 
 ## Open Questions
 

@@ -53,6 +53,15 @@ Then run the real backfill:
 bin/rails task_bridge:outbox:backfill
 ```
 
+Example dry-run output:
+
+```
+Baseline outbox backfill (dry run):
+  items: would enqueue 5 (Asana:work: 1, Github: 1, GoogleTasks: 1, Omnifocus: 2), skipped 1 (missing_external_id: 1)
+  mappings: would enqueue 4 (high: 2, medium: 2)
+  mappings withheld from publication: 2 (low: 2) (#12 Buy milk (1 members), #14 Untitled (1 members))
+```
+
 Both tasks are safe to run repeatedly:
 
 - Item and mapping rows use deterministic idempotency keys derived from
@@ -62,10 +71,20 @@ Both tasks are safe to run repeatedly:
   provenance, so reruns leave observation timestamps untouched.
 
 Run the backfill **before** enabling publication to TaskBridge Web
-(`task_bridge.web.enabled` in `config/settings.yml`). Once publication is
-enabled, the outbox publisher delivers the baseline rows in the next sync
-run or standalone `task_bridge:outbox:publish` run; TaskBridge Web treats
-them as current state (upsert), not as historical change events.
+(`task_bridge.web.enabled` in `config/settings.yml`). The full sequence:
+
+```bash
+bin/rails task_bridge:outbox:backfill_dry_run  # preview counts, nothing written
+bin/rails task_bridge:outbox:backfill          # seed the outbox
+bin/rails task_bridge:outbox:publish_dry_run   # optional: inspect the exact batches (NDJSON)
+# enable task_bridge.web in config/settings.yml, then:
+bin/rails task_bridge:outbox:publish
+```
+
+Once publication is enabled, the outbox publisher delivers the baseline rows
+in the next sync run or standalone `task_bridge:outbox:publish` run;
+TaskBridge Web treats them as current state (upsert), not as historical
+change events.
 
 ## Low-confidence mappings
 
