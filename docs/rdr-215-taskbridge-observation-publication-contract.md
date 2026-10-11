@@ -18,7 +18,7 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- Backfill withholds low-confidence (`tentative`) mappings; its dry-run summary identifies them for later review.
 
 ## Decision
 
@@ -683,9 +683,32 @@ Rules:
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
 
-## Open Questions
+## Backfill operation
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+Before enabling TaskBridge Web publication, run a preview from the deployed
+TaskBridge checkout:
+
+```sh
+DRY_RUN=true bundle exec rake task_bridge:backfill_sync_provenance
+```
+
+The JSON summary reports item counts by service, mapping counts by confidence,
+and incomplete or low-confidence records skipped from publication. Review the
+low-confidence count before continuing; those rows are intentionally withheld
+from TaskBridge Web. To write the idempotent baseline item snapshots and the
+confirmed/inferred mapping rows, run:
+
+```sh
+bundle exec rake task_bridge:backfill_sync_provenance
+```
+
+The task only reads and updates TaskBridge's local database and outbox. It
+never contacts or mutates external source systems. Each item row is marked
+`provenance.detected_by: backfill` with a stable `backfilled_at` timestamp;
+the task emits no `snapshot_seen` observations and no backfilled sync-run rows.
+It also establishes the local snapshot baseline, so later source changes—not
+the seeded current state—become change history. Rerunning it is safe because
+the same existing timestamps produce the same idempotency keys.
 
 ## Rejected Alternatives
 
