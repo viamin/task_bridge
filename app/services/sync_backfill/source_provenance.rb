@@ -6,6 +6,10 @@ module SyncBackfill
       new.run!
     end
 
+    def self.inferred_mapping_provenance_for(collection)
+      new.send(:inferred_provenance_for, collection)
+    end
+
     def run!
       backfill_sync_items
       backfill_sync_collections
@@ -19,12 +23,27 @@ module SyncBackfill
       # rather than using a loaded association, so preloading sync_items
       # here would not save any queries.
       Base::SyncItem.find_each do |item|
-        next if item.last_observed_at.present?
-
-        observed_at = item.updated_at || item.created_at || Time.current
-        item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
-        item.observe_source!(observed_at:)
+        backfill_item(item)
       end
+    end
+
+    def backfill_item(item)
+      return backfill_missing_identity(item) if item.last_observed_at.present?
+
+      observed_at = item.updated_at || item.created_at || Time.current
+      item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
+      item.observe_source!(observed_at:)
+    end
+
+    def backfill_missing_identity(item)
+      item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
+      item.source_service_instance ||= Base::Service.instance_name_for(item.source_service_name) || "default"
+      item.source_service_type ||= item.provider
+      item.source_external_id ||= item.external_id
+      item.source_url ||= item.url
+      item.source_updated_at ||= item.last_modified
+      item.source_metadata ||= {}
+      item.save! if item.changed?
     end
 
     def backfill_sync_collections
