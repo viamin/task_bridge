@@ -18,7 +18,8 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- Backfill publishes only confirmed and inferred mappings; tentative mappings
+  remain in the local dry-run report for manual review.
 
 ## Decision
 
@@ -682,10 +683,18 @@ Rules:
   - deletion tombstones only where deletion can be stated confidently.
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
+- Backfill item snapshots are baseline current state, not historical
+  observations: include `provenance.detected_by: "backfill"` and a stable
+  `backfilled_at`, and do not create `snapshot_seen` observation rows.
+- Backfill must not create sync-run rows because retained service state does
+  not provide reliable start and finish times.
+- Backfill publishes `high` mapping confidence as `confirmed` and `medium` as
+  `inferred`. It withholds `low`/`tentative` mappings and reports their counts
+  in dry-run output for manual cleanup or Web-side review.
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+None for the initial backfill policy.
 
 ## Rejected Alternatives
 
