@@ -13,7 +13,10 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # Single-instance adapters never had an instance suffix in their
+        # persisted sync data. The default token is part of the public,
+        # immutable identity, so both live and backfilled rows use it.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
