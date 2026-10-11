@@ -96,6 +96,21 @@ RSpec.describe SyncBackfill::OutboxBaseline do
       expect(summary[:mappings][:skipped]).to eq(1)
     end
 
+    it "reports mapping totals per membership and skips incomplete members" do
+      collection = SyncCollection.create!(
+        title: "High", mapping_method: "source_sync_id", mapping_confidence: "high",
+        mapping_last_observed_at: observed_at
+      )
+      create_item(Asana::Task, external_id: "asana-1", service_name: "Asana", sync_collection: collection)
+      create_item(Github::Issue, external_id: "gh-1", service_name: "Github", sync_collection: collection)
+      Omnifocus::Task.create!(title: "Missing external id", sync_collection: collection)
+
+      summary = described_class.run!(dry_run: true)
+
+      expect(summary[:mappings][:by_confidence]).to eq("high" => 2)
+      expect(summary[:mappings][:skipped]).to eq(1)
+    end
+
     it "does not write anything in dry_run mode but still reports accurate counts" do
       collection = SyncCollection.create!(
         title: "High", mapping_method: "source_sync_id", mapping_confidence: "high",
