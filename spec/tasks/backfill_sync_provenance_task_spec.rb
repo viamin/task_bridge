@@ -9,6 +9,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
   end
 
   let(:task) { Rake::Task["task_bridge:backfill_sync_provenance"] }
+  let(:outbox_task) { Rake::Task["task_bridge:backfill_outbox"] }
   let(:test_item_class) do
     stub_const("BackfillSyncTaskItem", Class.new(Base::SyncItem) do
       def self.attribute_map
@@ -42,9 +43,20 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
 
   before do
     task.reenable
+    outbox_task.reenable
     allow(SyncBackfill::SourceProvenance).to receive(:run!).and_call_original
     test_item_class
     other_item_class
+  end
+
+  it "prints a dry-run backfill summary without invoking publication" do
+    allow(SyncBackfill::Outbox).to receive(:run!).with(dry_run: true).and_return("items:asana" => 1)
+
+    allow(ENV).to receive(:fetch).with("DRY_RUN", false).and_return("true")
+
+    expect { outbox_task.invoke }.to output("{\"items:asana\":1}\n").to_stdout
+
+    expect(SyncBackfill::Outbox).to have_received(:run!).with(dry_run: true)
   end
 
   it "backfills explicit source and mapping provenance idempotently" do
@@ -114,6 +126,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(source_item.source_external_id).to eq("asana-123")
     expect(source_item.source_created_at).to be_nil
     expect(target_item.reload.source_service_name).to eq("Omnifocus")
+    expect(target_item.source_service_instance).to eq("default")
     expect(target_item.source_created_at).to be_nil
     expect(collection.reload.mapping_method).to eq("source_sync_id")
     expect(collection.mapping_confidence).to eq("high")
