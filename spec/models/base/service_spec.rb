@@ -347,7 +347,7 @@ RSpec.describe Base::Service do
       expect(created_primary_item.last_snapshot).to be_present
     end
 
-    it "emits mapping observations when representations join the same sync collection" do
+    it "withholds low-confidence mapping observations when representations join the same sync collection" do
       persisted_service_item = sync_item_class.create!(
         title: "Mapped service task",
         external_id: "service-map-123",
@@ -368,10 +368,7 @@ RSpec.describe Base::Service do
 
       service.sync_to_primary(primary_service)
 
-      mapping_rows = OutboxEntry.where(record_kind: "mapping")
-      expect(mapping_rows.map(&:external_id)).to contain_exactly("service-map-123", "primary-map-123")
-      expect(mapping_rows.map(&:sync_collection_id)).to all(eq(persisted_service_item.reload.sync_collection_id))
-      expect(mapping_rows.map { |row| row.payload["mapping_type"] }).to all(eq("representation_membership"))
+      expect(OutboxEntry.where(record_kind: "mapping")).to be_empty
     end
 
     it "does not mark a collection as touched when the provider update returns a failure message" do
