@@ -92,7 +92,7 @@ RSpec.describe Outbox::MappingEmitter do
       expect(row.payload["provenance"]).to include("method" => "manual_backfill", "confidence" => "low")
     end
 
-    it "translates sync-id and created-by-sync provenance to confirmed mappings" do
+    it "translates the internal provenance vocabulary to contract values" do
       aggregate_failures do
         collection.update!(mapping_method: "source_sync_id", mapping_confidence: "high")
         described_class.emit_for_members(collection, members: [member], observed_at:)
@@ -103,6 +103,36 @@ RSpec.describe Outbox::MappingEmitter do
         described_class.emit_for_members(collection, members: [member], observed_at: observed_at + 1.minute)
         expect(OutboxEntry.where(record_kind: "mapping").last.payload.values_at("mapping_confidence", "mapping_source"))
           .to eq(%w[confirmed created_by_sync])
+
+        collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+        described_class.emit_for_members(collection, members: [member], observed_at: observed_at + 2.minutes)
+        expect(OutboxEntry.where(record_kind: "mapping").last.payload.values_at("mapping_confidence", "mapping_source"))
+          .to eq(%w[inferred title_match])
+      end
+    end
+
+    it "merges provenance extras so callers can mark the emission origin" do
+      described_class.emit_for_members(
+        collection, members: [member], observed_at:,
+                    provenance_extras: { "detected_by" => "backfill", "backfilled_at" => "2026-10-06T00:00:00.000000Z" }
+      )
+
+      expect(OutboxEntry.find_by(record_kind: "mapping").payload["provenance"]).to include(
+        "method" => "manual_backfill",
+        "confidence" => "low",
+        "detected_by" => "backfill",
+        "backfilled_at" => "2026-10-06T00:00:00.000000Z"
+      )
+    end
+
+    describe "backfill publication policy" do
+      it "reports which internal confidences may be published by the backfill" do
+        aggregate_failures do
+          expect(described_class.publishable_confidence?("high")).to be(true)
+          expect(described_class.publishable_confidence?("medium")).to be(true)
+          expect(described_class.publishable_confidence?("low")).to be(false)
+          expect(described_class.publishable_confidence?(nil)).to be(false)
+        end
       end
     end
 
