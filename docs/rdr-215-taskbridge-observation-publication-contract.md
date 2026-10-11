@@ -682,10 +682,20 @@ Rules:
   - deletion tombstones only where deletion can be stated confidently.
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
+- Backfill item rows are current-state baselines, not historical observations:
+  they carry `provenance.detected_by: backfill` and `backfilled_at`, and do
+  not produce `snapshot_seen` rows. Backfill does not manufacture sync-run
+  rows because historical run boundaries are not reliable.
+- A source without an explicitly configured instance uses the permanent
+  `<service_type>:default` service instance identifier. This applies equally
+  to migrated and live rows because it is embedded in idempotency keys.
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy (resolved by #222)**: backfill
+  publishes only `confirmed` (`high`) and `inferred` (`medium`) memberships.
+  It withholds `low`/`tentative` memberships; dry-run output reports their
+  count so they remain available for manual cleanup or Web-side review.
 
 ## Rejected Alternatives
 
