@@ -9,6 +9,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
   end
 
   let(:task) { Rake::Task["task_bridge:backfill_sync_provenance"] }
+  let(:baseline_task) { Rake::Task["task_bridge:backfill_outbox_baseline"] }
   let(:test_item_class) do
     stub_const("BackfillSyncTaskItem", Class.new(Base::SyncItem) do
       def self.attribute_map
@@ -42,9 +43,82 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
 
   before do
     task.reenable
+    baseline_task.reenable
     allow(SyncBackfill::SourceProvenance).to receive(:run!).and_call_original
     test_item_class
     other_item_class
+  end
+
+  it "seeds idempotent baseline snapshots for representative services and withholds low-confidence mappings" do
+    collection = SyncCollection.create!(
+      title: "Release checklist",
+      mapping_method: "title_fallback",
+      mapping_confidence: "medium",
+      mapping_last_observed_at: Time.zone.parse("2026-10-01T12:00:00Z")
+    )
+    low_confidence_collection = SyncCollection.create!(
+      title: "Uncertain match",
+      mapping_method: "manual_backfill",
+      mapping_confidence: "low"
+    )
+    services = {
+      "Omnifocus" => %w[omnifocus-1 Omnifocus],
+      "Asana:work" => %w[asana-1 Asana],
+      "Github:repo" => %w[github-1 Github],
+      "GoogleTasks:personal" => %w[google-tasks-1 GoogleTasks]
+    }
+    services.each_with_index do |(service_name, (external_id, provider)), index|
+      item_class = Class.new(Base::SyncItem) do
+        define_method(:provider) { provider }
+
+        def self.attribute_map
+          {}
+        end
+
+        def external_data
+          {}
+        end
+      end
+      stub_const("BackfillRepresentativeItem#{index}", item_class)
+      item_class.create!(
+        options: options.merge(service_name:), title: external_id, external_id:, sync_collection: collection
+      )
+    end
+    test_item_class.create!(
+      options: options.merge(service_name: "Omnifocus"), title: "Uncertain", external_id: "omnifocus-2",
+      sync_collection: low_confidence_collection
+    )
+
+    baseline_task.invoke
+    baseline_task.reenable
+    baseline_task.invoke
+
+    item_rows = OutboxEntry.where(record_kind: "item")
+    expect(item_rows.count).to eq(5)
+    expect(item_rows.pluck(:service_type)).to include("omnifocus", "asana", "github", "google_tasks")
+    expect(item_rows.find_by(external_id: "omnifocus-1").service_instance).to eq("omnifocus:default")
+    expect(item_rows.find_by(external_id: "asana-1").payload["provenance"])
+      .to include("detected_by" => "backfill", "baseline" => true, "backfilled_at" => be_present)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(4)
+    expect(OutboxEntry.where(record_kind: "mapping").pluck(:external_id)).not_to include("omnifocus-2")
+    expect(OutboxEntry.where(record_kind: "mapping").pluck(:payload).map { |payload| payload["mapping_confidence"] })
+      .to all(eq("inferred"))
+  end
+
+  it "reports dry-run counts without writing outbox rows" do
+    item = test_item_class.create!(options: options.merge(service_name: "Omnifocus"), title: "Missing ID")
+    ENV["DRY_RUN"] = "1"
+
+    output = capture_stdout { baseline_task.invoke }
+    report = JSON.parse(output)
+
+    expect(report).to include("dry_run" => true, "skipped" => include("missing_external_id" => 1))
+    expect(OutboxEntry.count).to eq(0)
+    expect(item.reload.last_snapshot).to be_nil
+  ensure
+    ENV.delete("DRY_RUN")
   end
 
   it "backfills explicit source and mapping provenance idempotently" do
@@ -124,5 +198,14 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+  end
+
+  def capture_stdout
+    original_stdout = $stdout
+    $stdout = StringIO.new
+    yield
+    $stdout.string
+  ensure
+    $stdout = original_stdout
   end
 end
