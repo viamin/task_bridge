@@ -13,7 +13,11 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # A single-instance adapter still needs a stable instance segment:
+        # it is part of every outbox idempotency key. Keep this fallback in
+        # the shared identity builder so live observations and backfills can
+        # never disagree about the same source record.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }

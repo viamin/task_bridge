@@ -19,12 +19,33 @@ module SyncBackfill
       # rather than using a loaded association, so preloading sync_items
       # here would not save any queries.
       Base::SyncItem.find_each do |item|
-        next if item.last_observed_at.present?
-
-        observed_at = item.updated_at || item.created_at || Time.current
-        item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
-        item.observe_source!(observed_at:)
+        backfill_item(item)
       end
+    end
+
+    def backfill_item(item)
+      return fill_missing_identity(item) if item.last_observed_at.present?
+
+      observed_at = item.updated_at || item.created_at || Time.current
+      item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
+      item.observe_source!(observed_at:)
+    end
+
+    def fill_missing_identity(item)
+      service_name = Base::Service.normalized_service_name(
+        item.source_service_name.presence || Base::SyncItem.inferred_service_name_for(item)
+      )
+      attributes = {
+        source_service_name: service_name,
+        source_service_instance: Base::Service.instance_name_for(service_name),
+        source_service_type: item.provider,
+        source_external_id: item.external_id,
+        source_url: item.url,
+        source_updated_at: item.last_modified,
+        source_metadata: item.source_metadata || {}
+      }.compact
+      missing = attributes.select { |name, value| item.public_send(name).blank? && value.present? }
+      item.update_columns(missing) if missing.any?
     end
 
     def backfill_sync_collections
