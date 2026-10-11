@@ -14,11 +14,13 @@ module Outbox
 
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
-    # values. Unknown values pass through unchanged: version 1 consumers
+    # values (`high` => `confirmed`, `medium` => `inferred`, `low` =>
+    # `tentative`, per the RDR #215 follow-up decision recorded in #222).
+    # Unknown values pass through unchanged: version 1 consumers
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -27,13 +29,18 @@ module Outbox
       "manual_backfill" => "manual"
     }.freeze
 
-    def self.emit_for_members(collection, members:, observed_at: Time.current)
-      Array(members).select { |member| eligible?(member) }.each do |member|
+    # `extra_provenance` carries additional baseline markers (e.g. the
+    # backfill's detected_by/backfilled_at, #222) without disturbing the
+    # mapping evidence itself. Returns one enqueue result per eligible
+    # member: the stored OutboxEntry, or nil when an isolated write was
+    # dropped.
+    def self.emit_for_members(collection, members:, observed_at: Time.current, extra_provenance: {})
+      Array(members).select { |member| eligible?(member) }.map do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
+            payload: payload(collection, member, identity, observed_at, extra_provenance),
             **enqueue_context(identity, collection, observed_at)
           )
         end
@@ -47,7 +54,7 @@ module Outbox
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
       end
 
-      def payload(collection, member, identity, observed_at)
+      def payload(collection, member, identity, observed_at, extra_provenance)
         {
           contract_version: OutboxEntry::PAYLOAD_VERSION,
           mapping_type: MAPPING_TYPE,
@@ -64,7 +71,7 @@ module Outbox
             method: collection.mapping_method,
             confidence: collection.mapping_confidence,
             metadata: collection.mapping_metadata
-          }
+          }.merge(extra_provenance)
         }
       end
 

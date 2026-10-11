@@ -86,8 +86,12 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. Persisted
+    # rows reloaded from the database carry no API payload, so there is no
+    # metadata to publish until the next refresh repopulates it.
     def normalized_metadata
+      return {} if github_issue.nil?
+
       {
         number:,
         pull_request: is_pr,

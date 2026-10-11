@@ -85,8 +85,12 @@ module GoogleKeep
     # Whether this item's external ID came from Keep's embedded marker
     # (vs. a freshly generated UUID) doesn't generalize to other sources, and
     # neither does the containing note's identity or the item's position in
-    # the nested list structure.
+    # the nested list structure. Persisted rows reloaded from the database
+    # carry no keep_item, so there is no metadata to publish until the next
+    # refresh repopulates it.
     def normalized_metadata
+      return {} if keep_item.nil?
+
       { stable_external_id_embedded: stable_external_id_embedded?, note_id:, list_path: }.compact
     end
 
