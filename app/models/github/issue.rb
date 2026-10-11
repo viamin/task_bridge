@@ -86,8 +86,13 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. Raw
+    # external data (github_issue) is only populated after a live
+    # refresh_from_external!, so an item loaded straight from the database
+    # (e.g. the outbox baseline backfill) has none of it to report yet.
     def normalized_metadata
+      return {} if github_issue.blank?
+
       {
         number:,
         pull_request: is_pr,
