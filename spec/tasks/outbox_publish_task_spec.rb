@@ -11,11 +11,13 @@ RSpec.describe "task_bridge:outbox:publish tasks" do
 
   let(:publish_task) { Rake::Task["task_bridge:outbox:publish"] }
   let(:dry_run_task) { Rake::Task["task_bridge:outbox:publish_dry_run"] }
+  let(:backfill_dry_run_task) { Rake::Task["task_bridge:outbox:backfill_dry_run"] }
   let(:now) { Time.zone.parse("2026-10-05T12:00:00Z") }
 
   before do
     publish_task.reenable
     dry_run_task.reenable
+    backfill_dry_run_task.reenable
   end
 
   def create_entry(key)
@@ -73,6 +75,15 @@ RSpec.describe "task_bridge:outbox:publish tasks" do
     output = capture_stdout { publish_task.invoke }
 
     expect(output).to include("Outbox publication disabled")
+  end
+
+  it "prints a local-only baseline backfill preview" do
+    allow(SyncBackfill::OutboxBaseline).to receive(:run!).with(dry_run: true)
+                                                         .and_return({ [:items, "asana", nil] => 2 })
+
+    output = capture_stdout { backfill_dry_run_task.invoke }
+
+    expect(output).to include("items service=asana: 2")
   end
 
   private
