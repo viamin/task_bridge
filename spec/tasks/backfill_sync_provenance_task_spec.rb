@@ -124,5 +124,57 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    expect(OutboxEntry.find_by!(record_kind: "item", external_id: "of-456").payload).to include(
+      "provenance" => include("detected_by" => "backfill"),
+      "source" => include("service_instance" => "omnifocus:default")
+    )
+  end
+
+  it "previews counts without writing baseline data" do
+    test_item_class.create!(title: "Incomplete", external_id: nil)
+    item = test_item_class.create!(title: "Google task", external_id: "google-123")
+    item.update_columns(last_observed_at: nil, first_observed_at: nil, last_snapshot: nil)
+
+    previous_dry_run = ENV.fetch("DRY_RUN", nil)
+    ENV["DRY_RUN"] = "1"
+    begin
+      expect { task.invoke }.to output(/Sync backfill dry run:.*items_asana/).to_stdout
+    ensure
+      ENV["DRY_RUN"] = previous_dry_run
+    end
+
+    expect(item.reload.last_observed_at).to be_nil
+    expect(OutboxEntry.where(record_kind: "item")).to be_empty
+  end
+
+  it "backfills representative provider identities" do
+    %w[Omnifocus Asana Github GoogleTasks].each do |provider|
+      item_class = Class.new(Base::SyncItem) do
+        define_method(:provider) { provider }
+
+        def self.attribute_map
+          {}
+        end
+
+        def external_data
+          {}
+        end
+      end
+      stub_const("#{provider}BackfillItem", item_class)
+      item_class.create!(title: provider, external_id: "#{provider.downcase}-1")
+    end
+
+    expect { task.invoke }.to output.to_stdout
+
+    expect(OutboxEntry.where(record_kind: "item").pluck(:service_type, :service_instance)).to contain_exactly(
+      ["omnifocus", "omnifocus:default"],
+      ["asana", "asana:default"],
+      ["github", "github:default"],
+      ["google_tasks", "google_tasks:default"]
+    )
   end
 end
