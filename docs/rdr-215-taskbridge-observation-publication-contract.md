@@ -683,6 +683,31 @@ Rules:
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
 
+### Running the TaskBridge backfill
+
+Before enabling `task_bridge.web.enabled`, seed the local outbox with the
+known current state:
+
+```sh
+bundle exec rake task_bridge:outbox:backfill DRY_RUN=1
+bundle exec rake task_bridge:outbox:backfill
+```
+
+The dry run writes nothing and reports item counts by service, mapping counts
+by confidence, and incomplete or withheld records. The real run first fills
+local provenance, then writes one baseline `item` row per complete source item
+and seeds its local diff baseline. These item rows carry
+`provenance.detected_by: backfill`, `provenance.baseline: true`, and a
+`backfilled_at` timestamp; they are not `snapshot_seen` observations. No
+external source is contacted or changed. Re-running is safe because the
+baseline rows have deterministic keys.
+
+Only high/medium internal mapping confidence is emitted (`confirmed`/
+`inferred` on the wire). Low-confidence mappings are withheld
+and visible in the dry-run confidence summary for manual cleanup or review.
+The task intentionally emits no historical `sync_run` rows because their
+start and finish times cannot be recovered reliably.
+
 ## Open Questions
 
 - **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
