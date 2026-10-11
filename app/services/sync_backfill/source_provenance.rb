@@ -11,6 +11,10 @@ module SyncBackfill
       backfill_sync_collections
     end
 
+    def self.provenance_for(collection)
+      new.send(:inferred_provenance_for, collection)
+    end
+
     private
 
     def backfill_sync_items
