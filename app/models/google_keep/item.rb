@@ -79,7 +79,9 @@ module GoogleKeep
     end
 
     def note_id
-      read_external_attribute(keep_item[:note], :name)
+      # Persisted rows carry no keep_item (#222 backfill builds snapshots
+      # from stored state), so stay nil instead of raising.
+      read_external_attribute(keep_item&.fetch(:note, nil), :name)
     end
 
     # Whether this item's external ID came from Keep's embedded marker

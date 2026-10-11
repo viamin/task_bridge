@@ -14,11 +14,15 @@ module Outbox
 
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
-    # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # values (#222 resolves RDR 215's low-confidence backfill question):
+    # high confidence maps to `confirmed`, medium (title-derived evidence)
+    # to `inferred`, and low to `tentative` — the backfill withholds low
+    # confidence memberships entirely. Unknown values pass through
+    # unchanged: version 1 consumers must ignore unknown values rather
+    # than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -30,14 +34,20 @@ module Outbox
     def self.emit_for_members(collection, members:, observed_at: Time.current)
       Array(members).select { |member| eligible?(member) }.each do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
-          identity = Outbox::SourceIdentity.for(member)
-          OutboxEntry.enqueue(
-            record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
-            **enqueue_context(identity, collection, observed_at)
-          )
+          payload, context = row_for(collection, member, observed_at:)
+          OutboxEntry.enqueue(record_kind: :mapping, payload:, **context)
         end
       end
+    end
+
+    # Builds the canonical mapping payload and its enqueue context (RDR
+    # #215) for one membership. Shared by the live emitter (#219) and the
+    # baseline backfill (#222) so both publish identical rows for the same
+    # membership fact; `detected_by` marks backfilled rows as baseline
+    # observations rather than sync-time discoveries.
+    def self.row_for(collection, member, observed_at:, detected_by: nil)
+      identity = Outbox::SourceIdentity.for(member)
+      [payload(collection, member, identity, observed_at, detected_by), enqueue_context(identity, collection, observed_at)]
     end
 
     class << self
@@ -47,7 +57,7 @@ module Outbox
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
       end
 
-      def payload(collection, member, identity, observed_at)
+      def payload(collection, member, identity, observed_at, detected_by)
         {
           contract_version: OutboxEntry::PAYLOAD_VERSION,
           mapping_type: MAPPING_TYPE,
@@ -60,12 +70,18 @@ module Outbox
           membership_role: MEMBERSHIP_ROLE,
           mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
           mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
-          provenance: {
-            method: collection.mapping_method,
-            confidence: collection.mapping_confidence,
-            metadata: collection.mapping_metadata
-          }
+          provenance: provenance(collection, detected_by)
         }
+      end
+
+      def provenance(collection, detected_by)
+        {
+          method: collection.mapping_method,
+          confidence: collection.mapping_confidence,
+          metadata: collection.mapping_metadata
+        }.tap do |provenance|
+          provenance[:detected_by] = detected_by if detected_by
+        end
       end
 
       def enqueue_context(identity, collection, observed_at)
