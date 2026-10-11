@@ -114,7 +114,8 @@ freshly constructed item that has not gone through
 value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
 captured instance segment when one exists (`asana:work`,
 `omnifocus:default`), and yields the bare `service_type` (`asana`)
-otherwise; the per-instance component therefore belongs only in
+otherwise as the permanent `default` segment (for example `asana:default`);
+the per-instance component therefore belongs only in
 `source.service_instance`, never in `source.service_type`. Like `item_key`
 and idempotency keys, `service_instance` is opaque: consumers must not
 parse it by splitting on `:` because segments may themselves contain

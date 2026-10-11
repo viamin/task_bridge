@@ -83,7 +83,7 @@ RSpec.describe Outbox::MappingEmitter do
       )
       expect(row.payload["sync_collection"]).to include("sync_collection_id" => collection.id, "title" => "Release checklist")
       expect(row.payload["member"]).to include(
-        "item_key" => "github_repo_1:issue-42",
+        "item_key" => "github:repo-1:issue-42",
         "service_type" => "github",
         "service_instance" => "github:repo-1",
         "external_id" => "issue-42"
@@ -104,6 +104,15 @@ RSpec.describe Outbox::MappingEmitter do
         expect(OutboxEntry.where(record_kind: "mapping").last.payload.values_at("mapping_confidence", "mapping_source"))
           .to eq(%w[confirmed created_by_sync])
       end
+    end
+
+    it "translates title-derived provenance to an inferred mapping" do
+      collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+
+      described_class.emit_for_members(collection, members: [member], observed_at:)
+
+      expect(OutboxEntry.find_by(record_kind: "mapping").payload.values_at("mapping_confidence", "mapping_source"))
+        .to eq(%w[inferred title_match])
     end
 
     it "skips members that are not persisted sync items" do
@@ -128,7 +137,7 @@ RSpec.describe Outbox::MappingEmitter do
 
       expect do
         described_class.emit_for_members(collection, members: [member, second_member], observed_at:)
-      end.to output(/dropping mapping for github_repo_1:issue-42/).to_stderr
+      end.to output(/dropping mapping for github:repo-1:issue-42/).to_stderr
 
       expect(OutboxEntry.where(record_kind: "mapping").map(&:external_id)).to eq(["issue-99"])
     end

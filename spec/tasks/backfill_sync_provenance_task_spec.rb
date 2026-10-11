@@ -40,6 +40,21 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     end)
   end
 
+  let(:github_item_class) do
+    stub_const("BackfillSyncTaskGithubItem", Class.new(Base::SyncItem) do
+      def self.attribute_map = {}
+      def provider = "Github"
+      def external_data = {}
+    end)
+  end
+  let(:google_tasks_item_class) do
+    stub_const("BackfillSyncTaskGoogleTasksItem", Class.new(Base::SyncItem) do
+      def self.attribute_map = {}
+      def provider = "GoogleTasks"
+      def external_data = {}
+    end)
+  end
+
   before do
     task.reenable
     allow(SyncBackfill::SourceProvenance).to receive(:run!).and_call_original
@@ -124,5 +139,44 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+  end
+
+  it "seeds baseline item snapshots for OmniFocus, Asana, GitHub, and Google Tasks" do
+    collection = SyncCollection.create!(title: "Release")
+    records = [
+      [other_item_class, "Omnifocus", "of-1"],
+      [test_item_class, "Asana:work", "asana-1"],
+      [github_item_class, "Github", "gh-1"],
+      [google_tasks_item_class, "GoogleTasks", "gt-1"]
+    ].map do |klass, service_name, external_id|
+      klass.create!(options: options.merge(service_name:), title: external_id, external_id:, sync_collection: collection)
+    end
+    collection.update!(mapping_method: "source_sync_id", mapping_confidence: "high")
+
+    expect { task.invoke }.to change(OutboxEntry.where(record_kind: "item"), :count).by(4)
+
+    snapshots = OutboxEntry.where(record_kind: "item").order(:external_id)
+    expect(snapshots).to all(have_attributes(event_type: nil))
+    expect(snapshots.map { |row| row.payload.dig("provenance", "detected_by") }).to all(eq("backfill"))
+    expect(snapshots.map(&:service_instance)).to contain_exactly(
+      "omnifocus:default", "asana:work", "github:default", "google_tasks:default"
+    )
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(4)
+    expect(records.map { |record| record.reload.last_snapshot }).to all(be_present)
+
+    task.reenable
+    expect { task.invoke }.not_to change(OutboxEntry, :count)
+  end
+
+  it "withholds low-confidence memberships and reports them in a dry run" do
+    collection = SyncCollection.create!(title: "Uncertain", mapping_method: "title_fallback", mapping_confidence: "low")
+    test_item_class.create!(options: options.merge(service_name: "Asana"), title: "Uncertain", external_id: "asana-low",
+                            sync_collection: collection)
+
+    summary = SyncBackfill::Baseline.dry_run
+
+    expect(OutboxEntry.count).to eq(0)
+    expect(summary).to include(mappings_withheld_low: 1, items_asana: 1)
   end
 end
