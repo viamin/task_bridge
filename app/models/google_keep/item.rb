@@ -79,7 +79,10 @@ module GoogleKeep
     end
 
     def note_id
-      read_external_attribute(keep_item[:note], :name)
+      # Persisted rows carry no keep_item (#222 baseline backfill serializes
+      # them), so a missing payload yields no note identity instead of
+      # crashing.
+      read_external_attribute(keep_item&.dig(:note), :name)
     end
 
     # Whether this item's external ID came from Keep's embedded marker
@@ -152,7 +155,7 @@ module GoogleKeep
     end
 
     def keep_path
-      Array(keep_item[:path])
+      Array(keep_item&.dig(:path))
     end
 
     # The path of indexes from the note's root list item down to this item;

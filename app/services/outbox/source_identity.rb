@@ -6,6 +6,14 @@ module Outbox
   # The values are opaque to consumers: they must not be parsed by splitting
   # on `:` because segments may themselves contain colons.
   module SourceIdentity
+    # Permanent fallback instance segment for services configured without
+    # an instance suffix (e.g. OmniFocus): their publication identity is
+    # "<service_type>:default" (clarified under #222, matching RDR #215's
+    # `omnifocus:default` example). The token is embedded in idempotency
+    # keys, so it can never change without breaking record identity; the
+    # backfill and the live emitters share it through this module.
+    DEFAULT_INSTANCE_TOKEN = "default"
+
     module_function
 
     def for(item)
@@ -13,7 +21,7 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        service_instance: [service_type, item.source_service_instance.presence || DEFAULT_INSTANCE_TOKEN].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }

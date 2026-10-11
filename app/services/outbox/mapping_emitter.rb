@@ -14,11 +14,12 @@ module Outbox
 
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
-    # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # values (clarified under #222): high maps to confirmed, medium to
+    # inferred, low to tentative. Unknown values pass through unchanged:
+    # version 1 consumers must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -30,24 +31,40 @@ module Outbox
     def self.emit_for_members(collection, members:, observed_at: Time.current)
       Array(members).select { |member| eligible?(member) }.each do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
-          identity = Outbox::SourceIdentity.for(member)
-          OutboxEntry.enqueue(
-            record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
-            **enqueue_context(identity, collection, observed_at)
-          )
+          OutboxEntry.enqueue(**row_for(collection, member, observed_at:))
         end
       end
+    end
+
+    # Members the emitter can publish: persisted sync items with an
+    # external id. Shared with the baseline backfill (#222) so both
+    # producers agree on which memberships are publishable.
+    def self.eligible?(member)
+      member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
+    end
+
+    # Builds the enqueue-ready mapping row for one member without writing
+    # it, so the baseline backfill (#222) can plan, count, and dedupe with
+    # the exact shape live syncs publish. `provenance_extras` merge into
+    # the payload's provenance object; the backfill marks its rows as
+    # baseline with detected_by "backfill" plus backfilled_at.
+    def self.row_for(collection, member, observed_at:, provenance_extras: {})
+      identity = Outbox::SourceIdentity.for(member)
+      {
+        record_kind: :mapping,
+        payload: payload(collection, member, identity, observed_at, provenance_extras:),
+        **enqueue_context(identity, collection, observed_at)
+      }
+    end
+
+    def self.contract_confidence_for(confidence)
+      CONFIDENCE.fetch(confidence, confidence)
     end
 
     class << self
       private
 
-      def eligible?(member)
-        member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
-      end
-
-      def payload(collection, member, identity, observed_at)
+      def payload(collection, member, identity, observed_at, provenance_extras: {})
         {
           contract_version: OutboxEntry::PAYLOAD_VERSION,
           mapping_type: MAPPING_TYPE,
@@ -58,13 +75,13 @@ module Outbox
           },
           member: identity.merge(item_key: member.item_key),
           membership_role: MEMBERSHIP_ROLE,
-          mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
+          mapping_confidence: contract_confidence_for(collection.mapping_confidence),
           mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
           provenance: {
             method: collection.mapping_method,
             confidence: collection.mapping_confidence,
             metadata: collection.mapping_metadata
-          }
+          }.merge(provenance_extras)
         }
       end
 

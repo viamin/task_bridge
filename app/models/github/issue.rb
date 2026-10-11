@@ -86,17 +86,21 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. Rows
+    # loaded from the database carry no API payload (github_issue is nil), so
+    # a missing payload yields no metadata instead of crashing — the baseline
+    # backfill (#222) serializes persisted rows.
     def normalized_metadata
+      issue = github_issue.to_h
       {
         number:,
         pull_request: is_pr,
-        repository: full_repo_name,
-        author: github_issue.dig("user", "login"),
-        assignees: assignee_logins,
-        milestone: github_issue.dig("milestone", "title"),
-        comments_count: github_issue["comments"].presence,
-        draft: (github_issue["draft"] if is_pr)
+        repository: repository_name_from(issue),
+        author: issue.dig("user", "login"),
+        assignees: assignee_logins(issue),
+        milestone: issue.dig("milestone", "title"),
+        comments_count: issue["comments"].presence,
+        draft: (issue["draft"] if is_pr)
       }.compact
     end
 
@@ -120,12 +124,12 @@ module Github
       github_issue["repository_url"]&.split("/")&.last || "unknown"
     end
 
-    def full_repo_name
-      github_issue["repository_url"]&.split("repos/")&.last
+    def repository_name_from(issue)
+      issue["repository_url"]&.split("repos/")&.last
     end
 
-    def assignee_logins
-      Array(github_issue["assignees"]).filter_map { |assignee| assignee["login"] }
+    def assignee_logins(issue)
+      Array(issue["assignees"]).filter_map { |assignee| assignee["login"] }
     end
 
     # Raw:
