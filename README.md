@@ -6,6 +6,17 @@ Originally created to help me sync my Omnifocus tasks to [reclaim.ai](https://re
 
 Run `bundle install` to install dependencies. You may need an account for some of the services to work. Check below for requirements for each service you want to use.
 
+## Seeding TaskBridge Web from existing sync data
+
+Before enabling TaskBridge Web publication for an existing installation, seed the local outbox:
+
+```sh
+bundle exec rake task_bridge:backfill_sync_provenance DRY_RUN=1
+bundle exec rake task_bridge:backfill_sync_provenance
+```
+
+The dry run makes no database or external-source changes and reports item counts by service, mapping counts by confidence, and skipped records. The write run is idempotent: it creates baseline `item` snapshots only (not historical observation events), emits only high/medium-confidence mapping memberships, and withholds low-confidence mappings for later review. It does not create sync-run rows or contact external providers. Review the dry-run output before the write command, then enable normal publication with `task_bridge:outbox:publish`.
+
 ## Configuration
 
 Run `bin/rails task_bridge:sync -- --help` to see available command line options. Many command line default settings can be configured in the `config/settings.yml` file.
