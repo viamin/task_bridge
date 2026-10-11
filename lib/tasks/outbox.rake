@@ -2,6 +2,20 @@
 
 namespace :task_bridge do
   namespace :outbox do
+    desc "backfill baseline item snapshots and mapping rows for existing sync data (see docs/backfill-taskbridge-web-baseline.md)"
+    task backfill_baseline: :environment do
+      # Baseline rows depend on the identity/mapping provenance backfilled
+      # by #217; it is idempotent, so running it here keeps a single entry
+      # point for operators.
+      SyncBackfill::SourceProvenance.run!
+      puts Outbox::BaselineBackfill.run!.render
+    end
+
+    desc "preview the baseline backfill without writing anything (counts by service, confidence, and skipped records)"
+    task backfill_baseline_dry_run: :environment do
+      puts Outbox::BaselineBackfill.run!(dry_run: true).render
+    end
+
     desc "prune delivered and terminal-failure outbox entries past their retention windows"
     task prune: :environment do
       pruned = Outbox::Prune.run!

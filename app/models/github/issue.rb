@@ -74,6 +74,11 @@ module Github
     end
 
     def friendly_title
+      # Persisted rows loaded without the raw issue payload cannot render
+      # the number-prefixed display title; the bare title is the best
+      # available rendering (baseline backfill, #222).
+      return title.to_s.strip if number.nil?
+
       "#{project}-##{number}: #{'[PR] ' if is_pr}#{title.strip}"
     end
 
@@ -86,8 +91,12 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. Rows
+    # loaded from the database carry no raw issue payload, so there is no
+    # metadata to expose until the next source refresh repopulates it.
     def normalized_metadata
+      return {} if github_issue.nil?
+
       {
         number:,
         pull_request: is_pr,

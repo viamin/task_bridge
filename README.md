@@ -12,6 +12,14 @@ Run `bin/rails task_bridge:sync -- --help` to see available command line options
 
 The command line option will take precedence over the settings in the configuration file.
 
+## TaskBridge Web publication
+
+TaskBridge can publish normalized task facts to a TaskBridge Web deployment
+(see [docs/rdr-215-taskbridge-observation-publication-contract.md](docs/rdr-215-taskbridge-observation-publication-contract.md)).
+Publication is disabled by default. Before enabling it for the first time,
+backfill the baseline from your existing synchronized data — see
+[docs/backfill-taskbridge-web-baseline.md](docs/backfill-taskbridge-web-baseline.md).
+
 ## OmniFocus Setup
 
 TaskBridge supports both the local Mac app and OmniFocus for the Web. If you run the hosted/web path, set the `omnifocus_web_*` settings in `config/settings.yml` or via your environment. Otherwise, OmniFocus needs to be installed on the computer you're running this script on so AppleScript can talk to it.

@@ -79,7 +79,10 @@ module GoogleKeep
     end
 
     def note_id
-      read_external_attribute(keep_item[:note], :name)
+      # Persisted rows are loaded without a keep_item (see #external_data);
+      # the containing note's identity is simply unknown until the next
+      # source refresh.
+      read_external_attribute(keep_item&.fetch(:note, nil), :name)
     end
 
     # Whether this item's external ID came from Keep's embedded marker
@@ -152,7 +155,7 @@ module GoogleKeep
     end
 
     def keep_path
-      Array(keep_item[:path])
+      Array(keep_item&.fetch(:path, nil))
     end
 
     # The path of indexes from the note's root list item down to this item;

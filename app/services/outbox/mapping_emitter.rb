@@ -14,11 +14,13 @@ module Outbox
 
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
-    # values. Unknown values pass through unchanged: version 1 consumers
+    # values. `medium` maps to `inferred` (title-derived evidence) and `low`
+    # to `tentative`, per the #222 resolution of RDR #215's backfill open
+    # question. Unknown values pass through unchanged: version 1 consumers
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -27,13 +29,16 @@ module Outbox
       "manual_backfill" => "manual"
     }.freeze
 
-    def self.emit_for_members(collection, members:, observed_at: Time.current)
+    # `provenance_extras` merges additional provenance fields (e.g. the
+    # baseline backfill's `detected_by`/`backfilled_at` markers, #222)
+    # without changing what live sync emission publishes.
+    def self.emit_for_members(collection, members:, observed_at: Time.current, provenance_extras: {})
       Array(members).select { |member| eligible?(member) }.each do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
+            payload: payload(collection, member, identity, observed_at, provenance_extras),
             **enqueue_context(identity, collection, observed_at)
           )
         end
@@ -47,7 +52,7 @@ module Outbox
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
       end
 
-      def payload(collection, member, identity, observed_at)
+      def payload(collection, member, identity, observed_at, provenance_extras)
         {
           contract_version: OutboxEntry::PAYLOAD_VERSION,
           mapping_type: MAPPING_TYPE,
@@ -64,7 +69,7 @@ module Outbox
             method: collection.mapping_method,
             confidence: collection.mapping_confidence,
             metadata: collection.mapping_metadata
-          }
+          }.merge(provenance_extras)
         }
       end
 
