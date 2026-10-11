@@ -13,7 +13,11 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # A service name without an explicit account/workspace suffix still
+        # needs a permanent identity segment. It is part of every outbox
+        # idempotency key, so changing it after publication would duplicate
+        # the source record in TaskBridge Web.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }

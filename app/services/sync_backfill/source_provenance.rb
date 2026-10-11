@@ -6,6 +6,12 @@ module SyncBackfill
       new.run!
     end
 
+    # Used by the outbox dry run to report the same mapping decision the write
+    # pass would make, without changing an existing SyncCollection.
+    def self.mapping_provenance_for(collection)
+      new.send(:inferred_provenance_for, collection)
+    end
+
     def run!
       backfill_sync_items
       backfill_sync_collections
