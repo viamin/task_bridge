@@ -152,6 +152,8 @@ module Base
       # Prefer the already-assigned attribute value so note parsing does not
       # trigger a second external read after read_original has populated notes.
       raw_notes = notes if has_attribute?(:notes)
+      return if persisted? && raw_notes.nil?
+
       raw_notes = self.class.read_external_attribute(external_data, external_attribute_map[:notes]) if raw_notes.nil?
       return if raw_notes.blank?
 
@@ -604,7 +606,7 @@ module Base
       )
 
       self.source_service_name = resolved_service_name
-      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name)
+      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name) || "default"
       self.source_service_type = provider.presence || self.class.name.deconstantize
       self.source_external_id = external_id if external_id.present?
       self.source_url = url if url.present?
