@@ -15,10 +15,13 @@ module Outbox
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
     # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # must ignore unknown values rather than break. Product decision for
+    # #222: `high` maps to `confirmed`, `medium` to `inferred`; `low` stays
+    # `tentative` and is withheld from publication by the backfill (RDR
+    # #215 "Open Questions", resolved in favor of the stated default).
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -27,17 +30,25 @@ module Outbox
       "manual_backfill" => "manual"
     }.freeze
 
-    def self.emit_for_members(collection, members:, observed_at: Time.current)
+    # Confidences cleared for publication; `tentative` rows are held back.
+    PUBLISHABLE_CONFIDENCES = %w[confirmed inferred].freeze
+
+    def self.emit_for_members(collection, members:, observed_at: Time.current, baseline: {})
+      baseline = baseline.slice(:detected_by, :backfilled_at).compact
       Array(members).select { |member| eligible?(member) }.each do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
+            payload: payload(collection, member, identity, observed_at, baseline),
             **enqueue_context(identity, collection, observed_at)
           )
         end
       end
+    end
+
+    def self.publishable_confidence?(mapping_confidence)
+      PUBLISHABLE_CONFIDENCES.include?(CONFIDENCE.fetch(mapping_confidence, mapping_confidence).to_s)
     end
 
     class << self
@@ -47,11 +58,12 @@ module Outbox
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
       end
 
-      def payload(collection, member, identity, observed_at)
+      def payload(collection, member, identity, observed_at, baseline)
         {
           contract_version: OutboxEntry::PAYLOAD_VERSION,
           mapping_type: MAPPING_TYPE,
           observed_at: observed_at.utc.iso8601(6),
+          backfilled_at: baseline[:backfilled_at]&.utc&.iso8601(6),
           sync_collection: {
             sync_collection_id: collection.id,
             title: collection.title
@@ -64,8 +76,8 @@ module Outbox
             method: collection.mapping_method,
             confidence: collection.mapping_confidence,
             metadata: collection.mapping_metadata
-          }
-        }
+          }.merge(baseline.slice(:detected_by)).compact
+        }.compact
       end
 
       def enqueue_context(identity, collection, observed_at)

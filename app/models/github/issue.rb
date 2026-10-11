@@ -86,8 +86,13 @@ module Github
     end
 
     # Issue number, PR flag, and other GitHub-specific identity/classification
-    # details are not part of the common normalized_snapshot schema.
+    # details are not part of the common normalized_snapshot schema. Envelope
+    # details live on the transient payload: records loaded from the database
+    # without one (e.g. the #222 backfill) simply carry no enrichment rather
+    # than failing snapshot serialization.
     def normalized_metadata
+      return {} if github_issue.nil?
+
       {
         number:,
         pull_request: is_pr,

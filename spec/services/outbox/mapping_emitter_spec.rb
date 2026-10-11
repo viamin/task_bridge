@@ -106,6 +106,38 @@ RSpec.describe Outbox::MappingEmitter do
       end
     end
 
+    it "translates title matches to inferred mappings" do
+      collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+
+      described_class.emit_for_members(collection, members: [member], observed_at:)
+
+      expect(OutboxEntry.find_by(record_kind: "mapping").payload.values_at("mapping_confidence", "mapping_source"))
+        .to eq(%w[inferred title_match])
+    end
+
+    it "marks baseline rows when the backfill supplies provenance" do
+      backfilled_at = observed_at + 2.minutes
+
+      described_class.emit_for_members(collection, members: [member], observed_at:,
+                                                   baseline: { detected_by: "backfill", backfilled_at: })
+
+      payload = OutboxEntry.find_by(record_kind: "mapping").payload
+      expect(payload["provenance"]).to include("method" => "manual_backfill", "detected_by" => "backfill")
+      expect(payload["backfilled_at"]).to eq("2026-10-05T10:02:00.000000Z")
+    end
+
+    describe ".publishable_confidence?" do
+      it "clears confirmed and inferred confidences and withholds tentative or unknown ones" do
+        aggregate_failures do
+          expect(described_class.publishable_confidence?("high")).to be(true)
+          expect(described_class.publishable_confidence?("medium")).to be(true)
+          expect(described_class.publishable_confidence?("low")).to be(false)
+          expect(described_class.publishable_confidence?(nil)).to be(false)
+          expect(described_class.publishable_confidence?("bogus")).to be(false)
+        end
+      end
+    end
+
     it "skips members that are not persisted sync items" do
       transient = member_class.new(external_id: "issue-43")
 
