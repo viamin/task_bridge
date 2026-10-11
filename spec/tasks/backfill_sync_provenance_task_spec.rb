@@ -124,5 +124,60 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+    expect(OutboxEntry.where(record_kind: "item", external_id: %w[asana-123 of-456]).count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(2)
+
+    baseline = OutboxEntry.find_by(record_kind: "item", external_id: "of-456")
+    expect(baseline.service_instance).to eq("omnifocus:default")
+    expect(baseline.payload.fetch("provenance")).to include("detected_by" => "backfill", "backfilled_at" => be_present)
+  end
+
+  it "previews representative service snapshots without writing local state" do
+    providers = {
+      "Asana" => "asana-1",
+      "Omnifocus" => "omnifocus-1",
+      "Github" => "github-1",
+      "GoogleTasks" => "google-tasks-1"
+    }
+    providers.each do |provider, external_id|
+      klass = Class.new(Base::SyncItem) do
+        define_method(:provider) { provider }
+        define_method(:external_data) { {} }
+        define_singleton_method(:attribute_map) { {} }
+      end
+      stub_const("Backfill#{provider}Item", klass)
+      klass.create!(options: options.merge(service_name: provider), title: provider, external_id:)
+    end
+
+    initial_outbox_count = OutboxEntry.count
+    observed_before_preview = Base::SyncItem.order(:id).pluck(:id, :last_observed_at, :source_service_name)
+    output = StringIO.new
+    summary = SyncBackfill::SourceProvenance.run!(dry_run: true, output:)
+
+    expect(OutboxEntry.count).to eq(initial_outbox_count)
+    expect(Base::SyncItem.order(:id).pluck(:id, :last_observed_at, :source_service_name)).to eq(observed_before_preview)
+    expect(summary.dig(:items, :by_service)).to include(
+      "asana" => 1, "omnifocus" => 1, "github" => 1, "google_tasks" => 1
+    )
+    expect(JSON.parse(output.string)).to include("dry_run" => true)
+  end
+
+  it "withholds low-confidence mappings and reports incomplete records" do
+    collection = SyncCollection.create!(title: "Ambiguous task")
+    test_item_class.create!(
+      options: options.merge(service_name: "Asana"),
+      title: "Ambiguous task",
+      external_id: "asana-ambiguous",
+      sync_collection: collection
+    )
+    test_item_class.create!(options: options.merge(service_name: "Asana"), title: "Missing ID")
+
+    summary = SyncBackfill::SourceProvenance.run!
+
+    expect(collection.reload.mapping_confidence).to eq("low")
+    expect(OutboxEntry.where(record_kind: "mapping")).to be_empty
+    expect(summary.dig(:mappings, :withheld_low_confidence)).to eq(1)
+    expect(summary.dig(:items, :skipped_incomplete)).to eq(1)
   end
 end
