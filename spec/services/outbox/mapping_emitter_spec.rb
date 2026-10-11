@@ -106,6 +106,30 @@ RSpec.describe Outbox::MappingEmitter do
       end
     end
 
+    it "translates title-derived provenance to inferred mappings" do
+      collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+
+      described_class.emit_for_members(collection, members: [member], observed_at:)
+
+      expect(OutboxEntry.find_by(record_kind: "mapping").payload.values_at("mapping_confidence", "mapping_source"))
+        .to eq(%w[inferred title_match])
+    end
+
+    it "merges provenance extras and returns only the rows it wrote" do
+      transient = member_class.new(external_id: "issue-43")
+
+      written = described_class.emit_for_members(
+        collection, members: [member, transient], observed_at:,
+                    provenance_extras: { "detected_by" => "backfill", "backfilled_at" => "2026-10-11T10:00:00.000000Z" }
+      )
+
+      expect(written.length).to eq(1)
+      expect(written.first.payload["provenance"]).to include(
+        "detected_by" => "backfill",
+        "backfilled_at" => "2026-10-11T10:00:00.000000Z"
+      )
+    end
+
     it "skips members that are not persisted sync items" do
       transient = member_class.new(external_id: "issue-43")
 
