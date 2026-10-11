@@ -112,9 +112,9 @@ class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
 freshly constructed item that has not gone through
 `capture_source_identity` — so consumers must not code for a nilable
 value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
-captured instance segment when one exists (`asana:work`,
-`omnifocus:default`), and yields the bare `service_type` (`asana`)
-otherwise; the per-instance component therefore belongs only in
+captured instance segment when one exists (`asana:work`) and otherwise
+uses the permanent `default` token (`omnifocus:default`, `asana:default`);
+the per-instance component therefore belongs only in
 `source.service_instance`, never in `source.service_type`. Like `item_key`
 and idempotency keys, `service_instance` is opaque: consumers must not
 parse it by splitting on `:` because segments may themselves contain
@@ -150,7 +150,7 @@ outbox rows or advance the diff baseline.
   every member when the collection's mapping provenance meaningfully
   changes (for example `title_fallback` upgrading to `source_sync_id`).
   Internal confidence values map to the contract's vocabulary
-  (high → `confirmed`; medium/low → `tentative`).
+  (high → `confirmed`; medium → `inferred`; low → `tentative`).
 - **Key uniqueness**: when one observation yields several field transitions,
   each row's idempotency key carries a sequence segment
   (`Outbox::IdempotencyKey`), per the RDR #215 rule for colliding observed
