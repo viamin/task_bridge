@@ -19,9 +19,9 @@ module SyncBackfill
       # rather than using a loaded association, so preloading sync_items
       # here would not save any queries.
       Base::SyncItem.find_each do |item|
-        next if item.last_observed_at.present?
+        next if source_provenance_complete?(item)
 
-        observed_at = item.updated_at || item.created_at || Time.current
+        observed_at = item.last_observed_at || item.updated_at || item.created_at || Time.current
         item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
         item.observe_source!(observed_at:)
       end
@@ -29,10 +29,18 @@ module SyncBackfill
 
     def backfill_sync_collections
       SyncCollection.includes(:sync_items).find_each do |collection|
-        next if collection.mapping_method.present?
-
         observed_at = collection.updated_at || collection.created_at || Time.current
-        provenance = inferred_provenance_for(collection)
+        next if mapping_provenance_complete?(collection)
+
+        provenance = if collection.mapping_method.present?
+          {
+            method: collection.mapping_method,
+            confidence: collection.mapping_confidence || "low",
+            metadata: collection.mapping_metadata || {}
+          }
+        else
+          inferred_provenance_for(collection)
+        end
         collection.update_mapping_provenance!(**provenance, observed_at:)
       end
     end
@@ -49,6 +57,23 @@ module SyncBackfill
 
     def preferred_provenance(items)
       SyncMappingProvenance.preferred_for(items)
+    end
+
+    def source_provenance_complete?(item)
+      item.source_service_name.present? &&
+        item.source_service_type.present? &&
+        item.source_external_id.present? &&
+        item.first_observed_at.present? &&
+        item.last_observed_at.present? &&
+        !item.source_metadata.nil?
+    end
+
+    def mapping_provenance_complete?(collection)
+      collection.mapping_method.present? &&
+        collection.mapping_confidence.present? &&
+        !collection.mapping_metadata.nil? &&
+        collection.mapping_established_at.present? &&
+        collection.mapping_last_observed_at.present?
     end
   end
 end
