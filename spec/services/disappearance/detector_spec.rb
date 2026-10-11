@@ -113,11 +113,22 @@ RSpec.describe Disappearance::Detector do
       expect(entry.payload["disappearance_state"]).to eq("source_deleted")
       expect(entry.payload["is_deleted"]).to be(true)
       expect(entry.payload["item_key"]).to eq(missing_item.item_key)
+      # Tombstones share Outbox::SourceIdentity with the snapshot/mapping
+      # emitters and the outbox backfill (#222), including the permanent
+      # `:default` instance token for instance-less services, so baseline
+      # rows and later tombstones describe one source identity.
       expect(entry.payload["source"]).to match(
         hash_including(
           "service_type" => "detector_service",
-          "service_instance" => service.service_name,
+          "service_instance" => "detector_service:default",
           "external_id" => "det-missing"
+        )
+      )
+      expect(entry.service_instance).to eq("detector_service:default")
+      expect(entry.idempotency_key).to eq(
+        Outbox::IdempotencyKey.for(
+          record_kind: :observation, observed_at:, event_type: "deleted",
+          service_instance: "detector_service:default", external_id: "det-missing"
         )
       )
     end
