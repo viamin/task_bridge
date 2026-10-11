@@ -327,6 +327,16 @@ module Base
       @explicit_observed_at = nil
     end
 
+    # Adds the provenance fields introduced after this row was first synced
+    # without turning a historical row into a newly observed source event.
+    # Backfill uses direct column updates so the normal observation callback
+    # cannot advance last_observed_at to the time the migration is run.
+    def backfill_source_provenance!(observed_at:)
+      attributes = missing_source_provenance(observed_at)
+      update_columns(attributes) if attributes.present?
+      self
+    end
+
     def mapping_provenance_with(other_item)
       target_sync_key = :"#{other_item.service_key}_id"
       source_sync_key = :"#{service_key}_id"
@@ -604,7 +614,7 @@ module Base
       )
 
       self.source_service_name = resolved_service_name
-      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name)
+      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name) || "default"
       self.source_service_type = provider.presence || self.class.name.deconstantize
       self.source_external_id = external_id if external_id.present?
       self.source_url = url if url.present?
@@ -618,6 +628,26 @@ module Base
       return unless source_metadata.key?(DISAPPEARANCE_MARKER_KEY)
 
       self.source_metadata = source_metadata.except(DISAPPEARANCE_MARKER_KEY)
+    end
+
+    def missing_source_provenance(observed_at)
+      resolved_service_name = Base::Service.normalized_service_name(
+        source_service_name.presence || @service_name.presence || options[:service_name].presence || provider
+      )
+      {
+        source_service_name: resolved_service_name,
+        source_service_instance: Base::Service.instance_name_for(resolved_service_name) || "default",
+        source_service_type: provider.presence || self.class.name.deconstantize,
+        source_external_id: external_id,
+        source_url: url,
+        source_updated_at: last_modified,
+        first_observed_at: observed_at,
+        last_observed_at: observed_at,
+        source_metadata: {}
+      }.compact.select do |attribute, _|
+        attribute_in_database(attribute).nil? ||
+          (attribute != :source_metadata && attribute_in_database(attribute).blank?)
+      end
     end
   end
 end
