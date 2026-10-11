@@ -6,6 +6,18 @@ module SyncBackfill
       new.run!
     end
 
+    # Resolves the mapping provenance a collection would receive from the
+    # backfill without writing anything, so the baseline outbox dry run
+    # (#222) reports the same confidence it would later publish with.
+    def self.provenance_for(collection)
+      items = collection.sync_items.to_a.compact
+      default_metadata = { "sync_item_ids" => items.filter_map(&:id) }
+      return { method: "manual_backfill", confidence: "low", metadata: default_metadata } if items.length < 2
+
+      preferred = SyncMappingProvenance.preferred_for(items)
+      preferred.merge(metadata: default_metadata.merge(preferred.fetch(:metadata)))
+    end
+
     def run!
       backfill_sync_items
       backfill_sync_collections
@@ -38,17 +50,7 @@ module SyncBackfill
     end
 
     def inferred_provenance_for(collection)
-      items = collection.sync_items.to_a.compact
-      default_metadata = { "sync_item_ids" => items.filter_map(&:id) }
-      return { method: "manual_backfill", confidence: "low", metadata: default_metadata } if items.length < 2
-
-      provenance = preferred_provenance(items)
-
-      provenance.merge(metadata: default_metadata.merge(provenance.fetch(:metadata)))
-    end
-
-    def preferred_provenance(items)
-      SyncMappingProvenance.preferred_for(items)
+      self.class.provenance_for(collection)
     end
   end
 end

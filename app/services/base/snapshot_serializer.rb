@@ -21,6 +21,17 @@ module Base
       new(item).call
     end
 
+    # The published and stored form of the snapshot: identical to call but
+    # with timestamps rendered as ISO 8601 UTC so JSON round-trips keep
+    # microsecond precision and stay diff-stable. Shared by the observation
+    # emitter (#219) and the baseline outbox backfill (#222) so both store
+    # byte-identical baselines.
+    def self.published(item)
+      new(item).call.deep_transform_values do |value|
+        value.respond_to?(:utc) ? value.utc.iso8601(6) : value
+      end
+    end
+
     def initialize(item)
       @item = item
     end

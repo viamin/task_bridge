@@ -27,5 +27,21 @@ namespace :task_bridge do
       warn "Outbox dry run: would publish #{summary[:rows]} rows " \
            "across #{summary[:batches]} batches (nothing was sent)"
     end
+
+    desc "enqueue baseline item and mapping rows for existing sync data " \
+         "(idempotent; local database only; low-confidence mappings are withheld)"
+    task backfill_baseline: :environment do
+      summary = SyncBackfill::BaselineOutbox.run!
+      puts SyncBackfill::BaselineOutbox.format_summary(summary)
+      puts "Created #{summary[:item_rows_created]} new item row(s) and " \
+           "#{summary[:mapping_rows_created]} new mapping row(s) this run"
+    end
+
+    desc "summarize the baseline backfill without writing anything (counts by service and confidence)"
+    task backfill_baseline_dry_run: :environment do
+      summary = SyncBackfill::BaselineOutbox.run!(dry_run: true)
+      puts SyncBackfill::BaselineOutbox.format_summary(summary)
+      puts "Nothing was written; run task_bridge:outbox:backfill_baseline to enqueue these rows"
+    end
   end
 end
