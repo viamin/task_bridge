@@ -683,9 +683,11 @@ Rules:
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
 
-## Open Questions
+## Backfill policy
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+Backfill publishes `confirmed` and `inferred` mapping memberships only.
+Tentative (low-confidence) memberships are withheld and reported in the
+backfill dry-run summary for manual cleanup or Web-side review.
 
 ## Rejected Alternatives
 
