@@ -126,3 +126,48 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
   end
 end
+
+RSpec.describe "task_bridge:backfill_observation_baseline task", :full_options do
+  before(:all) do
+    Rails.application.load_tasks unless Rake::Task.task_defined?("task_bridge:backfill_observation_baseline")
+  end
+
+  let(:task) { Rake::Task["task_bridge:backfill_observation_baseline"] }
+  let(:item_class) do
+    stub_const("BaselineRakeTaskItem", Class.new(Base::SyncItem) do
+      def self.attribute_map
+        {}
+      end
+
+      def provider
+        "GoogleTasks"
+      end
+
+      def external_data
+        {}
+      end
+    end)
+  end
+
+  before do
+    task.reenable
+    item_class
+  end
+
+  it "prints a dry-run summary without creating outbox rows" do
+    collection = SyncCollection.create!(title: "Uncertain", mapping_method: "manual_backfill", mapping_confidence: "low")
+    item_class.create!(
+      options: options.merge(service_name: "GoogleTasks"),
+      title: "Uncertain",
+      external_id: "google-task-1",
+      sync_collection: collection
+    )
+
+    previous = ENV.fetch("DRY_RUN", nil)
+    ENV["DRY_RUN"] = "1"
+    expect { task.invoke }.to output(/"google_tasks".*"low_confidence_mapping"/m).to_stdout
+    expect(OutboxEntry.count).to eq(0)
+  ensure
+    ENV["DRY_RUN"] = previous
+  end
+end
