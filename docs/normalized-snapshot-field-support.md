@@ -113,8 +113,9 @@ freshly constructed item that has not gone through
 `capture_source_identity` — so consumers must not code for a nilable
 value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
 captured instance segment when one exists (`asana:work`,
-`omnifocus:default`), and yields the bare `service_type` (`asana`)
-otherwise; the per-instance component therefore belongs only in
+`omnifocus:default`), and uses the permanent `default` segment for an
+unconfigured single-instance service (`asana:default`); the per-instance
+component therefore belongs only in
 `source.service_instance`, never in `source.service_type`. Like `item_key`
 and idempotency keys, `service_instance` is opaque: consumers must not
 parse it by splitting on `:` because segments may themselves contain
@@ -150,10 +151,32 @@ outbox rows or advance the diff baseline.
   every member when the collection's mapping provenance meaningfully
   changes (for example `title_fallback` upgrading to `source_sync_id`).
   Internal confidence values map to the contract's vocabulary
-  (high → `confirmed`; medium/low → `tentative`).
+  (high → `confirmed`; medium → `inferred`; low → `tentative`).
 - **Key uniqueness**: when one observation yields several field transitions,
   each row's idempotency key carries a sequence segment
   (`Outbox::IdempotencyKey`), per the RDR #215 rule for colliding observed
   timestamps. The baseline is only advanced after every row is enqueued, so
   a failed enqueue can re-detect a transition (at-least-once) but never
   silently swallows one.
+
+## Backfilling existing data (#222)
+
+Before enabling `task_bridge.web.enabled`, seed current synchronized data:
+
+```sh
+bundle exec rake task_bridge:backfill_outbox
+```
+
+Preview without changing local provenance, snapshots, or the outbox:
+
+```sh
+DRY_RUN=1 bundle exec rake task_bridge:backfill_outbox
+```
+
+The summary groups baseline items and mappings by service and confidence and
+includes skipped incomplete records and low-confidence mappings withheld from
+publication. The task writes local baseline `item` rows only (never
+`snapshot_seen` or `sync_run` rows), tags them with
+`provenance.detected_by: backfill` and `backfilled_at`, and never contacts
+source systems. It is safe to rerun: stable observation timestamps give each
+row the same idempotency key.
