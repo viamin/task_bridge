@@ -18,7 +18,7 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- The backfill policy for mappings TaskBridge holds at low confidence was resolved in favor of withholding them; see Open Questions (resolved in #222).
 
 ## Decision
 
@@ -685,7 +685,8 @@ Rules:
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently hold at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remained unresolved pending further product guidance. Until it was resolved, implementation issues under #214 had to assume the safer default of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+  - **Resolved (2026-10, #222)**: the safer default stands. Backfill publishes only `confirmed` and `inferred` mappings and withholds `tentative` ones, surfacing them only in the backfill dry-run summary counts by confidence (see docs/backfill-taskbridge-web-baseline.md). Internal confidence maps to the contract enum as `high` → `confirmed`, `medium` → `inferred`, `low` → `tentative`.
 
 ## Rejected Alternatives
 

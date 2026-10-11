@@ -106,6 +106,25 @@ RSpec.describe Outbox::MappingEmitter do
       end
     end
 
+    it "translates medium confidence to inferred and merges extra provenance fields" do
+      collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+
+      described_class.emit_for_members(
+        collection,
+        members: [member],
+        observed_at:,
+        provenance_extras: { "detected_by" => "backfill", "backfilled_at" => observed_at.utc.iso8601(6) }
+      )
+
+      payload = OutboxEntry.find_by(record_kind: "mapping").payload
+      expect(payload.values_at("mapping_confidence", "mapping_source")).to eq(%w[inferred title_match])
+      expect(payload["provenance"]).to include(
+        "method" => "title_fallback",
+        "confidence" => "medium",
+        "detected_by" => "backfill"
+      )
+    end
+
     it "skips members that are not persisted sync items" do
       transient = member_class.new(external_id: "issue-43")
 
