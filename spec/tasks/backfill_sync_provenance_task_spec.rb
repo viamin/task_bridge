@@ -124,5 +124,57 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "item").first.payload).to include(
+      "provenance" => include("detected_by" => "backfill", "backfilled_at" => be_present)
+    )
+  end
+
+  it "backfills baseline snapshots for OmniFocus, Asana, GitHub, and Google Tasks" do
+    providers = {
+      "OmniFocus" => "of-1", "Asana" => "asana-1", "Github" => "gh-1", "Google Tasks" => "gt-1"
+    }
+    providers.each_with_index do |(provider, external_id), index|
+      klass = Class.new(Base::SyncItem) do
+        define_method(:provider) { provider }
+
+        def self.attribute_map
+          {}
+        end
+
+        def external_data
+          {}
+        end
+      end
+      stub_const("BackfillProvider#{index}Item", klass)
+      klass.create!(title: provider, external_id:, options: options.merge(service_name: provider))
+    end
+
+    task.invoke
+
+    rows = OutboxEntry.where(record_kind: "item").order(:external_id)
+    expect(rows.map(&:service_type)).to contain_exactly("omnifocus", "asana", "github", "google_tasks")
+    expect(rows.map(&:service_instance)).to contain_exactly(
+      "omnifocus:default", "asana:default", "github:default", "google_tasks:default"
+    )
+  end
+
+  it "reports a dry-run without writing provenance or outbox rows" do
+    item = test_item_class.create!(title: "Incomplete", options:, external_id: nil)
+    item.update_columns(
+      source_service_name: nil, source_service_instance: nil, source_service_type: nil,
+      source_external_id: nil, source_url: nil, source_updated_at: nil,
+      first_observed_at: nil, last_observed_at: nil, source_metadata: nil
+    )
+
+    ENV["DRY_RUN"] = "1"
+    expect { task.invoke }.to output(/Backfill dry run:.*items_missing_external_id/).to_stdout
+
+    expect(item.reload.last_observed_at).to be_nil
+    expect(OutboxEntry.count).to eq(0)
+  ensure
+    ENV.delete("DRY_RUN")
   end
 end

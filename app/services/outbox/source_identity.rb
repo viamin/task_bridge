@@ -9,14 +9,20 @@ module Outbox
     module_function
 
     def for(item)
-      service_type = Base::Service.service_identifier_for(item.provider)
+      service_type = publication_service_type(item)
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # Single-instance adapters still need a permanent instance component:
+        # it participates in both item identity and idempotency keys.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
+    end
+
+    def publication_service_type(item)
+      Base::Service.service_identifier_for(item.provider).sub("omni_focus", "omnifocus")
     end
   end
 end
