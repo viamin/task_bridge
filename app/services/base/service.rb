@@ -31,6 +31,10 @@ module Base
         parse_service_name(service_name)[:instance_name]
       end
 
+      def source_instance_name_for(service_name)
+        instance_name_for(service_name).presence || "default"
+      end
+
       def normalized_service_name(service_name)
         parse_service_name(service_name)[:service_name]
       end

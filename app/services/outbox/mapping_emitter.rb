@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -41,6 +41,10 @@ module Outbox
     end
 
     class << self
+      def publishable?(collection)
+        CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence) != "tentative"
+      end
+
       private
 
       def eligible?(member)
