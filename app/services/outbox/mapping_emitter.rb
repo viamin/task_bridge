@@ -15,10 +15,12 @@ module Outbox
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
     # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # must ignore unknown values rather than break. `medium` (title-derived)
+    # maps to `inferred` and only `low` to `tentative`, per the #222
+    # clarification that resolved RDR #215's low-confidence open question.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -26,6 +28,13 @@ module Outbox
       "title_fallback" => "title_match",
       "manual_backfill" => "manual"
     }.freeze
+
+    # The contract value for an internal mapping confidence, shared with the
+    # baseline backfill (#222) so publication policy and row payloads can
+    # never disagree about how a confidence translates.
+    def self.translated_confidence(internal_confidence)
+      CONFIDENCE.fetch(internal_confidence.to_s, internal_confidence.to_s)
+    end
 
     def self.emit_for_members(collection, members:, observed_at: Time.current)
       Array(members).select { |member| eligible?(member) }.each do |member|
@@ -58,7 +67,7 @@ module Outbox
           },
           member: identity.merge(item_key: member.item_key),
           membership_role: MEMBERSHIP_ROLE,
-          mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
+          mapping_confidence: translated_confidence(collection.mapping_confidence),
           mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
           provenance: {
             method: collection.mapping_method,

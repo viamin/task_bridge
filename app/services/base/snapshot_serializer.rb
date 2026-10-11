@@ -31,12 +31,24 @@ module Base
         .merge(scheduling_fields)
         .merge(classification_fields)
         .merge(relationship_fields)
-        .merge(metadata: item.normalized_metadata)
+        .merge(metadata: metadata)
     end
 
     private
 
     attr_reader :item
+
+    # Source-specific metadata is built from adapter state held in memory
+    # during a refresh (e.g. Github::Issue#github_issue). Items loaded
+    # straight from the database — the baseline backfill (#222) — carry no
+    # external payload, so a metadata read that reaches into that missing
+    # state yields no metadata instead of raising; the next live refresh
+    # republishes the full snapshot.
+    def metadata
+      item.normalized_metadata
+    rescue NoMethodError
+      {}
+    end
 
     def identity_fields
       {
