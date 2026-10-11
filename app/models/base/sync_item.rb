@@ -207,7 +207,7 @@ module Base
     # syncs. Consumers must not parse it by splitting on `:` (the service key
     # or external ID may themselves contain colons).
     def item_key
-      [service_key, external_id].compact.join(":")
+      [Outbox::SourceIdentity.for(self).fetch(:service_instance), external_id].compact.join(":")
     end
 
     # A versioned, source-agnostic snapshot of this item's current state,

@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 namespace :task_bridge do
-  desc "backfill explicit sync item provenance and sync collection mapping metadata"
+  desc "backfill provenance and baseline TaskBridge Web outbox snapshots (DRY_RUN=1 previews only)"
   task backfill_sync_provenance: :environment do
-    SyncBackfill::SourceProvenance.run!
+    runner = ENV["DRY_RUN"] == "1" ? SyncBackfill::Baseline.dry_run : SyncBackfill::Baseline.run!
+    puts JSON.pretty_generate(runner)
   end
 end
