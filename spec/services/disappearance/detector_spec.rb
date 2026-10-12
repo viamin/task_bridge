@@ -156,6 +156,15 @@ RSpec.describe Disappearance::Detector do
       )
     end
 
+    it "links tombstones from string-keyed programmatic run options" do
+      persisted_item("det-missing")
+      service.options = options.merge(sync_started_at: nil, "sync_started_at" => options[:sync_started_at])
+
+      entry = service.record_source_disappearances!([], only_modified_dates: false).first
+
+      expect(entry.payload.dig("provenance", "sync_run_id")).to eq(sync_run_id)
+    end
+
     it "omits an invalid sync run ID from tombstone provenance and markers" do
       item = persisted_item("det-missing")
 

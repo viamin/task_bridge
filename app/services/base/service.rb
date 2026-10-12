@@ -360,7 +360,7 @@ module Base
         service: self,
         observed_items:,
         complete_fetch: !only_modified_dates,
-        sync_started_at: sync_started_at || options[:sync_started_at]
+        sync_started_at: sync_started_at || options[:sync_started_at] || options["sync_started_at"]
       )
     end
 
