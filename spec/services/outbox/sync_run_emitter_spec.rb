@@ -177,6 +177,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(OutboxEntry.find_by(record_kind: "sync_run").payload["touched_collection_ids"]).to eq([84, 91])
   end
 
+  it "ignores unstructured log entries" do
+    emit(logs: ["provider diagnostic", logs.first])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["touched_collection_ids"]).to eq([84, 91])
+  end
+
   it "does not publish skipped or idle services" do
     aggregate_failures do
       emit(summary: summary.merge(status: "skipped"))
