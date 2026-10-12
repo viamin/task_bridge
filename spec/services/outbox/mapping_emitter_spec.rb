@@ -61,35 +61,10 @@ RSpec.describe Outbox::MappingEmitter do
   before { member_class }
 
   describe ".emit_for_members" do
-    it "enqueues a mapping row for each persisted member" do
+    it "withholds low-confidence mappings" do
       described_class.emit_for_members(collection, members: [member], observed_at:)
 
-      row = OutboxEntry.find_by(record_kind: "mapping")
-      expect(row).to have_attributes(
-        external_id: "issue-42",
-        service_type: "github",
-        service_instance: "github:repo-1",
-        sync_collection_id: collection.id,
-        observed_at:
-      )
-      expect(row.idempotency_key).to eq(
-        "tb:v1:map:sync_collection:#{collection.id}:membership:github:repo-1:issue-42:2026-10-05T10:00:00.000000Z"
-      )
-      expect(row.payload).to include(
-        "mapping_type" => "representation_membership",
-        "membership_role" => "member",
-        "mapping_confidence" => "tentative",
-        "mapping_source" => "manual"
-      )
-      expect(row.payload["sync_collection"]).to include("sync_collection_id" => collection.id, "title" => "Release checklist")
-      expect(row.payload["member"]).to include(
-        "item_key" => "github_repo_1:issue-42",
-        "service_type" => "github",
-        "service_instance" => "github:repo-1",
-        "external_id" => "issue-42"
-      )
-      expect(member.normalized_snapshot[:source]).to eq(Outbox::SourceIdentity.for(member))
-      expect(row.payload["provenance"]).to include("method" => "manual_backfill", "confidence" => "low")
+      expect(OutboxEntry.where(record_kind: "mapping")).to be_empty
     end
 
     it "translates sync-id and created-by-sync provenance to confirmed mappings" do
@@ -106,6 +81,15 @@ RSpec.describe Outbox::MappingEmitter do
       end
     end
 
+    it "translates title-derived provenance to inferred mappings" do
+      collection.update!(mapping_method: "title_fallback", mapping_confidence: "medium")
+
+      described_class.emit_for_members(collection, members: [member], observed_at:)
+
+      row = OutboxEntry.find_by!(record_kind: "mapping")
+      expect(row.payload.values_at("mapping_confidence", "mapping_source")).to eq(%w[inferred title_match])
+    end
+
     it "skips members that are not persisted sync items" do
       transient = member_class.new(external_id: "issue-43")
 
@@ -115,6 +99,7 @@ RSpec.describe Outbox::MappingEmitter do
     end
 
     it "isolates a failing member write and still publishes the remaining members" do
+      collection.update!(mapping_method: "source_sync_id", mapping_confidence: "high")
       second_member = member_class.create!(
         title: "Release checklist",
         external_id: "issue-99",

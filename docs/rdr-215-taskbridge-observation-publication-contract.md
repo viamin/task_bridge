@@ -683,6 +683,32 @@ Rules:
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
 
+### Running the backfill
+
+Run the preview before enabling `task_bridge.web.enabled`; it reports candidate
+snapshots by service plus mapping confidence and incomplete-record counts, and
+does not write local state:
+
+```sh
+bundle exec rake task_bridge:backfill_outbox DRY_RUN=1
+```
+
+After reviewing the output, seed the local outbox, then enable publication and
+run the normal publisher:
+
+```sh
+bundle exec rake task_bridge:backfill_outbox
+bundle exec rake task_bridge:outbox:publish
+```
+
+The task first fills missing provenance for legacy rows, creates one baseline
+`item` snapshot per complete source item, and creates mapping rows only for
+high/confirmed and medium/inferred memberships. Low/tentative memberships are
+withheld and counted in the summary for manual cleanup or Web-side review. It
+does not emit `snapshot_seen` observations or `sync_run` rows, and never calls
+external source systems. Re-running it is safe because the baseline timestamps
+and resulting idempotency keys are stable.
+
 ## Open Questions
 
 - **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
