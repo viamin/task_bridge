@@ -211,6 +211,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     end
   end
 
+  it "ignores malformed summaries without interrupting publication" do
+    expect { emit(summary: "unexpected summary") }.not_to raise_error
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
   it "does not publish pretend runs" do
     emit(options: options.merge(pretend: true))
 
