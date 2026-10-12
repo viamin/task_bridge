@@ -105,6 +105,12 @@ RSpec.describe Outbox::OperationalText do
       expect(sanitized).not_to include("\"items\"", "\"count\"")
     end
 
+    it "redacts JSON-formatted response bodies" do
+      text = '{"response": {"email": "person@example.com", "id": 1}}'
+
+      expect(described_class.sanitize(text)).to eq('{"response": [REDACTED]}')
+    end
+
     it "redacts payload and body literals" do
       %w[body payload response].each do |keyword|
         text = "#{keyword}: {\"id\": 1, \"value\": \"<secret>\"}"
