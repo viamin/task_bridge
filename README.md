@@ -12,6 +12,25 @@ Run `bin/rails task_bridge:sync -- --help` to see available command line options
 
 The command line option will take precedence over the settings in the configuration file.
 
+## TaskBridge Web baseline backfill
+
+Before enabling TaskBridge Web publication for an existing installation, seed the
+local outbox from the synchronized records already in TaskBridge:
+
+```sh
+DRY_RUN=1 bin/rails task_bridge:backfill_sync_provenance
+bin/rails task_bridge:backfill_sync_provenance
+```
+
+The dry run is write-free and prints JSON counts by source service, mapping
+confidence, and skipped incomplete records. Review any `low` mapping count before
+continuing: title/manual low-confidence memberships are retained locally for
+manual cleanup and are intentionally not published. The real run writes one
+current-state item snapshot per known item and only confirmed or inferred mapping
+rows; it writes no historical observation or sync-run rows. It is safe to rerun:
+the deterministic outbox keys reuse the original baseline rows. The task only
+reads and updates TaskBridge's local database; it never calls an external source.
+
 ## OmniFocus Setup
 
 TaskBridge supports both the local Mac app and OmniFocus for the Web. If you run the hosted/web path, set the `omnifocus_web_*` settings in `config/settings.yml` or via your environment. Otherwise, OmniFocus needs to be installed on the computer you're running this script on so AppleScript can talk to it.
