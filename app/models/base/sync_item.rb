@@ -604,7 +604,10 @@ module Base
       )
 
       self.source_service_name = resolved_service_name
-      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name)
+      # `service_instance` is part of the public, immutable source identity.
+      # A single configured provider has no name suffix, but it still needs a
+      # stable identity segment for publication and idempotency keys.
+      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name) || "default"
       self.source_service_type = provider.presence || self.class.name.deconstantize
       self.source_external_id = external_id if external_id.present?
       self.source_url = url if url.present?
