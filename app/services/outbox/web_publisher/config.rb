@@ -83,8 +83,14 @@ module Outbox
       end
 
       def positive_integer_setting(key, default)
-        value = Integer(settings[key], exception: false)
+        value = integer_setting(settings[key])
         value ? value.clamp(1..) : default
+      end
+
+      def integer_setting(value)
+        return value if value.is_a?(Integer)
+
+        Integer(value, exception: false) if value.is_a?(String)
       end
     end
   end
