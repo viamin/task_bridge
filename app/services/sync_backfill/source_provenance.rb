@@ -19,7 +19,7 @@ module SyncBackfill
       # rather than using a loaded association, so preloading sync_items
       # here would not save any queries.
       Base::SyncItem.find_each do |item|
-        next if item.last_observed_at.present?
+        next unless source_provenance_missing?(item)
 
         observed_at = item.updated_at || item.created_at || Time.current
         item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
@@ -35,6 +35,12 @@ module SyncBackfill
         provenance = inferred_provenance_for(collection)
         collection.update_mapping_provenance!(**provenance, observed_at:)
       end
+    end
+
+    def source_provenance_missing?(item)
+      item.last_observed_at.blank? || item.source_service_name.blank? ||
+        item.source_service_instance.blank? || item.source_service_type.blank? ||
+        item.source_external_id.blank?
     end
 
     def inferred_provenance_for(collection)
