@@ -78,6 +78,15 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(OutboxEntry.find_by(record_kind: "sync_run").payload["status"]).to eq("success")
   end
 
+  it "accepts a Time-valued run start from programmatic callers" do
+    emit(options: options.merge(sync_started_at: finished_at - 5.minutes))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload).to include(
+      "sync_run_id" => "sync-run-20261005T100000Z-asana_work",
+      "started_at" => "2026-10-05T10:00:00.000000Z"
+    )
+  end
+
   it "defaults malformed or negative item counts to zero" do
     emit(summary: summary.merge(items_synced: "12 tasks"))
 

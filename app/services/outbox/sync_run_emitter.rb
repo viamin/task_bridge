@@ -41,12 +41,12 @@ module Outbox
 
     def self.parse_started_at(value)
       return if value.blank?
+      return value if value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone)
 
       Time.iso8601(value.to_s)
     rescue ArgumentError, TypeError
       nil
     end
-    private_class_method :parse_started_at
 
     def self.compact_timestamp(time)
       seconds = time.utc.strftime("%Y%m%dT%H%M%S")
@@ -130,7 +130,7 @@ module Outbox
     end
 
     def started_at_time
-      @started_at_time ||= Time.iso8601(options[:sync_started_at])
+      @started_at_time ||= self.class.parse_started_at(options[:sync_started_at])
     end
 
     def finished_at
