@@ -2,6 +2,13 @@
 
 namespace :task_bridge do
   namespace :outbox do
+    desc "backfill baseline item snapshots and mapping memberships (DRY_RUN=1 reports without writing)"
+    task backfill: :environment do
+      dry_run = ENV.fetch("DRY_RUN", "0") == "1"
+      summary = SyncBackfill::Outbox.run!(dry_run:)
+      puts JSON.generate(summary.merge(dry_run:))
+    end
+
     desc "prune delivered and terminal-failure outbox entries past their retention windows"
     task prune: :environment do
       pruned = Outbox::Prune.run!
