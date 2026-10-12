@@ -28,6 +28,24 @@ RSpec.describe Outbox::OperationalText do
       expect(described_class.sanitize(text)).to eq("[REDACTED]")
     end
 
+    it "redacts basic auth credentials in authorization headers" do
+      text = "Authorization: Basic dXNlcjpwYXNzd29yZA=="
+
+      expect(described_class.sanitize(text)).to eq("[REDACTED]")
+    end
+
+    it "redacts digest auth credentials in authorization headers" do
+      text = "Authorization: Digest dXNlcjpwYXNzd29yZA=="
+
+      expect(described_class.sanitize(text)).to eq("[REDACTED]")
+    end
+
+    it "preserves the word 'basic' when it is not part of an authorization header" do
+      text = "basic sync validation failed"
+
+      expect(described_class.sanitize(text)).to eq(text)
+    end
+
     it "redacts bearer tokens without a preceding keyword" do
       text = "bearer <token>"
 
