@@ -22,11 +22,11 @@ module Outbox
       end
 
       def enabled?
-        settings.fetch("enabled", false)
+        boolean_setting("enabled")
       end
 
       def dry_run?
-        settings.fetch("dry_run", false)
+        boolean_setting("dry_run")
       end
 
       def base_url
@@ -71,6 +71,10 @@ module Outbox
 
       def valid_http_uri?(parsed)
         (parsed.is_a?(URI::HTTP) || parsed.is_a?(URI::HTTPS)) && parsed.host.present?
+      end
+
+      def boolean_setting(key)
+        ActiveModel::Type::Boolean.new.cast(settings.fetch(key, false))
       end
     end
   end
