@@ -58,6 +58,14 @@ RSpec.describe Outbox::WebPublisher::Config do
       expect(dry_run.enabled?).to be(true)
       expect(dry_run.dry_run?).to be(true)
     end
+
+    it "treats non-string credentials and base URLs as absent" do
+      config = described_class.resolve("enabled" => true, "base_url" => 42, "api_key" => [:key])
+
+      expect(config.base_url).to be_nil
+      expect(config.api_key).to be_nil
+      expect(config).to be_incomplete
+    end
   end
 
   describe "#uri" do
