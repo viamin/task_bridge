@@ -526,6 +526,7 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.notes).to eq(asana_task_data["notes"])
       expect(item.omnifocus_id).to eq("of-123")
       expect(item.source_service_name).to eq("Asana")
+      expect(item.source_service_instance).to eq("default")
       expect(item.source_service_type).to eq("Asana")
       expect(item.source_external_id).to eq("asana-123")
       expect(item.source_created_at).to eq(Time.zone.parse("2024-04-01T09:30:00Z"))
