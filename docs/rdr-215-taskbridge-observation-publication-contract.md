@@ -18,7 +18,7 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- The backfill policy for mappings TaskBridge holds at low confidence is resolved (#222): backfill maps `high`/`medium`/`low` confidence to `confirmed`/`inferred`/`tentative` and withholds `tentative` (`low`) mappings from publication, surfacing them only in the backfill's dry-run/summary counts for manual review (see Migration and Backfill Implications and Open Questions).
 
 ## Decision
 
@@ -685,7 +685,7 @@ Rules:
 
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy** (resolved, #222): backfill withholds `sync_collection` membership rows for mappings TaskBridge holds at `mapping_confidence: tentative` (internal `low`) rather than publishing them. Only `confirmed` (`high`) and `inferred` (`medium`) mappings are enqueued; withheld rows are listed in the backfill's dry-run/summary output for manual cleanup or Web-side review (`SyncBackfill::MappingObservations`, `docs/taskbridge-web-backfill.md`).
 
 ## Rejected Alternatives
 
