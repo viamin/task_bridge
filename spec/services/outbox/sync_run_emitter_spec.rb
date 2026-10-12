@@ -101,6 +101,16 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     )
   end
 
+  it "marks authorization-class failures non-retryable" do
+    emit(summary: summary.merge(status: "failed"), logs: [logs.first.merge(
+      "status" => "failed",
+      "error_class" => "Google::Apis::AuthorizationError",
+      "error_message" => "credentials are no longer valid"
+    )])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload.dig("error", "retryable")).to be(false)
+  end
+
   it "uses the failing log when an earlier sync operation succeeded" do
     emit(
       summary: summary.merge(status: "failed"),
