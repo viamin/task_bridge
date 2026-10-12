@@ -28,13 +28,14 @@ module Outbox
     # deletion tombstones. Returns nil when `sync_started_at` is missing or
     # invalid so callers can skip the field without interrupting a sync.
     def self.run_id_for(service_name:, sync_started_at:)
-      return if service_name.blank?
+      service_identity = Base::Service.parse_service_name(service_name)
+      return if service_identity[:class_name].blank?
 
       started_at = parse_started_at(sync_started_at)
       return nil unless started_at
 
       compacted = compact_timestamp(started_at)
-      identifier = Base::Service.service_identifier_for(service_name)
+      identifier = Base::Service.service_identifier_for(service_identity[:service_name])
       "sync-run-#{compacted}-#{identifier}"
     end
 
