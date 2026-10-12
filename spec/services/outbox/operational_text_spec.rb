@@ -51,6 +51,15 @@ RSpec.describe Outbox::OperationalText do
       end
     end
 
+    it "redacts colon-delimited credential fields from provider errors" do
+      text = "X-Api-Key: <api-secret> accessToken: <access-secret> clientSecret: <client-secret>"
+
+      sanitized = described_class.sanitize(text)
+
+      expect(sanitized).to include("[REDACTED]")
+      expect(sanitized).not_to include("<api-secret>", "<access-secret>", "<client-secret>")
+    end
+
     it "redacts JSON-style credentials" do
       text = '{"access_token": "<secret>", "password": "<hunter2>"}'
 
