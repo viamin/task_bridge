@@ -70,7 +70,11 @@ module Outbox
       end
 
       def valid_http_uri?(parsed)
-        (parsed.is_a?(URI::HTTP) || parsed.is_a?(URI::HTTPS)) && parsed.host.present?
+        (parsed.is_a?(URI::HTTP) || parsed.is_a?(URI::HTTPS)) &&
+          parsed.host.present? &&
+          parsed.userinfo.blank? &&
+          parsed.query.blank? &&
+          parsed.fragment.blank?
       end
 
       def boolean_setting(key)
