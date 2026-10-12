@@ -281,6 +281,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
   end
 
+  it "does not publish when the run timestamp has no timezone" do
+    emit(options: options.merge(sync_started_at: "2026-10-05T10:00:00"))
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
   it "omits malformed optional summary timestamps" do
     emit(summary: summary.merge(last_successful: "not-a-timestamp"))
 
