@@ -8,12 +8,18 @@ module Outbox
   module SourceIdentity
     module_function
 
+    # Services with only one configured account (OmniFocus, Reminders, ...)
+    # carry no instance suffix. `service_instance` still must be unique and
+    # permanently stable because it is embedded in idempotency keys, so a
+    # missing instance always resolves to this fixed token rather than nil.
+    DEFAULT_INSTANCE_TOKEN = "default"
+
     def for(item)
       service_type = Base::Service.service_identifier_for(item.provider)
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        service_instance: [service_type, item.source_service_instance.presence || DEFAULT_INSTANCE_TOKEN].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }

@@ -42,8 +42,16 @@ module Github
   class Issue < Base::SyncItem
     include Collectible
 
-    attr_accessor :github_issue
+    attr_writer :github_issue
     attr_reader :number, :tags, :project, :is_pr, :assignee
+
+    # Defaults to {} (not nil) so metadata/snapshot methods that read
+    # github_issue as a hash stay safe for persisted items loaded without
+    # their in-memory API payload, e.g. SyncBackfill::ItemSnapshots (#222)
+    # building a normalized_snapshot straight from the database.
+    def github_issue
+      @github_issue ||= {}
+    end
 
     def read_original(only_modified_dates: false)
       super
