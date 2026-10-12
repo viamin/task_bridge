@@ -125,4 +125,16 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
   end
+
+  it "repairs missing identity fields without changing an existing observation timestamp" do
+    item = test_item_class.create!(
+      options: options.merge(service_name: "Asana"), title: "Buy milk", external_id: "asana-123"
+    )
+    original_observed_at = Time.zone.parse("2026-10-11T12:00:00Z")
+    item.update_columns(source_external_id: nil, last_observed_at: original_observed_at)
+
+    task.invoke
+
+    expect(item.reload).to have_attributes(source_external_id: "asana-123", last_observed_at: original_observed_at)
+  end
 end

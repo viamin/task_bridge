@@ -355,7 +355,7 @@ RSpec.describe Base::Service do
         last_modified: Time.current - 1.minute
       )
       persisted_primary_item = primary_sync_item_class.create!(
-        title: "Mapped primary task",
+        title: "Mapped service task",
         external_id: "primary-map-123",
         completed: false,
         last_modified: Time.current - 2.minutes
