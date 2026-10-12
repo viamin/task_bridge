@@ -47,7 +47,7 @@ module Outbox
     def initialize(service_name:, summary:, logs:, options:)
       @service_name = service_name
       @summary = summary || {}
-      @logs = Array(logs)
+      @logs = Array(logs).compact
       @options = options || {}
     end
 
