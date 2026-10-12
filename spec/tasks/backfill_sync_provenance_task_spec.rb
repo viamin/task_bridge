@@ -114,6 +114,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(source_item.source_external_id).to eq("asana-123")
     expect(source_item.source_created_at).to be_nil
     expect(target_item.reload.source_service_name).to eq("Omnifocus")
+    expect(target_item.source_service_instance).to eq("default")
     expect(target_item.source_created_at).to be_nil
     expect(collection.reload.mapping_method).to eq("source_sync_id")
     expect(collection.mapping_confidence).to eq("high")
@@ -124,5 +125,40 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    expect(OutboxEntry.find_by(record_kind: "item").payload).to include(
+      "provenance" => include("detected_by" => "backfill", "backfilled_at" => be_present)
+    )
+  end
+
+  it "previews all supported source types without writes and reports low-confidence mappings" do
+    providers = %w[Omnifocus Asana Github GoogleTasks]
+    items = providers.map.with_index do |provider, index|
+      klass = Class.new(Base::SyncItem) do
+        define_method(:provider) { provider }
+
+        define_method(:external_data) { {} }
+
+        define_singleton_method(:attribute_map) { {} }
+      end
+      stub_const("Backfill#{provider}Item", klass)
+      klass.create!(title: "Task #{index}", external_id: "id-#{index}")
+    end
+    collection = SyncCollection.create!(title: "Uncertain", sync_items: items.take(1))
+    observed_at = items.map { |item| item.reload.last_observed_at }
+
+    result = SyncBackfill::SourceProvenance.run!(dry_run: true)
+
+    expect(result).to include(
+      dry_run: true,
+      items_by_service: include("omnifocus" => 1, "asana" => 1, "github" => 1, "google_tasks" => 1),
+      mappings_by_confidence: include("low" => 1)
+    )
+    expect(OutboxEntry.count).to eq(0)
+    expect(collection.reload.mapping_method).to be_nil
+    expect(items.map { |item| item.reload.last_observed_at }).to eq(observed_at)
   end
 end
