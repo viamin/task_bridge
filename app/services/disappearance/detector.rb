@@ -65,13 +65,17 @@ module Disappearance
     private
 
     def eligible?
-      return false if service.options[:pretend]
+      return false if pretend?
       return false if strategy.disabled?
       return false unless complete_fetch
       return false if service.respond_to?(:authorized) && service.authorized == false
       return false unless service.deletion_detection_scope_available?
 
       true
+    end
+
+    def pretend?
+      service.options[:pretend] == true || service.options["pretend"] == true
     end
 
     def strategy

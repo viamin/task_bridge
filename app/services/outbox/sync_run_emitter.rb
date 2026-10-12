@@ -79,7 +79,7 @@ module Outbox
     attr_reader :service_name, :summary, :logs, :options
 
     def eligible?
-      return false if option_value(:pretend)
+      return false if pretend?
       return false if sync_run_id.blank?
       return false unless PUBLISHED_STATUSES.include?(status)
 
@@ -128,6 +128,10 @@ module Outbox
 
     def sync_started_at
       option_value(:sync_started_at)
+    end
+
+    def pretend?
+      option_value(:pretend) == true
     end
 
     def started_at

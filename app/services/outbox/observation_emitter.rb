@@ -31,7 +31,7 @@ module Outbox
     end
 
     def emit
-      return [] if item.options[:pretend] || !item.persisted? || item.external_id.blank?
+      return [] if pretend? || !item.persisted? || item.external_id.blank?
 
       rows = observation_rows
       rows.each_with_index do |payload, index|
@@ -88,6 +88,10 @@ module Outbox
 
     def sync_started_at
       item.options[:sync_started_at] || item.options["sync_started_at"]
+    end
+
+    def pretend?
+      item.options[:pretend] == true || item.options["pretend"] == true
     end
 
     def enqueue(payload, sequence:)
