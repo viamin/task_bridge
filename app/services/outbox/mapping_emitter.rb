@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -28,6 +28,8 @@ module Outbox
     }.freeze
 
     def self.emit_for_members(collection, members:, observed_at: Time.current)
+      return unless publishable_confidence?(collection)
+
       Array(members).select { |member| eligible?(member) }.each do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
@@ -42,6 +44,12 @@ module Outbox
 
     class << self
       private
+
+      # Tentative mappings are retained locally for operator review, but are
+      # not published until evidence raises them to inferred or confirmed.
+      def publishable_confidence?(collection)
+        %w[confirmed inferred].include?(CONFIDENCE[collection.mapping_confidence])
+      end
 
       def eligible?(member)
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
