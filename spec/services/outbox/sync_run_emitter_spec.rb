@@ -80,6 +80,14 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(row.idempotency_key).to eq("tb:v1:sync_run:asana:sync-run-20261005T100000Z-asana")
   end
 
+  it "keeps distinct run IDs for starts within the same second" do
+    first = Outbox::SyncRunEmitter.run_id_for(service_name: "Asana", sync_started_at: "2026-10-05T10:00:00.000001Z")
+    second = Outbox::SyncRunEmitter.run_id_for(service_name: "Asana", sync_started_at: "2026-10-05T10:00:00.000002Z")
+
+    expect(first).to eq("sync-run-20261005T100000.000001Z-asana")
+    expect(second).to eq("sync-run-20261005T100000.000002Z-asana")
+  end
+
   it "publishes failed runs with a structured error marked non-retryable" do
     emit(summary: summary.merge(
       status: "failed",
