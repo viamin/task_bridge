@@ -106,6 +106,15 @@ RSpec.describe Outbox::OperationalText do
       end
     end
 
+    it "redacts provider response bodies that span multiple lines" do
+      text = "response: {\n  \"access_token\": \"<secret>\",\n  \"other\": \"data\"\n}"
+
+      sanitized = described_class.sanitize(text)
+
+      expect(sanitized).to include("[REDACTED]")
+      expect(sanitized).not_to include("<secret>", "\"other\"", "\"data\"")
+    end
+
     it "preserves text without sensitive content" do
       text = "sync failed after 12 items processed"
 
