@@ -22,6 +22,15 @@ RSpec.describe Outbox::WebPublisher::Config do
       expect(config.batch_size).to eq(described_class::DEFAULT_BATCH_SIZE)
       expect(config.timeout_seconds).to eq(described_class::DEFAULT_TIMEOUT_SECONDS)
     end
+
+    it "falls back to disabled defaults when Chamber settings are malformed" do
+      allow(Chamber).to receive(:dig).with(:task_bridge, :web).and_return("unexpected")
+
+      config = described_class.resolve("unexpected")
+
+      expect(config.enabled?).to be(false)
+      expect(config.batch_size).to eq(described_class::DEFAULT_BATCH_SIZE)
+    end
   end
 
   describe "overrides" do
@@ -57,6 +66,13 @@ RSpec.describe Outbox::WebPublisher::Config do
       expect(disabled.dry_run?).to be(false)
       expect(dry_run.enabled?).to be(true)
       expect(dry_run.dry_run?).to be(true)
+    end
+
+    it "treats unrecognized boolean values as disabled" do
+      config = described_class.resolve("enabled" => "definitely", "dry_run" => [true])
+
+      expect(config.enabled?).to be(false)
+      expect(config.dry_run?).to be(false)
     end
 
     it "treats non-string credentials and base URLs as absent" do
