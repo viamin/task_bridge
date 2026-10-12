@@ -191,15 +191,16 @@ module Outbox
     # RDR #215: error.retryable must match the retry policy TaskBridge used
     # for the run outcome. Authentication-class failures are not retryable
     # (TaskBridge retries the run only on the next scheduled invocation, but
-    # invalid credentials do not recover on their own), and 4xx provider
-    # failures share that classification. Other provider failures stay
-    # retryable per the existing scheduled-run policy. The error class
+    # invalid credentials do not recover on their own), and most 4xx provider
+    # failures share that classification. Rate limiting (429) is transient,
+    # however, so it remains retryable. Other provider failures stay retryable
+    # per the existing scheduled-run policy. The error class
     # alone rarely carries the HTTP status, so we also inspect the
     # operational error message.
     def retryable?
       combined = "#{error_class} #{error_message_for_retry_check}"
       return false if combined.match?(/Authentication|Authorization|Unauthorized|InvalidToken|InvalidCredentials|Forbidden|BadRequest|NotFound/i)
-      return false if combined.match?(/\b4\d{2}\b/)
+      return false if combined.match?(/\b4(?!29\b)\d{2}\b/)
 
       true
     end

@@ -53,9 +53,9 @@ key. The producer:
   `last_attempted_at`, `last_successful_at`, `last_failed_at`, `status`,
   `items_synced`, `touched_collection_ids`, `detail`, `error`); failed
   runs attach a structured `error` whose `retryable` flag reflects
-  TaskBridge's actual retry policy (4xx and authentication-class
-  failures are non-retryable; other provider failures stay retryable
-  for the next scheduled run);
+  TaskBridge's actual retry policy (authentication-class failures and 4xx
+  statuses other than rate limiting are non-retryable; 429 and other
+  transient provider failures stay retryable for the next scheduled run);
 - bounds `detail` and `error.message` to 500 characters and refuses to
   publish skipped/idle services or runs without a deterministic
   `sync_started_at`;
