@@ -119,6 +119,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(run_id).to be_nil
   end
 
+  it "does not build a run ID for a service name without a service family" do
+    run_id = Outbox::SyncRunEmitter.run_id_for(service_name: ":work", sync_started_at: started_at)
+
+    expect(run_id).to be_nil
+  end
+
   it "strips surrounding whitespace from service names before deriving the run id" do
     run_id = Outbox::SyncRunEmitter.run_id_for(service_name: "  Asana  ", sync_started_at: started_at)
 
