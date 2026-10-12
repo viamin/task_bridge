@@ -56,9 +56,12 @@ key. The producer:
   TaskBridge's actual retry policy (authentication-class failures and 4xx
   statuses other than rate limiting are non-retryable; 429 and other
   transient provider failures stay retryable for the next scheduled run);
-- bounds `detail` and `error.message` to 500 characters and refuses to
-  publish skipped/idle services or runs without a deterministic
-  `sync_started_at`;
+- refuses to publish skipped/idle services or runs without a deterministic
+  `sync_started_at`, and replaces `detail` and `error.message` with
+  bounded, generic strings (`N items processed`, `No changes detected`,
+  `Sync failed`, `The provider request failed`, `The provider rejected
+  the request`) so provider-supplied operational text never leaves the
+  local process;
 - enqueues through `Outbox::IsolatedWrite` and respects `--pretend`, so
   publication bookkeeping never changes a run's outcome or exit status.
 
