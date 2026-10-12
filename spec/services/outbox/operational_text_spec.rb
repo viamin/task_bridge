@@ -40,6 +40,15 @@ RSpec.describe Outbox::OperationalText do
       expect(described_class.sanitize(text)).to eq("[REDACTED]")
     end
 
+    it "redacts every credential in multi-part authorization and cookie headers" do
+      text = "Authorization: Digest username=\"account\", response=\"digest-secret\"\nCookie: session=first-secret; csrf=second-secret"
+
+      sanitized = described_class.sanitize(text)
+
+      expect(sanitized).to eq("[REDACTED]\n[REDACTED]")
+      expect(sanitized).not_to include("account", "digest-secret", "first-secret", "second-secret")
+    end
+
     it "preserves the word 'basic' when it is not part of an authorization header" do
       text = "basic sync validation failed"
 
