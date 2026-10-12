@@ -163,7 +163,10 @@ module Outbox
     end
 
     def touched_collection_ids
-      logs.flat_map { |log| Array(log["touched_collection_ids"] || log[:touched_collection_ids]) }.compact.uniq.sort
+      logs.flat_map { |log| Array(log["touched_collection_ids"] || log[:touched_collection_ids]) }
+          .select { |identifier| identifier.is_a?(Integer) && identifier.positive? }
+          .uniq
+          .sort
     end
 
     def bound_detail
