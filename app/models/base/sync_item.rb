@@ -207,7 +207,8 @@ module Base
     # syncs. Consumers must not parse it by splitting on `:` (the service key
     # or external ID may themselves contain colons).
     def item_key
-      [service_key, external_id].compact.join(":")
+      identity = Outbox::SourceIdentity.for(self)
+      [identity[:service_instance], identity[:external_id]].compact.join(":")
     end
 
     # A versioned, source-agnostic snapshot of this item's current state,
@@ -604,7 +605,7 @@ module Base
       )
 
       self.source_service_name = resolved_service_name
-      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name)
+      self.source_service_instance = Base::Service.instance_name_for(resolved_service_name) || "default"
       self.source_service_type = provider.presence || self.class.name.deconstantize
       self.source_external_id = external_id if external_id.present?
       self.source_url = url if url.present?

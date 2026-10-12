@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -27,13 +27,13 @@ module Outbox
       "manual_backfill" => "manual"
     }.freeze
 
-    def self.emit_for_members(collection, members:, observed_at: Time.current)
+    def self.emit_for_members(collection, members:, observed_at: Time.current, backfilled_at: nil)
       Array(members).select { |member| eligible?(member) }.each do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
+            payload: payload(collection, member, identity, observed_at, backfilled_at),
             **enqueue_context(identity, collection, observed_at)
           )
         end
@@ -47,7 +47,7 @@ module Outbox
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
       end
 
-      def payload(collection, member, identity, observed_at)
+      def payload(collection, member, identity, observed_at, backfilled_at)
         {
           contract_version: OutboxEntry::PAYLOAD_VERSION,
           mapping_type: MAPPING_TYPE,
@@ -60,12 +60,19 @@ module Outbox
           membership_role: MEMBERSHIP_ROLE,
           mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
           mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
-          provenance: {
-            method: collection.mapping_method,
-            confidence: collection.mapping_confidence,
-            metadata: collection.mapping_metadata
-          }
+          provenance: provenance(collection, backfilled_at)
         }
+      end
+
+      def provenance(collection, backfilled_at)
+        {
+          method: collection.mapping_method,
+          confidence: collection.mapping_confidence,
+          metadata: collection.mapping_metadata
+        }.tap do |details|
+          details[:detected_by] = "backfill" if backfilled_at
+          details[:backfilled_at] = backfilled_at.utc.iso8601(6) if backfilled_at
+        end
       end
 
       def enqueue_context(identity, collection, observed_at)
