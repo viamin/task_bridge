@@ -115,6 +115,12 @@ RSpec.describe Outbox::OperationalText do
       expect(sanitized).not_to include("<secret>", "\"other\"", "\"data\"")
     end
 
+    it "redacts nested provider response bodies without redacting subsequent text" do
+      text = "response: {\"items\": [{\"token\": \"<secret>\"}]} retrying in 1 second"
+
+      expect(described_class.sanitize(text)).to eq("response: [REDACTED] retrying in 1 second")
+    end
+
     it "preserves text without sensitive content" do
       text = "sync failed after 12 items processed"
 
