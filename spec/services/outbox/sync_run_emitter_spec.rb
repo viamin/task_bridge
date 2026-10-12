@@ -119,6 +119,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     )
   end
 
+  it "ignores empty log entries when collecting touched collections" do
+    emit(logs: [nil, logs.first])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["touched_collection_ids"]).to eq([84, 91])
+  end
+
   it "does not publish skipped or idle services" do
     aggregate_failures do
       emit(summary: summary.merge(status: "skipped"))
