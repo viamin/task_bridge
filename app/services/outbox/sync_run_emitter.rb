@@ -58,7 +58,7 @@ module Outbox
 
     def initialize(service_name:, summary:, logs:, options:)
       @service_name = service_name
-      @summary = summary || {}
+      @summary = summary.is_a?(Hash) ? summary : {}
       @logs = Array(logs).grep(Hash)
       @options = options || {}
     end
