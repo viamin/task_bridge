@@ -31,6 +31,13 @@ module Base
         parse_service_name(service_name)[:instance_name]
       end
 
+      # This value is part of the TaskBridge Web source identity and its
+      # idempotency keys. Single-instance adapters therefore need a stable
+      # token just as much as named instances do.
+      def publication_instance_name_for(service_name)
+        instance_name_for(service_name) || "default"
+      end
+
       def normalized_service_name(service_name)
         parse_service_name(service_name)[:service_name]
       end
