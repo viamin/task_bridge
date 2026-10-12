@@ -15,7 +15,12 @@ module Outbox
     ].freeze
 
     def self.sanitize(value)
-      REDACTIONS.reduce(value.to_s) { |text, pattern| text.gsub(pattern, REDACTION) }
+      REDACTIONS.reduce(normalized_text(value)) { |text, pattern| text.gsub(pattern, REDACTION) }
     end
+
+    def self.normalized_text(value)
+      value.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "�")
+    end
+    private_class_method :normalized_text
   end
 end
