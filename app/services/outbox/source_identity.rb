@@ -10,10 +10,13 @@ module Outbox
 
     def for(item)
       service_type = Base::Service.service_identifier_for(item.provider)
+      # OmniFocus is the one adapter whose established wire type does not
+      # match ActiveSupport's word-boundary underscore form.
+      service_type = "omnifocus" if service_type == "omni_focus"
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }

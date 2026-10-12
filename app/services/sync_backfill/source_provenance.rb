@@ -6,6 +6,10 @@ module SyncBackfill
       new.run!
     end
 
+    def self.mapping_provenance_for(collection)
+      new.send(:inferred_provenance_for, collection)
+    end
+
     def run!
       backfill_sync_items
       backfill_sync_collections
