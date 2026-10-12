@@ -155,8 +155,7 @@ module Outbox
     end
 
     def bound_detail
-      detail_text = (summary[:detail] || summary["detail"] || "").to_s
-      detail_text.length > MAX_DETAIL_LENGTH ? detail_text[0, MAX_DETAIL_LENGTH] : detail_text
+      bound_text(summary[:detail] || summary["detail"])
     end
 
     def error_payload
@@ -175,9 +174,11 @@ module Outbox
     end
 
     def bound_error_message
-      message = (summary[:error_message] || summary["error_message"] ||
-        failure_log_value("error_message") || "").to_s
-      message.length > MAX_DETAIL_LENGTH ? message[0, MAX_DETAIL_LENGTH] : message
+      bound_text(summary[:error_message] || summary["error_message"] || failure_log_value("error_message"))
+    end
+
+    def bound_text(value)
+      Outbox::OperationalText.sanitize(value).first(MAX_DETAIL_LENGTH)
     end
 
     def failure_log
