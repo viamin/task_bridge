@@ -125,4 +125,58 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
   end
+
+  it "seeds baseline snapshots for established services and withholds low-confidence mappings" do
+    publishable = SyncCollection.create!(title: "Release")
+    tentative = SyncCollection.create!(title: "Unverified")
+    services = %w[Omnifocus Asana Github GoogleTasks]
+    items = services.map.with_index do |service, index|
+      klass = stub_const("Backfill#{service}Item", Class.new(Base::SyncItem) do
+        define_method(:provider) { service }
+        define_method(:external_data) { {} }
+
+        define_singleton_method(:attribute_map) { {} }
+      end)
+      klass.create!(
+        options: options.merge(service_name: service),
+        title: service,
+        external_id: "#{service}-#{index}",
+        sync_collection: publishable
+      )
+    end
+    low_item = other_item_class.create!(
+      options: options.merge(service_name: "Omnifocus"),
+      title: "Unverified",
+      external_id: "low-1",
+      sync_collection: tentative
+    )
+    publishable.update_mapping_provenance!(method: "source_sync_id", confidence: "high")
+    tentative.update_mapping_provenance!(method: "manual_backfill", confidence: "low")
+
+    task.invoke
+    task.reenable
+    task.invoke
+
+    expect(OutboxEntry.where(record_kind: "item").pluck(:external_id)).to match_array(items.map(&:external_id) + [low_item.external_id])
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(5)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    expect(OutboxEntry.where(record_kind: "mapping").pluck(:external_id)).to match_array(items.map(&:external_id))
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(4)
+    expect(OutboxEntry.where(record_kind: "item").first.payload.dig("provenance", "baseline")).to be(true)
+    expect(OutboxEntry.where(record_kind: "item").first.payload.dig("provenance", "detected_by")).to eq("backfill")
+  end
+
+  it "reports a dry run without mutating provenance or the outbox" do
+    item = test_item_class.create!(
+      options: options.merge(service_name: "Asana"), title: "Preview", external_id: "preview-1"
+    )
+    item.update_columns(last_observed_at: nil, first_observed_at: nil)
+
+    summary = SyncBackfill::Baseline.run!(dry_run: true)
+
+    expect(summary[:items]["asana"]).to eq(1)
+    expect(item.reload.last_observed_at).to be_nil
+    expect(OutboxEntry.all).to be_empty
+  end
 end
