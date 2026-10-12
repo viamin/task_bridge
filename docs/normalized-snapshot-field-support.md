@@ -111,11 +111,16 @@ class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
 `source.service_instance` is **always** populated — including for a
 freshly constructed item that has not gone through
 `capture_source_identity` — so consumers must not code for a nilable
-value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
-captured instance segment when one exists (`asana:work`,
-`omnifocus:default`), and yields the bare `service_type` (`asana`)
-otherwise; the per-instance component therefore belongs only in
-`source.service_instance`, never in `source.service_type`. Like `item_key`
+value. `Outbox::SourceIdentity` embeds the `service_type` followed by
+the captured instance segment when one exists (`asana:work`,
+`github:repo-1`), and falls back to the literal token `default`
+(`omnifocus:default`, `reminders:default`, un-prefixed `asana:default`)
+when the configured service has no instance suffix; the per-instance
+component therefore belongs only in `source.service_instance`, never in
+`source.service_type`. The `:default` token is permanent — RDR #215
+embeds `service_instance` in idempotency keys, so changing it later
+would require a new contract version — and is shared by the live
+pipeline (#219-#221) and the baseline backfill (#222). Like `item_key`
 and idempotency keys, `service_instance` is opaque: consumers must not
 parse it by splitting on `:` because segments may themselves contain
 colons.
@@ -150,7 +155,11 @@ outbox rows or advance the diff baseline.
   every member when the collection's mapping provenance meaningfully
   changes (for example `title_fallback` upgrading to `source_sync_id`).
   Internal confidence values map to the contract's vocabulary
-  (high → `confirmed`; medium/low → `tentative`).
+  (high → `confirmed`; medium/low → `tentative`). The #222 baseline
+  backfill uses a slightly different translation (`high` → `confirmed`,
+  `medium` → `inferred`, `low` → `tentative`) and withholds
+  low-confidence mappings from the outbox so they stay identifiable for
+  later manual cleanup; see `docs/taskbridge-web-baseline-backfill.md`.
 - **Key uniqueness**: when one observation yields several field transitions,
   each row's idempotency key carries a sequence segment
   (`Outbox::IdempotencyKey`), per the RDR #215 rule for colliding observed

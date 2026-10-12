@@ -8,12 +8,12 @@ RSpec.describe Outbox::IsolatedWrite do
   end
 
   it "returns the block value when the write succeeds" do
-    expect(described_class.call("observation for test_service:obs-1", retry_delays: []) { :result }).to eq(:result)
+    expect(described_class.call("observation for test_service:default:obs-1", retry_delays: []) { :result }).to eq(:result)
   end
 
   it "retries a transient failure and returns the block value once it succeeds" do
     attempts = 0
-    result = described_class.call("observation for test_service:obs-1", retry_delays: [0, 0]) do
+    result = described_class.call("observation for test_service:default:obs-1", retry_delays: [0, 0]) do
       attempts += 1
       raise statement_invalid if attempts < 3
 
@@ -38,7 +38,7 @@ RSpec.describe Outbox::IsolatedWrite do
     attempts = 0
     result = nil
     expect do
-      result = described_class.call("observation for test_service:obs-1", retry_delays: [0, 0]) do
+      result = described_class.call("observation for test_service:default:obs-1", retry_delays: [0, 0]) do
         attempts += 1
         raise statement_invalid
       end
@@ -59,7 +59,7 @@ RSpec.describe Outbox::IsolatedWrite do
 
   it "does not retry when the database itself is missing" do
     attempts = 0
-    described_class.call("observation for test_service:obs-1", retry_delays: [0]) do
+    described_class.call("observation for test_service:default:obs-1", retry_delays: [0]) do
       attempts += 1
       raise ActiveRecord::NoDatabaseError, "test database missing"
     end
@@ -68,9 +68,9 @@ RSpec.describe Outbox::IsolatedWrite do
 
   it "warns with the error class when a write is dropped" do
     expect do
-      described_class.call("observation for test_service:obs-1", retry_delays: []) do
+      described_class.call("observation for test_service:default:obs-1", retry_delays: []) do
         raise statement_invalid("SQLite3::BusyException")
       end
-    end.to output(/dropping observation for test_service:obs-1.*SQLite3::BusyException/).to_stderr
+    end.to output(/dropping observation for test_service:default:obs-1.*SQLite3::BusyException/).to_stderr
   end
 end

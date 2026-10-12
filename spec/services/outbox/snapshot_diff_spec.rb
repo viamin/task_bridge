@@ -8,7 +8,7 @@ RSpec.describe Outbox::SnapshotDiff do
       version: 1,
       item_key: "test_service:obs-1",
       entity_type: "task",
-      source: { service_type: "test_service", service_instance: "test_service", external_id: "obs-1" },
+      source: { service_type: "test_service", service_instance: "test_service:default", external_id: "obs-1" },
       sync_collection_id: nil,
       observed_at: Time.zone.parse("2026-10-05T10:00:00Z"),
       title: "Buy milk",
