@@ -121,6 +121,17 @@ RSpec.describe Outbox::OperationalText do
       expect(described_class.sanitize("authorization: bearer <secret>")).to eq("[REDACTED]")
     end
 
+    it "normalizes invalid UTF-8 before redacting untrusted provider text" do
+      text = "\xFFtoken=<secret>".b
+
+      sanitized = described_class.sanitize(text)
+
+      expect(sanitized).to include("[REDACTED]")
+      expect(sanitized).not_to include("<secret>")
+      expect(sanitized.encoding).to eq(Encoding::UTF_8)
+      expect(sanitized).to be_valid_encoding
+    end
+
     it "redacts multiple sensitive patterns in the same string" do
       text = "Authorization: Bearer <token-1> cookie=<cookie-secret> access_token=<token-2>"
 
