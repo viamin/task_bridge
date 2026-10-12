@@ -2,8 +2,16 @@
 
 module SyncBackfill
   class SourceProvenance
-    def self.run!
-      new.run!
+    def self.run!(dry_run: false)
+      new(dry_run:).run!
+    end
+
+    def self.mapping_provenance_for(collection)
+      new(dry_run: true).send(:inferred_provenance_for, collection)
+    end
+
+    def initialize(dry_run:)
+      @dry_run = dry_run
     end
 
     def run!
@@ -22,6 +30,8 @@ module SyncBackfill
         next if item.last_observed_at.present?
 
         observed_at = item.updated_at || item.created_at || Time.current
+        next if dry_run?
+
         item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
         item.observe_source!(observed_at:)
       end
@@ -33,7 +43,7 @@ module SyncBackfill
 
         observed_at = collection.updated_at || collection.created_at || Time.current
         provenance = inferred_provenance_for(collection)
-        collection.update_mapping_provenance!(**provenance, observed_at:)
+        collection.update_mapping_provenance!(**provenance, observed_at:) unless dry_run?
       end
     end
 
@@ -49,6 +59,10 @@ module SyncBackfill
 
     def preferred_provenance(items)
       SyncMappingProvenance.preferred_for(items)
+    end
+
+    def dry_run?
+      @dry_run
     end
   end
 end
