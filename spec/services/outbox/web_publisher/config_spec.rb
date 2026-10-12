@@ -42,6 +42,13 @@ RSpec.describe Outbox::WebPublisher::Config do
       expect(config.timeout_seconds).to eq(1)
     end
 
+    it "uses defaults for blank or malformed numeric settings" do
+      config = described_class.resolve("batch_size" => nil, "timeout_seconds" => "not-a-number")
+
+      expect(config.batch_size).to eq(described_class::DEFAULT_BATCH_SIZE)
+      expect(config.timeout_seconds).to eq(described_class::DEFAULT_TIMEOUT_SECONDS)
+    end
+
     it "casts string booleans supplied through environment configuration" do
       disabled = described_class.resolve("enabled" => "false", "dry_run" => "false")
       dry_run = described_class.resolve("enabled" => "true", "dry_run" => "true")
