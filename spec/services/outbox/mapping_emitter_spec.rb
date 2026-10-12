@@ -83,7 +83,7 @@ RSpec.describe Outbox::MappingEmitter do
       )
       expect(row.payload["sync_collection"]).to include("sync_collection_id" => collection.id, "title" => "Release checklist")
       expect(row.payload["member"]).to include(
-        "item_key" => "github_repo_1:issue-42",
+        "item_key" => "github:repo-1:issue-42",
         "service_type" => "github",
         "service_instance" => "github:repo-1",
         "external_id" => "issue-42"

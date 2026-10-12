@@ -25,7 +25,9 @@ RSpec.shared_examples "normalized_snapshot" do
     it "identifies the item and its source without external calls" do
       snapshot = item.normalized_snapshot
 
-      expect(snapshot[:item_key]).to eq(item.item_key)
+      expect(snapshot[:item_key]).to eq(
+        [snapshot.dig(:source, :service_instance), snapshot.dig(:source, :external_id)].join(":")
+      )
       expect(snapshot[:entity_type]).to eq("task")
       expect(snapshot[:source]).to include(
         service_type: Base::Service.service_identifier_for(item.provider),
