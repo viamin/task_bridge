@@ -16,14 +16,26 @@ module Disappearance
     attr_reader :service, :observed_items, :sync_run_id, :observed_at, :complete_fetch
 
     class << self
-      def record!(service:, observed_items:, complete_fetch:, observed_at: Time.current)
-        sync_run_id = sync_run_id_for(service, at: observed_at)
+      def record!(service:, observed_items:, complete_fetch:, observed_at: Time.current,
+                  sync_started_at: nil)
+        sync_run_id = if sync_started_at.present?
+          Outbox::SyncRunEmitter.run_id_for(
+            service_name: service.service_name,
+            sync_started_at: sync_started_at
+          )
+        else
+          sync_run_id_for(service, at: observed_at)
+        end
         new(service:, observed_items:, sync_run_id:, observed_at:, complete_fetch:).record!
       end
 
       private
 
-      # RDR #215 sync-run scope, e.g. "sync-run-20260814T192000Z-asana".
+      # RDR #215 sync-run scope, e.g. "sync-run-20260814T192000Z-asana". Falls
+      # back to the detection-time `observed_at` when the run did not thread
+      # `sync_started_at` into the detector (legacy callers); production
+      # callers should pass `sync_started_at` so all facts from the same run
+      # share one identifier.
       def sync_run_id_for(service, at:)
         identifier = Base::Service.service_identifier_for(service.service_name)
         "sync-run-#{at.utc.strftime('%Y%m%dT%H%M%SZ')}-#{identifier}"
