@@ -14,7 +14,7 @@ module Outbox
       /["'](?:access_?token|refresh_?token|token|api[_-]?key|authorization|cookie|password)["']\s*:\s*["'][^"']*["']/i,
       /\bbearer\s+[^\s,;]+/i
     ].freeze
-    STRUCTURED_BODY_PREFIX = /\b(?:body|payload|response)\s*[:=]\s*(?=[{\[])/i
+    STRUCTURED_BODY_PREFIX = /\b(?:body|payload|response)\b["']?\s*(?:[:=]|=>)\s*(?=[{\[])/i
     OPENING_DELIMITERS = ["{", "["].freeze
     QUOTES = ['"', "'"].freeze
 
