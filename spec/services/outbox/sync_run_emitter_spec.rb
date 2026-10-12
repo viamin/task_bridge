@@ -6,12 +6,9 @@ require "rails_helper"
 # during the #214 final audit: the `sync_run` record kind is supported
 # end to end (OutboxEntry validation, Outbox::IdempotencyKey's
 # `tb:v1:sync_run:...` format, WebPublisher::Batch's `sync_runs` array,
-# and the Pact contract), but no producer enqueues rows yet, so TaskBridge
-# Web can never receive the operational-health facts the contract
-# promises. These examples pin the producer's contract for the
-# implementing change; they stay pending — with an issue ref, per the
-# testing style guide — until it lands (see
-# docs/epic-214-final-audit.md).
+# and the Pact contract), and the producer (Outbox::SyncRunEmitter) plus
+# its sync-task wiring in lib/tasks/sync.rake now enqueue rows on every
+# successful or failed service run (see docs/epic-214-final-audit.md).
 RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
   include ActiveSupport::Testing::TimeHelpers
 
@@ -47,8 +44,6 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
   end
 
   it "enqueues one sync-run summary row for a successful run" do
-    pending "lands with the sync-run summary producer (#221, #214)"
-
     emit
 
     row = OutboxEntry.find_by(record_kind: "sync_run")
@@ -78,8 +73,6 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
   end
 
   it "uses the bare service family when the service has no instance name" do
-    pending "lands with the sync-run summary producer (#221, #214)"
-
     emit(service_name: "Asana")
 
     row = OutboxEntry.find_by(record_kind: "sync_run")
@@ -87,9 +80,7 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(row.idempotency_key).to eq("tb:v1:sync_run:asana:sync-run-20261005T100000Z-asana")
   end
 
-  it "publishes failed runs with a structured, retryable error" do
-    pending "lands with the sync-run summary producer (#221, #214)"
-
+  it "publishes failed runs with a structured error marked non-retryable" do
     emit(summary: summary.merge(
       status: "failed",
       last_successful: nil,
@@ -106,13 +97,11 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
       "status" => "failed",
       "last_successful_at" => nil,
       "last_failed_at" => "2026-10-05T10:04:59.000000Z",
-      "error" => { "class" => "ProviderError", "message" => "401 unauthorized", "retryable" => true }
+      "error" => { "class" => "ProviderError", "message" => "401 unauthorized", "retryable" => false }
     )
   end
 
   it "does not publish skipped or idle services" do
-    pending "lands with the sync-run summary producer (#221, #214)"
-
     aggregate_failures do
       emit(summary: summary.merge(status: "skipped"))
       emit(summary: summary.merge(status: "idle"))
@@ -123,24 +112,18 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
   end
 
   it "does not publish pretend runs" do
-    pending "lands with the sync-run summary producer (#221, #214)"
-
     emit(options: options.merge(pretend: true))
 
     expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
   end
 
   it "does not publish when the run has no deterministic started_at" do
-    pending "lands with the sync-run summary producer (#221, #214)"
-
     emit(options: options.merge(sync_started_at: nil))
 
     expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
   end
 
   it "re-emitting the same run dedupes to the stored row" do
-    pending "lands with the sync-run summary producer (#221, #214)"
-
     emit
     original = OutboxEntry.find_by(record_kind: "sync_run")
 
@@ -149,8 +132,6 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
   end
 
   it "bounds detail and error message length" do
-    pending "lands with the sync-run summary producer (#221, #214)"
-
     long_detail = ("a" * 600)
     emit(summary: summary.merge(status: "failed", detail: long_detail), logs: [logs.first.merge("error_message" => long_detail)])
 

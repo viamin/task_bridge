@@ -20,7 +20,7 @@ RSpec.describe Disappearance::Detector do
   end
   let(:logger) { instance_double(StructuredLogger, sync_data_for: {}, last_synced: Time.current - 1.hour) }
   let(:options) do
-    { logger:, quiet: true, pretend: false, debug: false, primary: "Omnifocus", services: [], tags: ["TaskBridge"] }
+    { logger:, quiet: true, pretend: false, debug: false, primary: "Omnifocus", services: [], tags: ["TaskBridge"], sync_started_at: "2026-10-05T19:00:00.000000Z" }
   end
   let(:service_class) do
     stub_const("DetectorSpecService", Class.new(Base::Service) do
@@ -69,7 +69,17 @@ RSpec.describe Disappearance::Detector do
   let(:strategy) { Disappearance::Strategy.full_list_absence(state: "source_deleted", confidence: "high") }
   let(:verifier) { ->(_item) {} }
   let(:observed_at) { Time.zone.parse("2026-10-05T19:30:00Z") }
-  let(:sync_run_id) { "sync-run-20261005T193000Z-detector_service" }
+  let(:sync_run_id) { "sync-run-20261005T190000Z-detector_service" }
+
+  def record_with(observed_items, complete_fetch: true, at: observed_at, sync_started_at: nil)
+    described_class.record!(
+      service:,
+      observed_items:,
+      complete_fetch:,
+      observed_at: at,
+      sync_started_at: sync_started_at || options[:sync_started_at]
+    )
+  end
 
   def persisted_item(external_id, attributes = {})
     sync_item_class.create!(
@@ -79,15 +89,6 @@ RSpec.describe Disappearance::Detector do
 
   def observed_wrapper(external_id)
     sync_item_class.new(external_id:, source_service_name: service.service_name)
-  end
-
-  def record_with(observed_items, complete_fetch: true, at: observed_at)
-    described_class.record!(
-      service:,
-      observed_items:,
-      complete_fetch:,
-      observed_at: at
-    )
   end
 
   def observations

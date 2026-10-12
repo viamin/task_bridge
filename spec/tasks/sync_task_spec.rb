@@ -988,8 +988,6 @@ RSpec.describe "task_bridge:sync task" do
     end
 
     it "enqueues a sync-run summary row for the service run" do
-      pending "lands with the sync-run summary producer (#221, #214)"
-
       capture_output do
         expect { invoke_task }.not_to raise_error
       end

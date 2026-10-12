@@ -41,6 +41,10 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true do
   let(:unauthorized_key) do
     "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:06:00.000000Z"
   end
+  let(:sync_run_key) do
+    "tb:v1:sync_run:asana:workspace-12345:default:sync-run-20261005T100000Z-asana"
+  end
+  let(:sync_run_id) { "sync-run-20261005T100000Z-asana" }
   let(:source) do
     {
       "service_type" => "asana",
@@ -183,6 +187,38 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true do
     )
   end
 
+  def sync_run_row(key:, sync_run_id:)
+    {
+      "contract_version" => 1,
+      "idempotency_key" => key,
+      "sync_run_id" => sync_run_id,
+      "service_type" => "asana",
+      "service_instance" => "asana:workspace-12345:default",
+      "started_at" => "2026-10-05T10:00:00.000000Z",
+      "finished_at" => "2026-10-05T10:01:05.000000Z",
+      "last_attempted_at" => "2026-10-05T10:00:00.000000Z",
+      "last_successful_at" => "2026-10-05T10:01:05.000000Z",
+      "last_failed_at" => nil,
+      "status" => "success",
+      "items_synced" => 12,
+      "touched_collection_ids" => [84, 91],
+      "detail" => "12 items processed",
+      "published_at" => sent_at,
+      "error" => nil
+    }
+  end
+
+  def create_sync_run_entry(key:, sync_run_id:)
+    OutboxEntry.create!(
+      idempotency_key: key,
+      record_kind: "sync_run",
+      service_type: "asana",
+      service_instance: "asana:workspace-12345:default",
+      observed_at: "2026-10-05T10:01:05.000000Z",
+      payload: sync_run_row(key:, sync_run_id:).except("idempotency_key", "published_at")
+    )
+  end
+
   it "publishes a v1 batch and reconciles the per-row results response" do
     source_changed_row = observation_row(key: source_changed_key, event_type: "source_changed",
                                          observed_at: "2026-10-05T10:01:00.000000Z", change: status_change)
@@ -306,5 +342,28 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true do
       expect(row.error_class).to eq("http_401")
       expect(row.error_message).to eq("invalid api key")
     end
+  end
+
+  it "publishes sync-run summaries alongside other record kinds" do
+    sync_run = sync_run_row(key: sync_run_key, sync_run_id:)
+    task_bridge_web
+      .given("an empty ingestion outbox")
+      .upon_receiving("a v1 batch with a sync-run summary")
+      .with(expected_post(batch_body(items: [], observations: []).merge("sync_runs" => [sync_run])))
+      .will_respond_with(
+        status: 200,
+        headers: json_content_type,
+        body: results_body(
+          [{ "record_kind" => "sync_run", "idempotency_key" => sync_run_key, "status" => "accepted" }],
+          accepted: 1, replayed: 0, rejected: 0
+        )
+      )
+
+    entry = create_sync_run_entry(key: sync_run_key, sync_run_id:)
+
+    summary = publish
+
+    expect(summary).to include(status: "published", batches: 1, delivered: 1)
+    expect(entry.reload).to be_delivered
   end
 end
