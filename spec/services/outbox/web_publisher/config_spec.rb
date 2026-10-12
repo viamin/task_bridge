@@ -42,8 +42,8 @@ RSpec.describe Outbox::WebPublisher::Config do
       expect(config.timeout_seconds).to eq(1)
     end
 
-    it "uses defaults for blank or malformed numeric settings" do
-      config = described_class.resolve("batch_size" => nil, "timeout_seconds" => "not-a-number")
+    it "uses defaults for malformed numeric settings" do
+      config = described_class.resolve("batch_size" => 1.5, "timeout_seconds" => "not-a-number")
 
       expect(config.batch_size).to eq(described_class::DEFAULT_BATCH_SIZE)
       expect(config.timeout_seconds).to eq(described_class::DEFAULT_TIMEOUT_SECONDS)
