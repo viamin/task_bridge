@@ -112,9 +112,9 @@ class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
 freshly constructed item that has not gone through
 `capture_source_identity` — so consumers must not code for a nilable
 value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
-captured instance segment when one exists (`asana:work`,
-`omnifocus:default`), and yields the bare `service_type` (`asana`)
-otherwise; the per-instance component therefore belongs only in
+captured instance segment when one exists (`asana:work`) and uses the
+permanent `default` segment for a single-instance source
+(`omnifocus:default`); the per-instance component therefore belongs only in
 `source.service_instance`, never in `source.service_type`. Like `item_key`
 and idempotency keys, `service_instance` is opaque: consumers must not
 parse it by splitting on `:` because segments may themselves contain
@@ -150,10 +150,28 @@ outbox rows or advance the diff baseline.
   every member when the collection's mapping provenance meaningfully
   changes (for example `title_fallback` upgrading to `source_sync_id`).
   Internal confidence values map to the contract's vocabulary
-  (high → `confirmed`; medium/low → `tentative`).
+  (high → `confirmed`; medium → `inferred`; low → `tentative`).
 - **Key uniqueness**: when one observation yields several field transitions,
   each row's idempotency key carries a sequence segment
   (`Outbox::IdempotencyKey`), per the RDR #215 rule for colliding observed
   timestamps. The baseline is only advanced after every row is enqueued, so
   a failed enqueue can re-detect a transition (at-least-once) but never
   silently swallows one.
+
+## Existing-data backfill (#222)
+
+Before enabling TaskBridge Web publication for an existing installation, run:
+
+```sh
+bundle exec rake task_bridge:backfill_observations DRY_RUN=1
+bundle exec rake task_bridge:backfill_observations
+```
+
+The dry run is read-only and prints JSON counts by service, mapping confidence,
+and skipped/incomplete reason. The write run first fills legacy source and
+mapping provenance, then emits one baseline `item` snapshot per existing item
+and establishes `last_snapshot` for future diffing. It emits no
+`snapshot_seen` or `sync_run` rows. Only high/medium-confidence mappings are
+queued (as `confirmed`/`inferred`); low-confidence mappings remain withheld
+and appear in the dry-run `skipped.low_confidence_mapping` count. The task is
+idempotent and never contacts or mutates an external source system.
