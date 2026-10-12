@@ -101,6 +101,24 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     )
   end
 
+  it "uses the failing log when an earlier sync operation succeeded" do
+    emit(
+      summary: summary.merge(status: "failed"),
+      logs: [
+        logs.first,
+        logs.first.merge(
+          "status" => "failed",
+          "error_class" => "ProviderError",
+          "error_message" => "503 unavailable"
+        )
+      ]
+    )
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["error"]).to eq(
+      "class" => "ProviderError", "message" => "503 unavailable", "retryable" => true
+    )
+  end
+
   it "does not publish skipped or idle services" do
     aggregate_failures do
       emit(summary: summary.merge(status: "skipped"))
