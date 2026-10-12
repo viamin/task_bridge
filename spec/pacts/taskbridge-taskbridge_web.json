@@ -599,8 +599,8 @@
           "sync_runs": [
             {
               "contract_version": 1,
-              "idempotency_key": "tb:v1:sync_run:asana:workspace-12345:default:sync-run-20261005T100000Z-asana",
-              "sync_run_id": "sync-run-20261005T100000Z-asana",
+              "idempotency_key": "tb:v1:sync_run:asana:workspace-12345:default:sync-run-20261005T100000Z-asana_workspace_12345_default",
+              "sync_run_id": "sync-run-20261005T100000Z-asana_workspace_12345_default",
               "service_type": "asana",
               "service_instance": "asana:workspace-12345:default",
               "started_at": "2026-10-05T10:00:00.000000Z",
@@ -660,7 +660,7 @@
           "results": [
             {
               "record_kind": "sync_run",
-              "idempotency_key": "tb:v1:sync_run:asana:workspace-12345:default:sync-run-20261005T100000Z-asana",
+              "idempotency_key": "tb:v1:sync_run:asana:workspace-12345:default:sync-run-20261005T100000Z-asana_workspace_12345_default",
               "status": "accepted"
             }
           ]

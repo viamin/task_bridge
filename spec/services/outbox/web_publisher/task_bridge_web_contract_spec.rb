@@ -42,9 +42,9 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
     "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:06:00.000000Z"
   end
   let(:sync_run_key) do
-    "tb:v1:sync_run:asana:workspace-12345:default:sync-run-20261005T100000Z-asana"
+    "tb:v1:sync_run:asana:workspace-12345:default:sync-run-20261005T100000Z-asana_workspace_12345_default"
   end
-  let(:sync_run_id) { "sync-run-20261005T100000Z-asana" }
+  let(:sync_run_id) { "sync-run-20261005T100000Z-asana_workspace_12345_default" }
   let(:source) do
     {
       "service_type" => "asana",
