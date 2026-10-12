@@ -51,9 +51,11 @@ RSpec.describe Outbox::WebPublisher::Config do
         .to eq("http://localhost:3000")
     end
 
-    it "returns nil for non-http schemes and malformed URLs" do
+    it "returns nil for non-http schemes, malformed URLs, and URLs without a host" do
       expect(described_class.resolve("base_url" => "ftp://web.example.com").uri).to be_nil
       expect(described_class.resolve("base_url" => "not a url://").uri).to be_nil
+      expect(described_class.resolve("base_url" => "https:///ingestion").uri).to be_nil
+      expect(described_class.resolve("base_url" => "https:taskbridge-web.example.com").uri).to be_nil
       expect(described_class.resolve.uri).to be_nil
     end
   end
@@ -63,6 +65,7 @@ RSpec.describe Outbox::WebPublisher::Config do
       expect(described_class.resolve("enabled" => true).incomplete?).to be(true)
       expect(described_class.resolve("enabled" => true, "base_url" => "https://web.example.com").incomplete?).to be(true)
       expect(described_class.resolve("enabled" => true, "base_url" => "nope", "api_key" => "key").incomplete?).to be(true)
+      expect(described_class.resolve("enabled" => true, "base_url" => "https:///ingestion", "api_key" => "key").incomplete?).to be(true)
     end
 
     it "is false when disabled, dry-running, or fully configured" do
