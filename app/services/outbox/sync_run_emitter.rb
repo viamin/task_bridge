@@ -24,15 +24,25 @@ module Outbox
 
     # The deterministic, run-scoped identifier shared by every fact in one
     # service run (RDR #215): sync-run summaries, item observations, and
-    # deletion tombstones. Returns nil when `sync_started_at` is blank so
-    # callers can skip the field on runs without a deterministic stamp.
+    # deletion tombstones. Returns nil when `sync_started_at` is missing or
+    # invalid so callers can skip the field without interrupting a sync.
     def self.run_id_for(service_name:, sync_started_at:)
-      return nil if sync_started_at.blank?
+      started_at = parse_started_at(sync_started_at)
+      return nil unless started_at
 
-      compacted = Time.iso8601(sync_started_at.to_s).utc.strftime("%Y%m%dT%H%M%SZ")
+      compacted = started_at.utc.strftime("%Y%m%dT%H%M%SZ")
       identifier = Base::Service.service_identifier_for(service_name)
       "sync-run-#{compacted}-#{identifier}"
     end
+
+    def self.parse_started_at(value)
+      return if value.blank?
+
+      Time.iso8601(value.to_s)
+    rescue ArgumentError, TypeError
+      nil
+    end
+    private_class_method :parse_started_at
 
     def initialize(service_name:, summary:, logs:, options:)
       @service_name = service_name
@@ -57,7 +67,7 @@ module Outbox
 
     def eligible?
       return false if options[:pretend]
-      return false if options[:sync_started_at].blank?
+      return false if sync_run_id.blank?
       return false unless PUBLISHED_STATUSES.include?(summary[:status] || summary["status"])
 
       true
