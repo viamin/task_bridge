@@ -22,6 +22,15 @@ RSpec.describe Outbox::OperationalText do
       expect(described_class.sanitize(text)).to eq("[REDACTED]")
     end
 
+    it "redacts credentials in Ruby-style header hashes" do
+      text = '{"Authorization" => "Bearer bearer-secret", "Cookie" => "session=cookie-secret"}'
+
+      sanitized = described_class.sanitize(text)
+
+      expect(sanitized).to include("[REDACTED]")
+      expect(sanitized).not_to include("bearer-secret", "cookie-secret")
+    end
+
     it "redacts set-cookie headers" do
       text = "set-cookie: <session-secret>"
 
