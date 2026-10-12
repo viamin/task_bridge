@@ -559,6 +559,31 @@ RSpec.describe "Base::SyncItem", :full_options do
       expect(item.reload.notes).to eq("local note")
     end
 
+    it "does not persist hydrated attributes with string-keyed pretend options" do
+      item = test_item_class.create!(
+        external_id: "test-string-pretend-123",
+        title: "Local title",
+        notes: "local note"
+      )
+      item.options = options.merge("pretend" => true)
+      item.instance_variable_set(
+        :@sync_item,
+        {
+          "id" => "test-string-pretend-123",
+          "title" => "Remote title",
+          "completed" => false,
+          "notes" => "omnifocus_id: of-string-pretend"
+        }
+      )
+
+      item.refresh_from_external!
+
+      expect(item.title).to eq("Remote title")
+      expect(item.notes).to eq("omnifocus_id: of-string-pretend")
+      expect(item.reload.title).to eq("Local title")
+      expect(item.reload.notes).to eq("local note")
+    end
+
     it "advances last_observed_at even when the external data is unchanged" do
       item = Asana::Task.find_or_initialize_by(external_id: "asana-123")
       item.asana_task = asana_task_data

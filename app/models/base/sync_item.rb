@@ -128,7 +128,7 @@ module Base
     def refresh_from_external!(only_modified_dates: false)
       previous_snapshot = read_attribute(:last_snapshot)
       read_original(only_modified_dates:)
-      return self if options[:pretend]
+      return self if pretend?
 
       # Always record the observation (not just when attributes changed) so
       # last_observed_at reflects every fetch, not just ones that produced a
@@ -197,6 +197,10 @@ module Base
     def options=(options)
       @options = options
       @service_name = Base::Service.normalized_service_name(options[:service_name]) if options&.[](:service_name).present?
+    end
+
+    def pretend?
+      options[:pretend] == true || options["pretend"] == true
     end
 
     def service_key

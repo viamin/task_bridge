@@ -99,7 +99,7 @@ the safer default the RDR prescribes until product guidance lands: no
    the contract shape it publishes under.
 3. **Existing sync behavior remains compatible** — all outbox work is
    isolated, `--pretend` enqueues nothing, publication never changes run
-  outcomes or exit status; 761 examples (including the pre-existing
+  outcomes or exit status; 765 examples (including the pre-existing
    sync suites) pass.
 4. **TaskBridge publishes normalized, idempotent facts without
    source-specific API knowledge required downstream** — items
