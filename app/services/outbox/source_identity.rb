@@ -13,7 +13,11 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # A source without an explicit configured instance still needs a
+        # permanent identity segment: it is part of every idempotency key.
+        # `default` is deliberately explicit rather than an empty segment so
+        # the backfill and live observation paths agree forever.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }

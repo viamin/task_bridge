@@ -64,7 +64,7 @@ module Outbox
         contract_version: OutboxEntry::PAYLOAD_VERSION,
         event_type:,
         observed_at: iso_timestamp(observed_at),
-        item_key: item.item_key,
+        item_key: [source_identity[:service_instance], source_identity[:external_id]].join(":"),
         source: source_identity,
         source_created_at: iso_timestamp(item.source_created_at),
         source_updated_at: iso_timestamp(item.source_updated_at || item.last_modified),

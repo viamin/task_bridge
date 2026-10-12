@@ -41,7 +41,7 @@ module Base
     def identity_fields
       {
         version: VERSION,
-        item_key: item.item_key,
+        item_key: [source_identity[:service_instance], source_identity[:external_id]].join(":"),
         entity_type: "task",
         source: source_identity,
         sync_collection_id: item.sync_collection_id,
