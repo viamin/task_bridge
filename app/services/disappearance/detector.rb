@@ -166,7 +166,7 @@ module Disappearance
         "confidence" => finding.confidence,
         "detection_strategy" => strategy.mode.to_s,
         "sync_run_id" => sync_run_id
-      }.merge(finding.detail || {})
+      }.compact.merge(finding.detail || {})
     end
 
     def service_type_for(item)
@@ -183,7 +183,7 @@ module Disappearance
         "state" => finding.state,
         "observed_at" => observed_at.utc.iso8601(6),
         "sync_run_id" => sync_run_id
-      }
+      }.compact
       # update_columns skips callbacks so recording a disappearance never
       # bumps last_observed_at — the item was, by definition, not observed.
       item.update_columns(
