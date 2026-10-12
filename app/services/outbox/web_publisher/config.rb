@@ -13,12 +13,17 @@ module Outbox
       DEFAULT_TIMEOUT_SECONDS = 30
 
       def self.resolve(overrides = {})
-        settings = (Chamber.dig(:task_bridge, :web) || {}).stringify_keys
-        new(settings.merge(overrides))
+        settings = Chamber.dig(:task_bridge, :web)
+        new(hash_settings(settings).merge(hash_settings(overrides)))
       end
 
+      def self.hash_settings(settings)
+        settings.is_a?(Hash) ? settings.stringify_keys : {}
+      end
+      private_class_method :hash_settings
+
       def initialize(settings = {})
-        @settings = settings.stringify_keys
+        @settings = settings.is_a?(Hash) ? settings.stringify_keys : {}
       end
 
       def enabled?
@@ -78,7 +83,11 @@ module Outbox
       end
 
       def boolean_setting(key)
-        ActiveModel::Type::Boolean.new.cast(settings.fetch(key, false))
+        value = settings.fetch(key, false)
+        return value if [true, false].include?(value)
+        return value.strip.casecmp?("true") if value.is_a?(String) && %w[true false].include?(value.strip.downcase)
+
+        false
       end
 
       def string_setting(key)
