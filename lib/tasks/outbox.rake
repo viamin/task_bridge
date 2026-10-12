@@ -27,5 +27,14 @@ namespace :task_bridge do
       warn "Outbox dry run: would publish #{summary[:rows]} rows " \
            "across #{summary[:batches]} batches (nothing was sent)"
     end
+
+    desc "backfill baseline item snapshots and confirmed mappings (DRY_RUN=1 previews without writes)"
+    task backfill: :environment do
+      dry_run = ENV["DRY_RUN"] == "1"
+      summary = SyncBackfill::Outbox.run!(dry_run:)
+      summary.each do |(kind, service, detail), count|
+        puts [kind, service, detail, count].compact.join(" ")
+      end
+    end
   end
 end
