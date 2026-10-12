@@ -31,14 +31,15 @@ module Disappearance
 
       private
 
-      # RDR #215 sync-run scope, e.g. "sync-run-20260814T192000Z-asana". Falls
-      # back to the detection-time `observed_at` when the run did not thread
-      # `sync_started_at` into the detector (legacy callers); production
-      # callers should pass `sync_started_at` so all facts from the same run
-      # share one identifier.
+      # RDR #215 sync-run scope. Falls back to the detection-time `observed_at`
+      # when the run did not thread `sync_started_at` into the detector (legacy
+      # callers); production callers should pass `sync_started_at` so all facts
+      # from the same run share one identifier.
       def sync_run_id_for(service, at:)
-        identifier = Base::Service.service_identifier_for(service.service_name)
-        "sync-run-#{at.utc.strftime('%Y%m%dT%H%M%SZ')}-#{identifier}"
+        Outbox::SyncRunEmitter.run_id_for(
+          service_name: service.service_name,
+          sync_started_at: at.iso8601(6)
+        )
       end
     end
 

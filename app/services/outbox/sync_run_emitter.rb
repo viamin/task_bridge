@@ -8,7 +8,9 @@ module Outbox
   # change the run's outcome or exit status.
   #
   # The `sync_run_id` is `sync-run-<started_at compacted>-<service_identifier>`,
-  # derived from the run's deterministic `sync_started_at`. Sharing this
+  # derived from the run's deterministic `sync_started_at`. Nonzero
+  # microseconds are retained so consecutive runs of the same service cannot
+  # collapse into one idempotency key. Sharing this
   # derivation with Outbox::ObservationEmitter and Disappearance::Detector
   # keeps `provenance.sync_run_id` joinable across record kinds for the
   # same run.
@@ -30,7 +32,7 @@ module Outbox
       started_at = parse_started_at(sync_started_at)
       return nil unless started_at
 
-      compacted = started_at.utc.strftime("%Y%m%dT%H%M%SZ")
+      compacted = compact_timestamp(started_at)
       identifier = Base::Service.service_identifier_for(service_name)
       "sync-run-#{compacted}-#{identifier}"
     end
@@ -43,6 +45,14 @@ module Outbox
       nil
     end
     private_class_method :parse_started_at
+
+    def self.compact_timestamp(time)
+      seconds = time.utc.strftime("%Y%m%dT%H%M%S")
+      return "#{seconds}Z" if time.usec.zero?
+
+      "#{seconds}.#{format('%06d', time.usec)}Z"
+    end
+    private_class_method :compact_timestamp
 
     def initialize(service_name:, summary:, logs:, options:)
       @service_name = service_name
