@@ -80,7 +80,7 @@ module Outbox
     def eligible?
       return false if options[:pretend]
       return false if sync_run_id.blank?
-      return false unless PUBLISHED_STATUSES.include?(summary[:status] || summary["status"])
+      return false unless PUBLISHED_STATUSES.include?(status)
 
       true
     end
