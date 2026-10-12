@@ -683,9 +683,33 @@ Rules:
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
 
+### Running the TaskBridge backfill
+
+Before enabling `task_bridge.web.enabled`, run the local backfill once after
+the provenance and outbox migrations have been applied:
+
+```sh
+bundle exec rake task_bridge:backfill_sync_provenance DRY_RUN=1
+bundle exec rake task_bridge:backfill_sync_provenance
+```
+
+The dry run performs no writes and reports item, mapping, skipped/incomplete,
+service, and confidence counts. The write run fills missing source provenance,
+enqueues one `item` current-state snapshot for each complete `sync_item`, and
+enqueues memberships with high/medium internal confidence only. Item payloads
+carry `provenance.detected_by: "backfill"`, `baseline: true`, and a stable
+`backfilled_at` timestamp; they are not observation/change-history rows.
+Backfill never calls source adapters or changes an external system, emits no
+`snapshot_seen` observations, and emits no `sync_run` rows because historical
+run timestamps are not reliable. It is safe to rerun: it preserves existing
+provenance and its deterministic idempotency keys reuse the original outbox
+rows. Single-instance services use the permanent `<service_type>:default`
+identity token. Low-confidence/title-derived mappings are withheld from the
+outbox and identified in the dry-run summary for manual cleanup or review.
+
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy**: resolved for #222. Backfill withholds low/tentative memberships; high maps to `confirmed` and medium maps to `inferred`. The dry-run summary identifies withheld rows for manual cleanup or Web-side review.
 
 ## Rejected Alternatives
 

@@ -124,5 +124,56 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    expect(OutboxEntry.where(record_kind: "item").first.payload.dig("provenance", "baseline")).to be(true)
+  end
+
+  it "uses permanent default identities and withholds low-confidence memberships in dry runs" do
+    collection = SyncCollection.create!(title: "Untested title")
+    item = other_item_class.create!(title: "Untested title", external_id: "of-789", sync_collection: collection)
+    item.update_columns(source_service_name: nil, source_service_instance: nil, last_observed_at: nil)
+
+    expect do
+      SyncBackfill::SourceProvenance.run!(dry_run: true, output: StringIO.new)
+    end.not_to change(OutboxEntry, :count)
+
+    expect(collection.reload.mapping_method).to be_nil
+    expect(item.reload.source_service_instance).to be_nil
+
+    output = StringIO.new
+    SyncBackfill::SourceProvenance.run!(output:)
+
+    item.reload
+    expect(item.source_service_instance).to eq("default")
+    expect(Outbox::SourceIdentity.for(item)[:service_instance]).to eq("omnifocus:default")
+    expect(OutboxEntry.where(record_kind: "mapping")).to be_empty
+    expect(output.string).to include("mappings_withheld confidence=low: 1")
+  end
+
+  it "creates baseline snapshots for OmniFocus, Asana, GitHub, and Google Tasks" do
+    providers = {
+      "BackfillOmniFocusItem" => "Omnifocus",
+      "BackfillAsanaItem" => "Asana",
+      "BackfillGithubItem" => "Github",
+      "BackfillGoogleTasksItem" => "GoogleTasks"
+    }
+    providers.each do |constant, provider|
+      item_class = stub_const(constant, Class.new(Base::SyncItem) do
+        define_singleton_method(:attribute_map) { {} }
+        define_method(:provider) { provider }
+        define_method(:external_data) { {} }
+      end)
+      item_class.create!(title: provider, external_id: provider.downcase, options:)
+    end
+
+    task.invoke
+
+    rows = OutboxEntry.where(record_kind: "item").order(:service_type)
+    expect(rows.map(&:service_type)).to eq(%w[asana github google_tasks omnifocus])
+    expect(rows.map(&:service_instance)).to eq(%w[asana:default github:default google_tasks:default omnifocus:default])
+    expect(rows.map { |row| row.payload.dig("provenance", "detected_by") }).to all(eq("backfill"))
   end
 end
