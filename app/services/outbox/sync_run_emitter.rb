@@ -42,6 +42,7 @@ module Outbox
     def self.parse_started_at(value)
       return if value.blank?
       return value if value.is_a?(Time) || value.is_a?(ActiveSupport::TimeWithZone)
+      return if value.is_a?(String) && Date._iso8601(value).fetch(:offset, nil).nil?
 
       Time.iso8601(value.to_s)
     rescue ArgumentError, TypeError
