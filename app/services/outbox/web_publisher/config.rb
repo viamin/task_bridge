@@ -30,11 +30,11 @@ module Outbox
       end
 
       def base_url
-        settings["base_url"].presence&.strip
+        string_setting("base_url")
       end
 
       def api_key
-        settings["api_key"].presence
+        string_setting("api_key")
       end
 
       def batch_size
@@ -75,6 +75,11 @@ module Outbox
 
       def boolean_setting(key)
         ActiveModel::Type::Boolean.new.cast(settings.fetch(key, false))
+      end
+
+      def string_setting(key)
+        value = settings[key]
+        value.strip.presence if value.is_a?(String)
       end
 
       def positive_integer_setting(key, default)
