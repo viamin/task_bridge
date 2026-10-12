@@ -41,6 +41,16 @@ RSpec.describe Outbox::WebPublisher::Config do
       expect(config.batch_size).to eq(1)
       expect(config.timeout_seconds).to eq(1)
     end
+
+    it "casts string booleans supplied through environment configuration" do
+      disabled = described_class.resolve("enabled" => "false", "dry_run" => "false")
+      dry_run = described_class.resolve("enabled" => "true", "dry_run" => "true")
+
+      expect(disabled.enabled?).to be(false)
+      expect(disabled.dry_run?).to be(false)
+      expect(dry_run.enabled?).to be(true)
+      expect(dry_run.dry_run?).to be(true)
+    end
   end
 
   describe "#uri" do
