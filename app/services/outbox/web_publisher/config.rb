@@ -56,7 +56,7 @@ module Outbox
         return @uri if defined?(@uri)
 
         parsed = URI.parse(base_url.to_s)
-        @uri = parsed.is_a?(URI::HTTP) || parsed.is_a?(URI::HTTPS) ? parsed : nil
+        @uri = valid_http_uri?(parsed) ? parsed : nil
       rescue URI::InvalidURIError
         @uri = nil
       end
@@ -67,6 +67,10 @@ module Outbox
 
       def complete?
         base_url.present? && api_key.present? && uri.present?
+      end
+
+      def valid_http_uri?(parsed)
+        (parsed.is_a?(URI::HTTP) || parsed.is_a?(URI::HTTPS)) && parsed.host.present?
       end
     end
   end
