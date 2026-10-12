@@ -18,7 +18,8 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- Backfill publishes confirmed and inferred mappings; low-confidence/tentative
+  mappings remain local for later review (see Open Questions).
 
 ## Decision
 
@@ -683,9 +684,39 @@ Rules:
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
 
+### Running the TaskBridge outbox baseline backfill
+
+Before enabling `task_bridge.web.enabled`, preview the records without changing
+TaskBridge or any provider:
+
+```sh
+bundle exec rake task_bridge:outbox:backfill DRY_RUN=1
+```
+
+The JSON summary groups item rows by service, mappings by confidence, and
+skipped rows (including withheld low-confidence mappings). When it looks
+correct, seed the local outbox:
+
+```sh
+bundle exec rake task_bridge:outbox:backfill
+```
+
+The task first fills missing local provenance, then writes one `item` current
+state snapshot per existing source item and only confirmed/high or
+inferred/medium mapping memberships. Item payloads carry
+`provenance.baseline: true`, `detected_by: "backfill"`, and `backfilled_at`;
+they are not historical observations and no `snapshot_seen` or `sync_run` rows
+are created. Low/tentative mappings remain visible in the dry-run summary for
+manual cleanup but are deliberately withheld from TaskBridge Web. Rerunning is
+safe because existing source and collection timestamps form deterministic
+idempotency keys. The backfill never contacts or mutates an external provider.
+
 ## Open Questions
 
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- **Low-confidence mapping backfill policy (resolved)**: backfill publishes only
+  `confirmed` and `inferred` memberships. It withholds low-confidence/
+  `tentative` mappings from TaskBridge Web and reports them in the dry-run
+  summary for manual cleanup or review.
 
 ## Rejected Alternatives
 

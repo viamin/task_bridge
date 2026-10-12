@@ -114,6 +114,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(source_item.source_external_id).to eq("asana-123")
     expect(source_item.source_created_at).to be_nil
     expect(target_item.reload.source_service_name).to eq("Omnifocus")
+    expect(target_item.source_service_instance).to eq("default")
     expect(target_item.source_created_at).to be_nil
     expect(collection.reload.mapping_method).to eq("source_sync_id")
     expect(collection.mapping_confidence).to eq("high")
