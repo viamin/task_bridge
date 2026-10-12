@@ -39,12 +39,32 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       end
     end)
   end
+  let(:github_item_class) do
+    stub_const("BackfillSyncGithubItem", Class.new(Base::SyncItem) do
+      def self.attribute_map = {}
+
+      def provider = "Github"
+
+      def external_data = {}
+    end)
+  end
+  let(:google_tasks_item_class) do
+    stub_const("BackfillSyncGoogleTasksItem", Class.new(Base::SyncItem) do
+      def self.attribute_map = {}
+
+      def provider = "GoogleTasks"
+
+      def external_data = {}
+    end)
+  end
 
   before do
     task.reenable
     allow(SyncBackfill::SourceProvenance).to receive(:run!).and_call_original
     test_item_class
     other_item_class
+    github_item_class
+    google_tasks_item_class
   end
 
   it "backfills explicit source and mapping provenance idempotently" do
@@ -63,6 +83,8 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       notes: "asana_work_id: asana-123",
       sync_collection: collection
     )
+    github_item = github_item_class.create!(title: "Buy milk", external_id: "issue-12", sync_collection: collection)
+    google_tasks_item = google_tasks_item_class.create!(title: "Buy milk", external_id: "task-34", sync_collection: collection)
 
     source_item.update_columns(
       source_service_name: nil,
@@ -88,6 +110,12 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       last_observed_at: nil,
       source_metadata: nil
     )
+    [github_item, google_tasks_item].each do |item|
+      item.update_columns(source_service_name: nil, source_service_instance: nil, source_service_type: nil,
+                          source_external_id: nil, source_url: nil, source_created_at: nil,
+                          source_updated_at: nil, first_observed_at: nil, last_observed_at: nil,
+                          source_metadata: nil)
+    end
     collection.update_columns(
       mapping_method: nil,
       mapping_confidence: nil,
@@ -114,6 +142,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(source_item.source_external_id).to eq("asana-123")
     expect(source_item.source_created_at).to be_nil
     expect(target_item.reload.source_service_name).to eq("Omnifocus")
+    expect(target_item.source_service_instance).to eq("default")
     expect(target_item.source_created_at).to be_nil
     expect(collection.reload.mapping_method).to eq("source_sync_id")
     expect(collection.mapping_confidence).to eq("high")
@@ -124,5 +153,26 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+    expect(OutboxEntry.where(record_kind: "item").pluck(:service_type)).to contain_exactly(
+      "asana", "omnifocus", "github", "google_tasks"
+    )
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    item_payloads = OutboxEntry.where(record_kind: "item").pluck(:payload)
+    expect(item_payloads).to all(satisfy { |payload| payload.dig("provenance", "detected_by") == "backfill" })
+    expect(item_payloads).to all(satisfy { |payload| payload.dig("provenance", "baseline") })
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(4)
+  end
+
+  it "reports low-confidence mappings without writing them during a dry run" do
+    collection = SyncCollection.create!(title: "Ambiguous", mapping_method: "title_fallback", mapping_confidence: "low")
+    test_item_class.create!(title: "Ambiguous", external_id: "asana-ambiguous", sync_collection: collection)
+
+    summary = SyncBackfill::SourceProvenance.run!(dry_run: true)
+
+    expect(summary).to include(dry_run: true, snapshots: 1, mappings: 0, withheld_mappings: 1)
+    expect(summary[:services]).to include("asana" => 1)
+    expect(summary[:confidence]).to include("low" => 1)
+    expect(OutboxEntry.all).to be_empty
+    expect(collection.reload.mapping_last_observed_at).to be_nil
   end
 end
