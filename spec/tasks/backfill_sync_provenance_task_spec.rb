@@ -125,4 +125,20 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
   end
+
+  it "reports a dry run without mutating provenance or the outbox" do
+    item = test_item_class.create!(
+      options: options.merge(service_name: "Asana:work"), title: "Buy milk", external_id: "asana-123"
+    )
+    item.update_columns(source_service_name: nil, last_observed_at: nil, first_observed_at: nil)
+    ENV["BACKFILL_DRY_RUN"] = "1"
+
+    expect { task.invoke }.to output(/"items_by_service"/).to_stdout
+
+    expect(SyncBackfill::SourceProvenance).not_to have_received(:run!)
+    expect(item.reload.source_service_name).to be_nil
+    expect(OutboxEntry.all).to be_empty
+  ensure
+    ENV.delete("BACKFILL_DRY_RUN")
+  end
 end
