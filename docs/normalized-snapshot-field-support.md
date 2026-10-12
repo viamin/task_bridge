@@ -113,8 +113,8 @@ freshly constructed item that has not gone through
 `capture_source_identity` — so consumers must not code for a nilable
 value. `Outbox::SourceIdentity` embeds the `service_type` followed by the
 captured instance segment when one exists (`asana:work`,
-`omnifocus:default`), and yields the bare `service_type` (`asana`)
-otherwise; the per-instance component therefore belongs only in
+`omnifocus:default`), and uses the permanent `:default` suffix when it
+does not; the per-instance component therefore belongs only in
 `source.service_instance`, never in `source.service_type`. Like `item_key`
 and idempotency keys, `service_instance` is opaque: consumers must not
 parse it by splitting on `:` because segments may themselves contain
@@ -157,3 +157,23 @@ outbox rows or advance the diff baseline.
   timestamps. The baseline is only advanced after every row is enqueued, so
   a failed enqueue can re-detect a transition (at-least-once) but never
   silently swallows one.
+
+## Initial outbox backfill
+
+Before enabling TaskBridge Web publication for an existing installation, run:
+
+```sh
+bundle exec rake task_bridge:outbox:backfill DRY_RUN=1
+bundle exec rake task_bridge:outbox:backfill
+```
+
+The dry run makes no database changes and reports item counts by source,
+mapping counts by confidence, and skipped incomplete records. The write run
+first fills missing source and mapping provenance, then adds one baseline
+`item` snapshot per source item and saves the same snapshot as the local diff
+baseline. Payloads carry `provenance.detected_by: backfill` and
+`backfilled_at`; no `snapshot_seen` or sync-run rows are fabricated. The task
+is safe to rerun because outbox rows use deterministic keys. High-confidence
+mappings publish as `confirmed` and medium-confidence/title-derived mappings
+as `inferred`; low-confidence/manual memberships are withheld and remain visible in
+the dry-run confidence summary for manual review.
