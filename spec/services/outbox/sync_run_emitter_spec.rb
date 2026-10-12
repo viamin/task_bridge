@@ -198,4 +198,18 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(row.payload["detail"].length).to eq(500)
     expect(row.payload["error"]["message"].length).to eq(500)
   end
+
+  it "redacts credentials and raw provider payloads from published operational text" do
+    sensitive_detail = 'Authorization: Bearer detail-secret response: {"access_token":"response-secret"}'
+    sensitive_error = 'cookie=session-secret access_token=error-secret payload: {"title":"provider response"}'
+    emit(summary: summary.merge(status: "failed", detail: sensitive_detail), logs: [logs.first.merge(
+      "status" => "failed", "error_message" => sensitive_error
+    )])
+
+    row = OutboxEntry.find_by(record_kind: "sync_run")
+    published_text = [row.payload["detail"], row.payload.dig("error", "message")].join(" ")
+
+    expect(published_text).to include("[REDACTED]")
+    expect(published_text).not_to include("detail-secret", "response-secret", "session-secret", "error-secret", "provider response")
+  end
 end
