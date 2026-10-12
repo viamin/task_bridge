@@ -349,13 +349,13 @@ RSpec.describe Base::Service do
 
     it "emits mapping observations when representations join the same sync collection" do
       persisted_service_item = sync_item_class.create!(
-        title: "Mapped service task",
+        title: "Mapped task",
         external_id: "service-map-123",
         completed: false,
         last_modified: Time.current - 1.minute
       )
       persisted_primary_item = primary_sync_item_class.create!(
-        title: "Mapped primary task",
+        title: "Mapped task",
         external_id: "primary-map-123",
         completed: false,
         last_modified: Time.current - 2.minutes
