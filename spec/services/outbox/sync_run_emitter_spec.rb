@@ -129,6 +129,21 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     )
   end
 
+  it "marks rate-limit failures retryable even though 429 is a 4xx status" do
+    emit(
+      summary: summary.merge(status: "failed"),
+      logs: [logs.first.merge(
+        "status" => "failed",
+        "error_class" => "ProviderError",
+        "error_message" => "429 too many requests"
+      )]
+    )
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["error"]).to eq(
+      "class" => "ProviderError", "message" => "429 too many requests", "retryable" => true
+    )
+  end
+
   it "reads failed error details from symbol-keyed logs" do
     failed_log = {
       status: "failed",
