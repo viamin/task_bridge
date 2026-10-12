@@ -79,7 +79,7 @@ module Outbox
     attr_reader :service_name, :summary, :logs, :options
 
     def eligible?
-      return false if options[:pretend]
+      return false if option_value(:pretend)
       return false if sync_run_id.blank?
       return false unless PUBLISHED_STATUSES.include?(status)
 
@@ -122,8 +122,12 @@ module Outbox
     def sync_run_id
       @sync_run_id ||= self.class.run_id_for(
         service_name:,
-        sync_started_at: options[:sync_started_at]
+        sync_started_at:
       )
+    end
+
+    def sync_started_at
+      option_value(:sync_started_at)
     end
 
     def started_at
@@ -131,7 +135,7 @@ module Outbox
     end
 
     def started_at_time
-      @started_at_time ||= self.class.parse_started_at(options[:sync_started_at])
+      @started_at_time ||= self.class.parse_started_at(sync_started_at)
     end
 
     def finished_at
@@ -162,6 +166,12 @@ module Outbox
 
     def summary_value(key)
       summary[key] || summary[key.to_s] || summary[key.to_sym]
+    end
+
+    def option_value(key)
+      return options[key] if options.key?(key)
+
+      options[key.to_s]
     end
 
     def touched_collection_ids
