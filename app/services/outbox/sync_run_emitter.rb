@@ -171,12 +171,12 @@ module Outbox
     end
 
     def error_class
-      summary[:error_class] || summary["error_class"] || failure_log&.dig("error_class").to_s
+      summary[:error_class] || summary["error_class"] || failure_log_value("error_class").to_s
     end
 
     def bound_error_message
       message = (summary[:error_message] || summary["error_message"] ||
-        failure_log&.dig("error_message") || "").to_s
+        failure_log_value("error_message") || "").to_s
       message.length > MAX_DETAIL_LENGTH ? message[0, MAX_DETAIL_LENGTH] : message
     end
 
@@ -204,7 +204,11 @@ module Outbox
     end
 
     def error_message_for_retry_check
-      summary[:error_message] || summary["error_message"] || failure_log&.dig("error_message").to_s
+      summary[:error_message] || summary["error_message"] || failure_log_value("error_message").to_s
+    end
+
+    def failure_log_value(key)
+      failure_log&.fetch(key) { failure_log[key.to_sym] }
     end
 
     def service_identity
