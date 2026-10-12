@@ -72,6 +72,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     )
   end
 
+  it "publishes symbol-valued statuses from Ruby service summaries" do
+    emit(summary: summary.merge(status: :success))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["status"]).to eq("success")
+  end
+
   it "uses the bare service family when the service has no instance name" do
     emit(service_name: "Asana")
 
