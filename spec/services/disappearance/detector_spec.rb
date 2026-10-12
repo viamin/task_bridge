@@ -287,6 +287,14 @@ RSpec.describe Disappearance::Detector do
       expect(observations.count).to eq(0)
     end
 
+    it "honors string-keyed pretend options" do
+      persisted_item("det-guard")
+      service.options = options.merge("pretend" => true)
+
+      expect(record_with([])).to be_empty
+      expect(observations.count).to eq(0)
+    end
+
     it "emits nothing when the service is unauthorized" do
       persisted_item("det-guard")
       service.authorized = false

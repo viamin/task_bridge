@@ -284,6 +284,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
   end
 
+  it "does not mistake a string false value for pretend mode" do
+    emit(options: { "sync_started_at" => started_at, "pretend" => "false" })
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to contain_exactly(an_instance_of(OutboxEntry))
+  end
+
   it "does not publish when the run has no deterministic started_at" do
     emit(options: options.merge(sync_started_at: nil))
 

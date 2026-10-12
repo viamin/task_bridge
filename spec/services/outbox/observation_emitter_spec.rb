@@ -239,6 +239,13 @@ RSpec.describe Outbox::ObservationEmitter do
       expect(item.reload.last_snapshot).to include("title" => "Buy milk")
     end
 
+    it "honors string-keyed pretend options" do
+      item.options = options.merge("pretend" => true)
+
+      expect(described_class.emit_for_item(item, previous_snapshot: nil)).to eq([])
+      expect(OutboxEntry.count).to eq(0)
+    end
+
     it "emits nothing for items without an external id" do
       item.external_id = nil
 
