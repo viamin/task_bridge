@@ -7,6 +7,8 @@ module Outbox
   class OperationalText
     REDACTION = "[REDACTED]"
     REDACTIONS = [
+      /\bauthorization\s*[:=]\s*digest\s+[^\r\n]*/i,
+      /\b(?:cookie|set-cookie)\s*:\s*[^\r\n]*/i,
       /\b(?:authorization|cookie|set-cookie)\s*[:=]\s*(?:(?:bearer|basic|digest)\s+)?[^\s,;]+/i,
       /\b(?:(?:access|refresh)[_-]?token|api[_-]?key|client[_-]?secret|password|token)\s*[:=]\s*[^&\s,]+/i,
       /["'](?:access_?token|refresh_?token|token|api[_-]?key|authorization|cookie|password)["']\s*:\s*["'][^"']*["']/i,
