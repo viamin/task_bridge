@@ -195,6 +195,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(OutboxEntry.find_by(record_kind: "sync_run").payload["touched_collection_ids"]).to eq([84, 91])
   end
 
+  it "ignores malformed collection identifiers when collecting touched collections" do
+    emit(logs: [logs.first.merge("touched_collection_ids" => [91, "84", 0, -1, nil])])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["touched_collection_ids"]).to eq([91])
+  end
+
   it "ignores unstructured log entries" do
     emit(logs: ["provider diagnostic", logs.first])
 
