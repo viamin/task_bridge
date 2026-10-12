@@ -15,7 +15,7 @@ require "pact_helper"
 # serializes; the committed pact file
 # (spec/pacts/taskbridge-taskbridge_web.json) therefore pins the full v1
 # wire shape for provider verification (viamin/task-bridge-web#189).
-RSpec.describe "TaskBridge Web ingestion batches", pact: true do
+RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined do
   let(:now) { Time.zone.parse("2026-10-05T12:00:00Z") }
   let(:api_key) { "pact-ingest-key" }
   let(:revoked_api_key) { "revoked-ingest-key" }
