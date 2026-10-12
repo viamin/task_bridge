@@ -18,7 +18,7 @@ module Outbox
     # must ignore unknown values rather than break.
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -38,6 +38,16 @@ module Outbox
           )
         end
       end
+    end
+
+    # Historical title/manual guesses are deliberately not sent during the
+    # initial backfill (#222). They remain visible in the dry-run report for
+    # later review, while high and medium evidence become confirmed/inferred
+    # mapping rows respectively.
+    def self.emit_backfill_for_members(collection, members:, observed_at: Time.current)
+      return [] unless %w[high medium].include?(collection.mapping_confidence)
+
+      emit_for_members(collection, members:, observed_at:)
     end
 
     class << self
