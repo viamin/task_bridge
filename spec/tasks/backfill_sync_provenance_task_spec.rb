@@ -115,6 +115,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(source_item.source_created_at).to be_nil
     expect(target_item.reload.source_service_name).to eq("Omnifocus")
     expect(target_item.source_created_at).to be_nil
+    expect(target_item.source_service_instance).to eq("default")
     expect(collection.reload.mapping_method).to eq("source_sync_id")
     expect(collection.mapping_confidence).to eq("high")
     expect(collection.mapping_metadata).to include("note_key" => "omnifocus_id")
@@ -124,5 +125,46 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(2)
+    expect(OutboxEntry.where(record_kind: "item").first.payload.dig("provenance", "detected_by")).to eq("backfill")
+  end
+
+  it "reports low-confidence memberships without publishing them in dry-run mode" do
+    collection = SyncCollection.create!(title: "Unmatched")
+    test_item_class.create!(title: "Unmatched", external_id: "asana-999", sync_collection: collection)
+
+    expect { SyncBackfill::SourceProvenance.run!(dry_run: true) }
+      .not_to change(OutboxEntry, :count)
+
+    summary = SyncBackfill::SourceProvenance.run!(dry_run: true)
+    expect(summary.dig(:items, :by_service)).to include("asana" => 1)
+    expect(summary.dig(:mappings, :by_confidence)).to include("low" => 1)
+    expect(summary.dig(:mappings, :withheld_low_confidence)).to eq(1)
+  end
+
+  it "stages representative OmniFocus, Asana, GitHub, and Google Tasks records" do
+    providers = {
+      "Omnifocus" => "omnifocus",
+      "Asana" => "asana",
+      "Github" => "github",
+      "GoogleTasks" => "google_tasks"
+    }
+    providers.each_with_index do |(provider, _service_type), index|
+      item_class = stub_const("Backfill#{provider}Task", Class.new(Base::SyncItem) do
+        define_singleton_method(:attribute_map) { {} }
+        define_method(:provider) { provider }
+        define_method(:external_data) { {} }
+      end)
+      item_class.create!(title: provider, external_id: "record-#{index}")
+    end
+
+    SyncBackfill::SourceProvenance.run!
+
+    rows = OutboxEntry.where(record_kind: "item").order(:service_type)
+    expect(rows.pluck(:service_type)).to eq(providers.values.sort)
+    expect(rows.pluck(:service_instance)).to eq(providers.values.sort.map { |service_type| "#{service_type}:default" })
+    expect(rows.map { |row| row.payload.dig("provenance", "detected_by") }).to all(eq("backfill"))
   end
 end
