@@ -145,7 +145,8 @@ module Outbox
     end
 
     def items_synced
-      (summary[:items_synced] || summary["items_synced"] || 0).to_i
+      count = Integer(summary_value("items_synced"), exception: false)
+      count&.positive? ? count : 0
     end
 
     def timestamp(key)
