@@ -126,3 +126,81 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
   end
 end
+
+RSpec.describe "task_bridge:backfill_outbox task", :full_options do
+  before(:all) do
+    Rails.application.load_tasks unless Rake::Task.task_defined?("task_bridge:backfill_outbox")
+  end
+
+  let(:task) { Rake::Task["task_bridge:backfill_outbox"] }
+
+  def create_item(provider:, external_id:, collection: nil, notes: nil, title: nil)
+    constant_name = "BackfillOutbox#{provider.gsub(/[^a-z0-9]/i, '')}Item"
+    item_class = constant_name.safe_constantize || stub_const(constant_name, Class.new(Base::SyncItem) do
+      define_method(:provider) { provider }
+
+      def self.attribute_map
+        {}
+      end
+
+      def external_data
+        {}
+      end
+    end)
+    item_class.create!(
+      title: title || "Existing #{provider} item", external_id:, notes:, sync_collection: collection,
+      options: options.merge(service_name: provider)
+    )
+  end
+
+  before { task.reenable }
+
+  it "seeds idempotent baseline snapshots for representative services without observations" do
+    high = SyncCollection.create!(title: "Confirmed", mapping_method: "source_sync_id", mapping_confidence: "high")
+    medium = SyncCollection.create!(title: "Inferred", mapping_method: "title_fallback", mapping_confidence: "medium")
+    low = SyncCollection.create!(title: "Tentative", mapping_method: "manual_backfill", mapping_confidence: "low")
+    %w[Omnifocus Asana Github GoogleTasks].each_with_index do |provider, index|
+      create_item(provider:, external_id: "#{provider.downcase}-#{index}", collection: [high, medium, low, high][index])
+    end
+
+    expect { task.invoke }.to output(/"services"/).to_stdout
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(4)
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    expect(OutboxEntry.where(record_kind: "mapping").count).to eq(3)
+    expect(OutboxEntry.where(record_kind: "mapping").pluck(:external_id)).not_to include("github-2")
+    expect(OutboxEntry.where(record_kind: "item").pluck(:service_instance))
+      .to include("omnifocus:default", "asana:default", "github:default", "google_tasks:default")
+    expect(OutboxEntry.where(record_kind: "item").first.payload).to include(
+      "provenance" => include("detected_by" => "backfill", "backfilled_at" => be_present)
+    )
+    expect(Base::SyncItem.where.not(external_id: nil).pluck(:last_snapshot)).to all(be_present)
+
+    task.reenable
+    expect { task.invoke }.not_to change(OutboxEntry, :count)
+  end
+
+  it "reports records without external identities and does not write in dry-run mode" do
+    create_item(provider: "Asana", external_id: "asana-1")
+    create_item(provider: "Github", external_id: nil)
+    ENV["DRY_RUN"] = "1"
+
+    expect { task.invoke }.to output(/"incomplete_items":1/).to_stdout
+    expect(OutboxEntry.all).to be_empty
+  ensure
+    ENV.delete("DRY_RUN")
+  end
+
+  it "predicts unbackfilled title mappings without mutating local provenance" do
+    collection = SyncCollection.create!(title: "Shared title")
+    create_item(provider: "Asana", external_id: "asana-1", collection:, title: "Shared title")
+    create_item(provider: "Omnifocus", external_id: "omnifocus-1", collection:, title: "Shared title")
+    ENV["DRY_RUN"] = "1"
+
+    expect { task.invoke }.to output(/"mapping_methods":\{"title_fallback":2\}/).to_stdout
+    expect(collection.reload.mapping_method).to be_nil
+    expect(OutboxEntry.all).to be_empty
+  ensure
+    ENV.delete("DRY_RUN")
+  end
+end
