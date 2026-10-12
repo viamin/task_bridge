@@ -15,7 +15,6 @@ module Outbox
   # keeps `provenance.sync_run_id` joinable across record kinds for the
   # same run.
   class SyncRunEmitter
-    MAX_DETAIL_LENGTH = 500
     PUBLISHED_STATUSES = %w[success failed].freeze
 
     def self.emit_for_run(service_name:, summary:, logs:, options:)
@@ -170,30 +169,29 @@ module Outbox
     end
 
     def bound_detail
-      bound_text(summary[:detail] || summary["detail"])
+      return "#{items_synced} items processed" if status == "success" && items_synced.positive?
+      return "No changes detected" if status == "success"
+
+      "Sync failed"
     end
 
     def error_payload
       return nil unless status == "failed"
 
-      message = bound_error_message
+      message = error_message
       {
-        "class" => error_class,
+        "class" => error_category,
         "message" => message,
         "retryable" => retryable?
       }
     end
 
-    def error_class
-      summary[:error_class] || summary["error_class"] || failure_log_value("error_class").to_s
+    def error_category
+      retryable? ? "ProviderError" : "ProviderAuthenticationError"
     end
 
-    def bound_error_message
-      bound_text(summary[:error_message] || summary["error_message"] || failure_log_value("error_message"))
-    end
-
-    def bound_text(value)
-      Outbox::OperationalText.sanitize(value).first(MAX_DETAIL_LENGTH)
+    def error_message
+      retryable? ? "The provider request failed" : "The provider rejected the request"
     end
 
     def failure_log
@@ -213,7 +211,7 @@ module Outbox
     # alone rarely carries the HTTP status, so we also inspect the
     # operational error message.
     def retryable?
-      combined = "#{error_class} #{error_message_for_retry_check}"
+      combined = "#{failure_error_class} #{error_message_for_retry_check}"
       return false if combined.match?(/Authentication|Authorization|Unauthorized|InvalidToken|InvalidCredentials|Forbidden|BadRequest|NotFound/i)
       return false if combined.match?(/\b4(?!29\b)\d{2}\b/)
 
@@ -222,6 +220,10 @@ module Outbox
 
     def error_message_for_retry_check
       summary[:error_message] || summary["error_message"] || failure_log_value("error_message").to_s
+    end
+
+    def failure_error_class
+      summary[:error_class] || summary["error_class"] || failure_log_value("error_class").to_s
     end
 
     def failure_log_value(key)

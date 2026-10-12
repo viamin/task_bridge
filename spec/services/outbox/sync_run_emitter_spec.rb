@@ -129,7 +129,11 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
       "status" => "failed",
       "last_successful_at" => nil,
       "last_failed_at" => "2026-10-05T10:04:59.000000Z",
-      "error" => { "class" => "ProviderError", "message" => "401 unauthorized", "retryable" => false }
+      "error" => {
+        "class" => "ProviderAuthenticationError",
+        "message" => "The provider rejected the request",
+        "retryable" => false
+      }
     )
   end
 
@@ -157,7 +161,7 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     )
 
     expect(OutboxEntry.find_by(record_kind: "sync_run").payload["error"]).to eq(
-      "class" => "ProviderError", "message" => "503 unavailable", "retryable" => true
+      "class" => "ProviderError", "message" => "The provider request failed", "retryable" => true
     )
   end
 
@@ -172,7 +176,7 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     )
 
     expect(OutboxEntry.find_by(record_kind: "sync_run").payload["error"]).to eq(
-      "class" => "ProviderError", "message" => "429 too many requests", "retryable" => true
+      "class" => "ProviderError", "message" => "The provider request failed", "retryable" => true
     )
   end
 
@@ -185,7 +189,9 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     emit(summary: summary.merge(status: "failed"), logs: [failed_log])
 
     expect(OutboxEntry.find_by(record_kind: "sync_run").payload["error"]).to eq(
-      "class" => "ProviderError", "message" => "401 unauthorized", "retryable" => false
+      "class" => "ProviderAuthenticationError",
+      "message" => "The provider rejected the request",
+      "retryable" => false
     )
   end
 
@@ -255,16 +261,16 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(OutboxEntry.find_by(record_kind: "sync_run").payload).to eq(original.payload)
   end
 
-  it "bounds detail and error message length" do
+  it "does not publish provider-provided operational text" do
     long_detail = ("a" * 600)
     emit(summary: summary.merge(status: "failed", detail: long_detail), logs: [logs.first.merge("error_message" => long_detail)])
 
     row = OutboxEntry.find_by(record_kind: "sync_run")
-    expect(row.payload["detail"].length).to eq(500)
-    expect(row.payload["error"]["message"].length).to eq(500)
+    expect(row.payload["detail"]).to eq("Sync failed")
+    expect(row.payload["error"]["message"]).to eq("The provider request failed")
   end
 
-  it "redacts credentials and raw provider payloads from published operational text" do
+  it "does not expose credentials or raw provider payloads" do
     sensitive_detail = 'Authorization: Bearer detail-secret response: {"access_token":"response-secret"}'
     sensitive_error = 'cookie=session-secret access_token=error-secret payload: {"title":"provider response"}'
     emit(summary: summary.merge(status: "failed", detail: sensitive_detail), logs: [logs.first.merge(
@@ -274,7 +280,8 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     row = OutboxEntry.find_by(record_kind: "sync_run")
     published_text = [row.payload["detail"], row.payload.dig("error", "message")].join(" ")
 
-    expect(published_text).to include("[REDACTED]")
-    expect(published_text).not_to include("detail-secret", "response-secret", "session-secret", "error-secret", "provider response")
+    expect(published_text).not_to include(
+      "detail-secret", "response-secret", "session-secret", "error-secret", "provider response"
+    )
   end
 end
