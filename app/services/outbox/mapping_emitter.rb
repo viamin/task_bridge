@@ -14,11 +14,11 @@ module Outbox
 
     # Internal provenance vocabulary (SyncMappingProvenance /
     # SyncCollection#mapping_confidence) mapped to the contract's enum-ish
-    # values. Unknown values pass through unchanged: version 1 consumers
-    # must ignore unknown values rather than break.
+    # values. Low-confidence memberships are deliberately withheld pending
+    # human cleanup; backfill dry runs report them instead (#222).
     CONFIDENCE = {
       "high" => "confirmed",
-      "medium" => "tentative",
+      "medium" => "inferred",
       "low" => "tentative"
     }.freeze
     SOURCE = {
@@ -28,7 +28,7 @@ module Outbox
     }.freeze
 
     def self.emit_for_members(collection, members:, observed_at: Time.current)
-      Array(members).select { |member| eligible?(member) }.each do |member|
+      Array(members).select { |member| eligible?(member, collection) }.each do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = Outbox::SourceIdentity.for(member)
           OutboxEntry.enqueue(
@@ -43,8 +43,9 @@ module Outbox
     class << self
       private
 
-      def eligible?(member)
-        member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
+      def eligible?(member, collection)
+        member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present? &&
+          CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence) != "tentative"
       end
 
       def payload(collection, member, identity, observed_at)

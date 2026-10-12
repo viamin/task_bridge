@@ -13,7 +13,10 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # A missing configured-instance suffix is still an instance. Keep the
+        # default token in the opaque identity so historic single-instance
+        # data and later live observations share idempotency keys.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
