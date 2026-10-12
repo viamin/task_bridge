@@ -76,11 +76,14 @@ RSpec.describe Outbox::WebPublisher::Config do
         .to eq("http://localhost:3000")
     end
 
-    it "returns nil for non-http schemes, malformed URLs, and URLs without a host" do
+    it "returns nil for unsafe or incomplete base URLs" do
       expect(described_class.resolve("base_url" => "ftp://web.example.com").uri).to be_nil
       expect(described_class.resolve("base_url" => "not a url://").uri).to be_nil
       expect(described_class.resolve("base_url" => "https:///ingestion").uri).to be_nil
       expect(described_class.resolve("base_url" => "https:taskbridge-web.example.com").uri).to be_nil
+      expect(described_class.resolve("base_url" => "https://user:password@web.example.com").uri).to be_nil
+      expect(described_class.resolve("base_url" => "https://web.example.com?tenant=work").uri).to be_nil
+      expect(described_class.resolve("base_url" => "https://web.example.com#ingestion").uri).to be_nil
       expect(described_class.resolve.uri).to be_nil
     end
   end
