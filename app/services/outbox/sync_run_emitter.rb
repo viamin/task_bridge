@@ -29,6 +29,8 @@ module Outbox
     # deletion tombstones. Returns nil when `sync_started_at` is missing or
     # invalid so callers can skip the field without interrupting a sync.
     def self.run_id_for(service_name:, sync_started_at:)
+      return if service_name.blank?
+
       started_at = parse_started_at(sync_started_at)
       return nil unless started_at
 
