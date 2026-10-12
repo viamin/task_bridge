@@ -18,7 +18,7 @@ The product owner reviewed this RDR after the pull request opened (2026-08-14) a
 - Full notes/description publication is governed by TaskBridge user configuration, not hard-coded per source (see Security and Privacy Constraints).
 - Calendar ingestion detail — busy-only vs. actual event data, once TaskBridge adds a calendar source — is governed by the same configuration mechanism (see Security and Privacy Constraints).
 - The initial ingestion path is push-only from TaskBridge to TaskBridge Web; pull/export remains a possible future revisit, not part of v1 (see Decision and Rejected Alternatives).
-- The backfill policy for mappings TaskBridge holds at low confidence remains an open question (see Open Questions).
+- Backfill publishes only confirmed and inferred mappings. Low-confidence (`tentative`) mappings are withheld and reported by the dry-run summary for later review (see Migration and Backfill Implications).
 
 ## Decision
 
@@ -682,10 +682,8 @@ Rules:
   - deletion tombstones only where deletion can be stated confidently.
 - Backfill may use the same HTTP contract or file/stdout export piped into TaskBridge Web import jobs.
 - Backfill records must still carry deterministic idempotency keys so reruns are safe.
-
-## Open Questions
-
-- **Low-confidence mapping backfill policy**: whether backfill should publish `sync_collection` membership rows for mappings TaskBridge currently holds at `mapping_confidence: tentative`, or withhold them until they become `confirmed` or `inferred`. This remains unresolved pending further product guidance. Until it is resolved, implementation issues under #214 must not assume an answer; backfill work should default to the safer option of publishing only `confirmed` and `inferred` mappings and omitting `tentative` ones.
+- Backfill must mark item snapshots as initial baselines and include deterministic `observed_at` and `backfilled_at` metadata. It must not emit `snapshot_seen` observations or sync-run summaries for existing data.
+- Backfill publishes `high` mappings as `confirmed` and `medium` mappings as `inferred`. It withholds `low`/`tentative` mappings and includes them in the dry-run summary for later review.
 
 ## Rejected Alternatives
 
