@@ -60,7 +60,7 @@ module Outbox
       @service_name = service_name
       @summary = summary.is_a?(Hash) ? summary : {}
       @logs = Array(logs).grep(Hash)
-      @options = options || {}
+      @options = options.is_a?(Hash) ? options : {}
     end
 
     def emit
