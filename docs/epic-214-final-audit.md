@@ -13,7 +13,7 @@ area of the epic's issue tree against RDR #215 and the epic's acceptance
 criteria. Closed child issues were treated as claims, not evidence: each
 area below was re-verified in the code, the spec suite, and the docs.
 
-Full suite at audit time: 751 examples, 0 failures, 0 pending, with
+Full suite at audit time: 756 examples, 0 failures, 0 pending, with
 `bundle exec rubocop` clean.
 
 ## Area-by-area evidence
@@ -99,7 +99,7 @@ the safer default the RDR prescribes until product guidance lands: no
    the contract shape it publishes under.
 3. **Existing sync behavior remains compatible** — all outbox work is
    isolated, `--pretend` enqueues nothing, publication never changes run
-  outcomes or exit status; 751 examples (including the pre-existing
+  outcomes or exit status; 756 examples (including the pre-existing
    sync suites) pass.
 4. **TaskBridge publishes normalized, idempotent facts without
    source-specific API knowledge required downstream** — items
