@@ -13,7 +13,9 @@ module Outbox
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        # A suffix is required even for single-instance adapters: this value is
+        # embedded in idempotency keys and therefore cannot be changed later.
+        service_instance: [service_type, item.source_service_instance.presence || "default"].join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
