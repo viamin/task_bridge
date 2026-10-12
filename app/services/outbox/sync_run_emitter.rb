@@ -142,8 +142,8 @@ module Outbox
       return nil if raw.blank?
 
       Time.iso8601(raw.to_s).utc.iso8601(6)
-    rescue ArgumentError
-      raw.to_s
+    rescue ArgumentError, TypeError
+      nil
     end
 
     def summary_value(key)
