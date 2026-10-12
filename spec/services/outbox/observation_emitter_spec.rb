@@ -99,6 +99,16 @@ RSpec.describe Outbox::ObservationEmitter do
       )
     end
 
+    it "links observations from string-keyed programmatic run options" do
+      item.options = options.merge(sync_started_at: nil, "sync_started_at" => options[:sync_started_at])
+
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
+
+      expect(observation_rows.first.payload.dig("provenance", "sync_run_id")).to eq(
+        "sync-run-20261005T100000Z-test_service"
+      )
+    end
+
     it "does not re-emit discovery when the item refreshes unchanged" do
       refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
       refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at + 1.hour)
