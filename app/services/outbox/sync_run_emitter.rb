@@ -197,7 +197,7 @@ module Outbox
     # operational error message.
     def retryable?
       combined = "#{error_class} #{error_message_for_retry_check}"
-      return false if combined.match?(/Authentication|Unauthorized|InvalidToken|Forbidden|BadRequest|NotFound/i)
+      return false if combined.match?(/Authentication|Authorization|Unauthorized|InvalidToken|InvalidCredentials|Forbidden|BadRequest|NotFound/i)
       return false if combined.match?(/\b4\d{2}\b/)
 
       true
