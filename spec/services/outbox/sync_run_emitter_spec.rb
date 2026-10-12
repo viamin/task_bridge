@@ -141,6 +141,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
   end
 
+  it "does not publish when the run timestamp is invalid" do
+    emit(options: options.merge(sync_started_at: "not-a-timestamp"))
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
   it "re-emitting the same run dedupes to the stored row" do
     emit
     original = OutboxEntry.find_by(record_kind: "sync_run")
