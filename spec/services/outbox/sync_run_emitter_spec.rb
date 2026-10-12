@@ -88,6 +88,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(second).to eq("sync-run-20261005T100000.000002Z-asana")
   end
 
+  it "does not build a malformed run ID without a service name" do
+    run_id = Outbox::SyncRunEmitter.run_id_for(service_name: "", sync_started_at: started_at)
+
+    expect(run_id).to be_nil
+  end
+
   it "publishes failed runs with a structured error marked non-retryable" do
     emit(summary: summary.merge(
       status: "failed",
