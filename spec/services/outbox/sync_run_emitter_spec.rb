@@ -153,6 +153,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
   end
 
+  it "omits malformed optional summary timestamps" do
+    emit(summary: summary.merge(last_successful: "not-a-timestamp"))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["last_successful_at"]).to be_nil
+  end
+
   it "re-emitting the same run dedupes to the stored row" do
     emit
     original = OutboxEntry.find_by(record_kind: "sync_run")
