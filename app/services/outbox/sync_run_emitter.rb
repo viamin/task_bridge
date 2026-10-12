@@ -161,13 +161,20 @@ module Outbox
     end
 
     def error_class
-      summary[:error_class] || summary["error_class"] || logs.first&.dig("error_class").to_s
+      summary[:error_class] || summary["error_class"] || failure_log&.dig("error_class").to_s
     end
 
     def bound_error_message
       message = (summary[:error_message] || summary["error_message"] ||
-        logs.first&.dig("error_message") || "").to_s
+        failure_log&.dig("error_message") || "").to_s
       message.length > MAX_DETAIL_LENGTH ? message[0, MAX_DETAIL_LENGTH] : message
+    end
+
+    def failure_log
+      @failure_log ||= logs.reverse.find do |log|
+        log["status"].to_s == "failed" || log[:status].to_s == "failed" ||
+          log["error_message"].present? || log[:error_message].present?
+      end
     end
 
     # RDR #215: error.retryable must match the retry policy TaskBridge used
@@ -187,7 +194,7 @@ module Outbox
     end
 
     def error_message_for_retry_check
-      summary[:error_message] || summary["error_message"] || logs.first&.dig("error_message").to_s
+      summary[:error_message] || summary["error_message"] || failure_log&.dig("error_message").to_s
     end
 
     def service_identity
