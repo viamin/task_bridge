@@ -78,6 +78,19 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(OutboxEntry.find_by(record_kind: "sync_run").payload["status"]).to eq("success")
   end
 
+  it "defaults malformed or negative item counts to zero" do
+    emit(summary: summary.merge(items_synced: "12 tasks"))
+
+    row = OutboxEntry.find_by(record_kind: "sync_run")
+    expect(row.payload).to include("items_synced" => 0, "detail" => "No changes detected")
+  end
+
+  it "does not publish a negative item count" do
+    emit(summary: summary.merge(items_synced: -1))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["items_synced"]).to eq(0)
+  end
+
   it "uses the bare service family when the service has no instance name" do
     emit(service_name: "Asana")
 
