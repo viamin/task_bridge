@@ -129,6 +129,19 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     )
   end
 
+  it "reads failed error details from symbol-keyed logs" do
+    failed_log = {
+      status: "failed",
+      error_class: "ProviderError",
+      error_message: "401 unauthorized"
+    }
+    emit(summary: summary.merge(status: "failed"), logs: [failed_log])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["error"]).to eq(
+      "class" => "ProviderError", "message" => "401 unauthorized", "retryable" => false
+    )
+  end
+
   it "ignores empty log entries when collecting touched collections" do
     emit(logs: [nil, logs.first])
 
