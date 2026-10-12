@@ -38,11 +38,11 @@ module Outbox
       end
 
       def batch_size
-        settings.fetch("batch_size", DEFAULT_BATCH_SIZE).to_i.clamp(1..)
+        positive_integer_setting("batch_size", DEFAULT_BATCH_SIZE)
       end
 
       def timeout_seconds
-        settings.fetch("timeout_seconds", DEFAULT_TIMEOUT_SECONDS).to_i.clamp(1..)
+        positive_integer_setting("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
       end
 
       # Whether a run is enabled but cannot send: surface this to the
@@ -75,6 +75,11 @@ module Outbox
 
       def boolean_setting(key)
         ActiveModel::Type::Boolean.new.cast(settings.fetch(key, false))
+      end
+
+      def positive_integer_setting(key, default)
+        value = Integer(settings[key], exception: false)
+        value ? value.clamp(1..) : default
       end
     end
   end
