@@ -107,7 +107,7 @@ class OutboxEntry < ApplicationRecord
     # rows pass service identity plus event_type; mapping rows pass
     # sync_collection_id; sync-run rows pass sync_run_id.
     def enqueue(record_kind:, payload:, **context)
-      return if options[:pretend]
+      return if pretend?
 
       attributes = enqueue_attributes(record_kind:, payload:, **context)
       # The unique index on idempotency_key is the dedupe mechanism: a
@@ -119,6 +119,10 @@ class OutboxEntry < ApplicationRecord
     end
 
     private
+
+    def pretend?
+      options[:pretend] == true || options["pretend"] == true
+    end
 
     def enqueue_attributes(record_kind:, payload:, **context)
       validate_enqueue_context!(context)
