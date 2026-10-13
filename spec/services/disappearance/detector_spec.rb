@@ -174,6 +174,16 @@ RSpec.describe Disappearance::Detector do
       expect(item.reload.disappearance_observation).not_to have_key("sync_run_id")
     end
 
+    it "omits a false-valued sync run ID from tombstone provenance and markers" do
+      item = persisted_item("det-missing")
+      service.options = options.merge(sync_started_at: false)
+
+      entry = service.record_source_disappearances!([], only_modified_dates: false).first
+
+      expect(entry.payload.fetch("provenance")).not_to have_key("sync_run_id")
+      expect(item.reload.disappearance_observation).not_to have_key("sync_run_id")
+    end
+
     it "does not re-emit the same state on a later run" do
       persisted_item("det-missing")
       record_with([])
