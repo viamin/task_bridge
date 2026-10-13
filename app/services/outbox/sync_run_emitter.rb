@@ -162,6 +162,7 @@ module Outbox
     def timestamp(key)
       raw = summary_value(key)
       return nil if raw.blank?
+      return nil if raw.is_a?(String) && Date._iso8601(raw).fetch(:offset, nil).nil?
 
       Time.iso8601(raw.to_s).utc.iso8601(6)
     rescue ArgumentError, TypeError
