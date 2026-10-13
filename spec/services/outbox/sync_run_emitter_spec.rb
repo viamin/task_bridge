@@ -96,6 +96,15 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     )
   end
 
+  it "falls back to a string-keyed run start when a default symbol key is nil" do
+    emit(options: options.merge(sync_started_at: nil, "sync_started_at" => started_at))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload).to include(
+      "sync_run_id" => "sync-run-20261005T100000Z-asana_work",
+      "started_at" => started_at
+    )
+  end
+
   it "defaults malformed or negative item counts to zero" do
     emit(summary: summary.merge(items_synced: "12 tasks"))
 
@@ -280,6 +289,12 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
 
   it "does not publish string-keyed pretend runs" do
     emit(options: { "sync_started_at" => started_at, "pretend" => true })
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
+  it "does not publish when a string-keyed pretend option overrides a default false symbol key" do
+    emit(options: options.merge("pretend" => true))
 
     expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
   end
