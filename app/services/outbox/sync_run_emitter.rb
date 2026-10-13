@@ -236,7 +236,9 @@ module Outbox
     end
 
     def failure_log_value(key)
-      failure_log&.fetch(key) { failure_log[key.to_sym] }
+      return unless failure_log
+
+      failure_log[key] || failure_log[key.to_sym]
     end
 
     def service_identity
