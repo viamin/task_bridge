@@ -329,11 +329,10 @@ RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
     expect(OutboxEntry.find_by(record_kind: "sync_run").payload["last_successful_at"]).to be_nil
   end
 
-  it "normalizes timezone-less optional summary timestamps as UTC" do
+  it "omits timezone-less optional summary timestamps" do
     emit(summary: summary.merge(last_successful: "2026-10-05T10:04:58"))
 
-    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["last_successful_at"])
-      .to eq("2026-10-05T10:04:58.000000Z")
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["last_successful_at"]).to be_nil
   end
 
   it "re-emitting the same run dedupes to the stored row" do
