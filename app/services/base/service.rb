@@ -356,15 +356,23 @@ module Base
     # sync-run id (RDR #215) so tombstones from the same run correlate with
     # the matching item observations and sync-run summary.
     def record_source_disappearances!(observed_items, only_modified_dates:, sync_started_at: nil)
+      effective_sync_started_at = sync_started_at.nil? ? configured_sync_started_at : sync_started_at
       Disappearance::Detector.record!(
         service: self,
         observed_items:,
         complete_fetch: !only_modified_dates,
-        sync_started_at: sync_started_at || options[:sync_started_at] || options["sync_started_at"]
+        sync_started_at: effective_sync_started_at
       )
     end
 
     private
+
+    def configured_sync_started_at
+      value = options[:sync_started_at]
+      return value unless value.nil?
+
+      options["sync_started_at"]
+    end
 
     def last_synced_before?(item_updated_at)
       last_sync_time = options[:logger]&.last_synced(service_name)

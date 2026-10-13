@@ -18,13 +18,13 @@ module Disappearance
     class << self
       def record!(service:, observed_items:, complete_fetch:, observed_at: Time.current,
                   sync_started_at: nil)
-        sync_run_id = if sync_started_at.present?
+        sync_run_id = if sync_started_at.nil?
+          sync_run_id_for(service, at: observed_at)
+        else
           Outbox::SyncRunEmitter.run_id_for(
             service_name: service.service_name,
             sync_started_at: sync_started_at
           )
-        else
-          sync_run_id_for(service, at: observed_at)
         end
         new(service:, observed_items:, sync_run_id:, observed_at:, complete_fetch:).record!
       end
