@@ -13,7 +13,7 @@ area of the epic's issue tree against RDR #215 and the epic's acceptance
 criteria. Closed child issues were treated as claims, not evidence: each
 area below was re-verified in the code, the spec suite, and the docs.
 
-Full suite at audit time: 761 examples, 0 failures, 0 pending, with
+Full suite at audit time: 768 examples, 0 failures, 0 pending, with
 `bundle exec rubocop` clean.
 
 ## Area-by-area evidence
