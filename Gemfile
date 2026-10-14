@@ -128,7 +128,7 @@ group :test do
   gem "faker", "~> 3.8" # https://github.com/faker-ruby/faker
   # Consumer-driven contract tests against TaskBridge Web (#250);
   # the generated pact file is committed under spec/pacts/
-  gem "pact", "~> 1.66", require: false # https://github.com/pact-foundation/pact-ruby
+  gem "pact", "~> 2.1", require: false # https://github.com/pact-foundation/pact-ruby
   gem "rspec-rails"
   gem "selenium-webdriver"
   gem "simplecov", require: false
