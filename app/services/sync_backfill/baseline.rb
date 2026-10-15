@@ -32,9 +32,10 @@ module SyncBackfill
     def enqueue_item(item)
       observed_at = item.first_observed_at || item.last_observed_at || backfilled_at
       identity = baseline_identity(item)
+      snapshot = serialized_snapshot(item)
       OutboxEntry.enqueue(
         record_kind: :item,
-        payload: item_payload(item, identity, observed_at),
+        payload: item_payload(snapshot, identity, observed_at),
         service_type: identity.fetch(:service_type),
         service_instance: identity.fetch(:service_instance),
         external_id: identity.fetch(:external_id),
@@ -42,10 +43,11 @@ module SyncBackfill
         source_updated_at: item.source_updated_at || item.last_modified,
         observed_at:
       )
+      seed_snapshot_baseline(item, snapshot)
     end
 
-    def item_payload(item, identity, observed_at)
-      serialized_snapshot(item).merge(
+    def item_payload(snapshot, identity, observed_at)
+      snapshot.merge(
         source: identity,
         observed_at: timestamp(observed_at),
         provenance: {
@@ -66,6 +68,10 @@ module SyncBackfill
       item.normalized_snapshot.deep_transform_values do |value|
         value.respond_to?(:utc) ? timestamp(value) : value
       end
+    end
+
+    def seed_snapshot_baseline(item, snapshot)
+      item.update_column(:last_snapshot, snapshot) if item.last_snapshot.blank?
     end
 
     def backfill_mappings

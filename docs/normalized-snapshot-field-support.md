@@ -150,7 +150,7 @@ outbox rows or advance the diff baseline.
   every member when the collection's mapping provenance meaningfully
   changes (for example `title_fallback` upgrading to `source_sync_id`).
   Internal confidence values map to the contract's vocabulary
-  (high → `confirmed`; medium/low → `tentative`).
+  (high → `confirmed`; medium → `inferred`; low → `tentative`).
 - **Key uniqueness**: when one observation yields several field transitions,
   each row's idempotency key carries a sequence segment
   (`Outbox::IdempotencyKey`), per the RDR #215 rule for colliding observed
