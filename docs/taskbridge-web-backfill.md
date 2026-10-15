@@ -14,7 +14,7 @@ bundle exec rake task_bridge:backfill_sync_provenance -- --pretend
 
 The backfill records each existing `sync_item` as one current-state `item` snapshot with `provenance.detected_by: backfill` and a `backfilled_at` timestamp. It deliberately does not create historical `observation` events or synthetic `sync_run` rows.
 
-Membership mappings based on high-confidence sync IDs are published as `confirmed`; medium-confidence mappings are published as `inferred`. Low-confidence/title-derived mappings remain in the dry-run report and are withheld from the outbox for later manual cleanup or Web-side review.
+Membership mappings based on high-confidence sync IDs are published as `confirmed`; medium-confidence mappings, including title-derived matches, are published as `inferred`. Low-confidence mappings remain in the dry-run report and are withheld from the outbox for later manual cleanup or Web-side review.
 
 The operation only reads local TaskBridge data and writes local provenance, baseline, and outbox records. It never calls or mutates an external provider. It is safe to rerun: existing baseline rows retain their deterministic idempotency keys.
 
