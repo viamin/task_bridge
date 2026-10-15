@@ -82,6 +82,7 @@ module Outbox
       return false if pretend?
       return false if sync_run_id.blank?
       return false unless PUBLISHED_STATUSES.include?(status)
+      return false if last_attempted_at.nil?
 
       true
     end
@@ -90,7 +91,7 @@ module Outbox
       base.merge(
         "started_at" => started_at,
         "finished_at" => finished_at,
-        "last_attempted_at" => timestamp("last_attempted"),
+        "last_attempted_at" => last_attempted_at,
         "last_successful_at" => timestamp("last_successful"),
         "last_failed_at" => timestamp("last_failed"),
         "status" => status,
@@ -164,6 +165,10 @@ module Outbox
       return nil if raw.blank?
 
       self.class.parse_started_at(raw)&.utc&.iso8601(6)
+    end
+
+    def last_attempted_at
+      @last_attempted_at ||= timestamp("last_attempted")
     end
 
     def summary_value(key)
