@@ -216,20 +216,49 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(mappings).to all(have_attributes(event_type: nil))
   end
 
-  it "is a no-op in dry-run mode and reports items, mappings, confidence, and skipped records" do
-    complete = existing_item(source_item_class("BackfillDryRunItem", "OmniFocus"),
-                             external_id: "of-dry-run", service_name: "OmniFocus")
+  it "is a no-op in dry-run mode and reports planned work by service and mapping confidence" do
+    confirmed = SyncCollection.create!(
+      title: "Confirmed", mapping_method: "source_sync_id", mapping_confidence: "high"
+    )
+    inferred = SyncCollection.create!(
+      title: "Inferred", mapping_method: "title_fallback", mapping_confidence: "medium"
+    )
+    complete = existing_item(
+      source_item_class("BackfillDryRunItem", "OmniFocus"),
+      external_id: "of-dry-run", service_name: "OmniFocus", collection: confirmed
+    )
+    inferred_item = existing_item(
+      source_item_class("BackfillInferredDryRunItem", "Asana"),
+      external_id: "asana-dry-run", service_name: "Asana:work", collection: inferred
+    )
     incomplete = source_item_class("BackfillIncompleteItem", "Asana").create!(
       options: options.merge(service_name: "Asana"), title: "Incomplete", external_id: nil
     )
     incomplete.update_columns(first_observed_at: nil, last_observed_at: nil)
     Thread.current[:global_options] = options.merge(pretend: true)
+    item_states = [complete, inferred_item, incomplete].index_with do |item|
+      item.attributes.slice(*provenance_and_baseline_attributes)
+    end
+    collection_state = confirmed.attributes.slice(*mapping_provenance_attributes)
 
     expect { task.invoke }.to output(
-      /Backfill dry run:.*items.*omnifocus.*mappings.*confidence.*skipped/m
+      /Backfill dry run:.*items: omnifocus=1, asana=1.*mappings: confirmed=1, inferred=1.*skipped: asana=1/m
     ).to_stdout
-    expect(complete.reload.first_observed_at).to be_nil
-    expect(incomplete.reload.first_observed_at).to be_nil
+    item_states.each do |item, state|
+      expect(item.reload.attributes.slice(*provenance_and_baseline_attributes)).to eq(state)
+    end
+    expect(confirmed.reload.attributes.slice(*mapping_provenance_attributes)).to eq(collection_state)
     expect(OutboxEntry).to be_empty
+  end
+
+  def provenance_and_baseline_attributes
+    %w[
+      source_service_name source_service_instance source_service_type source_external_id source_url
+      source_created_at source_updated_at first_observed_at last_observed_at source_metadata last_snapshot updated_at
+    ]
+  end
+
+  def mapping_provenance_attributes
+    %w[mapping_method mapping_confidence mapping_metadata mapping_established_at mapping_last_observed_at updated_at]
   end
 end
