@@ -239,7 +239,9 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     item_states = [complete, inferred_item, incomplete].index_with do |item|
       item.attributes.slice(*provenance_and_baseline_attributes)
     end
-    collection_state = confirmed.attributes.slice(*mapping_provenance_attributes)
+    collection_states = [confirmed, inferred].index_with do |collection|
+      collection.attributes.slice(*mapping_provenance_attributes)
+    end
 
     expect { task.invoke }.to output(
       /Backfill dry run:.*items: omnifocus=1, asana=1.*mappings: confirmed=1, inferred=1.*skipped: asana=1/m
@@ -247,7 +249,9 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     item_states.each do |item, state|
       expect(item.reload.attributes.slice(*provenance_and_baseline_attributes)).to eq(state)
     end
-    expect(confirmed.reload.attributes.slice(*mapping_provenance_attributes)).to eq(collection_state)
+    collection_states.each do |collection, state|
+      expect(collection.reload.attributes.slice(*mapping_provenance_attributes)).to eq(state)
+    end
     expect(OutboxEntry).to be_empty
   end
 
