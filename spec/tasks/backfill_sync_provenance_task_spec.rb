@@ -49,6 +49,10 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     other_item_class
   end
 
+  after do
+    Thread.current[:global_options] = nil
+  end
+
   def source_item_class(constant_name, provider_name)
     stub_const(constant_name, Class.new(Base::SyncItem) do
       define_singleton_method(:attribute_map) { {} }
@@ -219,7 +223,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(mappings).to all(have_attributes(event_type: nil))
   end
 
-  it "is a no-op in dry-run mode and reports planned work by service and mapping confidence" do
+  it "honors --pretend after the rake argument separator without writing changes" do
     confirmed = SyncCollection.create!(
       title: "Confirmed", mapping_method: "source_sync_id", mapping_confidence: "high"
     )
@@ -238,7 +242,6 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       options: options.merge(service_name: "Asana"), title: "Incomplete", external_id: nil
     )
     incomplete.update_columns(first_observed_at: nil, last_observed_at: nil)
-    Thread.current[:global_options] = options.merge(pretend: true)
     item_states = [complete, inferred_item, incomplete].index_with do |item|
       item.attributes.slice(*provenance_and_baseline_attributes)
     end
@@ -246,16 +249,20 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       collection.attributes.slice(*mapping_provenance_attributes)
     end
 
-    expect { task.invoke }.to output(
-      /Backfill dry run:.*items: omnifocus=1, asana=1.*mappings: confirmed=1, inferred=1.*skipped: asana=1/m
-    ).to_stdout
-    item_states.each do |item, state|
-      expect(item.reload.attributes.slice(*provenance_and_baseline_attributes)).to eq(state)
+    expect(Thread.current[:global_options]).to be_nil
+
+    aggregate_failures do
+      expect { invoke_task("task_bridge:backfill_sync_provenance", "--", "--pretend") }.to output(
+        /Backfill dry run:.*items: omnifocus=1, asana=1.*mappings: confirmed=1, inferred=1.*skipped: asana=1/m
+      ).to_stdout
+      item_states.each do |item, state|
+        expect(item.reload.attributes.slice(*provenance_and_baseline_attributes)).to eq(state)
+      end
+      collection_states.each do |collection, state|
+        expect(collection.reload.attributes.slice(*mapping_provenance_attributes)).to eq(state)
+      end
+      expect(OutboxEntry.all).to be_empty
     end
-    collection_states.each do |collection, state|
-      expect(collection.reload.attributes.slice(*mapping_provenance_attributes)).to eq(state)
-    end
-    expect(OutboxEntry.all).to be_empty
   end
 
   def provenance_and_baseline_attributes
@@ -267,5 +274,13 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
 
   def mapping_provenance_attributes
     %w[mapping_method mapping_confidence mapping_metadata mapping_established_at mapping_last_observed_at updated_at]
+  end
+
+  def invoke_task(*args)
+    original_argv = ARGV.dup
+    ARGV.replace(args)
+    task.invoke
+  ensure
+    ARGV.replace(original_argv)
   end
 end
