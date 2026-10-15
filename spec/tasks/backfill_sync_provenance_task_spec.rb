@@ -177,8 +177,10 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     travel_to(Time.zone.parse("2026-10-01T12:00:00Z")) do
       task.invoke
       task.reenable
-      task.invoke
     end
+    original_baseline_rows = OutboxEntry.where(record_kind: "item").order(:id).pluck(:id, :idempotency_key)
+
+    travel_to(Time.zone.parse("2026-10-02T12:00:00Z")) { task.invoke }
 
     expect(OutboxEntry.where(record_kind: "item")).to match_array(
       [
@@ -197,6 +199,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       )
     )
     expect(OutboxEntry.where(record_kind: "item").count).to eq(4)
+    expect(OutboxEntry.where(record_kind: "item").order(:id).pluck(:id, :idempotency_key)).to eq(original_baseline_rows)
   end
 
   it "publishes confirmed and inferred memberships but withholds tentative baseline mappings" do
