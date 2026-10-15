@@ -31,7 +31,7 @@ module Outbox
     end
 
     def emit
-      return [] if item.options[:pretend] || !item.persisted? || item.external_id.blank?
+      return [] if pretend? || !item.persisted? || item.external_id.blank?
 
       rows = observation_rows
       rows.each_with_index do |payload, index|
@@ -78,9 +78,20 @@ module Outbox
 
     def provenance(detected_by)
       { detected_by: }.tap do |provenance|
-        sync_run_id = item.options[:sync_started_at]
-        provenance[:sync_run_id] = "sync-run-#{sync_run_id}" if sync_run_id.present?
+        sync_run_id = Outbox::SyncRunEmitter.run_id_for(
+          service_name: item.service_name,
+          sync_started_at: sync_started_at
+        )
+        provenance[:sync_run_id] = sync_run_id if sync_run_id.present?
       end
+    end
+
+    def sync_started_at
+      item.options[:sync_started_at] || item.options["sync_started_at"]
+    end
+
+    def pretend?
+      item.options[:pretend] == true || item.options["pretend"] == true
     end
 
     def enqueue(payload, sequence:)

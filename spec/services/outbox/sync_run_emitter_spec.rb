@@ -1,0 +1,392 @@
+# frozen_string_literal: true
+
+require "rails_helper"
+
+# Red specs for the RDR #215 "Sync-Run Summary Schema" producer, written
+# during the #214 final audit: the `sync_run` record kind is supported
+# end to end (OutboxEntry validation, Outbox::IdempotencyKey's
+# `tb:v1:sync_run:...` format, WebPublisher::Batch's `sync_runs` array,
+# and the Pact contract), and the producer (Outbox::SyncRunEmitter) plus
+# its sync-task wiring in lib/tasks/sync.rake now enqueue rows on every
+# successful or failed service run (see docs/epic-214-final-audit.md).
+RSpec.describe "Outbox::SyncRunEmitter sync-run summary rows" do
+  include ActiveSupport::Testing::TimeHelpers
+
+  let(:finished_at) { Time.zone.parse("2026-10-05T10:05:00Z") }
+  let(:started_at) { "2026-10-05T10:00:00.000000Z" }
+  let(:options) { { sync_started_at: started_at, pretend: false } }
+  let(:summary) do
+    {
+      service: "Asana:work",
+      status: "success",
+      items_synced: 12,
+      last_attempted: started_at,
+      last_successful: "2026-10-05T10:04:58.000000Z",
+      last_failed: nil,
+      detail: "12 items processed"
+    }
+  end
+  let(:logs) do
+    [{
+      "service" => "Asana:work",
+      "status" => "success",
+      "items_synced" => 12,
+      "last_attempted" => started_at,
+      "last_successful" => started_at,
+      "touched_collection_ids" => [91, 84, 91]
+    }.stringify_keys]
+  end
+
+  def emit(service_name: summary[:service], summary: self.summary, logs: self.logs, options: self.options)
+    travel_to(finished_at) do
+      Outbox::SyncRunEmitter.emit_for_run(service_name:, summary:, logs:, options:)
+    end
+  end
+
+  it "enqueues one sync-run summary row for a successful run" do
+    emit
+
+    row = OutboxEntry.find_by(record_kind: "sync_run")
+    expect(row).to have_attributes(
+      service_type: "asana",
+      service_instance: "asana:work",
+      observed_at: finished_at,
+      payload_version: 1
+    )
+    expect(row.idempotency_key).to eq("tb:v1:sync_run:asana:work:sync-run-20261005T100000Z-asana_work")
+    expect(row.payload).to include(
+      "contract_version" => 1,
+      "sync_run_id" => "sync-run-20261005T100000Z-asana_work",
+      "service_type" => "asana",
+      "service_instance" => "asana:work",
+      "started_at" => started_at,
+      "finished_at" => "2026-10-05T10:05:00.000000Z",
+      "last_attempted_at" => started_at,
+      "last_successful_at" => "2026-10-05T10:04:58.000000Z",
+      "last_failed_at" => nil,
+      "status" => "success",
+      "items_synced" => 12,
+      "touched_collection_ids" => [84, 91],
+      "detail" => "12 items processed",
+      "error" => nil
+    )
+  end
+
+  it "publishes symbol-valued statuses from Ruby service summaries" do
+    emit(summary: summary.merge(status: :success))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["status"]).to eq("success")
+  end
+
+  it "accepts a Time-valued run start from programmatic callers" do
+    emit(options: options.merge(sync_started_at: finished_at - 5.minutes))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload).to include(
+      "sync_run_id" => "sync-run-20261005T100000Z-asana_work",
+      "started_at" => "2026-10-05T10:00:00.000000Z"
+    )
+  end
+
+  it "accepts string-keyed options from programmatic callers" do
+    emit(options: { "sync_started_at" => started_at, "pretend" => false })
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload).to include(
+      "sync_run_id" => "sync-run-20261005T100000Z-asana_work",
+      "started_at" => started_at
+    )
+  end
+
+  it "falls back to a string-keyed run start when a default symbol key is nil" do
+    emit(options: options.merge(sync_started_at: nil, "sync_started_at" => started_at))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload).to include(
+      "sync_run_id" => "sync-run-20261005T100000Z-asana_work",
+      "started_at" => started_at
+    )
+  end
+
+  it "defaults malformed or negative item counts to zero" do
+    emit(summary: summary.merge(items_synced: "12 tasks"))
+
+    row = OutboxEntry.find_by(record_kind: "sync_run")
+    expect(row.payload).to include("items_synced" => 0, "detail" => "No changes detected")
+  end
+
+  it "does not publish a negative item count" do
+    emit(summary: summary.merge(items_synced: -1))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["items_synced"]).to eq(0)
+  end
+
+  it "uses the bare service family when the service has no instance name" do
+    emit(service_name: "Asana")
+
+    row = OutboxEntry.find_by(record_kind: "sync_run")
+    expect(row).to have_attributes(service_type: "asana", service_instance: "asana")
+    expect(row.idempotency_key).to eq("tb:v1:sync_run:asana:sync-run-20261005T100000Z-asana")
+  end
+
+  it "keeps distinct run IDs for starts within the same second" do
+    first = Outbox::SyncRunEmitter.run_id_for(service_name: "Asana", sync_started_at: "2026-10-05T10:00:00.000001Z")
+    second = Outbox::SyncRunEmitter.run_id_for(service_name: "Asana", sync_started_at: "2026-10-05T10:00:00.000002Z")
+
+    expect(first).to eq("sync-run-20261005T100000.000001Z-asana")
+    expect(second).to eq("sync-run-20261005T100000.000002Z-asana")
+  end
+
+  it "does not build a malformed run ID without a service name" do
+    run_id = Outbox::SyncRunEmitter.run_id_for(service_name: "", sync_started_at: started_at)
+
+    expect(run_id).to be_nil
+  end
+
+  it "treats whitespace-only service names as blank" do
+    run_id = Outbox::SyncRunEmitter.run_id_for(service_name: "   ", sync_started_at: started_at)
+
+    expect(run_id).to be_nil
+  end
+
+  it "does not build a run ID for a service name without a service family" do
+    run_id = Outbox::SyncRunEmitter.run_id_for(service_name: ":work", sync_started_at: started_at)
+
+    expect(run_id).to be_nil
+  end
+
+  it "strips surrounding whitespace from service names before deriving the run id" do
+    run_id = Outbox::SyncRunEmitter.run_id_for(service_name: "  Asana  ", sync_started_at: started_at)
+
+    expect(run_id).to eq("sync-run-20261005T100000Z-asana")
+  end
+
+  it "publishes failed runs with a structured error marked non-retryable" do
+    emit(summary: summary.merge(
+      status: "failed",
+      last_successful: nil,
+      last_failed: "2026-10-05T10:04:59.000000Z",
+      detail: "ProviderError: 401 unauthorized"
+    ), logs: [logs.first.merge(
+      "status" => "failed",
+      "error_class" => "ProviderError",
+      "error_message" => "401 unauthorized"
+    )])
+
+    row = OutboxEntry.find_by(record_kind: "sync_run")
+    expect(row.payload).to include(
+      "status" => "failed",
+      "last_successful_at" => nil,
+      "last_failed_at" => "2026-10-05T10:04:59.000000Z",
+      "error" => {
+        "class" => "ProviderAuthenticationError",
+        "message" => "The provider rejected the request",
+        "retryable" => false
+      }
+    )
+  end
+
+  it "marks authorization-class failures non-retryable" do
+    emit(summary: summary.merge(status: "failed"), logs: [logs.first.merge(
+      "status" => "failed",
+      "error_class" => "Google::Apis::AuthorizationError",
+      "error_message" => "credentials are no longer valid"
+    )])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload.dig("error", "retryable")).to be(false)
+  end
+
+  it "uses the failing log when an earlier sync operation succeeded" do
+    emit(
+      summary: summary.merge(status: "failed"),
+      logs: [
+        logs.first,
+        logs.first.merge(
+          "status" => "failed",
+          "error_class" => "ProviderError",
+          "error_message" => "503 unavailable"
+        )
+      ]
+    )
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["error"]).to eq(
+      "class" => "ProviderError", "message" => "The provider request failed", "retryable" => true
+    )
+  end
+
+  it "marks rate-limit failures retryable even though 429 is a 4xx status" do
+    emit(
+      summary: summary.merge(status: "failed"),
+      logs: [logs.first.merge(
+        "status" => "failed",
+        "error_class" => "ProviderError",
+        "error_message" => "429 too many requests"
+      )]
+    )
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["error"]).to eq(
+      "class" => "ProviderError", "message" => "The provider request failed", "retryable" => true
+    )
+  end
+
+  it "reads failed error details from symbol-keyed logs" do
+    failed_log = {
+      status: "failed",
+      error_class: "ProviderError",
+      error_message: "401 unauthorized"
+    }
+    emit(summary: summary.merge(status: "failed"), logs: [failed_log])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["error"]).to eq(
+      "class" => "ProviderAuthenticationError",
+      "message" => "The provider rejected the request",
+      "retryable" => false
+    )
+  end
+
+  it "falls back to symbol-keyed error details when an optional string key is nil" do
+    failed_log = {
+      "status" => "failed",
+      "error_message" => nil,
+      error_class: "ProviderError",
+      error_message: "401 unauthorized"
+    }
+    emit(summary: summary.merge(status: "failed"), logs: [failed_log])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["error"]).to eq(
+      "class" => "ProviderAuthenticationError",
+      "message" => "The provider rejected the request",
+      "retryable" => false
+    )
+  end
+
+  it "ignores empty log entries when collecting touched collections" do
+    emit(logs: [nil, logs.first])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["touched_collection_ids"]).to eq([84, 91])
+  end
+
+  it "ignores malformed collection identifiers when collecting touched collections" do
+    emit(logs: [logs.first.merge("touched_collection_ids" => [91, "84", 0, -1, nil])])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["touched_collection_ids"]).to eq([91])
+  end
+
+  it "ignores unstructured log entries" do
+    emit(logs: ["provider diagnostic", logs.first])
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["touched_collection_ids"]).to eq([84, 91])
+  end
+
+  it "does not publish skipped or idle services" do
+    aggregate_failures do
+      emit(summary: summary.merge(status: "skipped"))
+      emit(summary: summary.merge(status: "idle"))
+      emit(service_name: "Asana:personal", summary: summary.merge(status: "skipped"))
+
+      expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    end
+  end
+
+  it "ignores malformed summaries without interrupting publication" do
+    expect { emit(summary: "unexpected summary") }.not_to raise_error
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
+  it "ignores malformed options without interrupting publication" do
+    expect { emit(options: "unexpected options") }.not_to raise_error
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
+  it "does not publish pretend runs" do
+    emit(options: options.merge(pretend: true))
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
+  it "does not publish string-keyed pretend runs" do
+    emit(options: { "sync_started_at" => started_at, "pretend" => true })
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
+  it "does not publish when a string-keyed pretend option overrides a default false symbol key" do
+    emit(options: options.merge("pretend" => true))
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
+  it "does not mistake a string false value for pretend mode" do
+    emit(options: { "sync_started_at" => started_at, "pretend" => "false" })
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to contain_exactly(an_instance_of(OutboxEntry))
+  end
+
+  it "does not publish when the run has no deterministic started_at" do
+    emit(options: options.merge(sync_started_at: nil))
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
+  it "does not publish when the run timestamp is invalid" do
+    emit(options: options.merge(sync_started_at: "not-a-timestamp"))
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
+  it "does not publish when the run timestamp has no timezone" do
+    emit(options: options.merge(sync_started_at: "2026-10-05T10:00:00"))
+
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+  end
+
+  it "omits malformed optional summary timestamps" do
+    emit(summary: summary.merge(last_successful: "not-a-timestamp"))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["last_successful_at"]).to be_nil
+  end
+
+  it "omits timezone-less optional summary timestamps" do
+    emit(summary: summary.merge(last_successful: "2026-10-05T10:04:58"))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["last_successful_at"]).to be_nil
+  end
+
+  it "normalizes Time-valued optional summary timestamps" do
+    emit(summary: summary.merge(last_successful: finished_at - 2.seconds))
+
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload["last_successful_at"])
+      .to eq("2026-10-05T10:04:58.000000Z")
+  end
+
+  it "re-emitting the same run dedupes to the stored row" do
+    emit
+    original = OutboxEntry.find_by(record_kind: "sync_run")
+
+    expect { emit(summary: summary.merge(items_synced: 13)) }.not_to(change { OutboxEntry.where(record_kind: "sync_run").count })
+    expect(OutboxEntry.find_by(record_kind: "sync_run").payload).to eq(original.payload)
+  end
+
+  it "does not publish provider-provided operational text" do
+    long_detail = ("a" * 600)
+    emit(summary: summary.merge(status: "failed", detail: long_detail), logs: [logs.first.merge("error_message" => long_detail)])
+
+    row = OutboxEntry.find_by(record_kind: "sync_run")
+    expect(row.payload["detail"]).to eq("Sync failed")
+    expect(row.payload["error"]["message"]).to eq("The provider request failed")
+  end
+
+  it "does not expose credentials or raw provider payloads" do
+    sensitive_detail = 'Authorization: Bearer detail-secret response: {"access_token":"response-secret"}'
+    sensitive_error = 'cookie=session-secret access_token=error-secret payload: {"title":"provider response"}'
+    emit(summary: summary.merge(status: "failed", detail: sensitive_detail), logs: [logs.first.merge(
+      "status" => "failed", "error_message" => sensitive_error
+    )])
+
+    row = OutboxEntry.find_by(record_kind: "sync_run")
+    published_text = [row.payload["detail"], row.payload.dig("error", "message")].join(" ")
+
+    expect(published_text).not_to include(
+      "detail-secret", "response-secret", "session-secret", "error-secret", "provider response"
+    )
+  end
+end

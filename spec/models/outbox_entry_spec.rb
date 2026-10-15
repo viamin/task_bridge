@@ -140,6 +140,15 @@ RSpec.describe OutboxEntry, type: :model do
         expect(described_class.count).to eq(0)
       end
     end
+
+    context "when pretend is provided with a string key" do
+      before { Thread.current[:global_options] = { "pretend" => true } }
+
+      it "is a strict no-op and writes no outbox rows" do
+        expect(enqueue_entry).to be_nil
+        expect(described_class.count).to eq(0)
+      end
+    end
   end
 
   describe "validations" do

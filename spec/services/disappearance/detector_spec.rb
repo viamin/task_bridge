@@ -20,7 +20,7 @@ RSpec.describe Disappearance::Detector do
   end
   let(:logger) { instance_double(StructuredLogger, sync_data_for: {}, last_synced: Time.current - 1.hour) }
   let(:options) do
-    { logger:, quiet: true, pretend: false, debug: false, primary: "Omnifocus", services: [], tags: ["TaskBridge"] }
+    { logger:, quiet: true, pretend: false, debug: false, primary: "Omnifocus", services: [], tags: ["TaskBridge"], sync_started_at: "2026-10-05T19:00:00.000000Z" }
   end
   let(:service_class) do
     stub_const("DetectorSpecService", Class.new(Base::Service) do
@@ -69,7 +69,17 @@ RSpec.describe Disappearance::Detector do
   let(:strategy) { Disappearance::Strategy.full_list_absence(state: "source_deleted", confidence: "high") }
   let(:verifier) { ->(_item) {} }
   let(:observed_at) { Time.zone.parse("2026-10-05T19:30:00Z") }
-  let(:sync_run_id) { "sync-run-20261005T193000Z-detector_service" }
+  let(:sync_run_id) { "sync-run-20261005T190000Z-detector_service" }
+
+  def record_with(observed_items, complete_fetch: true, at: observed_at, sync_started_at: nil)
+    described_class.record!(
+      service:,
+      observed_items:,
+      complete_fetch:,
+      observed_at: at,
+      sync_started_at: sync_started_at || options[:sync_started_at]
+    )
+  end
 
   def persisted_item(external_id, attributes = {})
     sync_item_class.create!(
@@ -79,15 +89,6 @@ RSpec.describe Disappearance::Detector do
 
   def observed_wrapper(external_id)
     sync_item_class.new(external_id:, source_service_name: service.service_name)
-  end
-
-  def record_with(observed_items, complete_fetch: true, at: observed_at)
-    described_class.record!(
-      service:,
-      observed_items:,
-      complete_fetch:,
-      observed_at: at
-    )
   end
 
   def observations
@@ -153,6 +154,34 @@ RSpec.describe Disappearance::Detector do
           "sync_run_id" => sync_run_id
         )
       )
+    end
+
+    it "links tombstones from string-keyed programmatic run options" do
+      persisted_item("det-missing")
+      service.options = options.merge(sync_started_at: nil, "sync_started_at" => options[:sync_started_at])
+
+      entry = service.record_source_disappearances!([], only_modified_dates: false).first
+
+      expect(entry.payload.dig("provenance", "sync_run_id")).to eq(sync_run_id)
+    end
+
+    it "omits an invalid sync run ID from tombstone provenance and markers" do
+      item = persisted_item("det-missing")
+
+      entry = record_with([], sync_started_at: "not-a-timestamp").first
+
+      expect(entry.payload.fetch("provenance")).not_to have_key("sync_run_id")
+      expect(item.reload.disappearance_observation).not_to have_key("sync_run_id")
+    end
+
+    it "omits a false-valued sync run ID from tombstone provenance and markers" do
+      item = persisted_item("det-missing")
+      service.options = options.merge(sync_started_at: false)
+
+      entry = service.record_source_disappearances!([], only_modified_dates: false).first
+
+      expect(entry.payload.fetch("provenance")).not_to have_key("sync_run_id")
+      expect(item.reload.disappearance_observation).not_to have_key("sync_run_id")
     end
 
     it "does not re-emit the same state on a later run" do
@@ -263,6 +292,14 @@ RSpec.describe Disappearance::Detector do
     it "emits nothing in pretend mode" do
       persisted_item("det-guard")
       service.options = options.merge(pretend: true)
+
+      expect(record_with([])).to be_empty
+      expect(observations.count).to eq(0)
+    end
+
+    it "honors string-keyed pretend options" do
+      persisted_item("det-guard")
+      service.options = options.merge("pretend" => true)
 
       expect(record_with([])).to be_empty
       expect(observations.count).to eq(0)

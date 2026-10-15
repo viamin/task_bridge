@@ -22,6 +22,15 @@ RSpec.describe Outbox::WebPublisher::Config do
       expect(config.batch_size).to eq(described_class::DEFAULT_BATCH_SIZE)
       expect(config.timeout_seconds).to eq(described_class::DEFAULT_TIMEOUT_SECONDS)
     end
+
+    it "falls back to disabled defaults when Chamber settings are malformed" do
+      allow(Chamber).to receive(:dig).with(:task_bridge, :web).and_return("unexpected")
+
+      config = described_class.resolve("unexpected")
+
+      expect(config.enabled?).to be(false)
+      expect(config.batch_size).to eq(described_class::DEFAULT_BATCH_SIZE)
+    end
   end
 
   describe "overrides" do
@@ -41,6 +50,38 @@ RSpec.describe Outbox::WebPublisher::Config do
       expect(config.batch_size).to eq(1)
       expect(config.timeout_seconds).to eq(1)
     end
+
+    it "uses defaults for malformed numeric settings" do
+      config = described_class.resolve("batch_size" => 1.5, "timeout_seconds" => "not-a-number")
+
+      expect(config.batch_size).to eq(described_class::DEFAULT_BATCH_SIZE)
+      expect(config.timeout_seconds).to eq(described_class::DEFAULT_TIMEOUT_SECONDS)
+    end
+
+    it "casts string booleans supplied through environment configuration" do
+      disabled = described_class.resolve("enabled" => "false", "dry_run" => "false")
+      dry_run = described_class.resolve("enabled" => "true", "dry_run" => "true")
+
+      expect(disabled.enabled?).to be(false)
+      expect(disabled.dry_run?).to be(false)
+      expect(dry_run.enabled?).to be(true)
+      expect(dry_run.dry_run?).to be(true)
+    end
+
+    it "treats unrecognized boolean values as disabled" do
+      config = described_class.resolve("enabled" => "definitely", "dry_run" => [true])
+
+      expect(config.enabled?).to be(false)
+      expect(config.dry_run?).to be(false)
+    end
+
+    it "treats non-string credentials and base URLs as absent" do
+      config = described_class.resolve("enabled" => true, "base_url" => 42, "api_key" => [:key])
+
+      expect(config.base_url).to be_nil
+      expect(config.api_key).to be_nil
+      expect(config).to be_incomplete
+    end
   end
 
   describe "#uri" do
@@ -51,9 +92,14 @@ RSpec.describe Outbox::WebPublisher::Config do
         .to eq("http://localhost:3000")
     end
 
-    it "returns nil for non-http schemes and malformed URLs" do
+    it "returns nil for unsafe or incomplete base URLs" do
       expect(described_class.resolve("base_url" => "ftp://web.example.com").uri).to be_nil
       expect(described_class.resolve("base_url" => "not a url://").uri).to be_nil
+      expect(described_class.resolve("base_url" => "https:///ingestion").uri).to be_nil
+      expect(described_class.resolve("base_url" => "https:taskbridge-web.example.com").uri).to be_nil
+      expect(described_class.resolve("base_url" => "https://user:password@web.example.com").uri).to be_nil
+      expect(described_class.resolve("base_url" => "https://web.example.com?tenant=work").uri).to be_nil
+      expect(described_class.resolve("base_url" => "https://web.example.com#ingestion").uri).to be_nil
       expect(described_class.resolve.uri).to be_nil
     end
   end
@@ -63,6 +109,7 @@ RSpec.describe Outbox::WebPublisher::Config do
       expect(described_class.resolve("enabled" => true).incomplete?).to be(true)
       expect(described_class.resolve("enabled" => true, "base_url" => "https://web.example.com").incomplete?).to be(true)
       expect(described_class.resolve("enabled" => true, "base_url" => "nope", "api_key" => "key").incomplete?).to be(true)
+      expect(described_class.resolve("enabled" => true, "base_url" => "https:///ingestion", "api_key" => "key").incomplete?).to be(true)
     end
 
     it "is false when disabled, dry-running, or fully configured" do

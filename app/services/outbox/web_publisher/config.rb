@@ -13,36 +13,41 @@ module Outbox
       DEFAULT_TIMEOUT_SECONDS = 30
 
       def self.resolve(overrides = {})
-        settings = (Chamber.dig(:task_bridge, :web) || {}).stringify_keys
-        new(settings.merge(overrides))
+        settings = Chamber.dig(:task_bridge, :web)
+        new(hash_settings(settings).merge(hash_settings(overrides)))
       end
 
+      def self.hash_settings(settings)
+        settings.is_a?(Hash) ? settings.stringify_keys : {}
+      end
+      private_class_method :hash_settings
+
       def initialize(settings = {})
-        @settings = settings.stringify_keys
+        @settings = settings.is_a?(Hash) ? settings.stringify_keys : {}
       end
 
       def enabled?
-        settings.fetch("enabled", false)
+        boolean_setting("enabled")
       end
 
       def dry_run?
-        settings.fetch("dry_run", false)
+        boolean_setting("dry_run")
       end
 
       def base_url
-        settings["base_url"].presence&.strip
+        string_setting("base_url")
       end
 
       def api_key
-        settings["api_key"].presence
+        string_setting("api_key")
       end
 
       def batch_size
-        settings.fetch("batch_size", DEFAULT_BATCH_SIZE).to_i.clamp(1..)
+        positive_integer_setting("batch_size", DEFAULT_BATCH_SIZE)
       end
 
       def timeout_seconds
-        settings.fetch("timeout_seconds", DEFAULT_TIMEOUT_SECONDS).to_i.clamp(1..)
+        positive_integer_setting("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)
       end
 
       # Whether a run is enabled but cannot send: surface this to the
@@ -56,7 +61,7 @@ module Outbox
         return @uri if defined?(@uri)
 
         parsed = URI.parse(base_url.to_s)
-        @uri = parsed.is_a?(URI::HTTP) || parsed.is_a?(URI::HTTPS) ? parsed : nil
+        @uri = valid_http_uri?(parsed) ? parsed : nil
       rescue URI::InvalidURIError
         @uri = nil
       end
@@ -67,6 +72,38 @@ module Outbox
 
       def complete?
         base_url.present? && api_key.present? && uri.present?
+      end
+
+      def valid_http_uri?(parsed)
+        (parsed.is_a?(URI::HTTP) || parsed.is_a?(URI::HTTPS)) &&
+          parsed.host.present? &&
+          parsed.userinfo.blank? &&
+          parsed.query.blank? &&
+          parsed.fragment.blank?
+      end
+
+      def boolean_setting(key)
+        value = settings.fetch(key, false)
+        return value if [true, false].include?(value)
+        return value.strip.casecmp?("true") if value.is_a?(String) && %w[true false].include?(value.strip.downcase)
+
+        false
+      end
+
+      def string_setting(key)
+        value = settings[key]
+        value.strip.presence if value.is_a?(String)
+      end
+
+      def positive_integer_setting(key, default)
+        value = integer_setting(settings[key])
+        value ? value.clamp(1..) : default
+      end
+
+      def integer_setting(value)
+        return value if value.is_a?(Integer)
+
+        Integer(value, exception: false) if value.is_a?(String)
       end
     end
   end

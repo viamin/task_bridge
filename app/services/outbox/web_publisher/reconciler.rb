@@ -18,7 +18,11 @@ module Outbox
       end
 
       def initialize(entries, results, now)
-        @results_by_key = Array(results).grep(Hash).index_by { |result| result["idempotency_key"] }
+        valid_results = Array(results).grep(Hash)
+        @results_by_key = valid_results.index_by { |result| result["idempotency_key"] }
+        @duplicate_result_keys = valid_results
+                                 .group_by { |result| result["idempotency_key"] }
+                                 .select { |_key, matches| matches.many? }
         @entries = entries
         @now = now
       end
@@ -32,6 +36,8 @@ module Outbox
       private
 
       def outcome_for(entry)
+        return record_ambiguous_result(entry) if duplicate_result_keys.key?(entry.idempotency_key)
+
         result = @results_by_key[entry.idempotency_key]
         return record_missing_result(entry) if result.nil?
         return deliver(entry) if DELIVERED_STATUSES.include?(result["status"])
@@ -49,6 +55,18 @@ module Outbox
         entry.record_publication_failure!(
           error_class: "missing_result",
           error_message: "no result entry returned for this row",
+          retryable: true,
+          now: @now
+        )
+        :retryable
+      end
+
+      # A malformed response can contain conflicting outcomes for one row.
+      # Never let result ordering decide whether that row was delivered.
+      def record_ambiguous_result(entry)
+        entry.record_publication_failure!(
+          error_class: "duplicate_result",
+          error_message: "multiple result entries returned for this row",
           retryable: true,
           now: @now
         )
@@ -79,6 +97,8 @@ module Outbox
         )
         :retryable
       end
+
+      attr_reader :duplicate_result_keys
     end
   end
 end
