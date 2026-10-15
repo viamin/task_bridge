@@ -31,7 +31,7 @@ module SyncBackfill
 
     def enqueue_item(item)
       observed_at = item.first_observed_at || item.last_observed_at || backfilled_at
-      identity = baseline_identity(item)
+      identity = Outbox::SourceIdentity.for_backfill(item)
       snapshot = serialized_snapshot(item)
       OutboxEntry.enqueue(
         record_kind: :item,
@@ -57,13 +57,6 @@ module SyncBackfill
       )
     end
 
-    def baseline_identity(item)
-      identity = Outbox::SourceIdentity.for(item)
-      return identity unless identity.fetch(:service_instance) == identity.fetch(:service_type)
-
-      identity.merge(service_instance: "#{identity.fetch(:service_type)}:default")
-    end
-
     def serialized_snapshot(item)
       item.normalized_snapshot.deep_transform_values do |value|
         value.respond_to?(:utc) ? timestamp(value) : value
@@ -78,7 +71,7 @@ module SyncBackfill
       SyncCollection.includes(:sync_items).find_each do |collection|
         next unless eligible_mapping?(collection)
 
-        Outbox::MappingEmitter.emit_for_members(
+        Outbox::MappingEmitter.emit_backfill_for_members(
           collection,
           members: collection.sync_items,
           observed_at: collection.mapping_established_at || collection.created_at || backfilled_at

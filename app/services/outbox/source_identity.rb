@@ -24,6 +24,13 @@ module Outbox
       }
     end
 
+    def for_backfill(item)
+      identity = self.for(item)
+      return identity unless identity.fetch(:service_instance) == identity.fetch(:service_type)
+
+      identity.merge(service_instance: "#{identity.fetch(:service_type)}:default")
+    end
+
     def canonical_service_type(provider)
       identifier = Base::Service.service_identifier_for(provider)
       CANONICAL_SERVICE_TYPES.fetch(identifier, identifier)

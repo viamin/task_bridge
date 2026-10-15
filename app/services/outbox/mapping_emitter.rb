@@ -28,9 +28,17 @@ module Outbox
     }.freeze
 
     def self.emit_for_members(collection, members:, observed_at: Time.current)
+      emit(collection, members:, observed_at:, identity_for: Outbox::SourceIdentity.method(:for))
+    end
+
+    def self.emit_backfill_for_members(collection, members:, observed_at: Time.current)
+      emit(collection, members:, observed_at:, identity_for: Outbox::SourceIdentity.method(:for_backfill))
+    end
+
+    def self.emit(collection, members:, observed_at:, identity_for:)
       Array(members).select { |member| eligible?(member) }.each do |member|
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
-          identity = Outbox::SourceIdentity.for(member)
+          identity = identity_for.call(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
             payload: payload(collection, member, identity, observed_at),
@@ -39,6 +47,7 @@ module Outbox
         end
       end
     end
+    private_class_method :emit
 
     class << self
       private
