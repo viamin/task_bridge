@@ -6,6 +6,11 @@ module Outbox
   # The values are opaque to consumers: they must not be parsed by splitting
   # on `:` because segments may themselves contain colons.
   module SourceIdentity
+    CANONICAL_SERVICE_TYPES = {
+      "git_hub" => "github",
+      "omni_focus" => "omnifocus"
+    }.freeze
+
     module_function
 
     def for(item)
@@ -21,7 +26,7 @@ module Outbox
 
     def canonical_service_type(provider)
       identifier = Base::Service.service_identifier_for(provider)
-      identifier == "omni_focus" ? "omnifocus" : identifier
+      CANONICAL_SERVICE_TYPES.fetch(identifier, identifier)
     end
   end
 end

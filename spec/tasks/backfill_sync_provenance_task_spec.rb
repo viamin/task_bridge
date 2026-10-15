@@ -186,7 +186,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       [
         have_attributes(service_type: "omnifocus", service_instance: "omnifocus:default", external_id: omnifocus.external_id),
         have_attributes(service_type: "asana", service_instance: "asana:default", external_id: asana.external_id),
-        have_attributes(service_type: "git_hub", service_instance: "git_hub:default", external_id: github.external_id),
+        have_attributes(service_type: "github", service_instance: "github:default", external_id: github.external_id),
         have_attributes(service_type: "google_tasks", service_instance: "google_tasks:default", external_id: google_tasks.external_id)
       ]
     )
