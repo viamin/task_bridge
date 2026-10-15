@@ -9,7 +9,7 @@ module Outbox
     module_function
 
     def for(item)
-      service_type = Base::Service.service_identifier_for(item.provider)
+      service_type = canonical_service_type(item.provider)
 
       {
         service_type:,
@@ -17,6 +17,11 @@ module Outbox
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
+    end
+
+    def canonical_service_type(provider)
+      identifier = Base::Service.service_identifier_for(provider)
+      identifier == "omni_focus" ? "omnifocus" : identifier
     end
   end
 end

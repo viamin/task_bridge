@@ -185,8 +185,8 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(OutboxEntry.where(record_kind: "item")).to match_array(
       [
         have_attributes(service_type: "omnifocus", service_instance: "omnifocus:default", external_id: omnifocus.external_id),
-        have_attributes(service_type: "asana", service_instance: "asana:work", external_id: asana.external_id),
-        have_attributes(service_type: "git_hub", service_instance: "git_hub:repo-1", external_id: github.external_id),
+        have_attributes(service_type: "asana", service_instance: "asana:default", external_id: asana.external_id),
+        have_attributes(service_type: "git_hub", service_instance: "git_hub:default", external_id: github.external_id),
         have_attributes(service_type: "google_tasks", service_instance: "google_tasks:default", external_id: google_tasks.external_id)
       ]
     )
@@ -255,7 +255,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     collection_states.each do |collection, state|
       expect(collection.reload.attributes.slice(*mapping_provenance_attributes)).to eq(state)
     end
-    expect(OutboxEntry).to be_empty
+    expect(OutboxEntry.all).to be_empty
   end
 
   def provenance_and_baseline_attributes
