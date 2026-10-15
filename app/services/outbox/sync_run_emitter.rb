@@ -168,7 +168,7 @@ module Outbox
     end
 
     def last_attempted_at
-      @last_attempted_at ||= timestamp("last_attempted")
+      @last_attempted_at ||= timestamp("last_attempted") || started_at
     end
 
     def summary_value(key)
