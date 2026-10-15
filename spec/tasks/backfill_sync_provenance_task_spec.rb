@@ -4,6 +4,8 @@ require "rails_helper"
 require "rake"
 
 RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
+  include ActiveSupport::Testing::TimeHelpers
+
   before(:all) do
     Rails.application.load_tasks unless Rake::Task.task_defined?("task_bridge:backfill_sync_provenance")
   end
@@ -45,6 +47,40 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     allow(SyncBackfill::SourceProvenance).to receive(:run!).and_call_original
     test_item_class
     other_item_class
+  end
+
+  def source_item_class(constant_name, provider_name)
+    stub_const(constant_name, Class.new(Base::SyncItem) do
+      define_singleton_method(:attribute_map) { {} }
+
+      define_method(:provider) { provider_name }
+      define_method(:external_data) { {} }
+    end)
+  end
+
+  def existing_item(item_class, external_id:, service_name:, collection: nil)
+    item = item_class.create!(
+      options: options.merge(service_name:),
+      title: "Existing #{external_id}",
+      external_id:,
+      notes: "Existing notes",
+      last_modified: Time.zone.parse("2026-09-01T10:00:00Z"),
+      sync_collection: collection
+    )
+    item.update_columns(
+      source_service_name: nil,
+      source_service_instance: nil,
+      source_service_type: nil,
+      source_external_id: nil,
+      source_url: nil,
+      source_created_at: nil,
+      source_updated_at: nil,
+      first_observed_at: nil,
+      last_observed_at: nil,
+      source_metadata: nil,
+      last_snapshot: nil
+    )
+    item
   end
 
   it "backfills explicit source and mapping provenance idempotently" do
@@ -124,5 +160,76 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(target_item.reload.last_observed_at).to eq(first_run[:target_observed_at])
     expect(collection.reload.mapping_last_observed_at).to eq(first_run[:collection_observed_at])
     expect(collection.updated_at).to eq(first_run[:collection_updated_at])
+  end
+
+  it "seeds idempotent baseline snapshots for existing OmniFocus, Asana, GitHub, and Google Tasks items" do
+    omnifocus = existing_item(
+      source_item_class("BackfillOmniFocusItem", "OmniFocus"),
+      external_id: "of-1", service_name: "OmniFocus"
+    )
+    asana = existing_item(source_item_class("BackfillAsanaItem", "Asana"),
+                          external_id: "asana-1", service_name: "Asana:work")
+    github = existing_item(source_item_class("BackfillGitHubItem", "GitHub"),
+                           external_id: "issue-1", service_name: "GitHub:repo-1")
+    google_tasks = existing_item(source_item_class("BackfillGoogleTasksItem", "Google Tasks"),
+                                 external_id: "google-1", service_name: "Google Tasks")
+
+    travel_to(Time.zone.parse("2026-10-01T12:00:00Z")) do
+      task.invoke
+      task.reenable
+      task.invoke
+    end
+
+    expect(OutboxEntry.where(record_kind: "item")).to match_array(
+      [
+        have_attributes(service_type: "omnifocus", service_instance: "omnifocus:default", external_id: omnifocus.external_id),
+        have_attributes(service_type: "asana", service_instance: "asana:work", external_id: asana.external_id),
+        have_attributes(service_type: "git_hub", service_instance: "git_hub:repo-1", external_id: github.external_id),
+        have_attributes(service_type: "google_tasks", service_instance: "google_tasks:default", external_id: google_tasks.external_id)
+      ]
+    )
+    expect(OutboxEntry.where(record_kind: "observation")).to be_empty
+    expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
+    expect(OutboxEntry.where(record_kind: "item").pluck(:idempotency_key)).to all(include(":snapshot:"))
+    expect(OutboxEntry.where(record_kind: "item").pluck(:payload)).to all(
+      include(
+        "provenance" => include("detected_by" => "backfill", "backfilled_at" => "2026-10-01T12:00:00.000000Z")
+      )
+    )
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(4)
+  end
+
+  it "publishes confirmed and inferred memberships but withholds tentative baseline mappings" do
+    confirmed = SyncCollection.create!(title: "Confirmed", mapping_method: "source_sync_id", mapping_confidence: "high")
+    inferred = SyncCollection.create!(title: "Inferred", mapping_method: "title_fallback", mapping_confidence: "medium")
+    tentative = SyncCollection.create!(title: "Tentative", mapping_method: "title_fallback", mapping_confidence: "low")
+    item_class = source_item_class("BackfillMappingItem", "Asana")
+    existing_item(item_class, external_id: "confirmed-1", service_name: "Asana:work", collection: confirmed)
+    existing_item(item_class, external_id: "inferred-1", service_name: "Asana:work", collection: inferred)
+    existing_item(item_class, external_id: "tentative-1", service_name: "Asana:work", collection: tentative)
+
+    task.invoke
+
+    mappings = OutboxEntry.where(record_kind: "mapping").order(:external_id)
+    expect(mappings.pluck(:external_id)).to contain_exactly("confirmed-1", "inferred-1")
+    expect(mappings.map { |entry| entry.payload.fetch("mapping_confidence") }).to contain_exactly("confirmed", "inferred")
+    expect(mappings).to all(have_attributes(event_type: nil))
+  end
+
+  it "is a no-op in dry-run mode and reports items, mappings, confidence, and skipped records" do
+    complete = existing_item(source_item_class("BackfillDryRunItem", "OmniFocus"),
+                             external_id: "of-dry-run", service_name: "OmniFocus")
+    incomplete = source_item_class("BackfillIncompleteItem", "Asana").create!(
+      options: options.merge(service_name: "Asana"), title: "Incomplete", external_id: nil
+    )
+    incomplete.update_columns(first_observed_at: nil, last_observed_at: nil)
+    Thread.current[:global_options] = options.merge(pretend: true)
+
+    expect { task.invoke }.to output(
+      /Backfill dry run:.*items.*omnifocus.*mappings.*confidence.*skipped/m
+    ).to_stdout
+    expect(complete.reload.first_observed_at).to be_nil
+    expect(incomplete.reload.first_observed_at).to be_nil
+    expect(OutboxEntry).to be_empty
   end
 end
