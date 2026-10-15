@@ -223,7 +223,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(mappings).to all(have_attributes(event_type: nil))
   end
 
-  it "honors --pretend after the rake argument separator without writing changes" do
+  it "runs only the dry-run report for `rake task_bridge:backfill_sync_provenance -- --pretend`" do
     confirmed = SyncCollection.create!(
       title: "Confirmed", mapping_method: "source_sync_id", mapping_confidence: "high"
     )
@@ -253,7 +253,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
 
     aggregate_failures do
       expect { invoke_task("task_bridge:backfill_sync_provenance", "--", "--pretend") }.to output(
-        /Backfill dry run:.*items: omnifocus=1, asana=1.*mappings: confirmed=1, inferred=1.*skipped: asana=1/m
+        "Backfill dry run: items: omnifocus=1, asana=1; mappings: confirmed=1, inferred=1; skipped: asana=1\n"
       ).to_stdout
       item_states.each do |item, state|
         expect(item.reload.attributes.slice(*provenance_and_baseline_attributes)).to eq(state)
