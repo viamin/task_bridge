@@ -206,6 +206,19 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(OutboxEntry.where(record_kind: "item").order(:id).pluck(:id, :idempotency_key)).to eq(original_baseline_rows)
   end
 
+  it "seeds blank snapshot baselines without overwriting concurrent ones" do
+    item_class = source_item_class("BackfillSnapshotBaselineItem", "OmniFocus")
+    blank = existing_item(item_class, external_id: "of-blank", service_name: "OmniFocus")
+    concurrent = existing_item(item_class, external_id: "of-concurrent", service_name: "OmniFocus")
+    concurrent_baseline = { "version" => 1, "title" => "Concurrent baseline" }
+    concurrent.update_column(:last_snapshot, concurrent_baseline)
+
+    task.invoke
+
+    expect(blank.reload.last_snapshot).to include("version" => 1, "entity_type" => "task")
+    expect(concurrent.reload.last_snapshot).to eq(concurrent_baseline)
+  end
+
   it "publishes confirmed and inferred memberships but withholds tentative baseline mappings" do
     confirmed = SyncCollection.create!(title: "Confirmed", mapping_method: "source_sync_id", mapping_confidence: "high")
     inferred = SyncCollection.create!(title: "Inferred", mapping_method: "title_fallback", mapping_confidence: "medium")
@@ -255,6 +268,7 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
       expect { invoke_task("task_bridge:backfill_sync_provenance", "--", "--pretend") }.to output(
         "Backfill dry run: items: omnifocus=1, asana=1; mappings: confirmed=1, inferred=1; skipped: asana=1\n"
       ).to_stdout
+      expect(Thread.current[:global_options]).to be_nil
       item_states.each do |item, state|
         expect(item.reload.attributes.slice(*provenance_and_baseline_attributes)).to eq(state)
       end
