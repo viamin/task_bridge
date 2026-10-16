@@ -35,7 +35,10 @@ module SyncBackfill
         confidence = eligible_mapping_confidences[SyncBackfill::SourceProvenance.effective_mapping_confidence(collection)]
         next unless confidence
 
-        counts[confidence] += collection.sync_items.count { |item| item.external_id.present? }
+        member_count = collection.sync_items.count { |item| item.external_id.present? }
+        next if member_count.zero?
+
+        counts[confidence] += member_count
       end
     end
 
@@ -48,7 +51,7 @@ module SyncBackfill
     def format_counts(entries)
       return "none" if entries.empty?
 
-      entries.map { |name, count| "#{name}=#{count}" }.join(", ")
+      entries.sort_by { |name, _| name }.map { |name, count| "#{name}=#{count}" }.join(", ")
     end
   end
 end
