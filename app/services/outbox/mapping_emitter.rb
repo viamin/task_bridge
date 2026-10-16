@@ -50,7 +50,7 @@ module Outbox
     def self.emit(collection, members:, observed_at:, identity_for:, item_key_for:)
       return if members.nil?
 
-      members.each do |member|
+      Array(members).each do |member|
         next unless eligible?(member)
 
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
