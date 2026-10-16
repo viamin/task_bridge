@@ -171,92 +171,6 @@
       }
     },
     {
-      "description": "a single-row v1 observation batch that still exceeds the limit",
-      "providerState": "an ingestion limit that rejects even a single row",
-      "request": {
-        "method": "post",
-        "path": "/api/task_bridge/v1/ingestion/batches",
-        "headers": {
-          "Authorization": "Bearer pact-ingest-key",
-          "Content-Type": "application/json",
-          "X-TaskBridge-Contract-Version": "1",
-          "X-TaskBridge-Batch-Id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
-          "X-TaskBridge-Sent-At": "2026-10-05T12:00:00.000000Z"
-        },
-        "body": {
-          "contract_version": 1,
-          "batch": {
-            "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
-            "sent_at": "2026-10-05T12:00:00.000000Z",
-            "publisher": "task_bridge",
-            "publisher_instance": "task-bridge"
-          },
-          "items": [
-        ],
-          "observations": [
-            {
-              "contract_version": 1,
-              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:05:00.000000Z",
-              "event_type": "source_changed",
-              "observed_at": "2026-10-05T10:05:00.000000Z",
-              "published_at": "2026-10-05T12:00:00.000000Z",
-              "item_key": "asana:workspace-12345:default:1201234567890",
-              "source": {
-                "service_type": "asana",
-                "service_instance": "asana:workspace-12345:default",
-                "external_id": "1201234567890"
-              }
-            }
-          ],
-          "mappings": [
-        ],
-          "sync_runs": [
-        ]
-        },
-        "matchingRules": {
-          "$.headers.X-TaskBridge-Batch-Id": {
-            "match": "regex",
-            "regex": "\\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\z"
-          },
-          "$.headers.X-TaskBridge-Sent-At": {
-            "match": "regex",
-            "regex": "\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z"
-          },
-          "$.body.batch.batch_id": {
-            "match": "regex",
-            "regex": "\\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\z"
-          },
-          "$.body.batch.sent_at": {
-            "match": "regex",
-            "regex": "\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z"
-          },
-          "$.body.batch.publisher_instance": {
-            "match": "type"
-          },
-          "$.body.observations[0].published_at": {
-            "match": "regex",
-            "regex": "\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z"
-          }
-        }
-      },
-      "response": {
-        "status": 413,
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "error": {
-            "message": "batch payload exceeds the configured limit"
-          }
-        },
-        "matchingRules": {
-          "$.body.error.message": {
-            "match": "type"
-          }
-        }
-      }
-    },
-    {
       "description": "a two-row v1 observation batch over the limit",
       "providerState": "a one-row-per-batch ingestion limit",
       "request": {
@@ -564,6 +478,92 @@
             "match": "type"
           },
           "$.body.rejected": {
+            "match": "type"
+          }
+        }
+      }
+    },
+    {
+      "description": "a single-row v1 observation batch that still exceeds the limit",
+      "providerState": "an ingestion limit that rejects even a single row",
+      "request": {
+        "method": "post",
+        "path": "/api/task_bridge/v1/ingestion/batches",
+        "headers": {
+          "Authorization": "Bearer pact-ingest-key",
+          "Content-Type": "application/json",
+          "X-TaskBridge-Contract-Version": "1",
+          "X-TaskBridge-Batch-Id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "X-TaskBridge-Sent-At": "2026-10-05T12:00:00.000000Z"
+        },
+        "body": {
+          "contract_version": 1,
+          "batch": {
+            "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+            "sent_at": "2026-10-05T12:00:00.000000Z",
+            "publisher": "task_bridge",
+            "publisher_instance": "task-bridge"
+          },
+          "items": [
+        ],
+          "observations": [
+            {
+              "contract_version": 1,
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:05:00.000000Z",
+              "event_type": "source_changed",
+              "observed_at": "2026-10-05T10:05:00.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "item_key": "asana:workspace-12345:default:1201234567890",
+              "source": {
+                "service_type": "asana",
+                "service_instance": "asana:workspace-12345:default",
+                "external_id": "1201234567890"
+              }
+            }
+          ],
+          "mappings": [
+        ],
+          "sync_runs": [
+        ]
+        },
+        "matchingRules": {
+          "$.headers.X-TaskBridge-Batch-Id": {
+            "match": "regex",
+            "regex": "\\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\z"
+          },
+          "$.headers.X-TaskBridge-Sent-At": {
+            "match": "regex",
+            "regex": "\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z"
+          },
+          "$.body.batch.batch_id": {
+            "match": "regex",
+            "regex": "\\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\z"
+          },
+          "$.body.batch.sent_at": {
+            "match": "regex",
+            "regex": "\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z"
+          },
+          "$.body.batch.publisher_instance": {
+            "match": "type"
+          },
+          "$.body.observations[0].published_at": {
+            "match": "regex",
+            "regex": "\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z"
+          }
+        }
+      },
+      "response": {
+        "status": 413,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "error": {
+            "message": "batch payload exceeds the configured limit"
+          }
+        },
+        "matchingRules": {
+          "$.body.error.message": {
             "match": "type"
           }
         }
