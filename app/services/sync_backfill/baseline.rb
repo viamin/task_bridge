@@ -1,6 +1,13 @@
 # frozen_string_literal: true
 
 module SyncBackfill
+  # Seeds the local outbox with baseline records for deployments that already
+  # hold synchronized data (#222): one current-state `item` snapshot per
+  # existing sync item (never synthetic observations or sync runs) plus a
+  # `mapping` row per member of an established collection. Baselines are
+  # idempotent: rows keep their deterministic idempotency keys across reruns,
+  # and a stored last_snapshot is only seeded when blank so a concurrent sync
+  # run's baseline is never overwritten.
   class Baseline
     ELIGIBLE_MAPPING_CONFIDENCES = %w[high medium].freeze
 

@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 module SyncBackfill
+  # Read-only dry run for the baseline backfill (#222): reports planned item
+  # snapshots and eligible mappings per service without writing outbox rows or
+  # provenance. Counts are derived from Baseline's eligibility rules and the
+  # emitter's label mapping so the report cannot drift from the real backfill.
   class Preview
     def self.run!
       new.run!
