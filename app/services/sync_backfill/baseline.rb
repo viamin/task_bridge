@@ -33,16 +33,18 @@ module SyncBackfill
       observed_at = item.first_observed_at || item.last_observed_at || backfilled_at
       identity = Outbox::SourceIdentity.for_backfill(item)
       snapshot = serialized_snapshot(item)
-      entry = OutboxEntry.enqueue(
-        record_kind: :item,
-        payload: item_payload(snapshot, identity, observed_at),
-        service_type: identity.fetch(:service_type),
-        service_instance: identity.fetch(:service_instance),
-        external_id: identity.fetch(:external_id),
-        sync_collection_id: item.sync_collection_id,
-        source_updated_at: item.source_updated_at || item.last_modified,
-        observed_at:
-      )
+      entry = Outbox::IsolatedWrite.call("baseline snapshot for #{item.item_key}") do
+        OutboxEntry.enqueue(
+          record_kind: :item,
+          payload: item_payload(snapshot, identity, observed_at),
+          service_type: identity.fetch(:service_type),
+          service_instance: identity.fetch(:service_instance),
+          external_id: identity.fetch(:external_id),
+          sync_collection_id: item.sync_collection_id,
+          source_updated_at: item.source_updated_at || item.last_modified,
+          observed_at:
+        )
+      end
       seed_snapshot_baseline(item, snapshot) if entry
     end
 
