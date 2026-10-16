@@ -14,17 +14,28 @@ module SyncBackfill
     private
 
     def backfill_sync_items
-      # Base::SyncItem.inferred_service_name_for reads peer notes via
-      # peer_sync_id_keys_for, which plucks a fresh notes column per item
-      # rather than using a loaded association, so preloading sync_items
-      # here would not save any queries.
-      Base::SyncItem.find_each do |item|
-        next if observation_and_provenance_complete?(item)
+      Base::SyncItem.in_batches do |relation|
+        incomplete_items = relation.reject { |item| observation_and_provenance_complete?(item) }
+        peer_notes = peer_notes_by_collection(incomplete_items)
 
-        observed_at = item.last_observed_at || item.first_observed_at || item.updated_at || item.created_at || Time.current
-        item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
-        item.observe_source!(observed_at:)
+        incomplete_items.each { |item| backfill_source_provenance(item, peer_notes[item.sync_collection_id]) }
       end
+    end
+
+    def backfill_source_provenance(item, peer_notes)
+      observed_at = item.last_observed_at || item.first_observed_at || item.updated_at || item.created_at || Time.current
+      item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item, peer_notes:)
+      item.observe_source!(observed_at:)
+    end
+
+    def peer_notes_by_collection(items)
+      collection_ids = items.filter_map(&:sync_collection_id).uniq
+      return {} if collection_ids.empty?
+
+      Base::SyncItem.where(sync_collection_id: collection_ids)
+                    .pluck(:id, :sync_collection_id, :notes)
+                    .group_by { |_, collection_id, _| collection_id }
+                    .transform_values { |entries| entries.map { |id, _, notes| [id, notes] } }
     end
 
     def observation_and_provenance_complete?(item)
