@@ -36,6 +36,8 @@ module Outbox
     end
 
     def self.emit(collection, members:, observed_at:, identity_for:)
+      return if members.nil?
+
       members.each do |member|
         next unless eligible?(member)
 
