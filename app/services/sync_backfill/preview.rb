@@ -35,7 +35,7 @@ module SyncBackfill
         confidence = eligible_mapping_confidences[SyncBackfill::SourceProvenance.effective_mapping_confidence(collection)]
         next unless confidence
 
-        member_count = collection.sync_items.count { |item| item.external_id.present? }
+        member_count = collection.sync_items.to_a.count { |item| item.external_id.present? }
         next if member_count.zero?
 
         counts[confidence] += member_count
