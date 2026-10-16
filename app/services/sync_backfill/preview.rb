@@ -27,9 +27,9 @@ module SyncBackfill
     end
 
     def mapping_counts
-      SyncCollection.find_each.with_object(Hash.new(0)) do |collection, counts|
-        confidence = ELIGIBLE_MAPPING_CONFIDENCES[collection.mapping_confidence]
-        counts[confidence] += 1 if confidence
+      Base::SyncItem.includes(:sync_collection).find_each.with_object(Hash.new(0)) do |item, counts|
+        confidence = ELIGIBLE_MAPPING_CONFIDENCES[item.sync_collection&.mapping_confidence]
+        counts[confidence] += 1 if confidence && item.external_id.present?
       end
     end
 
