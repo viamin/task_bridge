@@ -50,6 +50,7 @@ module SyncBackfill
 
     def item_payload(snapshot, identity, observed_at)
       snapshot.merge(
+        item_key: Outbox::SourceIdentity.item_key(identity),
         source: identity,
         observed_at: timestamp(observed_at),
         provenance: {

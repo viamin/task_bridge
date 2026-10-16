@@ -31,6 +31,10 @@ module Outbox
       identity.merge(service_instance: "#{identity.fetch(:service_type)}:default")
     end
 
+    def item_key(identity)
+      [identity.fetch(:service_instance), identity.fetch(:external_id)].join(":")
+    end
+
     def canonical_service_type(provider)
       identifier = Base::Service.service_identifier_for(provider)
       CANONICAL_SERVICE_TYPES.fetch(identifier, identifier)

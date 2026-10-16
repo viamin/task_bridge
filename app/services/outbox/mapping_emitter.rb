@@ -28,14 +28,26 @@ module Outbox
     }.freeze
 
     def self.emit_for_members(collection, members:, observed_at: Time.current)
-      emit(collection, members:, observed_at:, identity_for: Outbox::SourceIdentity.method(:for))
+      emit(
+        collection,
+        members:,
+        observed_at:,
+        identity_for: Outbox::SourceIdentity.method(:for),
+        item_key_for: ->(member, _) { member.item_key }
+      )
     end
 
     def self.emit_backfill_for_members(collection, members:, observed_at: Time.current)
-      emit(collection, members:, observed_at:, identity_for: Outbox::SourceIdentity.method(:for_backfill))
+      emit(
+        collection,
+        members:,
+        observed_at:,
+        identity_for: Outbox::SourceIdentity.method(:for_backfill),
+        item_key_for: ->(_, identity) { Outbox::SourceIdentity.item_key(identity) }
+      )
     end
 
-    def self.emit(collection, members:, observed_at:, identity_for:)
+    def self.emit(collection, members:, observed_at:, identity_for:, item_key_for:)
       return if members.nil?
 
       members.each do |member|
@@ -45,7 +57,7 @@ module Outbox
           identity = identity_for.call(member)
           OutboxEntry.enqueue(
             record_kind: :mapping,
-            payload: payload(collection, member, identity, observed_at),
+            payload: payload(collection, identity, item_key_for.call(member, identity), observed_at),
             **enqueue_context(identity, collection, observed_at)
           )
         end
@@ -60,7 +72,7 @@ module Outbox
         member.is_a?(Base::SyncItem) && member.persisted? && member.external_id.present?
       end
 
-      def payload(collection, member, identity, observed_at)
+      def payload(collection, identity, item_key, observed_at)
         {
           contract_version: OutboxEntry::PAYLOAD_VERSION,
           mapping_type: MAPPING_TYPE,
@@ -69,7 +81,7 @@ module Outbox
             sync_collection_id: collection.id,
             title: collection.title
           },
-          member: identity.merge(item_key: member.item_key),
+          member: identity.merge(item_key:),
           membership_role: MEMBERSHIP_ROLE,
           mapping_confidence: CONFIDENCE.fetch(collection.mapping_confidence, collection.mapping_confidence),
           mapping_source: SOURCE.fetch(collection.mapping_method, collection.mapping_method),
