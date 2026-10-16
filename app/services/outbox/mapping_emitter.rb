@@ -47,6 +47,10 @@ module Outbox
       )
     end
 
+    # Takes five arguments (one over the usual target) because the identity
+    # and item_key derivations vary together per mode: live sync publishes
+    # member.item_key as-is, while the baseline backfill (#222) republishes
+    # existing members under the canonical identity scheme.
     def self.emit(collection, members:, observed_at:, identity_for:, item_key_for:)
       return if members.nil?
 
