@@ -2,11 +2,6 @@
 
 module SyncBackfill
   class Preview
-    ELIGIBLE_MAPPING_CONFIDENCES = {
-      "high" => "confirmed",
-      "medium" => "inferred"
-    }.freeze
-
     def self.run!
       new.run!
     end
@@ -28,9 +23,15 @@ module SyncBackfill
 
     def mapping_counts
       Base::SyncItem.includes(:sync_collection).find_each.with_object(Hash.new(0)) do |item, counts|
-        confidence = ELIGIBLE_MAPPING_CONFIDENCES[item.sync_collection&.mapping_confidence]
+        confidence = eligible_mapping_confidences[item.sync_collection&.mapping_confidence]
         counts[confidence] += 1 if confidence && item.external_id.present?
       end
+    end
+
+    # Derived from Baseline's eligibility rule and the emitter's label mapping
+    # so the report can never drift from what the backfill publishes.
+    def eligible_mapping_confidences
+      Outbox::MappingEmitter::CONFIDENCE.slice(*SyncBackfill::Baseline::ELIGIBLE_MAPPING_CONFIDENCES)
     end
 
     def format_counts(entries)
