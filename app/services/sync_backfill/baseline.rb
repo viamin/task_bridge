@@ -73,19 +73,20 @@ module SyncBackfill
     end
 
     def backfill_mappings
-      SyncCollection.find_each do |collection|
-        next unless eligible_mapping?(collection)
-
+      eligible_mapping_members.find_each do |item|
+        collection = item.sync_collection
         Outbox::MappingEmitter.emit_backfill_for_members(
           collection,
-          members: collection.sync_items.find_each,
+          members: [item],
           observed_at: collection.mapping_established_at || collection.created_at || backfilled_at
         )
       end
     end
 
-    def eligible_mapping?(collection)
-      ELIGIBLE_MAPPING_CONFIDENCES.include?(collection.mapping_confidence)
+    def eligible_mapping_members
+      Base::SyncItem.joins(:sync_collection)
+                    .where(sync_collections: { mapping_confidence: ELIGIBLE_MAPPING_CONFIDENCES })
+                    .includes(:sync_collection)
     end
 
     def timestamp(time)
