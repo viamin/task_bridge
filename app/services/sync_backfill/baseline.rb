@@ -64,7 +64,9 @@ module SyncBackfill
     end
 
     def seed_snapshot_baseline(item, snapshot)
-      item.update_column(:last_snapshot, snapshot) if item.last_snapshot.blank?
+      item.with_lock do
+        item.update_column(:last_snapshot, snapshot) if item.last_snapshot.blank?
+      end
     end
 
     def backfill_mappings
