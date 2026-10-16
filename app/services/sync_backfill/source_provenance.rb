@@ -39,12 +39,20 @@ module SyncBackfill
 
     def backfill_sync_collections
       SyncCollection.includes(:sync_items).find_each do |collection|
-        next if collection.mapping_method.present?
+        next if mapping_provenance_complete?(collection)
 
         observed_at = collection.updated_at || collection.created_at || Time.current
         provenance = inferred_provenance_for(collection)
         collection.update_mapping_provenance!(**provenance, observed_at:)
       end
+    end
+
+    def mapping_provenance_complete?(collection)
+      collection.mapping_method.present? &&
+        collection.mapping_confidence.present? &&
+        !collection.mapping_metadata.nil? &&
+        collection.mapping_established_at.present? &&
+        collection.mapping_last_observed_at.present?
     end
 
     def inferred_provenance_for(collection)
