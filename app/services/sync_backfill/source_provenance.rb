@@ -23,8 +23,7 @@ module SyncBackfill
     def effective_mapping_confidence(collection)
       return collection.mapping_confidence if mapping_provenance_complete?(collection)
 
-      inferred = inferred_provenance_for(collection)
-      stored_label_outranks?(collection, inferred) ? collection.mapping_confidence : inferred.fetch(:confidence)
+      backfill_provenance_for(collection).fetch(:confidence)
     end
 
     private
@@ -75,9 +74,19 @@ module SyncBackfill
         next if mapping_provenance_complete?(collection)
 
         observed_at = collection.updated_at || collection.created_at || Time.current
-        provenance = inferred_provenance_for(collection)
+        provenance = backfill_provenance_for(collection)
         collection.update_mapping_provenance!(**provenance, observed_at:)
       end
+    end
+
+    def backfill_provenance_for(collection)
+      inferred = inferred_provenance_for(collection)
+      return inferred unless stored_label_outranks?(collection, inferred)
+
+      inferred.merge(
+        method: collection.mapping_method,
+        confidence: collection.mapping_confidence.presence || inferred.fetch(:confidence)
+      )
     end
 
     def mapping_provenance_complete?(collection)
