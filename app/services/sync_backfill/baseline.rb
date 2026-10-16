@@ -33,7 +33,7 @@ module SyncBackfill
       observed_at = item.first_observed_at || item.last_observed_at || backfilled_at
       identity = Outbox::SourceIdentity.for_backfill(item)
       snapshot = serialized_snapshot(item)
-      OutboxEntry.enqueue(
+      entry = OutboxEntry.enqueue(
         record_kind: :item,
         payload: item_payload(snapshot, identity, observed_at),
         service_type: identity.fetch(:service_type),
@@ -43,7 +43,7 @@ module SyncBackfill
         source_updated_at: item.source_updated_at || item.last_modified,
         observed_at:
       )
-      seed_snapshot_baseline(item, snapshot)
+      seed_snapshot_baseline(item, snapshot) if entry
     end
 
     def item_payload(snapshot, identity, observed_at)
