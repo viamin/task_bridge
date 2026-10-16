@@ -51,7 +51,7 @@ module SyncBackfill
     def format_counts(entries)
       return "none" if entries.empty?
 
-      entries.sort_by { |name, _| name }.map { |name, count| "#{name}=#{count}" }.join(", ")
+      entries.map { |name, count| "#{name}=#{count}" }.join(", ")
     end
   end
 end
