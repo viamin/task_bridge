@@ -3,7 +3,7 @@
 require "optparse"
 
 namespace :task_bridge do
-  desc "backfill explicit sync item provenance and sync collection mapping metadata"
+  desc "backfill sync provenance and TaskBridge Web baseline records"
   task backfill_sync_provenance: :environment do
     extend GlobalOptions
 
