@@ -52,7 +52,7 @@ module SyncBackfill
           observed_at:
         )
       end
-      seed_snapshot_baseline(item, entry.payload.slice(*snapshot.keys.map(&:to_s))) if entry
+      seed_snapshot_baseline(item, snapshot) if entry
     end
 
     def item_payload(snapshot, identity, observed_at)
