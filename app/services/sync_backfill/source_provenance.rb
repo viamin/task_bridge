@@ -21,7 +21,7 @@ module SyncBackfill
       Base::SyncItem.find_each do |item|
         next if item.first_observed_at.present? && item.last_observed_at.present?
 
-        observed_at = item.last_observed_at || item.updated_at || item.created_at || Time.current
+        observed_at = item.last_observed_at || item.first_observed_at || item.updated_at || item.created_at || Time.current
         item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
         item.observe_source!(observed_at:)
       end
