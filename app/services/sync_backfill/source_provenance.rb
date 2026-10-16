@@ -19,12 +19,22 @@ module SyncBackfill
       # rather than using a loaded association, so preloading sync_items
       # here would not save any queries.
       Base::SyncItem.find_each do |item|
-        next if item.first_observed_at.present? && item.last_observed_at.present?
+        next if observation_and_provenance_complete?(item)
 
         observed_at = item.last_observed_at || item.first_observed_at || item.updated_at || item.created_at || Time.current
         item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item)
         item.observe_source!(observed_at:)
       end
+    end
+
+    def observation_and_provenance_complete?(item)
+      item.first_observed_at.present? &&
+        item.last_observed_at.present? &&
+        item.source_service_name.present? &&
+        item.source_service_instance.present? &&
+        item.source_service_type.present? &&
+        (item.external_id.blank? || item.source_external_id.present?) &&
+        !item.source_metadata.nil?
     end
 
     def backfill_sync_collections
