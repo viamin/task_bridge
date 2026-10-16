@@ -70,12 +70,12 @@ module SyncBackfill
     end
 
     def backfill_mappings
-      SyncCollection.includes(:sync_items).find_each do |collection|
+      SyncCollection.find_each do |collection|
         next unless eligible_mapping?(collection)
 
         Outbox::MappingEmitter.emit_backfill_for_members(
           collection,
-          members: collection.sync_items,
+          members: collection.sync_items.find_each,
           observed_at: collection.mapping_established_at || collection.created_at || backfilled_at
         )
       end

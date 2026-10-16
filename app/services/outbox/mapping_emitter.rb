@@ -36,7 +36,9 @@ module Outbox
     end
 
     def self.emit(collection, members:, observed_at:, identity_for:)
-      Array(members).select { |member| eligible?(member) }.each do |member|
+      members.each do |member|
+        next unless eligible?(member)
+
         Outbox::IsolatedWrite.call("mapping for #{member.item_key}") do
           identity = identity_for.call(member)
           OutboxEntry.enqueue(
