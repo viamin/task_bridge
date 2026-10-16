@@ -3,8 +3,9 @@
 module SyncBackfill
   # Read-only dry run for the baseline backfill (#222): reports planned item
   # snapshots and eligible mappings per service without writing outbox rows or
-  # provenance. Counts are derived from Baseline's eligibility rules and the
-  # emitter's label mapping so the report cannot drift from the real backfill.
+  # provenance. Counts are derived from Baseline's eligibility rules, the
+  # provenance inference, and the emitter's label mapping so the report cannot
+  # drift from the real backfill.
   class Preview
     def self.run!
       new.run!
@@ -25,10 +26,16 @@ module SyncBackfill
       end
     end
 
+    # Counts eligible members per collection at the confidence a real run
+    # would publish — including the label the provenance backfill is about to
+    # infer for collections without complete mapping provenance — so the
+    # report can never drift from what the backfill publishes.
     def mapping_counts
-      Base::SyncItem.includes(:sync_collection).find_each.with_object(Hash.new(0)) do |item, counts|
-        confidence = eligible_mapping_confidences[item.sync_collection&.mapping_confidence]
-        counts[confidence] += 1 if confidence && item.external_id.present?
+      SyncCollection.includes(:sync_items).find_each.with_object(Hash.new(0)) do |collection, counts|
+        confidence = eligible_mapping_confidences[SyncBackfill::SourceProvenance.effective_mapping_confidence(collection)]
+        next unless confidence
+
+        counts[confidence] += collection.sync_items.count { |item| item.external_id.present? }
       end
     end
 

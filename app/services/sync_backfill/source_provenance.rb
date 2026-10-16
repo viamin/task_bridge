@@ -6,12 +6,34 @@ module SyncBackfill
       new.run!
     end
 
+    # The mapping confidence a backfill run will leave on `collection`:
+    # complete provenance stays untouched, and a partial stored label survives
+    # only while its method outranks what inference would record (mirroring
+    # SyncCollection#update_mapping_provenance!'s override rule). The preview
+    # reads this so its mapping counts match what Baseline will publish.
+    def self.effective_mapping_confidence(collection)
+      new.effective_mapping_confidence(collection)
+    end
+
     def run!
       backfill_sync_items
       backfill_sync_collections
     end
 
+    def effective_mapping_confidence(collection)
+      return collection.mapping_confidence if mapping_provenance_complete?(collection)
+
+      inferred = inferred_provenance_for(collection)
+      stored_label_outranks?(collection, inferred) ? collection.mapping_confidence : inferred.fetch(:confidence)
+    end
+
     private
+
+    def stored_label_outranks?(collection, inferred)
+      collection.mapping_method.present? &&
+        SyncMappingProvenance.method_priority(collection.mapping_method) >
+          SyncMappingProvenance.method_priority(inferred.fetch(:method))
+    end
 
     def backfill_sync_items
       Base::SyncItem.in_batches do |relation|

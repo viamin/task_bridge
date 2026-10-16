@@ -6,7 +6,7 @@ Before enabling TaskBridge Web publication for an existing TaskBridge deployment
 bundle exec rake task_bridge:backfill_sync_provenance
 ```
 
-Run the preview first. It makes no database or external-source changes. Its report groups planned item snapshots and skipped items (those without an external ID) by service, and eligible mappings by their `confirmed` or `inferred` confidence:
+Run the preview first. It makes no database or external-source changes. Its report groups planned item snapshots and skipped items (those without an external ID) by service, and eligible mappings by their `confirmed` or `inferred` confidence — including mappings whose confidence the provenance backfill is about to infer for collections that do not carry mapping labels yet:
 
 ```sh
 bundle exec rake task_bridge:backfill_sync_provenance -- --pretend
