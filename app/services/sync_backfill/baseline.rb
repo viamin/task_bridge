@@ -94,6 +94,7 @@ module SyncBackfill
     def eligible_mapping_members
       Base::SyncItem.joins(:sync_collection)
                     .where(sync_collections: { mapping_confidence: ELIGIBLE_MAPPING_CONFIDENCES })
+                    .where.not(sync_collections: { mapping_method: nil })
                     .includes(:sync_collection)
     end
 
