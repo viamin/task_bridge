@@ -236,6 +236,58 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(mappings).to all(have_attributes(event_type: nil))
   end
 
+  it "completes partial mapping provenance without downgrading a stronger stored label" do
+    partial = SyncCollection.create!(title: "Partial")
+    partial.update_columns(mapping_method: "created_by_sync", mapping_confidence: "high")
+    existing_item(
+      source_item_class("BackfillPartialLabelItem", "Asana"),
+      external_id: "partial-1", service_name: "Asana:work", collection: partial
+    )
+    existing_item(
+      source_item_class("BackfillPartialPeerItem", "OmniFocus"),
+      external_id: "partial-2", service_name: "OmniFocus", collection: partial
+    )
+
+    task.invoke
+    task.reenable
+    first_run = {
+      established_at: partial.reload.mapping_established_at,
+      observed_at: partial.mapping_last_observed_at
+    }
+
+    task.invoke
+
+    expect(partial.reload.mapping_method).to eq("created_by_sync")
+    expect(partial.mapping_confidence).to eq("high")
+    expect(partial.mapping_metadata).to include("sync_item_ids")
+    expect(partial.mapping_established_at).to eq(first_run[:established_at])
+    expect(partial.mapping_last_observed_at).to eq(first_run[:observed_at])
+    mappings = OutboxEntry.where(record_kind: "mapping")
+    expect(mappings.count).to eq(2)
+    expect(mappings.map { |row| row.payload.fetch("mapping_confidence") }).to all(eq("confirmed"))
+    expect(mappings.map { |row| row.payload.fetch("mapping_source") }).to all(eq("created_by_sync"))
+  end
+
+  it "previews and backfills a partially labeled collection at its stored label" do
+    partial = SyncCollection.create!(title: "Partial")
+    partial.update_columns(mapping_method: "created_by_sync", mapping_confidence: "high")
+    existing_item(
+      source_item_class("BackfillPartialPreviewItem", "OmniFocus"),
+      external_id: "of-partial", service_name: "OmniFocus", collection: partial
+    )
+
+    expect { invoke_task("task_bridge:backfill_sync_provenance", "--", "--pretend") }.to output(
+      "Backfill dry run: items: omnifocus=1; mappings: confirmed=1; skipped: none\n"
+    ).to_stdout
+    expect(partial.reload.mapping_last_observed_at).to be_nil
+
+    task.reenable
+    task.invoke
+
+    expect(OutboxEntry.where(record_kind: "mapping").map { |row| row.payload.fetch("mapping_confidence") })
+      .to all(eq("confirmed"))
+  end
+
   it "runs only the dry-run report for `rake task_bridge:backfill_sync_provenance -- --pretend`" do
     confirmed = SyncCollection.create!(
       title: "Confirmed", mapping_method: "source_sync_id", mapping_confidence: "high"
