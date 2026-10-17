@@ -77,9 +77,8 @@ module SyncBackfill
     def observation_and_provenance_complete?(item)
       item.first_observed_at.present? &&
         item.last_observed_at.present? &&
-        item.source_service_name.present? &&
+        source_identity_matches_provider?(item) &&
         item.source_service_instance == Base::Service.instance_name_for(item.source_service_name) &&
-        item.source_service_type == item.provider &&
         (item.external_id.blank? || item.source_external_id == item.external_id) &&
         !item.source_metadata.nil?
     end
