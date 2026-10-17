@@ -72,6 +72,7 @@ module SyncBackfill
     def backfill_sync_collections
       SyncCollection.includes(:sync_items).find_each do |collection|
         next if mapping_provenance_complete?(collection)
+        next if collection.sync_items.empty?
 
         observed_at = collection.mapping_last_observed_at || collection.updated_at || collection.created_at || Time.current
         provenance = backfill_provenance_for(collection)
