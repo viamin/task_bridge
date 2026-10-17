@@ -124,24 +124,36 @@ module SyncBackfill
     end
 
     # `mapping_provenance_with` derives its sync-note keys from each item's
-    # service name, and a legacy item with a blank source_service_name falls
-    # back to its bare provider ("asana_id" keys) while the item backfill is
-    # about to restore the instance-qualified name ("asana_work_id") from
-    # peer notes. Inference must run against those restored names — applied
-    # in memory, never saved — so the preview reports the confidence the
-    # real backfill records. By the time the real backfill infers collection
-    # provenance every name is already present, so this is a no-op there.
+    # service name, and a legacy item with a blank or stale source identity
+    # falls back to its bare provider ("asana_id" keys) while the item
+    # backfill is about to restore the instance-qualified name
+    # ("asana_work_id") from peer notes. Inference must run against those
+    # restored names — applied in memory, never saved — so the preview reports
+    # the confidence the real backfill records. By the time the real backfill
+    # infers collection provenance every identity is current, so this is a
+    # no-op there.
     def items_with_backfilled_service_names(items, peer_notes: nil)
-      return items if items.all? { |item| item.source_service_name.present? }
+      return items if items.all? { |item| source_identity_matches_provider?(item) }
 
       peer_notes ||= peer_notes_by_collection(items)
       items.map do |item|
-        next item if item.source_service_name.present?
-
-        item.dup.tap do |copy|
-          copy.source_service_name = Base::SyncItem.inferred_service_name_for(item, peer_notes: peer_notes[item.sync_collection_id])
-        end
+        backfilled_source_identity(item, peer_notes)
       end
+    end
+
+    def backfilled_source_identity(item, peer_notes)
+      return item if source_identity_matches_provider?(item)
+
+      item.dup.tap do |copy|
+        copy.source_service_type = nil unless copy.source_service_type == copy.provider
+        next if source_service_name_matches_provider?(copy)
+
+        copy.source_service_name = Base::SyncItem.inferred_service_name_for(copy, peer_notes: peer_notes[copy.sync_collection_id])
+      end
+    end
+
+    def source_identity_matches_provider?(item)
+      item.source_service_type == item.provider && source_service_name_matches_provider?(item)
     end
 
     def preferred_provenance(items)
