@@ -102,9 +102,30 @@ module SyncBackfill
       default_metadata = { "sync_item_ids" => items.filter_map(&:id) }
       return { method: "manual_backfill", confidence: "low", metadata: default_metadata } if items.length < 2
 
-      provenance = preferred_provenance(items)
+      provenance = preferred_provenance(items_with_backfilled_service_names(items))
 
       provenance.merge(metadata: default_metadata.merge(provenance.fetch(:metadata)))
+    end
+
+    # `mapping_provenance_with` derives its sync-note keys from each item's
+    # service name, and a legacy item with a blank source_service_name falls
+    # back to its bare provider ("asana_id" keys) while the item backfill is
+    # about to restore the instance-qualified name ("asana_work_id") from
+    # peer notes. Inference must run against those restored names — applied
+    # in memory, never saved — so the preview reports the confidence the
+    # real backfill records. By the time the real backfill infers collection
+    # provenance every name is already present, so this is a no-op there.
+    def items_with_backfilled_service_names(items)
+      return items if items.all? { |item| item.source_service_name.present? }
+
+      peer_notes = peer_notes_by_collection(items)
+      items.map do |item|
+        next item if item.source_service_name.present?
+
+        item.dup.tap do |copy|
+          copy.source_service_name = Base::SyncItem.inferred_service_name_for(item, peer_notes: peer_notes[item.sync_collection_id])
+        end
+      end
     end
 
     def preferred_provenance(items)
