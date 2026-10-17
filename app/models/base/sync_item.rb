@@ -489,7 +489,9 @@ module Base
       def inferred_service_name_for(item, peer_notes: nil)
         service_type = item.source_service_type.presence || item.provider
         base_identifier = Base::Service.service_identifier_for(service_type)
-        matching_key = peer_sync_id_keys_for(item, peer_notes:).find { |key| key.start_with?(base_identifier) }
+        matching_key = peer_sync_id_keys_for(item, peer_notes:).find do |key|
+          key == "#{base_identifier}_id" || key.start_with?("#{base_identifier}_")
+        end
         return service_type if matching_key.nil?
 
         instance_suffix = matching_key.delete_prefix(base_identifier).delete_suffix("_id").delete_prefix("_")
