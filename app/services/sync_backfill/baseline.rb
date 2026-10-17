@@ -37,7 +37,7 @@ module SyncBackfill
     end
 
     def enqueue_item(item)
-      observed_at = item.first_observed_at || item.last_observed_at || backfilled_at
+      observed_at = item.first_observed_at || item.last_observed_at || item.updated_at || item.created_at || backfilled_at
       identity = Outbox::SourceIdentity.for_backfill(item)
       snapshot = serialized_snapshot(item)
       entry = Outbox::IsolatedWrite.call("baseline snapshot for #{item.item_key}") do
