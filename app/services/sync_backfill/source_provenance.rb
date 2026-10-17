@@ -45,8 +45,23 @@ module SyncBackfill
 
     def backfill_source_provenance(item, peer_notes)
       observed_at = item.last_observed_at || item.first_observed_at || item.updated_at || item.created_at || Time.current
+      reset_stale_source_identity(item)
       item.source_service_name = Base::SyncItem.inferred_service_name_for(item, peer_notes:) if item.source_service_name.blank?
       item.observe_source!(observed_at:)
+    end
+
+    def reset_stale_source_identity(item)
+      item.source_service_type = nil unless item.source_service_type == item.provider
+      return if source_service_name_matches_provider?(item)
+
+      item.source_service_name = nil
+    end
+
+    def source_service_name_matches_provider?(item)
+      return false if item.source_service_name.blank?
+
+      Base::Service.service_identifier_for(Base::Service.class_name_for(item.source_service_name)) ==
+        Base::Service.service_identifier_for(item.provider)
     end
 
     def peer_notes_by_collection(items)
