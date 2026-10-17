@@ -45,7 +45,7 @@ module SyncBackfill
 
     def backfill_source_provenance(item, peer_notes)
       observed_at = item.last_observed_at || item.first_observed_at || item.updated_at || item.created_at || Time.current
-      item.source_service_name ||= Base::SyncItem.inferred_service_name_for(item, peer_notes:)
+      item.source_service_name = Base::SyncItem.inferred_service_name_for(item, peer_notes:) if item.source_service_name.blank?
       item.observe_source!(observed_at:)
     end
 
