@@ -1,15 +1,15 @@
 # TaskBridge Web baseline backfill
 
-Before enabling TaskBridge Web publication for an existing TaskBridge deployment, seed the local outbox with its current synchronized state:
-
-```sh
-bundle exec rake task_bridge:backfill_sync_provenance
-```
-
-Run the preview first. It makes no database or external-source changes. Its report groups planned item snapshots and skipped items (those without an external ID) by service, and eligible mappings by their `confirmed` or `inferred` confidence — including mappings whose confidence the provenance backfill is about to infer for collections that do not carry mapping labels yet:
+Before enabling TaskBridge Web publication for an existing TaskBridge deployment, preview the local outbox backfill first. It makes no database or external-source changes. Its report groups planned item snapshots and skipped items (those without an external ID) by service, and eligible mappings by their `confirmed` or `inferred` confidence — including mappings whose confidence the provenance backfill is about to infer for collections that do not carry mapping labels yet:
 
 ```sh
 bundle exec rake task_bridge:backfill_sync_provenance -- --pretend
+```
+
+After reviewing the preview, seed the local outbox with its current synchronized state:
+
+```sh
+bundle exec rake task_bridge:backfill_sync_provenance
 ```
 
 The backfill records each existing `sync_item` as one current-state `item` snapshot with `provenance.detected_by: backfill` and a `backfilled_at` timestamp. It deliberately does not create historical `observation` events or synthetic `sync_run` rows.
