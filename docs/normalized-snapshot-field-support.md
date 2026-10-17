@@ -103,10 +103,10 @@ source does not expose the concept today, not that it never could.
 
 `source.service_type` carries the stable adapter-family identifier from the
 publication contract (#215), not the display name returned by
-`Base::SyncItem#provider`. The serializer applies
-`Base::Service.service_identifier_for(provider)` so each value is the
-class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
-`github`, `instapaper`, `reminders`, `reclaim`, `google_keep`).
+`Base::SyncItem#provider`. `Outbox::SourceIdentity` derives it from
+`Base::Service.service_identifier_for(provider)` and canonicalizes legacy
+class-name spellings, so values include `asana`, `google_tasks`, `omnifocus`,
+`github`, `instapaper`, `reminders`, `reclaim`, and `google_keep`.
 
 `source.service_instance` is **always** populated — including for a
 freshly constructed item that has not gone through
