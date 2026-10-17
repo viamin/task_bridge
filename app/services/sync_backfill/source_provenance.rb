@@ -11,8 +11,8 @@ module SyncBackfill
     # only while its method outranks what inference would record (mirroring
     # SyncCollection#update_mapping_provenance!'s override rule). The preview
     # reads this so its mapping counts match what Baseline will publish.
-    def self.effective_mapping_confidence(collection)
-      new.effective_mapping_confidence(collection)
+    def self.effective_mapping_confidence(collection, peer_notes: nil)
+      new.effective_mapping_confidence(collection, peer_notes:)
     end
 
     def run!
@@ -20,10 +20,10 @@ module SyncBackfill
       backfill_sync_collections
     end
 
-    def effective_mapping_confidence(collection)
+    def effective_mapping_confidence(collection, peer_notes: nil)
       return collection.mapping_confidence if mapping_provenance_complete?(collection)
 
-      backfill_provenance_for(collection).fetch(:confidence)
+      backfill_provenance_for(collection, peer_notes:).fetch(:confidence)
     end
 
     private
@@ -79,8 +79,8 @@ module SyncBackfill
       end
     end
 
-    def backfill_provenance_for(collection)
-      inferred = inferred_provenance_for(collection)
+    def backfill_provenance_for(collection, peer_notes: nil)
+      inferred = inferred_provenance_for(collection, peer_notes:)
       return inferred unless stored_label_outranks?(collection, inferred)
 
       inferred.merge(
@@ -97,12 +97,12 @@ module SyncBackfill
         collection.mapping_last_observed_at.present?
     end
 
-    def inferred_provenance_for(collection)
+    def inferred_provenance_for(collection, peer_notes: nil)
       items = collection.sync_items.to_a.compact
       default_metadata = { "sync_item_ids" => items.filter_map(&:id) }
       return { method: "manual_backfill", confidence: "low", metadata: default_metadata } if items.length < 2
 
-      provenance = preferred_provenance(items_with_backfilled_service_names(items))
+      provenance = preferred_provenance(items_with_backfilled_service_names(items, peer_notes:))
 
       provenance.merge(metadata: default_metadata.merge(provenance.fetch(:metadata)))
     end
@@ -115,10 +115,10 @@ module SyncBackfill
     # in memory, never saved — so the preview reports the confidence the
     # real backfill records. By the time the real backfill infers collection
     # provenance every name is already present, so this is a no-op there.
-    def items_with_backfilled_service_names(items)
+    def items_with_backfilled_service_names(items, peer_notes: nil)
       return items if items.all? { |item| item.source_service_name.present? }
 
-      peer_notes = peer_notes_by_collection(items)
+      peer_notes ||= peer_notes_by_collection(items)
       items.map do |item|
         next item if item.source_service_name.present?
 

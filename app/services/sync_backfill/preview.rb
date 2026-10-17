@@ -32,10 +32,13 @@ module SyncBackfill
     # report can never drift from what the backfill publishes.
     def mapping_counts
       SyncCollection.includes(:sync_items).find_each.with_object(Hash.new(0)) do |collection, counts|
-        confidence = eligible_mapping_confidences[SyncBackfill::SourceProvenance.effective_mapping_confidence(collection)]
+        members = collection.sync_items.to_a
+        confidence = eligible_mapping_confidences[
+          SyncBackfill::SourceProvenance.effective_mapping_confidence(collection, peer_notes: peer_notes_for(members))
+        ]
         next unless confidence
 
-        member_count = collection.sync_items.to_a.count { |item| item.external_id.present? }
+        member_count = members.count { |item| item.external_id.present? }
         next if member_count.zero?
 
         counts[confidence] += member_count
@@ -46,6 +49,12 @@ module SyncBackfill
     # so the report can never drift from what the backfill publishes.
     def eligible_mapping_confidences
       Outbox::MappingEmitter::CONFIDENCE.slice(*SyncBackfill::Baseline::ELIGIBLE_MAPPING_CONFIDENCES)
+    end
+
+    def peer_notes_for(items)
+      items.group_by(&:sync_collection_id).transform_values do |members|
+        members.map { |member| [member.id, member.notes] }
+      end
     end
 
     def format_counts(entries)
