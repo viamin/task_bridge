@@ -486,27 +486,35 @@ module Base
           .find { |item| inferred_service_name_for(item) == normalized_service_name }
       end
 
-      def inferred_service_name_for(item)
+      def inferred_service_name_for(item, peer_notes: nil)
         service_type = item.source_service_type.presence || item.provider
         base_identifier = Base::Service.service_identifier_for(service_type)
-        matching_key = peer_sync_id_keys_for(item).find { |key| key.start_with?(base_identifier) }
+        matching_key = peer_sync_id_keys_for(item, peer_notes:).find do |key|
+          key == "#{base_identifier}_id" || key.start_with?("#{base_identifier}_")
+        end
         return service_type if matching_key.nil?
 
         instance_suffix = matching_key.delete_prefix(base_identifier).delete_suffix("_id").delete_prefix("_")
         [service_type, instance_suffix.presence].compact.join(":")
       end
 
-      def peer_sync_id_keys_for(item)
+      def peer_sync_id_keys_for(item, peer_notes: nil)
         return [] if item.sync_collection_id.blank?
 
-        Base::SyncItem.where(sync_collection_id: item.sync_collection_id)
-                      .where.not(id: item.id)
-                      .pluck(:notes)
-                      .flat_map do |notes|
+        notes_with_ids = peer_notes || peer_notes_for(item)
+        notes_with_ids.filter_map do |peer_id, notes|
+          next if peer_id == item.id
+
           notes.to_s.scan(/^([a-z0-9_]+_id):\s(.+)$/).filter_map do |key, value|
             key if value == item.external_id.to_s
           end
-        end
+        end.flatten
+      end
+
+      def peer_notes_for(item)
+        Base::SyncItem.where(sync_collection_id: item.sync_collection_id)
+                      .where.not(id: item.id)
+                      .pluck(:id, :notes)
       end
 
       # Attributes that must always be read (even with only_modified_dates)
