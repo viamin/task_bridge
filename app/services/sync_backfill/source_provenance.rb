@@ -64,7 +64,7 @@ module SyncBackfill
         item.last_observed_at.present? &&
         item.source_service_name.present? &&
         item.source_service_instance == Base::Service.instance_name_for(item.source_service_name) &&
-        item.source_service_type.present? &&
+        item.source_service_type == item.provider &&
         (item.external_id.blank? || item.source_external_id == item.external_id) &&
         !item.source_metadata.nil?
     end
