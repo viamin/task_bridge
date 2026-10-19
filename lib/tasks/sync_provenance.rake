@@ -9,7 +9,8 @@ namespace :task_bridge do
 
     previous_options = Thread.current[:global_options]
     overrides = options.dup
-    arguments = ARGV.drop_while { |argument| argument != "--" }.drop(1)
+    separator_index = ARGV.index("--")
+    arguments = separator_index ? ARGV[(separator_index + 1)..] || [] : ARGV.dup
     OptionParser.new do |parser|
       parser.on("-x", "--pretend", "Preview the backfill without making changes") { overrides[:pretend] = true }
     end.parse!(arguments)
