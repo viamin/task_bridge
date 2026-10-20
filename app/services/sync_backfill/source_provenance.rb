@@ -70,8 +70,8 @@ module SyncBackfill
     def source_service_name_matches_provider?(item)
       return false if item.source_service_name.blank?
 
-      Base::Service.service_identifier_for(Base::Service.class_name_for(item.source_service_name)) ==
-        Base::Service.service_identifier_for(item.provider)
+      Outbox::SourceIdentity.canonical_service_type(Base::Service.class_name_for(item.source_service_name)) ==
+        Outbox::SourceIdentity.canonical_service_type(item.provider)
     end
 
     def peer_notes_by_collection(items)
