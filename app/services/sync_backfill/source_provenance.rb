@@ -15,6 +15,16 @@ module SyncBackfill
       new.effective_mapping_confidence(collection, peer_notes:)
     end
 
+    # A collection's members in the order inference must see them.
+    # `preferred_for` pairs members in list order and keeps the first of
+    # equally ranked pairs, and the preview derives its peer notes from the
+    # same list, so an unordered association could infer a different label (or
+    # report a different count) on every run. Sorting by id keeps the backfill
+    # and its preview reproducible.
+    def self.members_in_inference_order(collection)
+      collection.sync_items.sort_by(&:id)
+    end
+
     def run!
       backfill_sync_items
       backfill_sync_collections
@@ -114,7 +124,7 @@ module SyncBackfill
     end
 
     def inferred_provenance_for(collection, peer_notes: nil)
-      items = collection.sync_items.to_a.compact
+      items = self.class.members_in_inference_order(collection)
       default_metadata = { "sync_item_ids" => items.filter_map(&:id) }
       return { method: "manual_backfill", confidence: "low", metadata: default_metadata } if items.length < 2
 

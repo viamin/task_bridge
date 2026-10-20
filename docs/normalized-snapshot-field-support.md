@@ -162,3 +162,11 @@ outbox rows or advance the diff baseline.
   timestamps. The baseline is only advanced after every row is enqueued, so
   a failed enqueue can re-detect a transition (at-least-once) but never
   silently swallows one.
+
+## Backfilling an existing deployment (#222)
+
+Deployments that enabled publication after years of syncing hold no
+baseline rows, so their first hours of publication would report every task
+as brand new. `task_bridge:backfill_sync_provenance` seeds the outbox with
+current-state baselines first — preview it with `-- --pretend`, then run it
+for real; `docs/taskbridge-web-backfill.md` covers both steps.

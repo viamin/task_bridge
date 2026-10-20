@@ -33,7 +33,7 @@ module SyncBackfill
     # report can never drift from what the backfill publishes.
     def mapping_counts
       SyncCollection.includes(:sync_items).find_each.with_object(Hash.new(0)) do |collection, counts|
-        members = collection.sync_items.to_a
+        members = SyncBackfill::SourceProvenance.members_in_inference_order(collection)
         confidence = eligible_mapping_confidences[
           SyncBackfill::SourceProvenance.effective_mapping_confidence(collection, peer_notes: peer_notes_for(members))
         ]
