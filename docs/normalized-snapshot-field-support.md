@@ -130,7 +130,12 @@ outbox rows or advance the diff baseline.
 
 - **Baseline**: the last published snapshot per item is stored in
   `sync_items.last_snapshot` (timestamps rendered as ISO 8601 UTC so JSON
-  round-trips stay diff-stable).
+  round-trips stay diff-stable). Both the sync flow
+  (`Outbox::ObservationEmitter`) and the #222 backfill
+  (`SyncBackfill::Baseline`) render it through
+  `Base::SnapshotSerializer.published`, so a backfilled baseline is
+  indistinguishable from one a sync would have written and the first sync
+  after a backfill reports no spurious transitions.
 - **Source observations** (`Outbox::ObservationEmitter`, hooked into
   `Base::SyncItem#refresh_from_external!`): a first observation emits
   `snapshot_seen` (with the full snapshot embedded); later refreshes emit

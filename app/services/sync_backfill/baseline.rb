@@ -39,7 +39,10 @@ module SyncBackfill
     def enqueue_item(item)
       observed_at = item.last_observed_at || item.first_observed_at || item.updated_at || item.created_at || backfilled_at
       identity = Outbox::SourceIdentity.for_backfill(item)
-      snapshot = serialized_snapshot(item)
+      # The same rendering the sync flow uses for its own diff baseline, so a
+      # backfilled baseline is indistinguishable from one a sync would have
+      # written and the first post-backfill sync reports no spurious changes.
+      snapshot = Base::SnapshotSerializer.published(item)
       entry = Outbox::IsolatedWrite.call("baseline snapshot for #{item.item_key}") do
         OutboxEntry.enqueue(
           record_kind: :item,
@@ -66,12 +69,6 @@ module SyncBackfill
           backfilled_at: timestamp(backfilled_at)
         }
       )
-    end
-
-    def serialized_snapshot(item)
-      item.normalized_snapshot.deep_transform_values do |value|
-        value.respond_to?(:utc) ? timestamp(value) : value
-      end
     end
 
     def seed_snapshot_baseline(item, snapshot)

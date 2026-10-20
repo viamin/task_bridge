@@ -500,18 +500,22 @@ module Base
         return [] if item.sync_collection_id.blank?
 
         notes_with_ids = peer_notes || peer_notes_for(item)
-        notes_with_ids.filter_map do |peer_id, notes|
-          next if peer_id == item.id
+        notes_with_ids.flat_map do |peer_id, notes|
+          next [] if peer_id == item.id
 
           notes.to_s.scan(/^([a-z0-9_]+_id):\s(.+)$/).filter_map do |key, value|
             key if value == item.external_id.to_s
           end
-        end.flatten
+        end
       end
 
+      # Ordered by id so a collection whose peers carry several keys for the
+      # same external ID always resolves to the same key — inference must be
+      # reproducible across the repeated runs a backfill depends on.
       def peer_notes_for(item)
         Base::SyncItem.where(sync_collection_id: item.sync_collection_id)
                       .where.not(id: item.id)
+                      .order(:id)
                       .pluck(:id, :notes)
       end
 

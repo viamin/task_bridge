@@ -69,6 +69,7 @@ module SyncBackfill
       return {} if collection_ids.empty?
 
       Base::SyncItem.where(sync_collection_id: collection_ids)
+                    .order(:id)
                     .pluck(:id, :sync_collection_id, :notes)
                     .group_by { |_, collection_id, _| collection_id }
                     .transform_values { |entries| entries.map { |id, _, notes| [id, notes] } }
