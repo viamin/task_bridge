@@ -171,4 +171,16 @@ RSpec.describe "Github::Issue" do
       expect { issue.read_original }.not_to raise_error
     end
   end
+
+  context "when the row is persisted without a live payload" do
+    it "serializes a baseline snapshot nil-safely (#222)" do
+      row = Github::Issue.create!(title: nil, external_id: "persisted-issue-1", notes: "Existing notes")
+      persisted = Github::Issue.find(row.id)
+
+      snapshot = persisted.normalized_snapshot
+
+      expect(snapshot[:metadata]).to eq(assignees: [])
+      expect(snapshot[:display_title]).to eq("-#: ")
+    end
+  end
 end
