@@ -55,9 +55,25 @@ module SyncBackfill
 
     def backfill_source_provenance(item, peer_notes)
       observed_at = item.last_observed_at || item.first_observed_at || item.updated_at || item.created_at || Time.current
+      disappearance = item.disappearance_observation
       reset_stale_source_identity(item)
       item.source_service_name = Base::SyncItem.inferred_service_name_for(item, peer_notes:) if item.source_service_name.blank?
       item.observe_source!(observed_at:)
+      restore_disappearance(item, disappearance)
+    end
+
+    # `observe_source!` drops a recorded disappearance because a live sync
+    # just saw the item reappear. A backfill never fetches the source, so it
+    # must not consume that evidence: erasing the marker would make the next
+    # disappearance detection re-enqueue an already-published tombstone as a
+    # new fact. Restored with `update_columns` so the backfilled provenance
+    # keeps its own `updated_at`.
+    def restore_disappearance(item, disappearance)
+      return if disappearance.nil?
+
+      item.update_columns(
+        source_metadata: item.source_metadata.merge(Base::SyncItem::DISAPPEARANCE_MARKER_KEY => disappearance)
+      )
     end
 
     def reset_stale_source_identity(item)

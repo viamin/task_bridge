@@ -71,7 +71,12 @@ module SyncBackfill
       )
     end
 
+    # The row is locked so a concurrent sync run's baseline is never
+    # overwritten. The upfront check keeps a rerun — where every baseline is
+    # already seeded — from taking a lock it would never write under.
     def seed_snapshot_baseline(item, snapshot)
+      return if item.last_snapshot.present?
+
       item.with_lock do
         item.update_column(:last_snapshot, snapshot) if item.last_snapshot.blank?
       end
