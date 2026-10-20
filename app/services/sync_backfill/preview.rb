@@ -13,7 +13,8 @@ module SyncBackfill
 
     def run!
       counts = item_counts
-      puts "Backfill dry run: items: #{format_counts(counts.fetch(:items))}; mappings: #{format_counts(mapping_counts)}; skipped: #{format_counts(counts.fetch(:skipped))}"
+      mappings = mapping_counts
+      puts "Backfill dry run: items: #{format_counts(counts.fetch(:items))}; mappings: #{format_counts(mappings)}; skipped: #{format_counts(counts.fetch(:skipped))}"
     end
 
     private
