@@ -134,6 +134,40 @@ RSpec.describe Outbox::MappingEmitter do
     end
   end
 
+  describe ".emit_backfill_for_members" do
+    let(:unqualified_member) do
+      member_class.create!(
+        title: "Release checklist",
+        external_id: "issue-77",
+        options: { service_name: "Github", services: [], primary: "PrimaryService", tags: [] }
+      )
+    end
+
+    # #222 republishes existing members under the canonical identity scheme
+    # rather than the legacy service key they were stored with.
+    it "publishes existing members under the canonical default identity" do
+      described_class.emit_backfill_for_members(collection, members: [unqualified_member], observed_at:)
+
+      row = OutboxEntry.find_by(record_kind: "mapping")
+      expect(row).to have_attributes(service_type: "github", service_instance: "github:default", external_id: "issue-77")
+      expect(row.payload["member"]).to include(
+        "item_key" => "github:default:issue-77",
+        "service_instance" => "github:default"
+      )
+      expect(row.idempotency_key).to eq(
+        "tb:v1:map:sync_collection:#{collection.id}:membership:github:default:issue-77:2026-10-05T10:00:00.000000Z"
+      )
+    end
+
+    it "skips members that are not persisted sync items" do
+      transient = member_class.new(external_id: "issue-78")
+
+      described_class.emit_backfill_for_members(collection, members: [transient, nil], observed_at:)
+
+      expect(OutboxEntry.where(record_kind: "mapping")).to be_empty
+    end
+  end
+
   describe "sync flow integration" do
     let(:peer_class) do
       stub_const("MappingPeerSpecItem", Class.new(Base::SyncItem) do

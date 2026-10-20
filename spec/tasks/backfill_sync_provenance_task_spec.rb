@@ -62,10 +62,10 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     end)
   end
 
-  def existing_item(item_class, external_id:, service_name:, collection: nil)
+  def existing_item(item_class, external_id:, service_name:, collection: nil, title: "Existing #{external_id}")
     item = item_class.create!(
       options: options.merge(service_name:),
-      title: "Existing #{external_id}",
+      title:,
       external_id:,
       notes: "Existing notes",
       last_modified: Time.zone.parse("2026-09-01T10:00:00Z"),
@@ -219,6 +219,41 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(concurrent.reload.last_snapshot).to eq(concurrent_baseline)
   end
 
+  it "publishes no baseline snapshot for items without an external ID" do
+    item_class = source_item_class("BackfillMissingExternalIdItem", "Omnifocus")
+    existing_item(item_class, external_id: "of-identified", service_name: "Omnifocus")
+    unidentified = existing_item(item_class, external_id: nil, service_name: "Omnifocus")
+
+    task.invoke
+
+    expect(OutboxEntry.where(record_kind: "item").pluck(:external_id)).to eq(["of-identified"])
+    expect(unidentified.reload.last_snapshot).to be_nil
+  end
+
+  it "keeps the service instance a legacy double-camel service name still owns" do
+    item_class = source_item_class("BackfillLegacyInstanceItem", "Github")
+    legacy = item_class.create!(
+      options: options.merge(service_name: "GitHub:repo-1"),
+      title: "Legacy instance",
+      external_id: "issue-legacy",
+      notes: "Existing notes"
+    )
+    legacy.update_columns(
+      source_service_name: "GitHub:repo-1",
+      source_service_type: "Github",
+      source_service_instance: nil,
+      source_external_id: nil,
+      first_observed_at: Time.zone.parse("2026-09-01T10:00:00Z"),
+      last_observed_at: Time.zone.parse("2026-09-01T10:00:00Z"),
+      source_metadata: {}
+    )
+
+    task.invoke
+
+    expect(legacy.reload.source_service_name).to eq("GitHub:repo-1")
+    expect(legacy.source_service_instance).to eq("repo-1")
+  end
+
   it "publishes confirmed and inferred memberships but withholds tentative baseline mappings" do
     confirmed = SyncCollection.create!(title: "Confirmed", mapping_method: "source_sync_id", mapping_confidence: "high")
     inferred = SyncCollection.create!(title: "Inferred", mapping_method: "title_fallback", mapping_confidence: "medium")
@@ -234,6 +269,27 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(mappings.pluck(:external_id)).to contain_exactly("confirmed-1", "inferred-1")
     expect(mappings.map { |entry| entry.payload.fetch("mapping_confidence") }).to contain_exactly("confirmed", "inferred")
     expect(mappings).to all(have_attributes(event_type: nil))
+  end
+
+  it "reports the same inferred memberships the backfill publishes for an unlabeled collection" do
+    unlabeled = SyncCollection.create!(title: "Unlabeled")
+    asana_class = source_item_class("BackfillInferredAsanaItem", "Asana")
+    omnifocus_class = source_item_class("BackfillInferredOmnifocusItem", "Omnifocus")
+    existing_item(asana_class, external_id: "asana-inferred-1", service_name: "Asana:work",
+                               collection: unlabeled, title: "Same title")
+    existing_item(omnifocus_class, external_id: "of-inferred-1", service_name: "Omnifocus",
+                                   collection: unlabeled, title: "Same title")
+
+    expect { invoke_task("task_bridge:backfill_sync_provenance", "--", "--pretend") }.to output(
+      "Backfill dry run: items: asana=1, omnifocus=1; mappings: inferred=2; skipped: none\n"
+    ).to_stdout
+
+    task.reenable
+    task.invoke
+
+    expect(unlabeled.reload.mapping_confidence).to eq("medium")
+    expect(OutboxEntry.where(record_kind: "mapping").order(:external_id).map { |row| row.payload.fetch("mapping_confidence") })
+      .to eq(%w[inferred inferred])
   end
 
   it "completes partial mapping provenance without downgrading a stronger stored label" do
