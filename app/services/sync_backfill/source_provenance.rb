@@ -144,6 +144,11 @@ module SyncBackfill
       return item if source_identity_matches_provider?(item)
 
       item.dup.tap do |copy|
+        # `dup` drops the primary key (ActiveRecord treats copies as new
+        # records), but peer-note self-exclusion matches on id: restore the
+        # original's id so the copy reads peers' notes only, exactly like
+        # the real backfill does with the saved item.
+        copy.id = item.id
         copy.source_service_type = nil unless copy.source_service_type == copy.provider
         next if source_service_name_matches_provider?(copy)
 
