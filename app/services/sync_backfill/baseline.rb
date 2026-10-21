@@ -39,9 +39,15 @@ module SyncBackfill
     def enqueue_item(item)
       observed_at = item.last_observed_at || item.first_observed_at || item.updated_at || item.created_at || backfilled_at
       identity = Outbox::SourceIdentity.for_backfill(item)
-      # The same rendering the sync flow uses for its own diff baseline, so a
-      # backfilled baseline is indistinguishable from one a sync would have
-      # written and the first post-backfill sync reports no spurious changes.
+      # The same rendering the sync flow uses for its own diff baseline, so
+      # re-observing an unchanged task compares byte-for-byte identical
+      # timestamps instead of drifting on rendering. A backfilled baseline is
+      # built from the persisted row, which carries no live provider payload,
+      # so the fields an adapter reads from its payload (`tags`, `project`,
+      # `sub_item_count`, and the observed `metadata` entries) are blank here.
+      # The first sync after a backfill reports each of them once as a real
+      # transition — that is how those values first reach TaskBridge Web, so
+      # the backfill must not invent them.
       snapshot = Base::SnapshotSerializer.published(item)
       entry = Outbox::IsolatedWrite.call("baseline snapshot for #{item.item_key}") do
         OutboxEntry.enqueue(

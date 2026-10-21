@@ -133,9 +133,14 @@ outbox rows or advance the diff baseline.
   round-trips stay diff-stable). Both the sync flow
   (`Outbox::ObservationEmitter`) and the #222 backfill
   (`SyncBackfill::Baseline`) render it through
-  `Base::SnapshotSerializer.published`, so a backfilled baseline is
-  indistinguishable from one a sync would have written and the first sync
-  after a backfill reports no spurious transitions.
+  `Base::SnapshotSerializer.published`, so a re-observation of an unchanged
+  task diffs to nothing instead of drifting on timestamp rendering. A
+  backfilled baseline is built from the persisted row, which carries no live
+  provider payload, so the fields an adapter reads from its payload (`tags`,
+  `project`, `sub_item_count`, and the observed `metadata` entries) are blank
+  in it. The first sync after a backfill therefore reports each of them once
+  as a real transition; that is how those values first reach TaskBridge Web,
+  and the backfill must not invent them.
 - **Source observations** (`Outbox::ObservationEmitter`, hooked into
   `Base::SyncItem#refresh_from_external!`): a first observation emits
   `snapshot_seen` (with the full snapshot embedded); later refreshes emit
