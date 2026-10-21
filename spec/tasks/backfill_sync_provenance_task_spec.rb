@@ -186,14 +186,28 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
 
     travel_to(Time.zone.parse("2026-10-02T12:00:00Z")) { task.invoke }
 
+    # Baselines must publish under the identity and item_key the live
+    # observation path uses for the same item (#222): TaskBridge Web
+    # correlates rows by item_key, so a backfill-only scheme would orphan
+    # every baseline and re-introduce each task as brand new on first sync.
+    items_by_external_id = {
+      "of-1" => omnifocus, "asana-1" => asana, "issue-1" => github, "google-1" => google_tasks
+    }.transform_values(&:reload)
     expect(OutboxEntry.where(record_kind: "item")).to match_array(
       [
-        have_attributes(service_type: "omnifocus", service_instance: "omnifocus:default", external_id: omnifocus.external_id),
-        have_attributes(service_type: "asana", service_instance: "asana:default", external_id: asana.external_id),
-        have_attributes(service_type: "github", service_instance: "github:default", external_id: github.external_id),
-        have_attributes(service_type: "google_tasks", service_instance: "google_tasks:default", external_id: google_tasks.external_id)
+        have_attributes(service_type: "omnifocus", service_instance: "omnifocus", external_id: omnifocus.external_id),
+        have_attributes(service_type: "asana", service_instance: "asana", external_id: asana.external_id),
+        have_attributes(service_type: "github", service_instance: "github", external_id: github.external_id),
+        have_attributes(service_type: "google_tasks", service_instance: "google_tasks", external_id: google_tasks.external_id)
       ]
     )
+    OutboxEntry.where(record_kind: "item").each do |row|
+      item = items_by_external_id.fetch(row.external_id)
+      aggregate_failures do
+        expect(row.payload.fetch("item_key")).to eq(item.item_key)
+        expect(row.payload.fetch("source")).to eq(Outbox::SourceIdentity.for(item).stringify_keys)
+      end
+    end
     expect(OutboxEntry.where(record_kind: "observation")).to be_empty
     expect(OutboxEntry.where(record_kind: "sync_run")).to be_empty
     expect(OutboxEntry.where(record_kind: "item").pluck(:idempotency_key)).to all(include(":snapshot:"))
@@ -204,6 +218,47 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     )
     expect(OutboxEntry.where(record_kind: "item").count).to eq(4)
     expect(OutboxEntry.where(record_kind: "item").order(:id).pluck(:id, :idempotency_key)).to eq(original_baseline_rows)
+  end
+
+  it "correlates backfilled baselines with the rows the live sync flow publishes" do
+    item_class = stub_const("BackfillCorrelationItem", Class.new(Base::SyncItem) do
+      def self.attribute_map
+        {}
+      end
+
+      def provider
+        "Asana"
+      end
+
+      # The payload the provider returns once publication is enabled and the
+      # hourly sync refreshes this item.
+      def external_data
+        {
+          "id" => "asana-correlate",
+          "title" => "Refreshed by the live sync",
+          "notes" => "Existing notes",
+          "updated_at" => "2026-10-02T09:00:00Z"
+        }
+      end
+    end)
+    item = existing_item(item_class, external_id: "asana-correlate", service_name: "Asana:work")
+    travel_to(Time.zone.parse("2026-10-01T12:00:00Z")) { task.invoke }
+    baseline = OutboxEntry.find_by(record_kind: "item")
+    expect(baseline).to be_present
+
+    travel_to(Time.zone.parse("2026-10-02T10:00:00Z")) { item.reload.refresh_from_external! }
+
+    observation = OutboxEntry.find_by(record_kind: "observation")
+    expect(observation).to be_present
+    aggregate_failures do
+      expect(baseline.payload.fetch("item_key")).to eq(observation.payload.fetch("item_key"))
+      expect(baseline.payload.fetch("source")).to eq(observation.payload.fetch("source"))
+      expect(baseline).to have_attributes(
+        service_type: observation.service_type,
+        service_instance: observation.service_instance,
+        external_id: observation.external_id
+      )
+    end
   end
 
   it "seeds blank snapshot baselines without overwriting concurrent ones" do
@@ -217,6 +272,33 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
 
     expect(blank.reload.last_snapshot).to include("version" => 1, "entity_type" => "task")
     expect(concurrent.reload.last_snapshot).to eq(concurrent_baseline)
+    # A stored baseline means the live flow (or an earlier backfill) already
+    # baselined this item, so the backfill must not enqueue a row for it.
+    expect(OutboxEntry.where(record_kind: "item").pluck(:external_id)).to eq(["of-blank"])
+  end
+
+  it "does not republish a baseline once live syncs have started observing the item" do
+    item_class = source_item_class("BackfillRerunAfterLiveDataItem", "OmniFocus")
+    item = existing_item(item_class, external_id: "of-rerun", service_name: "Omnifocus")
+    travel_to(Time.zone.parse("2026-10-01T12:00:00Z")) { task.invoke }
+    task.reenable
+    seeded_rows = OutboxEntry.where(record_kind: "item")
+    expect(seeded_rows.count).to eq(1)
+    seeded_key = seeded_rows.pick(:idempotency_key)
+
+    # Publication is enabled and the hourly sync refreshes the item: the live
+    # flow advances last_observed_at (which the item key's observed_at stamp
+    # embeds) and stores a richer live-published baseline. A rerun must skip
+    # the item rather than mint a fresh idempotency key that replaces richer
+    # live-published Web state with the payload-blank baseline.
+    item.update_columns(
+      last_observed_at: Time.zone.parse("2026-10-02T09:00:00Z"),
+      last_snapshot: { "version" => 1, "title" => "Refreshed by the live sync" }
+    )
+    travel_to(Time.zone.parse("2026-10-02T10:00:00Z")) { task.invoke }
+
+    expect(OutboxEntry.where(record_kind: "item").count).to eq(1)
+    expect(OutboxEntry.where(record_kind: "item").pick(:idempotency_key)).to eq(seeded_key)
   end
 
   it "publishes no baseline snapshot for items without an external ID" do
@@ -374,6 +456,21 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
 
     expect(OutboxEntry.where(record_kind: "mapping").map { |row| row.payload.fetch("mapping_confidence") })
       .to all(eq("confirmed"))
+  end
+
+  it "previews items that already carry a baseline snapshot as skipped" do
+    item_class = source_item_class("BackfillPreviewBaselinedItem", "OmniFocus")
+    existing_item(item_class, external_id: "of-preview-fresh", service_name: "Omnifocus")
+    baselined = existing_item(item_class, external_id: "of-preview-baselined", service_name: "Omnifocus")
+    live_baseline = { "version" => 1, "title" => "Live baseline" }
+    baselined.update_column(:last_snapshot, live_baseline)
+
+    # The preview derives its counts from Baseline's eligibility rules, so an
+    # item the backfill would skip (its baseline is already stored) must not
+    # be reported as backfillable.
+    expect { invoke_task("task_bridge:backfill_sync_provenance", "--", "--pretend") }.to output(
+      "Backfill dry run: items: omnifocus=1; mappings: none; skipped: omnifocus=1\n"
+    ).to_stdout
   end
 
   it "runs only the dry-run report for `rake task_bridge:backfill_sync_provenance -- --pretend`" do

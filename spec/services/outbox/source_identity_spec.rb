@@ -14,12 +14,10 @@ RSpec.describe Outbox::SourceIdentity do
 
   let(:asana_class) { item_class("SourceIdentitySpecAsanaItem", "Asana") }
   let(:github_class) { item_class("SourceIdentitySpecGithubItem", "Github") }
-  let(:omnifocus_class) { item_class("SourceIdentitySpecOmnifocusItem", "Omnifocus") }
 
   before do
     asana_class
     github_class
-    omnifocus_class
   end
 
   def asana_item(service_name)
@@ -27,14 +25,21 @@ RSpec.describe Outbox::SourceIdentity do
   end
 
   describe ".for_backfill" do
-    it "qualifies an unqualified service instance as the default instance" do
-      expect(described_class.for_backfill(asana_item("Asana")))
-        .to include(service_type: "asana", service_instance: "asana:default")
+    # #222 baselines must correlate with every live row the observation and
+    # mapping emitters publish for the same item, so the backfill never mints
+    # a backfill-only identity: it publishes exactly what `.for` resolves to.
+    it "publishes the identity the live path already uses" do
+      item = asana_item("Asana")
+
+      expect(described_class.for_backfill(item)).to eq(described_class.for(item))
+      expect(described_class.for_backfill(item)).to include(service_type: "asana", service_instance: "asana")
     end
 
     it "keeps an instance the item already carries" do
-      expect(described_class.for_backfill(asana_item("Asana:work")))
-        .to include(service_type: "asana", service_instance: "asana:work")
+      item = asana_item("Asana:work")
+
+      expect(described_class.for_backfill(item)).to eq(described_class.for(item))
+      expect(described_class.for_backfill(item)).to include(service_type: "asana", service_instance: "asana:work")
     end
 
     it "canonicalizes legacy double-camel class names (#222)" do
@@ -42,12 +47,6 @@ RSpec.describe Outbox::SourceIdentity do
 
       expect(described_class.for_backfill(item))
         .to include(service_type: "github", service_instance: "github:repo-1")
-    end
-
-    it "builds an item key from the qualified identity it publishes" do
-      item = omnifocus_class.create!(title: "Buy milk", external_id: "of-1", source_service_name: "Omnifocus")
-
-      expect(described_class.item_key(described_class.for_backfill(item))).to eq("omnifocus:default:of-1")
     end
   end
 
