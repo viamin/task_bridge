@@ -254,6 +254,38 @@ RSpec.describe "task_bridge:backfill_sync_provenance task", :full_options do
     expect(legacy.source_service_instance).to eq("repo-1")
   end
 
+  it "backfills provenance without consuming a recorded disappearance" do
+    item_class = source_item_class("BackfillDisappearanceItem", "Asana")
+    item = existing_item(item_class, external_id: "asana-disappeared", service_name: "Asana:work")
+    marker = {
+      "state" => "source_deleted",
+      "observed_at" => "2026-09-01T11:00:00.000000Z",
+      "sync_run_id" => "sync-run-20260901T110000Z-asana"
+    }
+    item.update_columns(source_metadata: { Base::SyncItem::DISAPPEARANCE_MARKER_KEY => marker })
+
+    task.invoke
+
+    expect(item.reload.first_observed_at).to be_present
+    expect(item.last_observed_at).to be_present
+    expect(item.disappearance_observation).to eq(marker)
+  end
+
+  it "does not seed a diff baseline when the outbox write fails" do
+    item_class = source_item_class("BackfillFailedWriteItem", "Omnifocus")
+    item = existing_item(item_class, external_id: "of-failed", service_name: "Omnifocus")
+    allow(OutboxEntry).to receive(:enqueue).and_wrap_original do |original, record_kind:, payload:, **context|
+      raise ActiveRecord::ActiveRecordError, "simulated outbox failure" if context[:external_id] == "of-failed"
+
+      original.call(record_kind:, payload:, **context)
+    end
+
+    expect { task.invoke }.to output(/dropping baseline snapshot for omnifocus:of-failed/).to_stderr
+
+    expect(OutboxEntry.where(record_kind: "item")).to be_empty
+    expect(item.reload.last_snapshot).to be_nil
+  end
+
   it "publishes confirmed and inferred memberships but withholds tentative baseline mappings" do
     confirmed = SyncCollection.create!(title: "Confirmed", mapping_method: "source_sync_id", mapping_confidence: "high")
     inferred = SyncCollection.create!(title: "Inferred", mapping_method: "title_fallback", mapping_confidence: "medium")
