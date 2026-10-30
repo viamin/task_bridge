@@ -19,6 +19,16 @@ RSpec.describe "the Pact dependency lockfile" do
     expect(pact_ffi_specs).not_to be_empty
   end
 
+  it "satisfies Pact's native FFI version requirement" do
+    expect(pact_spec).not_to be_nil
+    pact_ffi_dependency = pact_spec.dependencies.find { |dependency| dependency.name == "pact-ffi" }
+    expect(pact_ffi_dependency).not_to be_nil
+
+    expect(pact_ffi_specs.map(&:version)).to all(satisfy do |version|
+      pact_ffi_dependency.requirement.satisfied_by?(version)
+    end)
+  end
+
   it "locks the upgraded Pact release" do
     expect(pact_spec).not_to be_nil
     expect(pact_spec.version.to_s).to eq("2.1.2")
