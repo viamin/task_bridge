@@ -67,10 +67,7 @@ gem "google-apis-calendar_v3", "~> 0.58"
 gem "google-apis-keep_v1", "~> 0.18"
 
 # https://github.com/ruby/json
-# Pact 1.67 marshals matchers between the spec and its in-process mock
-# service via JSON `json_class` additions; json 3 removed that reification.
-# Revisit when pact-ruby ships json 3 support.
-gem "json", "~> 2.10"
+gem "json", "~> 3.1"
 
 # https://github.com/jnunemaker/httparty
 gem "httparty", "~> 0.24"
@@ -129,6 +126,7 @@ group :test do
   # Consumer-driven contract tests against TaskBridge Web (#250);
   # the generated pact file is committed under spec/pacts/
   gem "pact", "~> 2.1", require: false # https://github.com/pact-foundation/pact-ruby
+  gem "rspec", "~> 3.13", require: false
   gem "rspec-rails"
   gem "selenium-webdriver"
   gem "simplecov", require: false
