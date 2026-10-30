@@ -14,8 +14,8 @@ RSpec.describe "the Pact dependency lockfile" do
 
   it "locks the native Pact FFI packages for GitHub's macOS runner architectures" do
     pact_ffi_builds = lockfile.specs
-      .select { |spec| spec.name == "pact-ffi" }
-      .map(&:full_name)
+                              .select { |spec| spec.name == "pact-ffi" }
+                              .map(&:full_name)
 
     expect(pact_ffi_builds).to include(
       "pact-ffi-0.5.8.1-arm64-darwin",
