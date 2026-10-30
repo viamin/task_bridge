@@ -13,7 +13,7 @@ require "pact_helper"
 # Pact request matching rejects extra keys and mismatched array lengths, so
 # the expected bodies below mirror exactly what Outbox::WebPublisher::Batch
 # serializes; the committed pact file
-# (spec/pacts/taskbridge-taskbridge_web.json) therefore pins the full v1
+# (spec/pacts/TaskBridge-TaskBridge Web.json) therefore pins the full v1
 # wire shape for provider verification (viamin/task-bridge-web#189).
 RSpec.describe "TaskBridge Web ingestion batches", pact: true, pact_entity: :consumer, order: :defined do
   has_http_pact_between "TaskBridge", "TaskBridge Web", opts: {
