@@ -9,8 +9,8 @@ RSpec.describe "the Pact dependency lockfile" do
   let(:lockfile) { Bundler::LockfileParser.new(File.read("Gemfile.lock")) }
   let(:pact_ffi_builds) do
     lockfile.specs
-            .select { |spec| spec.name == "pact-ffi" }
-            .map(&:full_name)
+      .select { |spec| spec.name == "pact-ffi" }
+      .map(&:full_name)
   end
 
   it "includes Pact FFI builds for GitHub's macOS runner architectures" do
