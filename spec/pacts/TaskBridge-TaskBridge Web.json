@@ -1,0 +1,765 @@
+{
+  "consumer": {
+    "name": "TaskBridge"
+  },
+  "interactions": [
+    {
+      "description": "a single-row v1 observation batch that still exceeds the limit",
+      "providerState": "an ingestion limit that rejects even a single row",
+      "request": {
+        "body": {
+          "batch": {
+            "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+            "publisher": "task_bridge",
+            "publisher_instance": "task-bridge",
+            "sent_at": "2026-10-05T12:00:00.000000Z"
+          },
+          "contract_version": 1,
+          "items": [],
+          "mappings": [],
+          "observations": [
+            {
+              "contract_version": 1,
+              "event_type": "source_changed",
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:05:00.000000Z",
+              "item_key": "asana:workspace-12345:default:1201234567890",
+              "observed_at": "2026-10-05T10:05:00.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "source": {
+                "external_id": "1201234567890",
+                "service_instance": "asana:workspace-12345:default",
+                "service_type": "asana"
+              }
+            }
+          ],
+          "sync_runs": []
+        },
+        "headers": {
+          "Authorization": "Bearer pact-ingest-key",
+          "Content-Type": "application/json",
+          "X-TaskBridge-Batch-Id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "X-TaskBridge-Contract-Version": "1",
+          "X-TaskBridge-Sent-At": "2026-10-05T12:00:00.000000Z"
+        },
+        "matchingRules": {
+          "$.body.batch.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.batch.publisher_instance": {
+            "match": "type"
+          },
+          "$.body.batch.sent_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.body.observations[0].published_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.headers['X-TaskBridge-Batch-Id']": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.headers['X-TaskBridge-Sent-At']": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          }
+        },
+        "method": "POST",
+        "path": "/api/task_bridge/v1/ingestion/batches"
+      },
+      "response": {
+        "body": {
+          "error": {
+            "message": "batch payload exceeds the configured limit"
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.error.message": {
+            "match": "type"
+          }
+        },
+        "status": 413
+      }
+    },
+    {
+      "description": "a two-row v1 observation batch over the limit",
+      "providerState": "a one-row-per-batch ingestion limit",
+      "request": {
+        "body": {
+          "batch": {
+            "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+            "publisher": "task_bridge",
+            "publisher_instance": "task-bridge",
+            "sent_at": "2026-10-05T12:00:00.000000Z"
+          },
+          "contract_version": 1,
+          "items": [],
+          "mappings": [],
+          "observations": [
+            {
+              "contract_version": 1,
+              "event_type": "source_changed",
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:03:00.000000Z",
+              "item_key": "asana:workspace-12345:default:1201234567890",
+              "observed_at": "2026-10-05T10:03:00.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "source": {
+                "external_id": "1201234567890",
+                "service_instance": "asana:workspace-12345:default",
+                "service_type": "asana"
+              }
+            },
+            {
+              "contract_version": 1,
+              "event_type": "source_changed",
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:04:00.000000Z",
+              "item_key": "asana:workspace-12345:default:1201234567890",
+              "observed_at": "2026-10-05T10:04:00.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "source": {
+                "external_id": "1201234567890",
+                "service_instance": "asana:workspace-12345:default",
+                "service_type": "asana"
+              }
+            }
+          ],
+          "sync_runs": []
+        },
+        "headers": {
+          "Authorization": "Bearer pact-ingest-key",
+          "Content-Type": "application/json",
+          "X-TaskBridge-Batch-Id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "X-TaskBridge-Contract-Version": "1",
+          "X-TaskBridge-Sent-At": "2026-10-05T12:00:00.000000Z"
+        },
+        "matchingRules": {
+          "$.body.batch.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.batch.publisher_instance": {
+            "match": "type"
+          },
+          "$.body.batch.sent_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.body.observations[0].published_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.body.observations[1].published_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.headers['X-TaskBridge-Batch-Id']": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.headers['X-TaskBridge-Sent-At']": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          }
+        },
+        "method": "POST",
+        "path": "/api/task_bridge/v1/ingestion/batches"
+      },
+      "response": {
+        "body": {
+          "error": {
+            "message": "batch payload exceeds the configured limit"
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.error.message": {
+            "match": "type"
+          }
+        },
+        "status": 413
+      }
+    },
+    {
+      "description": "a v1 batch sent with a revoked API key",
+      "providerState": "an ingestion API key that has been revoked",
+      "request": {
+        "body": {
+          "batch": {
+            "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+            "publisher": "task_bridge",
+            "publisher_instance": "task-bridge",
+            "sent_at": "2026-10-05T12:00:00.000000Z"
+          },
+          "contract_version": 1,
+          "items": [],
+          "mappings": [],
+          "observations": [
+            {
+              "contract_version": 1,
+              "event_type": "source_changed",
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:06:00.000000Z",
+              "item_key": "asana:workspace-12345:default:1201234567890",
+              "observed_at": "2026-10-05T10:06:00.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "source": {
+                "external_id": "1201234567890",
+                "service_instance": "asana:workspace-12345:default",
+                "service_type": "asana"
+              }
+            }
+          ],
+          "sync_runs": []
+        },
+        "headers": {
+          "Authorization": "Bearer revoked-ingest-key",
+          "Content-Type": "application/json",
+          "X-TaskBridge-Batch-Id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "X-TaskBridge-Contract-Version": "1",
+          "X-TaskBridge-Sent-At": "2026-10-05T12:00:00.000000Z"
+        },
+        "matchingRules": {
+          "$.body.batch.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.batch.publisher_instance": {
+            "match": "type"
+          },
+          "$.body.batch.sent_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.body.observations[0].published_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.headers['X-TaskBridge-Batch-Id']": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.headers['X-TaskBridge-Sent-At']": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          }
+        },
+        "method": "POST",
+        "path": "/api/task_bridge/v1/ingestion/batches"
+      },
+      "response": {
+        "body": {
+          "error": {
+            "message": "invalid api key"
+          }
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.error.message": {
+            "match": "type"
+          }
+        },
+        "status": 401
+      }
+    },
+    {
+      "description": "a v1 batch with a sync-run summary",
+      "providerState": "an empty ingestion outbox",
+      "request": {
+        "body": {
+          "batch": {
+            "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+            "publisher": "task_bridge",
+            "publisher_instance": "task-bridge",
+            "sent_at": "2026-10-05T12:00:00.000000Z"
+          },
+          "contract_version": 1,
+          "items": [],
+          "mappings": [],
+          "observations": [],
+          "sync_runs": [
+            {
+              "contract_version": 1,
+              "detail": "12 items processed",
+              "error": null,
+              "finished_at": "2026-10-05T10:01:05.000000Z",
+              "idempotency_key": "tb:v1:sync_run:asana:workspace-12345:default:sync-run-20261005T100000Z-asana_workspace_12345_default",
+              "items_synced": 12,
+              "last_attempted_at": "2026-10-05T10:00:00.000000Z",
+              "last_failed_at": null,
+              "last_successful_at": "2026-10-05T10:01:05.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "service_instance": "asana:workspace-12345:default",
+              "service_type": "asana",
+              "started_at": "2026-10-05T10:00:00.000000Z",
+              "status": "success",
+              "sync_run_id": "sync-run-20261005T100000Z-asana_workspace_12345_default",
+              "touched_collection_ids": [
+                84,
+                91
+              ]
+            }
+          ]
+        },
+        "headers": {
+          "Authorization": "Bearer pact-ingest-key",
+          "Content-Type": "application/json",
+          "X-TaskBridge-Batch-Id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "X-TaskBridge-Contract-Version": "1",
+          "X-TaskBridge-Sent-At": "2026-10-05T12:00:00.000000Z"
+        },
+        "matchingRules": {
+          "$.body.batch.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.batch.publisher_instance": {
+            "match": "type"
+          },
+          "$.body.batch.sent_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.body.sync_runs[0].published_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.headers['X-TaskBridge-Batch-Id']": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.headers['X-TaskBridge-Sent-At']": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          }
+        },
+        "method": "POST",
+        "path": "/api/task_bridge/v1/ingestion/batches"
+      },
+      "response": {
+        "body": {
+          "accepted": 1,
+          "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "contract_version": 1,
+          "rejected": 0,
+          "replayed": 0,
+          "results": [
+            {
+              "idempotency_key": "tb:v1:sync_run:asana:workspace-12345:default:sync-run-20261005T100000Z-asana_workspace_12345_default",
+              "record_kind": "sync_run",
+              "status": "accepted"
+            }
+          ]
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.accepted": {
+            "match": "type"
+          },
+          "$.body.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.rejected": {
+            "match": "type"
+          },
+          "$.body.replayed": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a v1 batch with an item snapshot and two observations",
+      "providerState": "an empty ingestion outbox except an item snapshot for tb:v1:item:asana:workspace-12345:default:1201234567890:snapshot:2026-10-05T10:00:00.000000Z was already accepted",
+      "request": {
+        "body": {
+          "batch": {
+            "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+            "publisher": "task_bridge",
+            "publisher_instance": "task-bridge",
+            "sent_at": "2026-10-05T12:00:00.000000Z"
+          },
+          "contract_version": 1,
+          "items": [
+            {
+              "contract_version": 1,
+              "entity_type": "task",
+              "idempotency_key": "tb:v1:item:asana:workspace-12345:default:1201234567890:snapshot:2026-10-05T10:00:00.000000Z",
+              "is_deleted": false,
+              "item_key": "asana:workspace-12345:default:1201234567890",
+              "observed_at": "2026-10-05T10:00:00.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "source": {
+                "external_id": "1201234567890",
+                "service_instance": "asana:workspace-12345:default",
+                "service_type": "asana",
+                "source_url": "https://app.asana.com/0/12345/1201234567890"
+              },
+              "status": "open",
+              "title": "Buy milk"
+            }
+          ],
+          "mappings": [],
+          "observations": [
+            {
+              "change": {
+                "field": "status",
+                "from": "open",
+                "to": "completed"
+              },
+              "contract_version": 1,
+              "event_type": "source_changed",
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:01:00.000000Z",
+              "item_key": "asana:workspace-12345:default:1201234567890",
+              "observed_at": "2026-10-05T10:01:00.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "source": {
+                "external_id": "1201234567890",
+                "service_instance": "asana:workspace-12345:default",
+                "service_type": "asana"
+              }
+            },
+            {
+              "contract_version": 1,
+              "event_type": "snapshot_seen",
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:snapshot_seen:2026-10-05T10:02:00.000000Z",
+              "item_key": "asana:workspace-12345:default:1201234567890",
+              "observed_at": "2026-10-05T10:02:00.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "source": {
+                "external_id": "1201234567890",
+                "service_instance": "asana:workspace-12345:default",
+                "service_type": "asana"
+              }
+            }
+          ],
+          "sync_runs": []
+        },
+        "headers": {
+          "Authorization": "Bearer pact-ingest-key",
+          "Content-Type": "application/json",
+          "X-TaskBridge-Batch-Id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "X-TaskBridge-Contract-Version": "1",
+          "X-TaskBridge-Sent-At": "2026-10-05T12:00:00.000000Z"
+        },
+        "matchingRules": {
+          "$.body.batch.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.batch.publisher_instance": {
+            "match": "type"
+          },
+          "$.body.batch.sent_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.body.items[0].published_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.body.observations[0].published_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.body.observations[1].published_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.headers['X-TaskBridge-Batch-Id']": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.headers['X-TaskBridge-Sent-At']": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          }
+        },
+        "method": "POST",
+        "path": "/api/task_bridge/v1/ingestion/batches"
+      },
+      "response": {
+        "body": {
+          "accepted": 1,
+          "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "contract_version": 1,
+          "rejected": 1,
+          "replayed": 1,
+          "results": [
+            {
+              "idempotency_key": "tb:v1:item:asana:workspace-12345:default:1201234567890:snapshot:2026-10-05T10:00:00.000000Z",
+              "record_kind": "item",
+              "status": "replayed"
+            },
+            {
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:01:00.000000Z",
+              "record_kind": "observation",
+              "status": "accepted"
+            },
+            {
+              "error_code": "validation_error",
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:snapshot_seen:2026-10-05T10:02:00.000000Z",
+              "message": "change is not valid for snapshot_seen",
+              "record_kind": "observation",
+              "retryable": false,
+              "status": "rejected"
+            }
+          ]
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.accepted": {
+            "match": "type"
+          },
+          "$.body.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.rejected": {
+            "match": "type"
+          },
+          "$.body.replayed": {
+            "match": "type"
+          },
+          "$.body.results[2].message": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "the first single-row half of a halved v1 batch",
+      "providerState": "a one-row-per-batch ingestion limit",
+      "request": {
+        "body": {
+          "batch": {
+            "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+            "publisher": "task_bridge",
+            "publisher_instance": "task-bridge",
+            "sent_at": "2026-10-05T12:00:00.000000Z"
+          },
+          "contract_version": 1,
+          "items": [],
+          "mappings": [],
+          "observations": [
+            {
+              "contract_version": 1,
+              "event_type": "source_changed",
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:03:00.000000Z",
+              "item_key": "asana:workspace-12345:default:1201234567890",
+              "observed_at": "2026-10-05T10:03:00.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "source": {
+                "external_id": "1201234567890",
+                "service_instance": "asana:workspace-12345:default",
+                "service_type": "asana"
+              }
+            }
+          ],
+          "sync_runs": []
+        },
+        "headers": {
+          "Authorization": "Bearer pact-ingest-key",
+          "Content-Type": "application/json",
+          "X-TaskBridge-Batch-Id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "X-TaskBridge-Contract-Version": "1",
+          "X-TaskBridge-Sent-At": "2026-10-05T12:00:00.000000Z"
+        },
+        "matchingRules": {
+          "$.body.batch.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.batch.publisher_instance": {
+            "match": "type"
+          },
+          "$.body.batch.sent_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.body.observations[0].published_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.headers['X-TaskBridge-Batch-Id']": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.headers['X-TaskBridge-Sent-At']": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          }
+        },
+        "method": "POST",
+        "path": "/api/task_bridge/v1/ingestion/batches"
+      },
+      "response": {
+        "body": {
+          "accepted": 1,
+          "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "contract_version": 1,
+          "rejected": 0,
+          "replayed": 0,
+          "results": [
+            {
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:03:00.000000Z",
+              "record_kind": "observation",
+              "status": "accepted"
+            }
+          ]
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.accepted": {
+            "match": "type"
+          },
+          "$.body.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.rejected": {
+            "match": "type"
+          },
+          "$.body.replayed": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "the second single-row half of a halved v1 batch",
+      "providerState": "a one-row-per-batch ingestion limit",
+      "request": {
+        "body": {
+          "batch": {
+            "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+            "publisher": "task_bridge",
+            "publisher_instance": "task-bridge",
+            "sent_at": "2026-10-05T12:00:00.000000Z"
+          },
+          "contract_version": 1,
+          "items": [],
+          "mappings": [],
+          "observations": [
+            {
+              "contract_version": 1,
+              "event_type": "source_changed",
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:04:00.000000Z",
+              "item_key": "asana:workspace-12345:default:1201234567890",
+              "observed_at": "2026-10-05T10:04:00.000000Z",
+              "published_at": "2026-10-05T12:00:00.000000Z",
+              "source": {
+                "external_id": "1201234567890",
+                "service_instance": "asana:workspace-12345:default",
+                "service_type": "asana"
+              }
+            }
+          ],
+          "sync_runs": []
+        },
+        "headers": {
+          "Authorization": "Bearer pact-ingest-key",
+          "Content-Type": "application/json",
+          "X-TaskBridge-Batch-Id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "X-TaskBridge-Contract-Version": "1",
+          "X-TaskBridge-Sent-At": "2026-10-05T12:00:00.000000Z"
+        },
+        "matchingRules": {
+          "$.body.batch.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.batch.publisher_instance": {
+            "match": "type"
+          },
+          "$.body.batch.sent_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.body.observations[0].published_at": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          },
+          "$.headers['X-TaskBridge-Batch-Id']": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.headers['X-TaskBridge-Sent-At']": {
+            "match": "regex",
+            "regex": "(?-mix:\\A\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z\\z)"
+          }
+        },
+        "method": "POST",
+        "path": "/api/task_bridge/v1/ingestion/batches"
+      },
+      "response": {
+        "body": {
+          "accepted": 1,
+          "batch_id": "2fd13f74-02ec-4dfd-b21c-3837a66a3768",
+          "contract_version": 1,
+          "rejected": 0,
+          "replayed": 0,
+          "results": [
+            {
+              "idempotency_key": "tb:v1:obs:asana:workspace-12345:default:1201234567890:source_changed:2026-10-05T10:04:00.000000Z",
+              "record_kind": "observation",
+              "status": "accepted"
+            }
+          ]
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.accepted": {
+            "match": "type"
+          },
+          "$.body.batch_id": {
+            "match": "regex",
+            "regex": "(?i-mx:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
+          },
+          "$.body.rejected": {
+            "match": "type"
+          },
+          "$.body.replayed": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    }
+  ],
+  "metadata": {
+    "pact-ruby": {
+      "pact-ffi": "0.5.8"
+    },
+    "pactRust": {
+      "ffi": "0.5.8",
+      "mockserver": "2.2.6",
+      "models": "1.3.16"
+    },
+    "pactSpecification": {
+      "version": "2.0.0"
+    }
+  },
+  "provider": {
+    "name": "TaskBridge Web"
+  }
+}

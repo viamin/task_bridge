@@ -16,10 +16,10 @@ the recorded pact file is committed so the provider repo can verify it.
 
 | File | Role |
 | --- | --- |
-| `Gemfile` | `pact` gem in the `:test` group (consumer role); `json` pinned `< 3` (see caveats) |
+| `Gemfile` | `pact` gem in the `:test` group (consumer role) |
 | `spec/pact_helper.rb` | Consumer config: consumer `TaskBridge`, provider `TaskBridge Web`, in-process mock service on an ephemeral port |
 | `spec/services/outbox/web_publisher/task_bridge_web_contract_spec.rb` | Consumer specs (tagged `pact: true`) |
-| `spec/pacts/taskbridge-taskbridge_web.json` | Committed pact file (specification version 2) — regenerate, don't hand-edit |
+| `spec/pacts/TaskBridge-TaskBridge Web.json` | Committed pact file (specification version 2) — regenerate, don't hand-edit |
 
 Unlike the unit specs (which stub the client), the consumer specs drive the
 full publisher stack — real `Client`, real `Net::HTTP` transport, real
@@ -79,7 +79,7 @@ becomes a requirement):
 
    Pact.service_provider "TaskBridge Web" do
      honours_pact_with "TaskBridge" do
-       pact_uri "../task_bridge/spec/pacts/taskbridge-taskbridge_web.json"
+       pact_uri "../task_bridge/spec/pacts/TaskBridge-TaskBridge Web.json"
      end
    end
    ```

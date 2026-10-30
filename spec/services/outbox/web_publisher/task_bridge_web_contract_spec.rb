@@ -13,9 +13,14 @@ require "pact_helper"
 # Pact request matching rejects extra keys and mismatched array lengths, so
 # the expected bodies below mirror exactly what Outbox::WebPublisher::Batch
 # serializes; the committed pact file
-# (spec/pacts/taskbridge-taskbridge_web.json) therefore pins the full v1
+# (spec/pacts/TaskBridge-TaskBridge Web.json) therefore pins the full v1
 # wire shape for provider verification (viamin/task-bridge-web#189).
-RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined do
+RSpec.describe "TaskBridge Web ingestion batches", pact: true, pact_entity: :consumer, order: :defined do
+  has_http_pact_between "TaskBridge", "TaskBridge Web", opts: {
+    pact_dir: Rails.root.join("spec/pacts").to_s,
+    pact_specification: "2"
+  }
+
   let(:now) { Time.zone.parse("2026-10-05T12:00:00Z") }
   let(:api_key) { "pact-ingest-key" }
   let(:revoked_api_key) { "revoked-ingest-key" }
@@ -53,33 +58,27 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
     }
   end
   let(:item_source) { source.merge("source_url" => "https://app.asana.com/0/12345/1201234567890") }
-  let(:status_change) { { "field" => "status", "from" => "open", "to" => "completed" } }
+  let(:status_change) { {"field" => "status", "from" => "open", "to" => "completed"} }
   # The publisher's clock is frozen in these specs, so sent_at/published_at
   # are deterministic; the Term still documents the required wire format.
   let(:sent_at) do
-    Pact::Term.new(
-      matcher: /\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z\z/,
-      generate: "2026-10-05T12:00:00.000000Z"
-    )
+    match_regex(/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z\z/, "2026-10-05T12:00:00.000000Z")
   end
   let(:batch_id) do
-    Pact::Term.new(
-      matcher: /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/,
-      generate: "2fd13f74-02ec-4dfd-b21c-3837a66a3768"
-    )
+    match_uuid("2fd13f74-02ec-4dfd-b21c-3837a66a3768")
   end
-  let(:json_content_type) { { "Content-Type" => "application/json" } }
-  let(:config) do
+  let(:json_content_type) { {"Content-Type" => "application/json"} }
+  def config(mock_server_url)
     Outbox::WebPublisher::Config.resolve(
       "enabled" => true,
-      "base_url" => task_bridge_web.mock_service_base_url,
+      "base_url" => mock_server_url,
       "api_key" => api_key,
       "batch_size" => 3
     )
   end
 
-  def publish
-    Outbox::WebPublisher.run!(config:, now:)
+  def publish(mock_server_url:)
+    Outbox::WebPublisher.run!(config: config(mock_server_url), now:)
   end
 
   # RDR #215: omitted top-level arrays are equivalent to empty ones, but the
@@ -91,7 +90,7 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
         "batch_id" => batch_id,
         "sent_at" => sent_at,
         "publisher" => "task_bridge",
-        "publisher_instance" => Pact::SomethingLike.new("task-bridge")
+        "publisher_instance" => match_type_of("task-bridge")
       },
       "items" => items,
       "observations" => observations,
@@ -129,22 +128,22 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
   end
 
   def accepted_result(key, record_kind: "observation")
-    { "record_kind" => record_kind, "idempotency_key" => key, "status" => "accepted" }
+    {"record_kind" => record_kind, "idempotency_key" => key, "status" => "accepted"}
   end
 
   def results_body(results, accepted:, replayed:, rejected:)
     {
       "batch_id" => batch_id,
       "contract_version" => 1,
-      "accepted" => Pact::SomethingLike.new(accepted),
-      "replayed" => Pact::SomethingLike.new(replayed),
-      "rejected" => Pact::SomethingLike.new(rejected),
+      "accepted" => match_type_of(accepted),
+      "replayed" => match_type_of(replayed),
+      "rejected" => match_type_of(rejected),
       "results" => results
     }
   end
 
   def error_body(message)
-    { "error" => { "message" => Pact::SomethingLike.new(message) } }
+    {"error" => {"message" => match_type_of(message)}}
   end
 
   def auth_headers(key)
@@ -158,7 +157,7 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
   end
 
   def expected_post(body)
-    { method: :post, path: endpoint_path, headers: auth_headers(api_key), body: }
+    {method: :post, path: endpoint_path, headers: auth_headers(api_key), body:}
   end
 
   def create_item_entry
@@ -183,7 +182,7 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
       external_id: "1201234567890",
       observed_at:,
       payload: observation_row(key:, event_type:, observed_at:, change:)
-               .except("idempotency_key", "published_at")
+        .except("idempotency_key", "published_at")
     )
   end
 
@@ -221,24 +220,24 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
 
   it "publishes a v1 batch and reconciles the per-row results response" do
     source_changed_row = observation_row(key: source_changed_key, event_type: "source_changed",
-                                         observed_at: "2026-10-05T10:01:00.000000Z", change: status_change)
+      observed_at: "2026-10-05T10:01:00.000000Z", change: status_change)
     snapshot_seen_row = observation_row(key: snapshot_seen_key, event_type: "snapshot_seen",
-                                        observed_at: "2026-10-05T10:02:00.000000Z")
-    task_bridge_web
+      observed_at: "2026-10-05T10:02:00.000000Z")
+    new_interaction
       .given("an empty ingestion outbox except an item snapshot for #{item_key} was already accepted")
       .upon_receiving("a v1 batch with an item snapshot and two observations")
-      .with(expected_post(batch_body(items: [item_row],
-                                     observations: [source_changed_row, snapshot_seen_row])))
+      .with_request(**expected_post(batch_body(items: [item_row],
+        observations: [source_changed_row, snapshot_seen_row])))
       .will_respond_with(
         status: 200,
         headers: json_content_type,
         body: results_body(
           [
-            { "record_kind" => "item", "idempotency_key" => item_key, "status" => "replayed" },
+            {"record_kind" => "item", "idempotency_key" => item_key, "status" => "replayed"},
             accepted_result(source_changed_key),
-            { "record_kind" => "observation", "idempotency_key" => snapshot_seen_key,
-              "status" => "rejected", "retryable" => false, "error_code" => "validation_error",
-              "message" => Pact::SomethingLike.new("change is not valid for snapshot_seen") }
+            {"record_kind" => "observation", "idempotency_key" => snapshot_seen_key,
+             "status" => "rejected", "retryable" => false, "error_code" => "validation_error",
+             "message" => match_type_of("change is not valid for snapshot_seen")}
           ],
           accepted: 1, replayed: 1, rejected: 1
         )
@@ -246,11 +245,11 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
 
     create_item_entry
     create_observation_entry(key: source_changed_key, event_type: "source_changed",
-                             observed_at: "2026-10-05T10:01:00.000000Z", change: status_change)
+      observed_at: "2026-10-05T10:01:00.000000Z", change: status_change)
     create_observation_entry(key: snapshot_seen_key, event_type: "snapshot_seen",
-                             observed_at: "2026-10-05T10:02:00.000000Z")
+      observed_at: "2026-10-05T10:02:00.000000Z")
 
-    summary = publish
+    summary = execute_http_pact { |mock_server| publish(mock_server_url: mock_server.url) }
 
     expect(summary).to include(status: "published", batches: 1, delivered: 2, failed: 1)
     expect(OutboxEntry.find_by(idempotency_key: item_key)).to be_delivered
@@ -263,57 +262,57 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
 
   it "re-sends a 413 batch in halves down to single rows" do
     first_half = observation_row(key: halved_first_key, event_type: "source_changed",
-                                 observed_at: "2026-10-05T10:03:00.000000Z")
+      observed_at: "2026-10-05T10:03:00.000000Z")
     second_half = observation_row(key: halved_second_key, event_type: "source_changed",
-                                  observed_at: "2026-10-05T10:04:00.000000Z")
-    task_bridge_web
+      observed_at: "2026-10-05T10:04:00.000000Z")
+    new_interaction
       .given("a one-row-per-batch ingestion limit")
       .upon_receiving("a two-row v1 observation batch over the limit")
-      .with(expected_post(batch_body(items: [], observations: [first_half, second_half])))
+      .with_request(**expected_post(batch_body(items: [], observations: [first_half, second_half])))
       .will_respond_with(status: 413, headers: json_content_type,
-                         body: error_body("batch payload exceeds the configured limit"))
-    task_bridge_web
+        body: error_body("batch payload exceeds the configured limit"))
+    new_interaction
       .given("a one-row-per-batch ingestion limit")
       .upon_receiving("the first single-row half of a halved v1 batch")
-      .with(expected_post(batch_body(items: [], observations: [first_half])))
+      .with_request(**expected_post(batch_body(items: [], observations: [first_half])))
       .will_respond_with(status: 200, headers: json_content_type,
-                         body: results_body([accepted_result(halved_first_key)],
-                                            accepted: 1, replayed: 0, rejected: 0))
-    task_bridge_web
+        body: results_body([accepted_result(halved_first_key)],
+          accepted: 1, replayed: 0, rejected: 0))
+    new_interaction
       .given("a one-row-per-batch ingestion limit")
       .upon_receiving("the second single-row half of a halved v1 batch")
-      .with(expected_post(batch_body(items: [], observations: [second_half])))
+      .with_request(**expected_post(batch_body(items: [], observations: [second_half])))
       .will_respond_with(status: 200, headers: json_content_type,
-                         body: results_body([accepted_result(halved_second_key)],
-                                            accepted: 1, replayed: 0, rejected: 0))
+        body: results_body([accepted_result(halved_second_key)],
+          accepted: 1, replayed: 0, rejected: 0))
 
     create_observation_entry(key: halved_first_key, event_type: "source_changed",
-                             observed_at: "2026-10-05T10:03:00.000000Z")
+      observed_at: "2026-10-05T10:03:00.000000Z")
     create_observation_entry(key: halved_second_key, event_type: "source_changed",
-                             observed_at: "2026-10-05T10:04:00.000000Z")
+      observed_at: "2026-10-05T10:04:00.000000Z")
 
-    summary = publish
+    summary = execute_http_pact { |mock_server| publish(mock_server_url: mock_server.url) }
 
     expect(summary).to include(status: "published", batches: 3, delivered: 2)
   end
 
   it "keeps a single row that is still 413 rejected pending for retry" do
     single_row = observation_row(key: single_row_key, event_type: "source_changed",
-                                 observed_at: "2026-10-05T10:05:00.000000Z")
-    task_bridge_web
+      observed_at: "2026-10-05T10:05:00.000000Z")
+    new_interaction
       .given("an ingestion limit that rejects even a single row")
       .upon_receiving("a single-row v1 observation batch that still exceeds the limit")
-      .with(expected_post(batch_body(items: [], observations: [single_row])))
+      .with_request(**expected_post(batch_body(items: [], observations: [single_row])))
       .will_respond_with(status: 413, headers: json_content_type,
-                         body: error_body("batch payload exceeds the configured limit"))
+        body: error_body("batch payload exceeds the configured limit"))
 
     entry = create_observation_entry(key: single_row_key, event_type: "source_changed",
-                                     observed_at: "2026-10-05T10:05:00.000000Z")
+      observed_at: "2026-10-05T10:05:00.000000Z")
 
-    summary = publish
+    summary = execute_http_pact { |mock_server| publish(mock_server_url: mock_server.url) }
 
     expect(summary).to include(status: "incomplete", stopped_reason: "http_413",
-                               batches: 1, retryable: 1)
+      batches: 1, retryable: 1)
     expect(entry.reload).to be_pending
   end
 
@@ -322,21 +321,21 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
 
     it "marks every row terminally failed on a 401" do
       unauthorized_row = observation_row(key: unauthorized_key, event_type: "source_changed",
-                                         observed_at: "2026-10-05T10:06:00.000000Z")
-      task_bridge_web
+        observed_at: "2026-10-05T10:06:00.000000Z")
+      new_interaction
         .given("an ingestion API key that has been revoked")
         .upon_receiving("a v1 batch sent with a revoked API key")
-        .with(expected_post(batch_body(items: [], observations: [unauthorized_row])))
+        .with_request(**expected_post(batch_body(items: [], observations: [unauthorized_row])))
         .will_respond_with(status: 401, headers: json_content_type,
-                           body: error_body("invalid api key"))
+          body: error_body("invalid api key"))
 
       entry = create_observation_entry(key: unauthorized_key, event_type: "source_changed",
-                                       observed_at: "2026-10-05T10:06:00.000000Z")
+        observed_at: "2026-10-05T10:06:00.000000Z")
 
-      summary = publish
+      summary = execute_http_pact { |mock_server| publish(mock_server_url: mock_server.url) }
 
       expect(summary).to include(status: "incomplete", stopped_reason: "http_401",
-                                 batches: 1, failed: 1)
+        batches: 1, failed: 1)
       row = entry.reload
       expect(row).to be_failed
       expect(row.error_class).to eq("http_401")
@@ -346,22 +345,22 @@ RSpec.describe "TaskBridge Web ingestion batches", pact: true, order: :defined d
 
   it "publishes sync-run summaries alongside other record kinds" do
     sync_run = sync_run_row(key: sync_run_key, sync_run_id:)
-    task_bridge_web
+    new_interaction
       .given("an empty ingestion outbox")
       .upon_receiving("a v1 batch with a sync-run summary")
-      .with(expected_post(batch_body(items: [], observations: []).merge("sync_runs" => [sync_run])))
+      .with_request(**expected_post(batch_body(items: [], observations: []).merge("sync_runs" => [sync_run])))
       .will_respond_with(
         status: 200,
         headers: json_content_type,
         body: results_body(
-          [{ "record_kind" => "sync_run", "idempotency_key" => sync_run_key, "status" => "accepted" }],
+          [{"record_kind" => "sync_run", "idempotency_key" => sync_run_key, "status" => "accepted"}],
           accepted: 1, replayed: 0, rejected: 0
         )
       )
 
     entry = create_sync_run_entry(key: sync_run_key, sync_run_id:)
 
-    summary = publish
+    summary = execute_http_pact { |mock_server| publish(mock_server_url: mock_server.url) }
 
     expect(summary).to include(status: "published", batches: 1, delivered: 1)
     expect(entry.reload).to be_delivered
