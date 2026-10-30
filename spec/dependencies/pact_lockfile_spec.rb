@@ -7,13 +7,14 @@ RSpec.describe "the Pact dependency lockfile" do
   macos_platforms = %w[arm64-darwin x86_64-darwin].freeze
 
   let(:lockfile) { Bundler::LockfileParser.new(File.read("Gemfile.lock")) }
+  let(:pact_ffi_specs) { lockfile.specs.select { |spec| spec.name == "pact-ffi" } }
   let(:pact_ffi_builds) do
-    lockfile.specs
-      .select { |spec| spec.name == "pact-ffi" }
-      .map(&:full_name)
+    pact_ffi_specs.map(&:full_name)
   end
-  let(:pact_ffi_version) do
-    lockfile.specs.find { |spec| spec.name == "pact-ffi" }.version.to_s
+  let(:pact_ffi_version) { pact_ffi_specs.first.version.to_s }
+
+  it "locks Pact's native FFI dependency" do
+    expect(pact_ffi_specs).not_to be_empty
   end
 
   it "includes Pact FFI builds for GitHub's macOS runner architectures" do
