@@ -7,8 +7,8 @@ require "yaml"
 RSpec.describe "the Pact dependency lockfile" do
   macos_platforms = %w[arm64-darwin x86_64-darwin].freeze
 
-  let(:gemfile) { File.read("Gemfile") }
-  let(:lockfile) { Bundler::LockfileParser.new(File.read("Gemfile.lock")) }
+  let(:gemfile) { File.read("Gemfile", encoding: "UTF-8") }
+  let(:lockfile) { Bundler::LockfileParser.new(File.read("Gemfile.lock", encoding: "UTF-8")) }
   let(:rspec_runner) do
     YAML.safe_load_file(".github/workflows/test.yml").fetch("jobs").fetch("rspec").fetch("runs-on")
   end
