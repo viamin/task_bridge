@@ -134,6 +134,53 @@ RSpec.describe Outbox::MappingEmitter do
     end
   end
 
+  describe ".emit_backfill_for_members" do
+    let(:unqualified_member) do
+      member_class.create!(
+        title: "Release checklist",
+        external_id: "issue-77",
+        options: { service_name: "Github", services: [], primary: "PrimaryService", tags: [] }
+      )
+    end
+
+    # #222 baselines must correlate with the mapping rows the live flow
+    # publishes for the same membership, so the backfill republishes existing
+    # members under the identity and item_key live publication already uses —
+    # never a backfill-only scheme that TaskBridge Web cannot correlate.
+    it "publishes existing members under the identity live mapping publication uses" do
+      members = [unqualified_member, member]
+      described_class.emit_for_members(collection, members:, observed_at:)
+      live_rows = OutboxEntry.where(record_kind: "mapping").index_by(&:external_id)
+      OutboxEntry.delete_all
+
+      described_class.emit_backfill_for_members(collection, members:, observed_at:)
+
+      backfill_rows = OutboxEntry.where(record_kind: "mapping").index_by(&:external_id)
+      expect(backfill_rows.keys).to contain_exactly("issue-77", "issue-42")
+      expect(backfill_rows.fetch("issue-77").payload.dig("member", "item_key")).to eq("github:issue-77")
+      aggregate_failures do
+        backfill_rows.each do |external_id, backfill_row|
+          live_row = live_rows.fetch(external_id)
+          expect(backfill_row.payload.fetch("member")).to eq(live_row.payload.fetch("member"))
+          expect(backfill_row.idempotency_key).to eq(live_row.idempotency_key)
+          expect(backfill_row).to have_attributes(
+            service_type: live_row.service_type,
+            service_instance: live_row.service_instance,
+            external_id: live_row.external_id
+          )
+        end
+      end
+    end
+
+    it "skips members that are not persisted sync items" do
+      transient = member_class.new(external_id: "issue-78")
+
+      described_class.emit_backfill_for_members(collection, members: [transient, nil], observed_at:)
+
+      expect(OutboxEntry.where(record_kind: "mapping")).to be_empty
+    end
+  end
+
   describe "sync flow integration" do
     let(:peer_class) do
       stub_const("MappingPeerSpecItem", Class.new(Base::SyncItem) do

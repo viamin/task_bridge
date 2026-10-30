@@ -103,10 +103,10 @@ source does not expose the concept today, not that it never could.
 
 `source.service_type` carries the stable adapter-family identifier from the
 publication contract (#215), not the display name returned by
-`Base::SyncItem#provider`. The serializer applies
-`Base::Service.service_identifier_for(provider)` so each value is the
-class-name in snake_case (e.g. `asana`, `google_tasks`, `omnifocus`,
-`github`, `instapaper`, `reminders`, `reclaim`, `google_keep`).
+`Base::SyncItem#provider`. `Outbox::SourceIdentity` derives it from
+`Base::Service.service_identifier_for(provider)` and canonicalizes legacy
+class-name spellings, so values include `asana`, `google_tasks`, `omnifocus`,
+`github`, `instapaper`, `reminders`, `reclaim`, and `google_keep`.
 
 `source.service_instance` is **always** populated — including for a
 freshly constructed item that has not gone through
@@ -130,7 +130,17 @@ outbox rows or advance the diff baseline.
 
 - **Baseline**: the last published snapshot per item is stored in
   `sync_items.last_snapshot` (timestamps rendered as ISO 8601 UTC so JSON
-  round-trips stay diff-stable).
+  round-trips stay diff-stable). Both the sync flow
+  (`Outbox::ObservationEmitter`) and the #222 backfill
+  (`SyncBackfill::Baseline`) render it through
+  `Base::SnapshotSerializer.published`, so a re-observation of an unchanged
+  task diffs to nothing instead of drifting on timestamp rendering. A
+  backfilled baseline is built from the persisted row, which carries no live
+  provider payload, so the fields an adapter reads from its payload (`tags`,
+  `project`, `sub_item_count`, and the observed `metadata` entries) are blank
+  in it. The first sync after a backfill therefore reports each of them once
+  as a real transition; that is how those values first reach TaskBridge Web,
+  and the backfill must not invent them.
 - **Source observations** (`Outbox::ObservationEmitter`, hooked into
   `Base::SyncItem#refresh_from_external!`): a first observation emits
   `snapshot_seen` (with the full snapshot embedded); later refreshes emit
@@ -150,10 +160,18 @@ outbox rows or advance the diff baseline.
   every member when the collection's mapping provenance meaningfully
   changes (for example `title_fallback` upgrading to `source_sync_id`).
   Internal confidence values map to the contract's vocabulary
-  (high → `confirmed`; medium/low → `tentative`).
+  (high → `confirmed`; medium → `inferred`; low → `tentative`).
 - **Key uniqueness**: when one observation yields several field transitions,
   each row's idempotency key carries a sequence segment
   (`Outbox::IdempotencyKey`), per the RDR #215 rule for colliding observed
   timestamps. The baseline is only advanced after every row is enqueued, so
   a failed enqueue can re-detect a transition (at-least-once) but never
   silently swallows one.
+
+## Backfilling an existing deployment (#222)
+
+Deployments that enabled publication after years of syncing hold no
+baseline rows, so their first hours of publication would report every task
+as brand new. `task_bridge:backfill_sync_provenance` seeds the outbox with
+current-state baselines first — preview it with `-- --pretend`, then run it
+for real; `docs/taskbridge-web-backfill.md` covers both steps.

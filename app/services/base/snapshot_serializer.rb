@@ -21,6 +21,18 @@ module Base
       new(item).call
     end
 
+    # The published and stored form of a snapshot: identical to `call` but with
+    # timestamps rendered as ISO 8601 UTC so JSON round-trips keep microsecond
+    # precision and stay diff-stable. Diff baselines written by the sync flow
+    # (Outbox::ObservationEmitter) and by the baseline backfill (#222) are
+    # compared byte-for-byte by Outbox::SnapshotDiff, so both must render
+    # through this single path.
+    def self.published(item)
+      new(item).call.deep_transform_values do |value|
+        value.respond_to?(:utc) ? value.utc.iso8601(6) : value
+      end
+    end
+
     def initialize(item)
       @item = item
     end

@@ -111,4 +111,14 @@ RSpec.describe GoogleKeep::Item do
       expect(item.external_sync_notes).to include("google_keep_id: #{item.external_id}")
     end
   end
+
+  context "when the row is persisted without a live payload" do
+    it "serializes a baseline snapshot nil-safely (#222)" do
+      row = described_class.create!(title: "Persisted keep item", external_id: "keep-persisted-1", options:)
+      persisted = described_class.find(row.id)
+
+      expect(persisted.note_id).to be_nil
+      expect(persisted.normalized_snapshot[:metadata]).to eq(stable_external_id_embedded: false)
+    end
+  end
 end

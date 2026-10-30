@@ -56,6 +56,10 @@ bundle exec rspec spec/services/outbox/web_publisher/task_bridge_web_contract_sp
 - The pact file is rewritten from the run's verified interactions
   (`pactfile_write_mode: overwrite`). Run the **whole file**, not
   `--example` subsets, before committing it.
+- Interactions are written in alphabetical order
+  (`pactfile_write_order: :alphabetical` in `spec/pact_helper.rb`) because
+  `spec_helper.rb` randomizes example order — without it every regeneration
+  would reorder the committed file by seed and produce spurious diffs.
 - CI runs it with the rest of the suite (`bundle exec rspec --tag ~no_ci`).
 - Mock-service logs land in `log/` (gitignored).
 

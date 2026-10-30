@@ -6,17 +6,38 @@ module Outbox
   # The values are opaque to consumers: they must not be parsed by splitting
   # on `:` because segments may themselves contain colons.
   module SourceIdentity
+    CANONICAL_SERVICE_TYPES = {
+      "git_hub" => "github",
+      "omni_focus" => "omnifocus"
+    }.freeze
+
     module_function
 
     def for(item)
-      service_type = Base::Service.service_identifier_for(item.provider)
+      service_type = canonical_service_type(item.provider)
 
       {
         service_type:,
-        service_instance: [service_type, item.source_service_instance].compact.join(":"),
+        service_instance: [service_type, item.source_service_instance.presence].compact.join(":"),
         external_id: item.source_external_id.presence || item.external_id,
         source_url: item.source_url.presence || item.url
       }
+    end
+
+    def for_backfill(item)
+      identity = self.for(item)
+      return identity unless identity.fetch(:service_instance) == identity.fetch(:service_type)
+
+      identity.merge(service_instance: "#{identity.fetch(:service_type)}:default")
+    end
+
+    def item_key(identity)
+      [identity.fetch(:service_instance), identity.fetch(:external_id)].join(":")
+    end
+
+    def canonical_service_type(provider)
+      identifier = Base::Service.service_identifier_for(provider)
+      CANONICAL_SERVICE_TYPES.fetch(identifier, identifier)
     end
   end
 end

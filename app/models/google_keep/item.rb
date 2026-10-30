@@ -78,8 +78,10 @@ module GoogleKeep
       @stable_external_id_embedded == true
     end
 
+    # Persisted rows carry no keep_item payload, so the containing note's
+    # identity must stay nil-readable for baseline serialization (#222).
     def note_id
-      read_external_attribute(keep_item[:note], :name)
+      read_external_attribute(keep_item&.[](:note), :name)
     end
 
     # Whether this item's external ID came from Keep's embedded marker
@@ -151,8 +153,10 @@ module GoogleKeep
       source_metadata.is_a?(Hash) ? source_metadata : {}
     end
 
+    # Persisted rows carry no keep_item payload, so the path must stay
+    # nil-readable for baseline serialization (#222).
     def keep_path
-      Array(keep_item[:path])
+      Array(keep_item&.[](:path))
     end
 
     # The path of indexes from the note's root list item down to this item;

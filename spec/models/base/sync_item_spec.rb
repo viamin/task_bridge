@@ -821,6 +821,60 @@ RSpec.describe "Base::SyncItem", :full_options do
     end
   end
 
+  describe ".inferred_service_name_for" do
+    let(:collection) { SyncCollection.create!(title: "Buy milk") }
+    let(:item) do
+      asana_item_class.create!(
+        title: "Buy milk",
+        external_id: "asana-456",
+        notes: "omnifocus_id: of-456",
+        sync_collection: collection
+      )
+    end
+
+    it "infers the service instance from a peer's sync ID note" do
+      peer_notes = [[item.id + 1, "asana_work_id: asana-456"]]
+
+      expect(Base::SyncItem.inferred_service_name_for(item, peer_notes:)).to eq("Asana:work")
+    end
+
+    it "leaves the service unqualified when the peer's note carries no instance" do
+      peer_notes = [[item.id + 1, "asana_id: asana-456"]]
+
+      expect(Base::SyncItem.inferred_service_name_for(item, peer_notes:)).to eq("Asana")
+    end
+
+    it "ignores notes belonging to a different service" do
+      peer_notes = [[item.id + 1, "reminders_id: asana-456"]]
+
+      expect(Base::SyncItem.inferred_service_name_for(item, peer_notes:)).to eq("Asana")
+    end
+
+    # Matching on a bare prefix would read "archive" as an instance name.
+    it "ignores a peer key that only shares the service type's prefix" do
+      peer_notes = [[item.id + 1, "asanaarchive_id: asana-456"]]
+
+      expect(Base::SyncItem.inferred_service_name_for(item, peer_notes:)).to eq("Asana")
+    end
+
+    it "ignores the item's own notes when the supplied peer notes include it" do
+      peer_notes = [[item.id, "asana_work_id: asana-456"]]
+
+      expect(Base::SyncItem.inferred_service_name_for(item, peer_notes:)).to eq("Asana")
+    end
+
+    it "reads the peers' notes itself when none are supplied" do
+      omnifocus_item_class.create!(
+        title: "Buy milk",
+        external_id: "of-456",
+        notes: "asana_work_id: asana-456",
+        sync_collection: collection
+      )
+
+      expect(Base::SyncItem.inferred_service_name_for(item)).to eq("Asana:work")
+    end
+  end
+
   describe "#notes_content" do
     it "strips all sync metadata lines, keeping only human-readable content" do
       item = omnifocus_item_class.new(

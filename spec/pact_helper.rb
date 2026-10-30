@@ -9,6 +9,11 @@
 # see docs/pact-consumer-contract-testing.md and task-bridge-web#189.
 require "pact/consumer/rspec"
 
+# spec_helper.rb randomizes example order, and Pact writes interactions
+# chronologically by default — every regeneration would reorder the committed
+# pact by seed. Sort alphabetically so regenerating the file is deterministic.
+Pact.configuration.pactfile_write_order = :alphabetical
+
 Pact.service_consumer "TaskBridge" do
   has_pact_with "TaskBridge Web" do
     mock_service :task_bridge_web do
