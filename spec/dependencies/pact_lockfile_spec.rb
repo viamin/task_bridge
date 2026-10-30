@@ -29,6 +29,10 @@ RSpec.describe "the Pact dependency lockfile" do
     end)
   end
 
+  it "uses platform-specific native FFI packages" do
+    expect(pact_ffi_specs.map { |spec| spec.platform.to_s }).not_to include("ruby")
+  end
+
   it "locks the upgraded Pact release" do
     expect(pact_spec).not_to be_nil
     expect(pact_spec.version.to_s).to eq("2.1.2")
