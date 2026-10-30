@@ -9,6 +9,9 @@
 # see docs/pact-consumer-contract-testing.md and task-bridge-web#189.
 require "pact/consumer/rspec"
 
+pact_json_compatibility = Rails.root.join("spec/support/pact_json_matcher_deserializer").to_s
+ENV["RUBYOPT"] = [ENV["RUBYOPT"], "-r#{pact_json_compatibility}"].compact.join(" ")
+
 Pact.service_consumer "TaskBridge" do
   has_pact_with "TaskBridge Web" do
     mock_service :task_bridge_web do
