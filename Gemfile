@@ -61,7 +61,7 @@ gem "googleauth", "~> 1.17"
 gem "google-apis-tasks_v1", "~> 0.32"
 
 # https://github.com/googleapis/google-api-ruby-client/tree/main/google-api-client/generated/google/apis/calendar_v3
-gem "google-apis-calendar_v3", "~> 0.30"
+gem "google-apis-calendar_v3", "~> 0.58"
 
 # https://github.com/googleapis/google-api-ruby-client/tree/main/google-api-client/generated/google/apis/keep_v1
 gem "google-apis-keep_v1", "~> 0.18"
