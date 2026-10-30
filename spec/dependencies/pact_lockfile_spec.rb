@@ -2,12 +2,16 @@
 
 require "spec_helper"
 require "bundler"
+require "yaml"
 
 RSpec.describe "the Pact dependency lockfile" do
   macos_platforms = %w[arm64-darwin x86_64-darwin].freeze
 
   let(:gemfile) { File.read("Gemfile") }
   let(:lockfile) { Bundler::LockfileParser.new(File.read("Gemfile.lock")) }
+  let(:rspec_runner) do
+    YAML.safe_load_file(".github/workflows/test.yml").fetch("jobs").fetch("rspec").fetch("runs-on")
+  end
   let(:pact_spec) { lockfile.specs.find { |spec| spec.name == "pact" } }
   let(:pact_ffi_specs) { lockfile.specs.select { |spec| spec.name == "pact-ffi" } }
   let(:pact_ffi_builds) do
@@ -55,13 +59,11 @@ RSpec.describe "the Pact dependency lockfile" do
     expect(platforms).to include(*ffi_platforms)
   end
 
-  it "includes Pact FFI builds for GitHub's macOS runner architectures" do
+  it "locks Pact FFI builds compatible with the RSpec CI runner" do
     platforms = lockfile.platforms.map(&:to_s)
 
+    expect(rspec_runner).to eq("macos-latest")
     expect(platforms).to include(*macos_platforms)
-  end
-
-  it "locks the native Pact FFI packages for GitHub's macOS runner architectures" do
     expect(pact_ffi_builds).to include(
       *macos_platforms.map { |platform| "pact-ffi-#{pact_ffi_version}-#{platform}" }
     )
