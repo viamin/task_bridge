@@ -23,6 +23,13 @@ RSpec.describe "the Pact dependency lockfile" do
     expect(versions).to contain_exactly(pact_ffi_version)
   end
 
+  it "associates every native Pact FFI package with a locked platform" do
+    platforms = lockfile.platforms.map(&:to_s)
+    ffi_platforms = pact_ffi_specs.map { |spec| spec.platform.to_s }
+
+    expect(platforms).to include(*ffi_platforms)
+  end
+
   it "includes Pact FFI builds for GitHub's macOS runner architectures" do
     platforms = lockfile.platforms.map(&:to_s)
 
