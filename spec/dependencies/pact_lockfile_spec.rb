@@ -19,6 +19,7 @@ RSpec.describe "the Pact dependency lockfile" do
   end
 
   it "locks the upgraded Pact release" do
+    expect(pact_spec).not_to be_nil
     expect(pact_spec.version.to_s).to eq("2.1.2")
   end
 
