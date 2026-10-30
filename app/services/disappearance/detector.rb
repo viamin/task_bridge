@@ -16,17 +16,30 @@ module Disappearance
     attr_reader :service, :observed_items, :sync_run_id, :observed_at, :complete_fetch
 
     class << self
-      def record!(service:, observed_items:, complete_fetch:, observed_at: Time.current)
-        sync_run_id = sync_run_id_for(service, at: observed_at)
+      def record!(service:, observed_items:, complete_fetch:, observed_at: Time.current,
+                  sync_started_at: nil)
+        sync_run_id = if sync_started_at.nil?
+          sync_run_id_for(service, at: observed_at)
+        else
+          Outbox::SyncRunEmitter.run_id_for(
+            service_name: service.service_name,
+            sync_started_at: sync_started_at
+          )
+        end
         new(service:, observed_items:, sync_run_id:, observed_at:, complete_fetch:).record!
       end
 
       private
 
-      # RDR #215 sync-run scope, e.g. "sync-run-20260814T192000Z-asana".
+      # RDR #215 sync-run scope. Falls back to the detection-time `observed_at`
+      # when the run did not thread `sync_started_at` into the detector (legacy
+      # callers); production callers should pass `sync_started_at` so all facts
+      # from the same run share one identifier.
       def sync_run_id_for(service, at:)
-        identifier = Base::Service.service_identifier_for(service.service_name)
-        "sync-run-#{at.utc.strftime('%Y%m%dT%H%M%SZ')}-#{identifier}"
+        Outbox::SyncRunEmitter.run_id_for(
+          service_name: service.service_name,
+          sync_started_at: at.iso8601(6)
+        )
       end
     end
 
@@ -52,13 +65,17 @@ module Disappearance
     private
 
     def eligible?
-      return false if service.options[:pretend]
+      return false if pretend?
       return false if strategy.disabled?
       return false unless complete_fetch
       return false if service.respond_to?(:authorized) && service.authorized == false
       return false unless service.deletion_detection_scope_available?
 
       true
+    end
+
+    def pretend?
+      service.options[:pretend] == true || service.options["pretend"] == true
     end
 
     def strategy
@@ -153,7 +170,7 @@ module Disappearance
         "confidence" => finding.confidence,
         "detection_strategy" => strategy.mode.to_s,
         "sync_run_id" => sync_run_id
-      }.merge(finding.detail || {})
+      }.compact.merge(finding.detail || {})
     end
 
     def service_type_for(item)
@@ -170,7 +187,7 @@ module Disappearance
         "state" => finding.state,
         "observed_at" => observed_at.utc.iso8601(6),
         "sync_run_id" => sync_run_id
-      }
+      }.compact
       # update_columns skips callbacks so recording a disappearance never
       # bumps last_observed_at — the item was, by definition, not observed.
       item.update_columns(

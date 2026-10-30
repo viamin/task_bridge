@@ -27,6 +27,7 @@ RSpec.describe Outbox::ObservationEmitter do
       services: [],
       primary: "Omnifocus",
       tags: [],
+      service_name: "TestService",
       sync_started_at: "2026-10-05T10:00:00.000000Z"
     }
   end
@@ -79,12 +80,33 @@ RSpec.describe Outbox::ObservationEmitter do
       expect(row.payload["snapshot"]["title"]).to eq("Buy milk")
       expect(row.payload["provenance"]).to include(
         "detected_by" => "source_refresh",
-        "sync_run_id" => "sync-run-2026-10-05T10:00:00.000000Z"
+        "sync_run_id" => "sync-run-20261005T100000Z-test_service"
       )
       expect(row.idempotency_key).to eq(
         "tb:v1:obs:test_service:obs-1:snapshot_seen:2026-10-05T10:00:00.000000Z"
       )
       expect(item.reload.last_snapshot).to include("title" => "Buy milk")
+    end
+
+    it "links the observation to its source service's instance-qualified run" do
+      item.source_service_name = "TestService:work"
+      item.options = options.merge(service_name: "OtherService")
+
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
+
+      expect(observation_rows.first.payload.dig("provenance", "sync_run_id")).to eq(
+        "sync-run-20261005T100000Z-test_service_work"
+      )
+    end
+
+    it "links observations from string-keyed programmatic run options" do
+      item.options = options.merge(sync_started_at: nil, "sync_started_at" => options[:sync_started_at])
+
+      refresh_with({ "title" => "Buy milk", "completed" => false }, at: first_observed_at)
+
+      expect(observation_rows.first.payload.dig("provenance", "sync_run_id")).to eq(
+        "sync-run-20261005T100000Z-test_service"
+      )
     end
 
     it "does not re-emit discovery when the item refreshes unchanged" do
@@ -215,6 +237,13 @@ RSpec.describe Outbox::ObservationEmitter do
 
       expect(observation_rows.length).to eq(1)
       expect(item.reload.last_snapshot).to include("title" => "Buy milk")
+    end
+
+    it "honors string-keyed pretend options" do
+      item.options = options.merge("pretend" => true)
+
+      expect(described_class.emit_for_item(item, previous_snapshot: nil)).to eq([])
+      expect(OutboxEntry.count).to eq(0)
     end
 
     it "emits nothing for items without an external id" do

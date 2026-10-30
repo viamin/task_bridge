@@ -97,6 +97,23 @@ RSpec.describe Outbox::WebPublisher::Reconciler do
     expect(retryable_entry.error_class).to eq("missing_result")
   end
 
+  it "keeps a row pending when the response contains duplicate results for it" do
+    counts = described_class.apply(
+      entries: [accepted_entry],
+      results: [
+        result("key-accepted", "rejected", "retryable" => false),
+        result("key-accepted", "accepted")
+      ],
+      now:
+    )
+
+    expect(counts).to eq(delivered: 0, retryable: 1, failed: 0)
+    row = accepted_entry.reload
+    expect(row).to be_pending
+    expect(row.error_class).to eq("duplicate_result")
+    expect(row.next_retry_at).to be > now
+  end
+
   it "reports partial success counts" do
     counts = described_class.apply(
       entries:,
