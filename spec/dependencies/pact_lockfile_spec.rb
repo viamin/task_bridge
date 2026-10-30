@@ -61,11 +61,12 @@ RSpec.describe "the Pact dependency lockfile" do
 
   it "locks Pact FFI builds compatible with the RSpec CI runner" do
     platforms = lockfile.platforms.map(&:to_s)
+    expected_ffi_builds = macos_platforms.map { |platform| "pact-ffi-#{pact_ffi_version}-#{platform}" }
 
-    expect(rspec_runner).to eq("macos-latest")
-    expect(platforms).to include(*macos_platforms)
-    expect(pact_ffi_builds).to include(
-      *macos_platforms.map { |platform| "pact-ffi-#{pact_ffi_version}-#{platform}" }
-    )
+    aggregate_failures do
+      expect(rspec_runner).to eq("macos-latest")
+      expect(platforms).to include(*macos_platforms)
+      expect(pact_ffi_builds).to include(*expected_ffi_builds)
+    end
   end
 end
