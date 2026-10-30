@@ -70,7 +70,7 @@ gem "google-apis-keep_v1", "~> 0.18"
 # Pact 1.67 marshals matchers between the spec and its in-process mock
 # service via JSON `json_class` additions; json 3 removed that reification.
 # Revisit when pact-ruby ships json 3 support.
-gem "json", "~> 2.10"
+gem "json", "~> 3.1"
 
 # https://github.com/jnunemaker/httparty
 gem "httparty", "~> 0.24"
