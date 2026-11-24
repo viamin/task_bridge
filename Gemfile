@@ -70,7 +70,7 @@ gem "google-apis-keep_v1", "~> 0.18"
 gem "json", "~> 3.1"
 
 # https://github.com/jnunemaker/httparty
-gem "httparty", "~> 0.24"
+gem "httparty", "~> 0.25"
 
 # https://github.com/flavorjones/loofah
 gem "loofah", "~> 2.25"
